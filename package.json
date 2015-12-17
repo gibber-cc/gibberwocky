@@ -11,7 +11,9 @@
     "waaclock": "^0.5.3"
   },
   "devDependencies": {
-    "vinyl-source-stream": "^1.1.0"
+    "gulp-util": "^3.0.7",
+    "vinyl-source-stream": "^1.1.0",
+    "watchify": "^3.6.1"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
