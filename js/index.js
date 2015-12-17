@@ -1,17 +1,26 @@
 !function() {
   var WAAClock = require( 'waaclock' ),
-      CodeMirror = require( 'codemirror' )
+      CodeMirror = require( 'codemirror' ),
+      Gibber = require( './gibber.js' )
 
-  require( '../node_modules/codemirror/mode/javascript/javascript.js' )
+  
 
-  var cm = CodeMirror( document.body, { mode:"javascript" }),
-      useAudioContext = false,
+  var useAudioContext = false,
       count = 0,
       timeout
      
   timeout  = function() {
     cm.setValue( 'the time is ' + count++ + ' seconds' )
   }
+  
+  Gibber.init()
+  window.Gibber = Gibber
+ // window.max.outlet(0)
+  var log = console.log
+
+  //console.log = Gibber.log.bind( Gibber ) 
+ // console.log( "TESTING" )
+  // ctx = new AudioContext()
 
   if( useAudioContext ) {
     var ctx = new AudioContext(),
@@ -22,7 +31,7 @@
     clock.setTimeout( timeout, 0 ).repeat( 1 ) 
 
   }else{
-    setInterval( timeout, 1000 ) 
+   // setInterval( timeout, 1000 ) 
   }
 
 }()
