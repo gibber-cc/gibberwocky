@@ -7,6 +7,7 @@ require( '../node_modules/codemirror/mode/javascript/javascript.js' )
 var Gibber = {
   codemirror: null,
   max: null,
+  MIDI: require( './midi.js' ),
   test: function() { console.log('test') },
   init: function() {
     this.max = window.max
