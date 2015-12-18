@@ -15,11 +15,11 @@
   
   Gibber.init()
   window.Gibber = Gibber
- // window.max.outlet(0)
+  window.max.outlet(1)
   var log = console.log
 
   //console.log = Gibber.log.bind( Gibber ) 
- // console.log( "TESTING" )
+  // console.log( "TESTING" )
   // ctx = new AudioContext()
 
   if( useAudioContext ) {

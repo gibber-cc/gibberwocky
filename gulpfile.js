@@ -15,7 +15,6 @@ gulp.task('build', function () {
   b.pipe( source('index.js') ).pipe( gulp.dest( './dist/' ) )
 });
 
-
 watchify.args.entries = './js/index.js'
 watchify.args.debug = true
 

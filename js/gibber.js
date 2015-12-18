@@ -28,9 +28,9 @@ var Gibber = {
       try {
         var selectedCode = Gibber.getSelectionCodeColumn( Gibber.codemirror, false )
 
-        //eval( selectedCode.code  )
+        eval( selectedCode.code )
         Gibber.flash( Gibber.codemirror, selectedCode.selection )
-        
+        console.log( selectedCode.code ) 
       } catch (e) {
         console.log("ERROR")
       }
