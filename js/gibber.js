@@ -29,9 +29,10 @@ var Gibber = {
       try {
         var selectedCode = Gibber.getSelectionCodeColumn( Gibber.codemirror, false )
 
-        eval( selectedCode.code )
+        //eval( selectedCode.code )
+        
+        window.open( 'maxmessage:code/'+selectedCode.code )
         Gibber.flash( Gibber.codemirror, selectedCode.selection )
-        console.log( selectedCode.code ) 
       } catch (e) {
         console.log("ERROR")
       }
