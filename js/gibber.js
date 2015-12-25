@@ -32,6 +32,7 @@ var Gibber = {
         //eval( selectedCode.code )
         
         window.open( 'maxmessage:code/'+selectedCode.code )
+
         Gibber.flash( Gibber.codemirror, selectedCode.selection )
       } catch (e) {
         console.log("ERROR")
