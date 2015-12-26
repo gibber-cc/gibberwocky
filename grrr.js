@@ -16,8 +16,13 @@ function pick(arr) {
 function seq(seqname) {
 	outlet(0, "delete", seqname, -1, 5.); // clear it from timepoints -1 to 2
 	for (var i=0; i< 32; i++) {
-		var div = Math.pow(2, random(5));
-		var t = 4*random(div)/div;
+		var div = Math.pow(2, random(3));
+		var t = random(div)/div;
 		outlet(0, "add", seqname, t, pick(notes), 64 + random(32));
 	}
+}
+
+// initialize:
+for (var i=0; i<8; i++) {
+	seq(i);
 }
