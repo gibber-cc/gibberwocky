@@ -7,6 +7,7 @@
     padding: 0px;
     margin: 0px;
     color:#000;
+    font-size: 10;
     font-family:'Helvetica', sans-serif;
     overflow:hidden;
   }
@@ -14,20 +15,81 @@
 </head>
 
 <body>
-<div id="info">Hello.</div>
+<div id="post">Loading...</div>
 <script>
-var wsocket; // websocket
 
-function writeToScreen(msg) {
-	document.getElementById("info").innerHTML = msg;
+///// utils /////
+
+// get url args:
+var querystring = (function() {
+	var qstr = window.location.search;
+	var query = {};
+	var a = qstr.substr(1).split('&');
+	for (var i = 0; i < a.length; i++) {
+		var b = a[i].split('=');
+		query[decodeURIComponent(b[0])] = decodeURIComponent(b[1] || '');
+	}
+	return query;
+})();
+
+// debug messaging:
+function post(msg) {
+	document.getElementById("post").innerHTML = msg;
+}
+
+///// websocket /////
+
+var wsocket; 
+var connected = false;
+var connectTask;
+
+function ws_connect() {
+	if (connected) return;
+    if ('WebSocket' in window) {
+        post('Connecting');
+        var host = querystring.host || "localhost";
+        var port = querystring.port || "8088";
+        var address = "ws://" + host + ":" + port + "/maxmsp";
+        wsocket = new WebSocket(address);
+        wsocket.onopen = function(ev) {        
+            post('CONNECTED to ' + address);
+            connected = true;
+            // cancel the auto-reconnect task:
+            if (connectTask != undefined) clearInterval(connectTask);
+            // apparently this first reply is necessary
+            var message = 'update on';
+            post('SENT: ' + message);
+            wsocket.send(message);
+        };
+
+        wsocket.onclose = function(ev) {
+            post('DISCONNECTED from ' + address);
+            connected = false;
+            // set up an auto-reconnect task:
+            connectTask = setInterval(ws_connect, 1000);
+        };
+
+        wsocket.onmessage = function(ev) {
+        	if(ev.data.substr(0, 3) == "rx ") {
+        		handlemessage(ev.data.substr(3));
+        	}
+        };
+
+        wsocket.onerror = function(ev) {
+            post("WebSocket error");
+        };
+
+    } else {
+        post("WebSockets are not available in this browser!!!");
+    }
 }
 
 function send(msg) {
-	if(wsocket != undefined) {
-		wsocket.send(msg);
-	}
-	writeToScreen(msg);
+	if(wsocket != undefined) wsocket.send(msg);
+	post(msg);
 }
+
+///// sequencing /////
 
 var notes = [ 60, 62, 64, 65, 67, 69, 71, 72 ];
 
@@ -40,57 +102,34 @@ function pick(arr) {
 }
 
 function seq(seqname) {
-	var msg = []; 
-	msg.push("delete " + seqname + " -1 2."); // clear over all valid timepoints
+	var msgarr = []; 
+	// generate some randomized beats:
 	for (var i=0; i<16; i++) {
 		var div = Math.pow(2, random(3));
 		var t = random(div)/div;
-		msg.push("add " + seqname + " " + t + " " + pick(notes) + " " + (64 + random(32)));
+		// seq~ schedule format:
+		// add <seqid> <phase> <arguments...>
+		// seqid is the beat number
+		// phase is 0..1 within that beat
+		// arguments is a max message, as space-delimited strings and numbers
+		msgarr.push("add " + seqname + " " + t + " " + pick(notes) + " " + (64 + random(32)));
 	}
-	send(msg);
-	//send(JSON.stringify({data:msg}));
+	send(msgarr);	// sends array as comma-delimited strings
 }
 
-function ws_connect() {
-    if ('WebSocket' in window) {
-        writeToScreen('Connecting');
-        wsocket = new WebSocket('ws://localhost:8088/maxmsp');
-        wsocket.onopen = function(ev) {        
-            writeToScreen('CONNECTED');
-            var message = 'update on';
-            writeToScreen('SENT: ' + message);
-            wsocket.send(message);
-        };
-
-        wsocket.onclose = function(ev) {
-            writeToScreen('DISCONNECTED');
-        };
-
-        wsocket.onmessage = function(ev) {
-        	if(ev.data.substr(0, 3) == "rx ") {
-        		var msg = ev.data.substr(3);
-        		if (msg.substr(0, 4) == "seq ") {
-        			var beat = +msg.substr(4);
-        			writeToScreen('seq: ' + beat);
-        			
-        			seq(beat);
-        		}
-        	}
-          	//writeToScreen('RECEIVED: ' + ev.data);
-        };
-
-        wsocket.onerror = function(ev) {
-            writeToScreen("WebSocket error");
-        };
-
-    } else {
-        writeToScreen("WebSocket is not available!!!");
-    }
+function handlemessage(msg) {
+	if (msg.substr(0, 4) == "seq ") {
+		var beat = +msg.substr(4);
+		post('seq: ' + beat);
+		// send a reply:
+		seq(beat);
+	}
 }
+
+///// start up /////
 
 ws_connect();
 
 </script>
 </body>
-
 </html>
