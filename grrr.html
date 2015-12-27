@@ -1,17 +1,96 @@
 <html>
-  <head>
-    <title>testing</title>
-    <!--<script src="node_modules/codemirror/lib/codemirror.js"></script>
-    <link rel='stylesheet' href="node_modules/codemirror/lib/codemirror.css"></link>
-    <link rel='stylesheet' href="./gibber.css"></link>
-    <script src="node_modules/codemirror/mode/javascript/javascript.js"></script>-->
+<head>
+  <style>
+  html, body {
+    height: 100%;
+    width: 100%;
+    padding: 0px;
+    margin: 0px;
+    color:#000;
+    font-family:'Helvetica', sans-serif;
+    overflow:hidden;
+  }
+  </style>
+</head>
 
-  </head>
-
-  <body></body>
+<body>
+<div id="info">Hello.</div>
 <script>
+var wsocket; // websocket
 
-window.open( 'maxmessage:msgName/msgArg1/msgArg2' );
+function writeToScreen(msg) {
+	document.getElementById("info").innerHTML = msg;
+}
+
+function send(msg) {
+	if(wsocket != undefined) {
+		wsocket.send(msg);
+	}
+	writeToScreen(msg);
+}
+
+var notes = [ 60, 62, 64, 65, 67, 69, 71, 72 ];
+
+function random(n) {
+	return Math.floor(Math.random()*n);
+}
+
+function pick(arr) {
+	return arr[random(arr.length)];
+}
+
+function seq(seqname) {
+	var msg = []; 
+	msg.push("delete " + seqname + " -1 2."); // clear over all valid timepoints
+	for (var i=0; i<16; i++) {
+		var div = Math.pow(2, random(3));
+		var t = random(div)/div;
+		msg.push("add " + seqname + " " + t + " " + pick(notes) + " " + (64 + random(32)));
+	}
+	send(msg);
+	//send(JSON.stringify({data:msg}));
+}
+
+function ws_connect() {
+    if ('WebSocket' in window) {
+        writeToScreen('Connecting');
+        wsocket = new WebSocket('ws://localhost:8088/maxmsp');
+        wsocket.onopen = function(ev) {        
+            writeToScreen('CONNECTED');
+            var message = 'update on';
+            writeToScreen('SENT: ' + message);
+            wsocket.send(message);
+        };
+
+        wsocket.onclose = function(ev) {
+            writeToScreen('DISCONNECTED');
+        };
+
+        wsocket.onmessage = function(ev) {
+        	if(ev.data.substr(0, 3) == "rx ") {
+        		var msg = ev.data.substr(3);
+        		if (msg.substr(0, 4) == "seq ") {
+        			var beat = +msg.substr(4);
+        			writeToScreen('seq: ' + beat);
+        			
+        			seq(beat);
+        		}
+        	}
+          	//writeToScreen('RECEIVED: ' + ev.data);
+        };
+
+        wsocket.onerror = function(ev) {
+            writeToScreen("WebSocket error");
+        };
+
+    } else {
+        writeToScreen("WebSocket is not available!!!");
+    }
+}
+
+ws_connect();
 
 </script>
+</body>
+
 </html>

@@ -1,0 +1,4 @@
+#include "../../common.xcconfig"
+
+GCC_PREPROCESSOR_DEFINITIONS = "DENORM_WANT_FIX = 1" "NO_TRANSLATION_SUPPORT = 1" USE_WEBSOCKET
+PRODUCT_NAME = ol.wsserver
