@@ -11,6 +11,7 @@
     "waaclock": "^0.5.3"
   },
   "devDependencies": {
+    "acorn": "^2.6.4",
     "gulp-util": "^3.0.7",
     "vinyl-source-stream": "^1.1.0",
     "watchify": "^3.6.1"

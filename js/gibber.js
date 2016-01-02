@@ -7,6 +7,7 @@ require( '../node_modules/codemirror/mode/javascript/javascript.js' )
 var Gibber = {
   codemirror: null,
   max: null,
+  codeMarkup: require( './codeMarkup.js' ),
   MIDI: require( './midi.js' ),
   test: function() { console.log('test') },
   init: function() {
@@ -31,9 +32,11 @@ var Gibber = {
 
         //eval( selectedCode.code )
         
-        window.open( 'maxmessage:code/'+selectedCode.code )
+        //window.open( 'maxmessage:code/'+selectedCode.code )
 
         Gibber.flash( Gibber.codemirror, selectedCode.selection )
+
+        Gibber.codeMarkup.process( selectedCode.code )
       } catch (e) {
         console.log("ERROR")
       }
