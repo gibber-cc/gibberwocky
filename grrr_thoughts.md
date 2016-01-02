@@ -1,36 +1,21 @@
 
-## Timing
+## Client-side (HTML + JavaScript)
 
-Timing is great within MSP:
+Interaction is via an HTML page, largely driven by JavaScript code. This page is hosted at localhost:8088, and can be accessed either in a regular browser window, or in the Live Device itself via Max's ```jweb``` object. 
 
-[phasor~ 1n @lock 1] gives us a very nice audio ramp per bar -- 4n would be per beat, etc. 
-- Easy to imagine Tidal-like transforms to this ramp.
-- send to [techno~] for sample accurate curves: amplitude, pitch, attack, decay, curve, pos. 
-- send to zigzag~ (mode 1) to trigger an arbitrary list of amp/time line segments. A little fiddly to set up. Might be just as easy to fill a buffer~. 
+The JavaScript content of this web page hosted in jweb creates a websocket to communicate with the Live Device. It responds to beat triggers received from the websocket and replies with new messages to sequence in the Live Device. This gives < 100ms roundtrip latency on local tests, under the threshold of one beat at reasonable bpm.
 
-Timing is great within Max:
+The JS code ... 
 
-Get excellent timing from [metro @interval 20 ticks @quantize 20 ticks @autostart 1 @active 1] -> [transport]. The @interval and @quantize values determine the resolution within a beat (normally 480 ticks). So 20 ticks gives 1/24th, good enough for 8ths and 6ths of a beat.
+## Server-side (Live Device Max patcher)
 
-[metro 1n @quantize 480 ticks @autostart 1 @active 1] gives us a bang on each bar, which could be used to synchronize edits. 
+In the patcher, the Live Device's websockets are currently supported by Oli Larkin's [ol.wsserver](https://github.com/olilarkin/wsserver). (Note: communicating directly in & out of ```jweb``` via patchcoords is not functional in a Live device). 
 
-[plugsync~] tells us if the transport is running, which can be used to drive these metros. 
+Audio events are triggered by a ```seq~``` object, driven by a locked ```phasor~ 4n``` which cycles on each beat. The ```seq~``` object thus executes max messages at precise times per beat. The ```seq~``` stores multiple sequences, and switches between each sequence at beat boundaries. Sequence switching is driven by a a locked ```metro 4n```, which generates synchronized beat events. These events are also sent over the websocket to the HTML page's JavaScript. At the end of each beat, the ```seq~``` sequence for that beat is cleared to make way for new events to be added as they are received from the websocket.
 
-Timing is sloppy in JavaScript:
-
-Timing via [js] is very sloppy, because it runs in a low priority thread. Therefore all actual event triggering should be via Max objects. Therefore the [js] needs to run in the future, and queue up changes for Max to apply.
-
-Queue options:
-
-- fill a dict array, iter & clear them at each bar marker.
-	- annoying error message when array is empty... 
-- [seq~]:
-	- add <seq id> <time> <event...>
-
-seq aseq, play 1
-delete aseq 0
-add aseq 0.5 72
-
-Since we can have multiple seqs, we can simply switch between them at bar points.
+The max messages executed by ```seq~``` are ... 
+- Live MIDI?
+- gen~ expr?
+- Live.API?
 
 
