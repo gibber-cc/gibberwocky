@@ -5,6 +5,7 @@ var CodeMirror = require( 'codemirror' )
 require( '../node_modules/codemirror/mode/javascript/javascript.js' )
 
 var Gibber = {
+  Communication: require( './communication.js' ),
   codemirror: null,
   max: null,
   codeMarkup: require( './codeMarkup.js' ),
@@ -13,6 +14,7 @@ var Gibber = {
   init: function() {
     this.max = window.max
     this.createCodeMirror()
+    this.Communication.init( 0,0 )
   },
   createCodeMirror: function() {
     CodeMirror.keyMap.gibber = this.keymap
@@ -30,10 +32,14 @@ var Gibber = {
 
         //eval( selectedCode.code )
         //window.open( 'maxmessage:code/'+selectedCode.code )
+        
+        console.log( selectedCode.code )
 
         Gibber.flash( Gibber.codemirror, selectedCode.selection )
 
-        Gibber.codeMarkup.process( selectedCode.code, selectedCode.selection )
+        Gibber.Communication.send( selectedCode.code )
+
+//        Gibber.codeMarkup.process( selectedCode.code, selectedCode.selection )
       } catch (e) {
         console.log("ERROR")
       }
