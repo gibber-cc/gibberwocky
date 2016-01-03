@@ -12,7 +12,6 @@ const modes = [
   'executejavascript'
 ]
 
-
 var Communication = {
   inputMode:null,
   outputMode:null,
@@ -63,8 +62,8 @@ var Communication = {
         break;
       case 'eval':
         break;
-      case 'midiInput':
-        break;
+      default:
+        break;  
     }
 
   },

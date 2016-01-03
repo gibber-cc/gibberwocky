@@ -16,12 +16,10 @@ var Gibber = {
   },
   createCodeMirror: function() {
     CodeMirror.keyMap.gibber = this.keymap
-    var cm = CodeMirror( document.body, { mode:"javascript", keyMap:'gibber' }) 
-    this.codemirror = cm
+    this.codemirror = CodeMirror( document.body, { mode:"javascript", keyMap:'gibber', autofocus:true }) 
   },
   log: function() {
     var args = Array.prototype.slice.call( arguments, 0 )
-
     //window.max.outlet( 'test' ) // args.join(' | ' ) )
   },
   keymap : {
@@ -31,12 +29,11 @@ var Gibber = {
         var selectedCode = Gibber.getSelectionCodeColumn( Gibber.codemirror, false )
 
         //eval( selectedCode.code )
-        
         //window.open( 'maxmessage:code/'+selectedCode.code )
 
         Gibber.flash( Gibber.codemirror, selectedCode.selection )
 
-        Gibber.codeMarkup.process( selectedCode.code )
+        Gibber.codeMarkup.process( selectedCode.code, selectedCode.selection )
       } catch (e) {
         console.log("ERROR")
       }
@@ -69,6 +66,14 @@ var Gibber = {
       text = cm.getRange( pos1, pos2 )
 
       pos = { start: pos1, end: pos2 }
+    }
+
+    if( typeof pos.start === 'undefined' ) {
+      var lineNumber = pos.line,
+          start = 0,
+          end = text.length
+
+      pos = { start:{ line:start, ch:0 }, end:{ line:start, ch: end } }
     }
 		
     //GE.Keymap.flash(cm, pos)
