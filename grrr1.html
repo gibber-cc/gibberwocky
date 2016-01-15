@@ -1,0 +1,138 @@
+<html>
+<head>
+  <style>
+  html, body {
+    height: 100%;
+    width: 100%;
+    padding: 0px;
+    margin: 0px;
+    color:#000;
+    font-size: 10;
+    font-family:'Helvetica', sans-serif;
+    overflow:hidden;
+  }
+  </style>
+</head>
+
+<body>
+<div id="post">Loading...</div>
+<script>
+
+///// utils /////
+
+// get url args:
+var querystring = (function() {
+	var qstr = window.location.search;
+	var query = {};
+	var a = qstr.substr(1).split('&');
+	for (var i = 0; i < a.length; i++) {
+		var b = a[i].split('=');
+		query[decodeURIComponent(b[0])] = decodeURIComponent(b[1] || '');
+	}
+	return query;
+})();
+
+// debug messaging:
+function post(msg) {
+	document.getElementById("post").innerHTML = msg;
+}
+
+///// websocket /////
+
+var wsocket; 
+var connected = false;
+var connectTask;
+
+function ws_connect() {
+	if (connected) return;
+    if ('WebSocket' in window) {
+        post('Connecting');
+        var host = querystring.host || "localhost";
+        var port = querystring.port || "8088";
+        var address = "ws://" + host + ":" + port;
+        wsocket = new WebSocket(address);
+        wsocket.onopen = function(ev) {        
+            post('CONNECTED to ' + address);
+            connected = true;
+            // cancel the auto-reconnect task:
+            if (connectTask != undefined) clearInterval(connectTask);
+            // apparently this first reply is necessary
+            var message = 'update on';
+            post('SENT: ' + message);
+            wsocket.send(message);
+        };
+
+        wsocket.onclose = function(ev) {
+            post('DISCONNECTED from ' + address);
+            connected = false;
+            // set up an auto-reconnect task:
+            connectTask = setInterval(ws_connect, 1000);
+        };
+
+        wsocket.onmessage = function(ev) {
+        	handlemessage(ev.data);
+        };
+
+        wsocket.onerror = function(ev) {
+            post("WebSocket error");
+        };
+
+    } else {
+        post("WebSockets are not available in this browser!!!");
+    }
+}
+
+function send(msg) {
+	if(wsocket != undefined) wsocket.send(msg);
+	post(msg);
+}
+
+///// sequencing /////
+
+function random(n) {
+	return Math.floor(Math.random()*n);
+}
+
+function pick(arr) {
+	return arr[random(arr.length)];
+}
+
+function seq(beat) {
+	var msgarr = []; 
+	// generate some randomized beats:
+	var div = Math.pow(2, (beat+3) % 5);
+	var lim = div;
+	for (var i=0; i<lim; i++) {
+		// timestamp within beat (0..1)
+		var t = i/lim; //random(div)/div;
+		// MIDI note value
+		var n = 36 + (beat*3)%16; //notes[beat % notes.length]; //pick(notes)
+		// MIDI velocity
+		var v = (1-t) * (1-t) * (1-t) * 100; //64 + random(32);
+		// seq~ schedule format:
+		// add <seqid> <phase> <arguments...>
+		// seqid is the beat number
+		// phase is 0..1 within that beat
+		// arguments is a max message, as space-delimited strings and numbers
+		msgarr.push("add " + beat + " " + t + " " + n + " " + v);
+	}
+	send(msgarr);	// sends array as comma-delimited strings
+}
+
+function handlemessage(msg) {
+	if (msg.substr(0, 4) == "seq ") {
+		var beat = +msg.substr(4);
+		// send a response:
+		seq(beat);
+	} else if (msg.substr(0, 4) == "tik ") {
+		
+	}
+}
+
+///// start up /////
+
+ws_connect();
+
+</script>
+</body>
+</html>

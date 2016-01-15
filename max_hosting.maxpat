@@ -9,7 +9,7 @@
 			"modernui" : 1
 		}
 ,
-		"rect" : [ 81.0, 104.0, 1112.0, 641.0 ],
+		"rect" : [ 81.0, 104.0, 863.0, 654.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 0,
 		"default_fontsize" : 12.0,
@@ -37,6 +37,91 @@
 		"style" : "",
 		"subpatcher_template" : "",
 		"boxes" : [ 			{
+				"box" : 				{
+					"autosave" : 1,
+					"bgmode" : 1,
+					"border" : 0,
+					"clickthrough" : 0,
+					"enablehscroll" : 0,
+					"enablevscroll" : 0,
+					"id" : "obj-1",
+					"lockeddragscroll" : 0,
+					"maxclass" : "newobj",
+					"numinlets" : 3,
+					"numoutlets" : 4,
+					"offset" : [ 0.0, 0.0 ],
+					"outlettype" : [ "signal", "signal", "", "" ],
+					"patching_rect" : [ 35.0, 99.0, 792.75, 196.0 ],
+					"presentation_rect" : [ 0.0, 0.0, 792.75, 196.0 ],
+					"saved_attribute_attributes" : 					{
+						"valueof" : 						{
+							"parameter_invisible" : 1,
+							"parameter_longname" : "amxd~",
+							"parameter_shortname" : "amxd~",
+							"parameter_type" : 3
+						}
+
+					}
+,
+					"saved_object_attributes" : 					{
+						"annotation_name" : "",
+						"parameter_enable" : 1,
+						"patchername" : "grrr1.amxd",
+						"patchername_fallback" : "~/code/gibber.max/grrr1.amxd"
+					}
+,
+					"snapshot" : 					{
+						"filetype" : "C74Snapshot",
+						"version" : 2,
+						"minorversion" : 0,
+						"name" : "snapshotlist",
+						"origin" : "max~",
+						"type" : "list",
+						"subtype" : "Undefined",
+						"embed" : 1,
+						"snapshot" : 						{
+							"name" : "grrr1.amxd",
+							"origname" : "~/code/gibber.max/grrr1.amxd"
+						}
+,
+						"snapshotlist" : 						{
+							"current_snapshot" : 0,
+							"entries" : [ 								{
+									"filetype" : "C74Snapshot",
+									"version" : 2,
+									"minorversion" : 0,
+									"name" : "grrr1.amxd",
+									"origin" : "grrr1.amxd",
+									"type" : "amxd",
+									"subtype" : "Undefined",
+									"embed" : 0,
+									"snapshot" : 									{
+										"name" : "grrr1.amxd",
+										"origname" : "~/code/gibber.max/grrr1.amxd"
+									}
+,
+									"fileref" : 									{
+										"name" : "grrr1.amxd",
+										"filename" : "grrr1.amxd.maxsnap",
+										"filepath" : "~/Documents/Max 7/Snapshots",
+										"filepos" : -1,
+										"snapshotfileid" : "02beaebd421312e9de62e6b25a608d54"
+									}
+
+								}
+ ]
+						}
+
+					}
+,
+					"style" : "",
+					"text" : "amxd~ /Users/grrrwaaa/code/gibber.max/grrr1.amxd",
+					"varname" : "amxd~",
+					"viewvisibility" : 1
+				}
+
+			}
+, 			{
 				"box" : 				{
 					"autosave" : 1,
 					"bgmode" : 1,
@@ -226,98 +311,13 @@
 				}
 
 			}
-, 			{
-				"box" : 				{
-					"autosave" : 1,
-					"bgmode" : 1,
-					"border" : 0,
-					"clickthrough" : 0,
-					"enablehscroll" : 0,
-					"enablevscroll" : 0,
-					"id" : "obj-2",
-					"lockeddragscroll" : 0,
-					"maxclass" : "newobj",
-					"numinlets" : 3,
-					"numoutlets" : 4,
-					"offset" : [ 0.0, 0.0 ],
-					"outlettype" : [ "signal", "signal", "", "" ],
-					"patching_rect" : [ 35.0, 104.0, 1045.5, 196.0 ],
-					"presentation_rect" : [ 0.0, 0.0, 1045.5, 196.0 ],
-					"saved_attribute_attributes" : 					{
-						"valueof" : 						{
-							"parameter_invisible" : 1,
-							"parameter_longname" : "amxd~",
-							"parameter_shortname" : "amxd~",
-							"parameter_type" : 3
-						}
-
-					}
-,
-					"saved_object_attributes" : 					{
-						"annotation_name" : "",
-						"parameter_enable" : 1,
-						"patchername" : "grrr.amxd",
-						"patchername_fallback" : "~/code/gibber.max/grrr.amxd"
-					}
-,
-					"snapshot" : 					{
-						"filetype" : "C74Snapshot",
-						"version" : 2,
-						"minorversion" : 0,
-						"name" : "snapshotlist",
-						"origin" : "max~",
-						"type" : "list",
-						"subtype" : "Undefined",
-						"embed" : 1,
-						"snapshot" : 						{
-							"name" : "grrr.amxd",
-							"origname" : "~/code/gibber.max/grrr.amxd"
-						}
-,
-						"snapshotlist" : 						{
-							"current_snapshot" : 0,
-							"entries" : [ 								{
-									"filetype" : "C74Snapshot",
-									"version" : 2,
-									"minorversion" : 0,
-									"name" : "grrr.amxd",
-									"origin" : "grrr.amxd",
-									"type" : "amxd",
-									"subtype" : "Undefined",
-									"embed" : 0,
-									"snapshot" : 									{
-										"name" : "grrr.amxd",
-										"origname" : "~/code/gibber.max/grrr.amxd"
-									}
-,
-									"fileref" : 									{
-										"name" : "grrr.amxd",
-										"filename" : "grrr.amxd.maxsnap",
-										"filepath" : "~/Documents/Max 7/Snapshots",
-										"filepos" : -1,
-										"snapshotfileid" : "f64319951ba356f0f3e63172f9c6fee5"
-									}
-
-								}
- ]
-						}
-
-					}
-,
-					"style" : "",
-					"text" : "amxd~ /Users/grrrwaaa/code/gibber.max/grrr.amxd",
-					"varname" : "amxd~",
-					"viewvisibility" : 1
-				}
-
-			}
  ],
 		"lines" : [ 			{
 				"patchline" : 				{
 					"destination" : [ "obj-8", 2 ],
 					"disabled" : 0,
 					"hidden" : 0,
-					"source" : [ "obj-2", 2 ]
+					"source" : [ "obj-1", 2 ]
 				}
 
 			}
@@ -360,21 +360,10 @@
  ],
 		"parameters" : 		{
 			"obj-8" : [ "amxd~[1]", "amxd~[1]", 0 ],
-			"obj-2" : [ "amxd~", "amxd~", 0 ]
+			"obj-1" : [ "amxd~", "amxd~", 0 ]
 		}
 ,
 		"dependency_cache" : [ 			{
-				"name" : "grrr.amxd.maxsnap",
-				"bootpath" : "~/Documents/Max 7/Snapshots",
-				"type" : "mx@s",
-				"implicit" : 1
-			}
-, 			{
-				"name" : "grrr.amxd",
-				"type" : "JSON",
-				"implicit" : 1
-			}
-, 			{
 				"name" : "Analogue Drums.amxd.maxsnap",
 				"bootpath" : "~/Documents/Max 7/Snapshots",
 				"type" : "mx@s",
@@ -411,7 +400,18 @@
 				"implicit" : 1
 			}
 , 			{
-				"name" : "ol.wsserver.mxo",
+				"name" : "grrr1.amxd.maxsnap",
+				"bootpath" : "~/Documents/Max 7/Snapshots",
+				"type" : "mx@s",
+				"implicit" : 1
+			}
+, 			{
+				"name" : "grrr1.amxd",
+				"type" : "JSON",
+				"implicit" : 1
+			}
+, 			{
+				"name" : "ws.mxo",
 				"type" : "iLaX"
 			}
  ],
