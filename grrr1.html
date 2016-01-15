@@ -97,10 +97,15 @@ function pick(arr) {
 	return arr[random(arr.length)];
 }
 
+var mul = 1;
+
 function seq(beat) {
+	if (beat == 0) {
+		mul = 1 + (mul % 4);
+	}
 	var msgarr = []; 
 	// generate some randomized beats:
-	var div = Math.pow(2, (beat+3) % 5);
+	var div = Math.pow(2, (beat+mul+1) % 5);
 	var lim = div;
 	for (var i=0; i<lim; i++) {
 		// timestamp within beat (0..1)
@@ -109,12 +114,14 @@ function seq(beat) {
 		var n = 36 + (beat*3)%16; //notes[beat % notes.length]; //pick(notes)
 		// MIDI velocity
 		var v = (1-t) * (1-t) * (1-t) * 100; //64 + random(32);
+		// duration (ms)
+		var d = (beat+1) * (beat+1) * (t+1) * 6;
 		// seq~ schedule format:
 		// add <seqid> <phase> <arguments...>
 		// seqid is the beat number
 		// phase is 0..1 within that beat
 		// arguments is a max message, as space-delimited strings and numbers
-		msgarr.push("add " + beat + " " + t + " " + n + " " + v);
+		msgarr.push("add " + beat + " " + t + " " + n + " " + v + " " + d);
 	}
 	send(msgarr);	// sends array as comma-delimited strings
 }
