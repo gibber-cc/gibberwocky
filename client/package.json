@@ -1,0 +1,29 @@
+{
+  "name": "gibber.max",
+  "version": "1.0.0",
+  "description": "Use Gibber inside Max/MSP and Max 4 Live.",
+  "main": "js/index.js",
+  "dependencies": {
+    "browserify": "^12.0.1",
+    "codemirror": "^5.9.0",
+    "gulp": "^3.9.0",
+    "vinyl-transform": "^1.0.0"
+  },
+  "devDependencies": {
+    "acorn": "^2.6.4",
+    "gulp-util": "^3.0.7",
+    "vinyl-source-stream": "^1.1.0",
+    "watchify": "^3.6.1"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "gibber",
+    "max/msp",
+    "live",
+    "coding"
+  ],
+  "author": "Charlie Roberts <charlie@charlie-roberts.com> (http://www.charlie-roberts.com/)",
+  "license": "MIT"
+}

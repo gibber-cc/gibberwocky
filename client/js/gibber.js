@@ -8,13 +8,14 @@ var Gibber = {
   Communication: require( './communication.js' ),
   codemirror: null,
   max: null,
-  codeMarkup: require( './codeMarkup.js' ),
+  codeMarkup: null, //require( './codeMarkup.js' ),
   MIDI: require( './midi.js' ),
+  Clock: require( './clock.js'),
   test: function() { console.log('test') },
   init: function() {
     this.max = window.max
     this.createCodeMirror()
-    this.Communication.init( 0,0 )
+    this.Communication.init( Gibber  )
   },
   createCodeMirror: function() {
     CodeMirror.keyMap.gibber = this.keymap
@@ -22,6 +23,9 @@ var Gibber = {
   },
   log: function() {
     var args = Array.prototype.slice.call( arguments, 0 )
+    Gibber.codemirror.setValue( Gibber.codemirror.getValue() + '\n' + args.join( ' ' ) )
+    Gibber.codemirror.scrollIntoView({ line:Gibber.codemirror.lastLine(), ch:0 })
+    console.log.apply( console, args ) 
     //window.max.outlet( 'test' ) // args.join(' | ' ) )
   },
   keymap : {
