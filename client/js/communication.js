@@ -132,7 +132,7 @@ var Communication = {
       // arguments is a max message, as space-delimited strings and numbers
       var msgstring = "add " + beat + " " + t + " " + n + " " + v + " " + d
       msgarr.push( msgstring )
-      Gibber.log( msgstring )
+      // Gibber.log( msgstring )
     }
     this.send( msgarr ) // sends array as comma-delimited strings
   },

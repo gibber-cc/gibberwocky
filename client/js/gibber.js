@@ -9,9 +9,9 @@ var Gibber = {
   codemirror: null,
   max: null,
   codeMarkup: null, //require( './codeMarkup.js' ),
-  MIDI: require( './midi.js' ),
-  Clock: require( './clock.js'),
-  test: function() { console.log('test') },
+  Clock: require( './clock.js' ),
+  Track: require( './track.js' ),
+  Pattern: require( './pattern.js' ),
   init: function() {
     this.max = window.max
     this.createCodeMirror()
@@ -105,6 +105,12 @@ var Gibber = {
     }
   
     window.setTimeout(cb, 250);
+  },
+  addSequencingToMethod: function( obj, methodName ) {
+    obj[ methodName ].seq = function( values, timings ) {
+      if( ! values instanceof Pattern ) values = Pattern.apply( null, values)  
+      if( ! timings instanceof Pattern ) timings = Pattern.apply( null, timings )  
+    }
   },
 }
 
