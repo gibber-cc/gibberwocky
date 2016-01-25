@@ -17,6 +17,7 @@ var Seq = function( _values, _timing, _object, _key ) {
       
       
       this.running = true
+      this.tick( 0 )
     },
     tick : function( offset ) {
       // pick a value and generate messages
@@ -24,9 +25,14 @@ var Seq = function( _values, _timing, _object, _key ) {
           msg   = this.key + ' ' + value
         
       // send that message to clock to be scheduled
-      Gibber.Clock.addMessage( msg, offset )
-      
+      if( offset !== 0 ) 
+        Gibber.Clock.addMessage( msg, offset )
+      else
+        Gibber.Communication.send( msg )
+
       // pick a new timing / nextTIme value
+      this.nextTime = this.timings()
+
 
     },
     advance : function( advanceAmount ) {
@@ -43,7 +49,7 @@ var Seq = function( _values, _timing, _object, _key ) {
       if( msg.time < endTime ) {
         // add message
         // TODO must account for function execution vs output NO JUST EXECUTES FUNCTIONS WITH TIMING INFO?
-        Gibber.Clock.addMessage(
+        //  Gibber.Clock.addMessage(
         // this.note.seq( [44,46,48,52], 1/4 )
         // /*
         //   

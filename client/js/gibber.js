@@ -11,11 +11,13 @@ var Gibber = {
   codeMarkup: null, //require( './codeMarkup.js' ),
   Clock: require( './clock.js' ),
   Track: require( './track.js' ),
-  Pattern: require( './pattern.js' ),
+  currentTrack:null,
+  //Pattern: require( './pattern.js' ),
   init: function() {
     this.max = window.max
     this.createCodeMirror()
     this.Communication.init( Gibber  )
+    this.currentTrack = this.Track( this, 1 ) // how to determine actual "id" from Max?
   },
   createCodeMirror: function() {
     CodeMirror.keyMap.gibber = this.keymap
@@ -41,8 +43,8 @@ var Gibber = {
 
         Gibber.flash( Gibber.codemirror, selectedCode.selection )
 
-        Gibber.Communication.send( selectedCode.code )
-
+        //Gibber.Communication.send( selectedCode.code )
+        var func = new Function( selectedCode.code ).bind( Gibber.currentTrack )()
 //        Gibber.codeMarkup.process( selectedCode.code, selectedCode.selection )
       } catch (e) {
         console.log("ERROR")
