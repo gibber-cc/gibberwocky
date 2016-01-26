@@ -37,7 +37,7 @@ var Communication = {
           Gibber.log( 'DISCONNECTED from ' + address )
           this.connected = false;
           // set up an auto-reconnect task:
-          this.connectTask = setInterval( this.createWebSocket.bind( Communication ) , 1000);
+          this.connectTask = setTimeout( this.createWebSocket.bind( Communication ) , 1000);
       }.bind( Communication )
 
       this.wsocket.onmessage = function(ev) {

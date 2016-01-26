@@ -41,11 +41,11 @@ var Environment = {
 
     'Ctrl-Enter': function( cm ) {
       try {
-        var selectedCode = Gibber.getSelectionCodeColumn( Gibber.codemirror, false )
+        var selectedCode = Environment.getSelectionCodeColumn( Environment.codemirror, false )
 
         console.log( selectedCode.code )
 
-        Gibber.flash( Gibber.codemirror, selectedCode.selection )
+        Environment.flash( Environment.codemirror, selectedCode.selection )
 
         var func = new Function( selectedCode.code ).bind( Gibber.currentTrack )()
         //  Gibber.codeMarkup.process( selectedCode.code, selectedCode.selection )
