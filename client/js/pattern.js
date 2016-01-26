@@ -39,10 +39,12 @@ var PatternProto = {
 }
 
 var Pattern = function() {
-  if( ! ( this instanceof Pattern ) ) {
-    var args = Array.prototype.slice.call( arguments, 0 )
-    return Gibber.construct( Pattern, args )
-  }
+  /*
+   *if( ! ( this instanceof Pattern ) ) {
+   *  var args = Array.prototype.slice.call( arguments, 0 )
+   *  return Gibber.construct( Pattern, args )
+   *}
+   */
 
   var fnc = function() {
     var len = fnc.getLength(),
@@ -363,7 +365,7 @@ var Pattern = function() {
     'store', 'range', 'set'
   ]
 
-  Gibber.createProxyMethods( fnc, methodNames , true )
+  // TODO: Gibber.createProxyMethods( fnc, methodNames , true )
   
   // for( var i = 0; i < methodNames.length; i++ ) {
   //  var name = methodNames[ i ]
@@ -372,7 +374,7 @@ var Pattern = function() {
   //  }
   fnc.listeners = {}
 
-  Gibber.createProxyProperties( fnc, { 'stepSize':0, 'start':0, 'end':0 })
+  // TODO: Gibber.createProxyProperties( fnc, { 'stepSize':0, 'start':0, 'end':0 })
   
   // trying to figure out a way for calls like: a.note.durations.seq( [1/8,1/16], 1/2 ) ...
     
@@ -387,7 +389,7 @@ var Pattern = function() {
   // }, ms(100) )
   
   
-  fnc.__proto__ = this.__proto__ 
+  fnc.__proto__ = PatternProto 
   
   return fnc
 }

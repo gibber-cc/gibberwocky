@@ -1,50 +1,87 @@
 !function() {
 
-var Clock = {
+var Queue = require( './priorityqueue.js' )
+
+var Scheduler = {
   phase: 0,
   msgs: [],
-  advance : function( advanceAmount ) {
+  queue: new Queue( function( a, b ) {
+    return a.time - b.time
+  }),
+  
+  // all ticks take the form of { time:timeInSamples, callback:function }
+  advance : function( advanceAmount, beat ) {
     var end = this.phase + advanceAmount,
-        nextMsg = this.msgs[ 0 ]
+        nextTick = this.queue.peek()
        
-    // scheduleMessage will handle all messages recursively until end time
-    if( nextMsg.time < end )
-      this.scheduleMessage( nextMsg, end )
+    if( this.queue.length && nextTick.time < end ) {
+
+      this.queue.pop()  // remove tick
+      var beatOffset = (nextTick.time - this.phase) / advanceAmount // TODO: no magic numbers for beat!
+
+      // execute callback function for tick passing schedule, time and beatOffset    
+      nextTick.callback( this, beat, nextTick.time, beatOffset )
+
+      this.advance( advanceAmount, beat ) // recursively call advance
     
-  },
-  scheduleMessage: function( msg, endTime ) {
-    if( msg.time < endTime ) {
-      // add message
-      // TODO must account for function execution vs output NO JUST EXECUTES FUNCTIONS WITH TIMING INFO?
-      //
-      // this.note.seq( [44,46,48,52], 1/4 )
-      // /*
-      //   
-      // remove message
-      this.msgs.splice( 0,1 )
-      
-      var nextMsg = this.msgs[ 0 ]
-      if( nextMsg.time < endTime ) this.scheduleMessage( nextMsg, endTime )
     }else{
-      if( this.msgs.length > 0 )  this.outputMessages()
+
+      if( this.msgs.length ) {      // if output messages have been created
+        this.outputMessages()       // output them
+        this.msgs.length = 0        // and reset the contents of the output messages array
+      }
+
+      this.phase += advanceAmount // and increment phase
     }
+  },
 
+  addMessage: function( _callback, _time ) {
+    this.queue.push({ callback:_callback, time:_time  })
+    // console.log( "CURRENT TIME: " + Scheduler.phase, "| NEXT TIME:" + _time )
   },
-  addMessage: function( _msg, _time ) {
-    this.msgs.push({ msg:_msg, time:_time })
-  },
-  removeMessage: function( msg ) {
-    var idx = this.msgs.indexOf( msg )
 
-    if( idx > -1 )
-      this.msgs.splice( idx, 1 )
-  },
   outputMessages: function() {
     this.msgs.forEach( Gibber.Communication.send )
   },
 
+  seq : function( beat ) {
+    // TODO WARNING TODO: SEVERE FAKERY... assume 1 beat = 22050 samples @ 120 bpm
+    Scheduler.advance( 22050, beat )
+
+    Scheduler.outputMessages()
+    /*
+     *if (beat == 0) {
+     *  mul = 1 + (mul % 4);
+     *}
+     *var msgarr = []; 
+     * // generate some randomized beats:
+     *var div = Math.pow(2, (beat+mul+1) % 5);
+     *var lim = 1;
+     *for (var i=0; i<lim; i++) {
+     *  // timestamp within beat (0..1)
+     *  var t = i/lim; //random(div)/div;
+     *  // MIDI note value
+     *  var n = 36 + (beat*3)%16; //notes[beat % notes.length]; //pick(notes)
+     *  // MIDI velocity
+     *  var v = (1-t) * (1-t) * (1-t) * 100; //64 + random(32);
+     *  // duration (ms)
+     *  var d = (beat+1) * (beat+1) * (t+1) * 6;
+     *  // seq~ schedule format:
+     *  // add <seqid> <phase> <arguments...>
+     *  // seqid is the beat number
+     *  // phase is 0..1 within that beat
+     *  // arguments is a max message, as space-delimited strings and numbers
+     *  var msgstring = "add " + beat + " " + t + " " + n + " " + v + " " + d
+     *  msgarr.push( msgstring )
+     *  // Gibber.log( msgstring )
+     *}
+    */
+
+    // this.send( this.msgs ) // sends array as comma-delimited strings
+  },
+
 }
 
-module.exports = Clock
+module.exports = Scheduler
 
 }()

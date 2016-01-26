@@ -9,11 +9,19 @@ var Gibber = {
   codemirror: null,
   max: null,
   codeMarkup: null, //require( './codeMarkup.js' ),
-  Clock: require( './clock.js' ),
+  Scheduler: require( './clock.js' ),
   Track: require( './track.js' ),
+  Seq:   null,
   currentTrack:null,
   //Pattern: require( './pattern.js' ),
+  export : function() {
+    window.Seq = this.Seq
+    window.Track = this.Track
+    window.Scheduler = this.Scheduler
+    window.Communication = this.Communication
+  },
   init: function() {
+    this.export()
     this.max = window.max
     this.createCodeMirror()
     this.Communication.init( Gibber  )
@@ -21,7 +29,7 @@ var Gibber = {
   },
   createCodeMirror: function() {
     CodeMirror.keyMap.gibber = this.keymap
-    this.codemirror = CodeMirror( document.body, { mode:"javascript", keyMap:'gibber', autofocus:true }) 
+    this.codemirror = CodeMirror( document.body, { mode:"javascript", keyMap:'gibber', autofocus:true, value:'a = Seq( [60,58], [22050] ).start()' }) 
   },
   log: function() {
     var args = Array.prototype.slice.call( arguments, 0 )
@@ -115,6 +123,9 @@ var Gibber = {
     }
   },
 }
+
+Gibber.Pattern = require( './pattern.js' )( Gibber )
+Gibber.Seq     = require( './seq.js')( Gibber )
 
 module.exports = Gibber
 

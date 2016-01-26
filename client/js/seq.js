@@ -1,83 +1,67 @@
 !function() {
 
-var Seq = function( _values, _timing, _object, _key ) {
+var Queue = require( './priorityqueue.js' )
 
-  var seq = {
-    phase: 0,
-    running:false,
-    msgs: [],
-    values: _values,
-    timings: _timings,
-    object: _object,
-    key: _key,
-    nextTime: 0,
-    start: function( Gibber ) {
-      if( ! this.values instanceof Pattern )  this.values = Pattern( this.values )
-      if( ! this.timings instanceof Pattern ) this.timings = Pattern( this.timings )
-      
-      
-      this.running = true
-      this.tick( 0 )
-    },
-    tick : function( offset ) {
-      // pick a value and generate messages
-      var value = this.values(),
-          msg   = this.key + ' ' + value
+var seqclosure = function( Gibber ) {
+
+  var Seq = function( _values, _timings, _key ) {
+
+    var seq = {
+      phase: 0,
+      running:false,
+      queue: new Queue( function( a, b ) {
+        return a.time - b.time
+      }),   
+      values: _values,
+      timings: _timings,
+      key: _key,
+      nextTime: 0,
+      start: function() {
+        //console.log( this.values, this.timings )
+        /* TODO: if( ! this.values instanceof Gibber.Pattern ) */  this.values = Gibber.Pattern.apply( null, this.values )
+        /* TODO: if( ! this.timings instanceof Gibber.Pattern ) */ this.timings = Gibber.Pattern.apply( null, this.timings )      
         
-      // send that message to clock to be scheduled
-      if( offset !== 0 ) 
-        Gibber.Clock.addMessage( msg, offset )
-      else
-        Gibber.Communication.send( msg )
+        this.running = true
+        this.tick( -1, -1, Gibber.Scheduler.phase, 0 )
+        return this
+      },
+      tick : function( scheduler, beat, currentTime, beatOffset ) { // avoid this
+        // console.log( 'TICK', beatOffset, beat )
 
-      // pick a new timing / nextTIme value
-      this.nextTime = this.timings()
+        // pick a value and generate messages
+        var value = seq.values()
+                  
+        // arguments is a max message, as space-delimited strings and numbers. t is timestamp within beat 0..1
+        // var msgstring = "add " + beat + " " + t + " " + n + " " + v + " " + d
+   
+        // send that message to clock to be scheduled
+        if( scheduler === -1 ) {
+          Gibber.Communication.send( msg )
+        } else {
+          var msg = 'add ' + beat + ' '
 
+          // TODO: do not use 22050 as number of samples in beat!!!
+          msg += beatOffset
+          msg += ' ' + value 
+          scheduler.msgs.push( msg )
+        }
 
-    },
-    advance : function( advanceAmount ) {
-      var end = this.phase + advanceAmount,
-          nextMsg = this.msgs[ 0 ]
-       
-    // scheduleMessage will handle all messages recursively until end time
-      if( nextMsg.time < end )
-        this.scheduleMessage( nextMsg, end )
+        // pick a new timing and schedule tick
+        var nextTime = currentTime + seq.timings()
 
-      this.phase += advanceAmount
-    },
-    scheduleMessage: function( msg, endTime ) {
-      if( msg.time < endTime ) {
-        // add message
-        // TODO must account for function execution vs output NO JUST EXECUTES FUNCTIONS WITH TIMING INFO?
-        //  Gibber.Clock.addMessage(
-        // this.note.seq( [44,46,48,52], 1/4 )
-        // /*
-        //   
-        // remove message
-        this.msgs.splice( 0,1 )
+        // console.log("NEXT", nextTime, value )
         
-        var nextMsg = this.msgs[ 0 ]
-        if( nextMsg.time < endTime ) this.scheduleMessage( nextMsg, endTime )
-      }else{
-        if( this.msgs.length > 0 )  this.outputMessages()
-      }
-  
-    },
-    addMessage: function( _msg, _time ) {
-      this.msgs.push({ msg:_msg, time:_time })
-    },
-    removeMessage: function( msg ) {
-      var idx = this.msgs.indexOf( msg )
-  
-      if( idx > -1 )
-        this.msgs.splice( idx, 1 )
-    },
+        Gibber.Scheduler.addMessage( seq.tick, nextTime )
+      },
+    } 
 
-  } 
+    return seq
+  }
 
   return Seq
+
 }
 
-module.exports = Seq
+module.exports = seqclosure
 
 }()

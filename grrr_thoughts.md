@@ -17,5 +17,3 @@ The max messages executed by ```seq~``` are ...
 - Live MIDI?
 - gen~ expr?
 - Live.API?
-
-
