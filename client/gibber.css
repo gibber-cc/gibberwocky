@@ -1,1 +1,22 @@
 .CodeMirror-highlight { background:red !important }
+
+#editor {
+  width:70%;
+  height:100%;
+  display:inline-block;
+}
+
+#console {
+  display:inline-block;
+  width:30%;
+  background:#eee;
+  float:right;
+  height:100%;
+  border-left:1px black solid;
+  box-sizing:border-box;
+  overflow:scroll;
+}
+
+body { margin:0; padding:0 }
+
+#console .CodeMirror { background-color:#efefef }

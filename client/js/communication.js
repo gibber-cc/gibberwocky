@@ -69,6 +69,9 @@ var Communication = {
           Gibber.Scheduler.seq( data );
         }
         break;
+      case 'clr' :
+        Gibber.Environment.console.setValue('')
+        break;
       default:
         break;
     }
