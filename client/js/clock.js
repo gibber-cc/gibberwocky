@@ -16,13 +16,16 @@ var Scheduler = {
        
     if( this.queue.length && nextTick.time < end ) {
 
-      this.queue.pop()  // remove tick
-      var beatOffset = (nextTick.time - this.phase) / advanceAmount // TODO: no magic numbers for beat!
+      // remove tick
+      this.queue.pop()
+
+      var beatOffset = (nextTick.time - this.phase) / advanceAmount
 
       // execute callback function for tick passing schedule, time and beatOffset    
       nextTick.callback( this, beat, nextTick.time, beatOffset )
 
-      this.advance( advanceAmount, beat ) // recursively call advance
+      // recursively call advance
+      this.advance( advanceAmount, beat ) 
     
     }else{
 
@@ -31,7 +34,7 @@ var Scheduler = {
         this.msgs.length = 0        // and reset the contents of the output messages array
       }
 
-      this.phase += advanceAmount // and increment phase
+      this.phase += advanceAmount   // increment phase
     }
   },
 
