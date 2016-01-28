@@ -1,4 +1,15 @@
 
+Graham todo:
+
+- play around with LOM
+	- get a full dictionary of all the tracks/devices/parameters, with paths, and send to browser
+	- how can we have many live.remote~s? does patcher scripting work in a live device
+
+## LOM
+
+https://docs.cycling74.com/max7/vignettes/live_object_model
+
+
 ## Client-side (HTML + JavaScript)
 
 Interaction is via an HTML page, largely driven by JavaScript code. This page is hosted at localhost:8088, and can be accessed either in a regular browser window, or in the Live Device itself via Max's ```jweb``` object. 
