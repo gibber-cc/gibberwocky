@@ -1,61 +1,58 @@
-!function() {
-
 // singleton 
-var Gibber = null,
+let Gibber = null,
     CodeMirror = require( 'codemirror' )
+
+const exampleCode = 
+`// play note immediately
+this.note( 84 )
+
+// ctrl+enter to execute line or selection
+this.note.seq( [64,66,67,69], 11025 )
+
+this.note.values.reverse.seq( null, 44100 )
+this.note.values.rotate.seq( 1, 88200 )
+
+// stop
+this.note.seq.stop()
+
+// start
+this.note.seq.start()
+
+// create a parallel sequence with id 1 (0 is default)
+this.note.seq( 71, 5512.5, 1 )
+
+// longhand reference to sequence
+this.sequences.note[ 1 ].stop()
+
+// sugar
+this.note[ 1 ].start()`
 
 require( '../node_modules/codemirror/mode/javascript/javascript.js' )
 
-var Environment = {
-  init: function( gibber ) {
+let Environment = {
+  init( gibber ) {
     Gibber = gibber
     
     this.createCodeMirror()
     this.createConsole()
   },
-
-  exampleCode: [
-    '// play note immediately',
-    'this.note( 84 )',
-    '',
-    '// ctrl+enter to execute line or selection',
-    'this.note.seq( [64,66,67,69], 11025 )',
-    '',
-    'this.note.values.reverse.seq( null, 44100 )',
-    'this.note.values.rotate.seq( 1, 88200 )',
-    '',
-    '// stop',
-    'this.note.seq.stop()',
-    '',
-    '// start',
-    'this.note.seq.start()',
-    '',
-    '// create a parallel sequence with id 1 (0 is default)',
-    'this.note.seq( 71, 5512.5, 1 )',
-    '',
-    '// longhand reference to sequence',
-    'this.sequences.note[ 1 ].stop()',
-    '',
-    '// sugar',
-    'this.note[ 1 ].start()',
-  ].join( '\n' ),
   
-  createCodeMirror: function() {
+  createCodeMirror() {
     CodeMirror.keyMap.gibber = this.keymap
-    this.codemirror = CodeMirror( document.querySelector('#editor'), { mode:'javascript', keyMap:'gibber', autofocus:true, value:this.exampleCode })
+    this.codemirror = CodeMirror( document.querySelector('#editor'), { mode:'javascript', keyMap:'gibber', autofocus:true, value:exampleCode })
     this.codemirror.setSize( null, '100%' ) 
   },
 
-  createConsole: function() {
+  createConsole() {
     this.console = CodeMirror( document.querySelector('#console'), { mode:'javascript', autofocus:false, lineWrapping:true })
     this.console.setSize( null, '100%' )
   },
 
-  log: function() {
-    var args = Array.prototype.slice.call( arguments, 0 )
+  log() {
+    let args = Array.prototype.slice.call( arguments, 0 )
     
     // do not place newline before first log message
-    var currentValue = Environment.console.getValue() 
+    let currentValue = Environment.console.getValue() 
     if( currentValue.length ) currentValue += '\n'
 
     Environment.console.setValue( currentValue + args.join( ' ' ) )
@@ -67,15 +64,15 @@ var Environment = {
   keymap : {
     fallthrough:'default',
 
-    'Ctrl-Enter': function( cm ) {
+    'Ctrl-Enter'( cm ) {
       try {
-        var selectedCode = Environment.getSelectionCodeColumn( Environment.codemirror, false )
+        let selectedCode = Environment.getSelectionCodeColumn( Environment.codemirror, false )
 
         //console.log( selectedCode.code )
 
         Environment.flash( Environment.codemirror, selectedCode.selection )
 
-        var func = new Function( selectedCode.code ).bind( Gibber.currentTrack )()
+        let func = new Function( selectedCode.code ).bind( Gibber.currentTrack )()
         //  Gibber.codeMarkup.process( selectedCode.code, selectedCode.selection )
       } catch (e) {
         console.log( e )
@@ -84,8 +81,8 @@ var Environment = {
     }
   },
 
- 	getSelectionCodeColumn : function( cm, findBlock ) {
-		var pos = cm.getCursor(), 
+ 	getSelectionCodeColumn( cm, findBlock ) {
+		let pos = cm.getCursor(), 
 				text = null
  
   	if( !findBlock ) {
@@ -98,7 +95,7 @@ var Environment = {
         //pos = null
       }
     }else{
-      var startline = pos.line, 
+      let startline = pos.line, 
           endline = pos.line,
           pos1, pos2, sel
     
@@ -114,7 +111,7 @@ var Environment = {
     }
 
     if( typeof pos.start === 'undefined' ) {
-      var lineNumber = pos.line,
+      let lineNumber = pos.line,
           start = 0,
           end = text.length
 
@@ -125,8 +122,8 @@ var Environment = {
 		return { selection: pos, code: text }
 	},
 
-  flash: function(cm, pos) {
-    var sel,
+  flash(cm, pos) {
+    let sel,
         cb = function() { sel.clear() }
   
     if (pos !== null) {
@@ -144,5 +141,3 @@ var Environment = {
 }
 
 module.exports = Environment
-
-}()

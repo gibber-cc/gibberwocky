@@ -1,65 +1,66 @@
-!function () {
+let Gibber = null
 
-var Gibber = null
-
-var Communication = {
-  inputMode:null,
-  outputMode:null,
+let Communication = {
   webSocketPort: 8081, // default?
   socketInitialized: false,
   
-  init: function( _Gibber ) { 
+  init( _Gibber ) { 
     Gibber = _Gibber
     this.createWebSocket()
     this.send = this.send.bind( Communication )
   },
 
-  createWebSocket: function() {
+  createWebSocket() {
     if ( this.connected ) return
 
     if ( 'WebSocket' in window ) {
-      Gibber.log( 'Connecting' , this.querystring.host, this.querystring.port );
-      var host = this.querystring.host || '127.0.0.1' //'localhost'
-      var port = this.querystring.port || '8081'
-      var address = "ws://" + host + ":" + port// + '/maxmsp' ;
+      Gibber.log( 'Connecting' , this.querystring.host, this.querystring.port )
+
+      let host = this.querystring.host || '127.0.0.1',
+          port = this.querystring.port || '8081',
+          address = "ws://" + host + ":" + port
+
       this.wsocket = new WebSocket(address);
+      
       this.wsocket.onopen = function(ev) {        
-          Gibber.log( 'CONNECTED to ' + address )
-          this.connected = true
-          // cancel the auto-reconnect task:
-          if ( this.connectTask !== undefined ) clearInterval( this.connectTask )
-          // apparently this first reply is necessary
-          var message = 'update on'
-          this.wsocket.send( message )
+        Gibber.log( 'CONNECTED to ' + address )
+        this.connected = true
+
+        // cancel the auto-reconnect task:
+        if ( this.connectTask !== undefined ) clearTimeout( this.connectTask )
+          
+        // apparently this first reply is necessary
+        this.wsocket.send( 'update on' )
       }.bind( Communication );
 
       this.wsocket.onclose = function(ev) {
-          Gibber.log( 'DISCONNECTED from ' + address )
-          this.connected = false;
-          // set up an auto-reconnect task:
-          this.connectTask = setTimeout( this.createWebSocket.bind( Communication ) , 1000);
+        Gibber.log( 'DISCONNECTED from ' + address )
+        this.connected = false
+
+        // set up an auto-reconnect task:
+        this.connectTask = setTimeout( this.createWebSocket.bind( Communication ) , 1000 )
       }.bind( Communication )
 
-      this.wsocket.onmessage = function(ev) {
+      this.wsocket.onmessage = function( ev ) {
         // Gibber.log('msg:', ev )
         this.handleMessage( ev )
       }.bind( Communication )
 
-      this.wsocket.onerror = function(ev) {
+      this.wsocket.onerror = function( ev ) {
         Gibber.log( 'WebSocket error' )
       }.bind( Communication )
 
     } else {
-        post("WebSockets are not available in this browser!!!");
+      post( 'WebSockets are not available in this browser!!!' );
     }
   
   },
 
-  handleMessage: function( msg ) {
+  handleMessage( msg ) {
     // key and data are separated by a space
     // TODO: will key always be three characters?
 
-    var key = msg.data.substr( 0,3 ), data = msg.data.substr( 4 )
+    let key = msg.data.substr( 0,3 ), data = msg.data.substr( 4 )
     switch( key ) {
       case 'seq' :
         if( data === undefined ) {
@@ -77,24 +78,22 @@ var Communication = {
     }
   },
 
-
-  send: function( code ) {
-    //this.senders[ this.outputMode ].send( code )
+  send( code ) {
     this.wsocket.send( code )
   },
 
-  querystring : (function() {
-    var qstr = window.location.search
-    var query = {}
-    var a = qstr.substr(1).split('&')
-    for (var i = 0; i < a.length; i++) {
-      var b = a[i].split('=')
-      query[ decodeURIComponent( b[0]) ] = decodeURIComponent( b[1] || '' )
-    }
-    return query
-  })(),
+  querystring : null,
 }
 
-module.exports = Communication
+let qstr = window.location.search,
+    query = {},
+    a = qstr.substr( 1 ).split( '&' )
 
-}()
+for ( let i = 0; i < a.length; i++ ) {
+  let b = a[ i ].split( '=' )
+  query[ decodeURIComponent( b[0]) ] = decodeURIComponent( b[1] || '' )
+}
+
+Communication.querystring =  query
+
+module.exports = Communication
