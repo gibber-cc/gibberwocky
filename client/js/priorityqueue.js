@@ -54,9 +54,7 @@
  * heapq.pop(); // ==> 2
  * heapq.pop(); // ==> 3
  */
-!function() {
-
-var HeapQueue = function(cmp){
+let HeapQueue = function(cmp){
   this.cmp = (cmp || function(a, b){ return a - b; });
   this.length = 0;
   this.data = [];
@@ -110,5 +108,3 @@ HeapQueue.prototype.pop = function(){
 };
 
 module.exports = HeapQueue
-
-}()

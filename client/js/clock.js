@@ -21,7 +21,6 @@ var Scheduler = {
 
       var beatOffset = ( nextTick.time - this.phase ) / advanceAmount
 
-      
       this.currentTime = nextTick.time
 
       // execute callback function for tick passing schedule, time and beatOffset
@@ -42,7 +41,9 @@ var Scheduler = {
   },
 
   addMessage( seq, time ) {
+    time *= 4 // TODO: should this be a function of the time signature?
     time += this.currentTime || this.phase
+
     this.queue.push({ seq, time })
   },
 
@@ -51,8 +52,7 @@ var Scheduler = {
   },
 
   seq( beat ) {
-    // TODO WARNING TODO: SEVERE FAKERY... assume 1 beat = 22050 samples @ 120 bpm
-    Scheduler.advance( 22050, beat )
+    Scheduler.advance( 1, beat )
 
     Scheduler.outputMessages()
   },

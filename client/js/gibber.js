@@ -32,6 +32,8 @@ var Gibber = {
 
       if( obj.sequences[ methodName ] === undefined ) obj.sequences[ methodName ] = []
 
+      if( obj.sequences[ methodName ][ id ] ) obj.sequences[ methodName ][ id ].stop() 
+
       obj.sequences[ methodName ][ id ] = Gibber.Seq( values, timings, methodName, obj ).start()
 
       if( id === 0 ) {

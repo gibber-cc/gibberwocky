@@ -7,10 +7,10 @@ const exampleCode =
 this.note( 84 )
 
 // ctrl+enter to execute line or selection
-this.note.seq( [64,66,67,69], 11025 )
+this.note.seq( [64,66,67,69], 1/2 )
 
-this.note.values.reverse.seq( null, 44100 )
-this.note.values.rotate.seq( 1, 88200 )
+this.note.values.reverse.seq( null, 4 )
+this.note.values.rotate.seq( 1, 2 )
 
 // stop
 this.note.seq.stop()
@@ -19,7 +19,7 @@ this.note.seq.stop()
 this.note.seq.start()
 
 // create a parallel sequence with id 1 (0 is default)
-this.note.seq( 71, 5512.5, 1 )
+this.note.seq( 71, 1/2, 1/4 )
 
 // longhand reference to sequence
 this.sequences.note[ 1 ].stop()
