@@ -1,12 +1,14 @@
 !function() {
 
-var Queue = require( './priorityqueue.js' )
+let Queue = require( './priorityqueue.js' )
 
-var seqclosure = function( Gibber ) {
+let test = () => 2
 
-  var proto = {
+let seqclosure = function( Gibber ) {
+
+  let proto = {
     create: function( _values, _timings, _key, _object ) {
-      var seq = Object.create( this )
+      let seq = Object.create( this )
 
       Object.assign( seq, {
         phase: 0,
@@ -35,9 +37,9 @@ var seqclosure = function( Gibber ) {
     externalMessages: {
       note: function( number, beat, beatOffset ) {
         // arguments is a max message, as space-delimited strings and numbers. t is timestamp within beat 0..1
-        // var msgstring = "add " + beat + " " + t + " " + n + " " + v + " " + d
+        // let msgstring = "add " + beat + " " + t + " " + n + " " + v + " " + d
 
-        var msg = 'add ' + beat + ' ' +  beatOffset + ' ' + number 
+        let msg = 'add ' + beat + ' ' +  beatOffset + ' ' + number 
 
         return msg 
       }
@@ -60,9 +62,9 @@ var seqclosure = function( Gibber ) {
       if( !this.running ) return
 
       // pick a value and generate messages
-      var value = this.values
+      let value = this.values
  
-      // send that message to clock to be scheduled
+      // call method or anonymous function immediately
       if( scheduler === -1 ) {
 
         if( this.object && this.key ) {
@@ -72,12 +74,14 @@ var seqclosure = function( Gibber ) {
         }
 
       } else if( this.externalMessages[ this.key ] !== undefined ) {
+
         if( typeof value === 'function' ) value = value()
 
-        var msg = this.externalMessages[ this.key ]( value, beat, beatOffset )
+        let msg = this.externalMessages[ this.key ]( value, beat, beatOffset )
 
         scheduler.msgs.push( msg )
-      } else {
+      
+      } else { // schedule internal method / function call
 
         if( this.object && this.key ) {
 
@@ -97,7 +101,7 @@ var seqclosure = function( Gibber ) {
       }
 
       // pick a new timing and schedule tick
-      var nextTime = currentTime + this.timings()
+      let nextTime = currentTime + this.timings()
       
       //Gibber.log( 'tick', currentTime, nextTime )
       
