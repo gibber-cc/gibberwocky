@@ -1,8 +1,6 @@
-!function() {
+'use strict';
 
-let Queue = require( './priorityqueue.js' )
-
-let test = () => 2
+var Queue = require( './priorityqueue.js' )
 
 let seqclosure = function( Gibber ) {
 
@@ -116,5 +114,3 @@ let seqclosure = function( Gibber ) {
 }
 
 module.exports = seqclosure
-
-}()
