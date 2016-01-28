@@ -10,11 +10,14 @@ var Track = function( Gibber, _id ) {
   //var msgstring = "add " + beat + " " + t + " " + n + " " + v + " " + d 
   var track = {
     id: _id,
+		sequences:{},
     note : function( notenum, velocity, duration ) {
       var msg = [ 'note', notenum, velocity, duration ].join( ' ' )
       Gibber.Communication.send( msg )
     }
   }
+  
+  Gibber.addSequencingToMethod( track, 'note' )
 
 	return track
 }

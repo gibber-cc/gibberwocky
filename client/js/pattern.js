@@ -364,7 +364,8 @@ var Pattern = function() {
     'transpose','reverse','shuffle','scale',
     'store', 'range', 'set'
   ]
-
+  
+  for( var key in methodNames ) { Gibber.addSequencingToMethod( fnc, methodNames[ key ] ) }
   // TODO: Gibber.createProxyMethods( fnc, methodNames , true )
   
   // for( var i = 0; i < methodNames.length; i++ ) {
@@ -373,6 +374,7 @@ var Pattern = function() {
   //  fnc[ name ].listeners = {}
   //  }
   fnc.listeners = {}
+  fnc.sequences = {}
 
   // TODO: Gibber.createProxyProperties( fnc, { 'stepSize':0, 'start':0, 'end':0 })
   

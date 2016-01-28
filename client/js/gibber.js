@@ -27,9 +27,29 @@ var Gibber = {
     this.export()
   },
   addSequencingToMethod: function( obj, methodName ) {
-    obj[ methodName ].seq = function( values, timings ) {
-      if( ! values instanceof Pattern ) values = Pattern.apply( null, values)  
-      if( ! timings instanceof Pattern ) timings = Pattern.apply( null, timings )  
+    obj[ methodName ].seq = function( values, timings, id ) {
+      if( id === undefined ) id = 0
+
+      if( obj.sequences[ methodName ] === undefined ) obj.sequences[ methodName ] = []
+
+      obj.sequences[ methodName ][ id ] = Gibber.Seq( values, timings, methodName, obj ).start()
+
+      if( id === 0 ) {
+        obj[ methodName ].values  = obj.sequences[ methodName ][ 0 ].values
+        obj[ methodName ].timings = obj.sequences[ methodName ][ 0 ].timings
+      }
+
+      obj[ methodName ][ id ] = obj.sequences[ methodName ][ id ]
+    }
+
+    obj[ methodName ].seq.stop = function() {
+      obj.sequences[ methodName ][ 0 ].stop()
+      return obj
+    }
+
+    obj[ methodName ].seq.start = function() {
+      obj.sequences[ methodName ][ 0 ].start()
+      return obj
     }
   },
 }

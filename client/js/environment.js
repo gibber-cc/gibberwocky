@@ -9,18 +9,46 @@ require( '../node_modules/codemirror/mode/javascript/javascript.js' )
 var Environment = {
   init: function( gibber ) {
     Gibber = gibber
-
+    
     this.createCodeMirror()
     this.createConsole()
   },
 
+  exampleCode: [
+    '// play note immediately',
+    'this.note( 84 )',
+    '',
+    '// ctrl+enter to execute line or selection',
+    'this.note.seq( [64,66,67,69], 11025 )',
+    '',
+    'this.note.values.reverse.seq( null, 44100 )',
+    'this.note.values.rotate.seq( 1, 88200 )',
+    '',
+    '// stop',
+    'this.note.seq.stop()',
+    '',
+    '// start',
+    'this.note.seq.start()',
+    '',
+    '// create a parallel sequence with id 1 (0 is default)',
+    'this.note.seq( 71, 5512.5, 1 )',
+    '',
+    '// longhand reference to sequence',
+    'this.sequences.note[ 1 ].stop()',
+    '',
+    '// sugar',
+    'this.note[ 1 ].start()',
+  ].join( '\n' ),
+  
   createCodeMirror: function() {
     CodeMirror.keyMap.gibber = this.keymap
-    this.codemirror = CodeMirror( document.querySelector('#editor'), { mode:'javascript', keyMap:'gibber', autofocus:true, value:'a = Seq( [60,58], [22050] ).start()' }) 
+    this.codemirror = CodeMirror( document.querySelector('#editor'), { mode:'javascript', keyMap:'gibber', autofocus:true, value:this.exampleCode })
+    this.codemirror.setSize( null, '100%' ) 
   },
 
   createConsole: function() {
     this.console = CodeMirror( document.querySelector('#console'), { mode:'javascript', autofocus:false, lineWrapping:true })
+    this.console.setSize( null, '100%' )
   },
 
   log: function() {
@@ -43,13 +71,14 @@ var Environment = {
       try {
         var selectedCode = Environment.getSelectionCodeColumn( Environment.codemirror, false )
 
-        console.log( selectedCode.code )
+        //console.log( selectedCode.code )
 
         Environment.flash( Environment.codemirror, selectedCode.selection )
 
         var func = new Function( selectedCode.code ).bind( Gibber.currentTrack )()
         //  Gibber.codeMarkup.process( selectedCode.code, selectedCode.selection )
       } catch (e) {
+        console.log( e )
         Environment.log( 'ERROR', e )
       }
     }
