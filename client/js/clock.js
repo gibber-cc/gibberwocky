@@ -10,7 +10,7 @@ var Scheduler = {
   }),
   
   // all ticks take the form of { time:timeInSamples, seq:obj }
-  advance : function( advanceAmount, beat ) {
+  advance( advanceAmount, beat ) {
     var end = this.phase + advanceAmount,
         nextTick = this.queue.peek()
        
@@ -19,10 +19,13 @@ var Scheduler = {
       // remove tick
       this.queue.pop()
 
-      var beatOffset = (nextTick.time - this.phase) / advanceAmount
+      var beatOffset = ( nextTick.time - this.phase ) / advanceAmount
 
-      // execute callback function for tick passing schedule, time and beatOffset    
-      nextTick.seq.tick( this, beat, nextTick.time, beatOffset )
+      
+      this.currentTime = nextTick.time
+
+      // execute callback function for tick passing schedule, time and beatOffset
+      nextTick.seq.tick( this, beat, beatOffset )
 
       // recursively call advance
       this.advance( advanceAmount, beat ) 
@@ -38,15 +41,16 @@ var Scheduler = {
     }
   },
 
-  addMessage: function( _seq, _time ) {
-    this.queue.push({ seq:_seq, time:_time  })
+  addMessage( seq, time ) {
+    time += this.currentTime || this.phase
+    this.queue.push({ seq, time })
   },
 
-  outputMessages: function() {
+  outputMessages() {
     this.msgs.forEach( Gibber.Communication.send )
   },
 
-  seq : function( beat ) {
+  seq( beat ) {
     // TODO WARNING TODO: SEVERE FAKERY... assume 1 beat = 22050 samples @ 120 bpm
     Scheduler.advance( 22050, beat )
 

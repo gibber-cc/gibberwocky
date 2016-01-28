@@ -47,7 +47,7 @@ let seqclosure = function( Gibber ) {
       if( this.running ) return
 
       this.running = true
-      this.tick( -1, -1, Gibber.Scheduler.phase, 0 )
+      this.tick( -1, -1, 0 )
       
       return this
     },
@@ -56,7 +56,7 @@ let seqclosure = function( Gibber ) {
       this.running = false
     },
 
-    tick : function( scheduler, beat, currentTime, beatOffset ) { // avoid this
+    tick : function( scheduler, beat, beatOffset ) { // avoid this
       if( !this.running ) return
 
       // pick a value and generate messages
@@ -99,7 +99,7 @@ let seqclosure = function( Gibber ) {
       }
 
       // pick a new timing and schedule tick
-      let nextTime = currentTime + this.timings()
+      let nextTime = this.timings()
       
       //Gibber.log( 'tick', currentTime, nextTime )
       

@@ -3,10 +3,11 @@ module.exports = function( Gibber ) {
 "use strict"
 
 let PatternProto = {
-  concat : function( _pattern ) { this.values = this.values.concat( _pattern.values ) },  
-  toString: function() { return this.values.toString() },
-  valueOf: function() { return this.values },
-  getLength: function() {
+  concat( _pattern ) { this.values = this.values.concat( _pattern.values ) },  
+  toString() { return this.values.toString() },
+  valueOf() { return this.values },
+
+  getLength() {
     let l
     if( this.start <= this.end ) {
       l = this.end - this.start + 1
@@ -15,28 +16,30 @@ let PatternProto = {
     }
     return l
   },
-  runFilters : function( val, idx ) {
+
+  runFilters( val, idx ) {
     let args = [ val, 1, idx ] // 1 is phaseModifier
 
-    for( let i = 0; i < this.filters.length; i++ ) {
-      args = this.filters[ i ]( args, this )
+    for( let filter of this.filters ) {
+      args = filter( args, this ) 
     }
-    
+
     return args
   },
-  checkForUpdateFunction: function( name, _arguments ) {
-    let args = Array.prototype.slice.call( _arguments, 0 )
 
+  checkForUpdateFunction( name, ...args ) {
     if( this.listeners[ name ] ) {
       this.listeners[ name ].apply( this, args )
     }else if( Pattern.listeners[ name ] ) {
       Pattern.listeners[ name ].apply( this, args )
     }
   },
-  _onchange : function() {},
+
+  // used when _onchange has not been assigned to individual patterns
+  _onchange() {},
 }
 
-let Pattern = function() {
+let Pattern = function( ...args ) {
   /*
    *if( ! ( this instanceof Pattern ) ) {
    *  let args = Array.prototype.slice.call( arguments, 0 )
@@ -85,7 +88,7 @@ let Pattern = function() {
     start : 0,
     end   : 0,
     phase : 0,
-    values : Array.prototype.slice.call( arguments, 0 ),
+    values : args, 
     //values : typeof arguments[0] !== 'string' || arguments.length > 1 ? Array.prototype.slice.call( arguments, 0 ) : arguments[0].split(''),    
     original : null,
     storage : [],
@@ -94,7 +97,7 @@ let Pattern = function() {
     filters : [],
     onchange : null,
 
-    range : function() {
+    range() {
       let start, end
       
       if( Array.isArray( arguments[0] ) ) {
@@ -118,7 +121,7 @@ let Pattern = function() {
       return fnc
     },
     
-    set: function() {
+    set() {
       let args = Array.isArray( arguments[ 0 ] ) ? arguments[ 0 ] : arguments
       
       fnc.values.length = 0
@@ -138,7 +141,7 @@ let Pattern = function() {
       return fnc
     },
      
-    reverse : function() { 
+    reverse() { 
       //fnc.values.reverse(); 
       let array = fnc.values,
           left = null,
@@ -146,15 +149,15 @@ let Pattern = function() {
           length = array.length,
           temporary;
           
-      for (left = 0, right = length - 1; left < right; left += 1, right -= 1) {
-        temporary = array[left];
-        array[left] = array[right];
-        array[right] = temporary;
+      for ( left = 0, right = length - 1; left < right; left += 1, right -= 1 ) {
+        temporary = array[ left ]
+        array[ left ] = array[ right ]
+        array[ right ] = temporary;
       }
       
       fnc._onchange() 
       
-      return fnc;
+      return fnc
     },
     // humanize: function( randomMin, randomMax ) {
  //      let lastAmt = 0
@@ -184,7 +187,7 @@ let Pattern = function() {
  //
  //      return this
  //    },
-    repeat: function() {
+    repeat() {
       let counts = {}
     
       for( let i = 0; i < arguments.length; i +=2 ) {
@@ -231,9 +234,10 @@ let Pattern = function() {
       return fnc
     },
   
-    reset : function() { fnc.values = fnc.original.slice( 0 ); fnc._onchange(); return fnc; },
-    store : function() { fnc.storage[ fnc.storage.length ] = fnc.values.slice( 0 ); return fnc; },
-    transpose : function( amt ) { 
+    reset() { fnc.values = fnc.original.slice( 0 ); fnc._onchange(); return fnc; },
+    store() { fnc.storage[ fnc.storage.length ] = fnc.values.slice( 0 ); return fnc; },
+
+    transpose( amt ) { 
       for( let i = 0; i < fnc.values.length; i++ ) { 
         let val = fnc.values[ i ]
         
@@ -254,33 +258,37 @@ let Pattern = function() {
       
       return fnc
     },
-    shuffle : function() { 
+
+    shuffle() { 
       Gibber.Utilities.shuffle( fnc.values )
       fnc._onchange()
       
       return fnc
     },
-    scale : function( amt ) { 
-      for( let i = 0; i < fnc.values.length; i++ ) {
-        let val = fnc.values[ i ]
+
+    scale( amt ) { 
+      fnc.values.map( (val, idx, array) => {
         if( Array.isArray( val ) ) {
-          for( let j = 0; j < val.length; j++ ) {
-            if( typeof val[ j ] === 'number' ) {
-              val[ j ] = fnc.integersOnly ? Math.round( val[ j ] * amt ) : val[ j ] * amt
+          array[ idx ] = val.map( inside  => {
+            if( typeof inside === 'number' ) {
+              return fnc.integersOnly ? Math.round( inside * amt ) : inside * amt
+            } else {
+              return inside
             }
-          }
+          })
         }else{
           if( typeof val === 'number' ) {
-            fnc.values[ i ] = fnc.integersOnly ? Math.round( fnc.values[ i ] * amt ) : fnc.values[ i ] * amt
+            array[ idx ] = fnc.integersOnly ? Math.round( val * amt ) : val * amt
           }
         }
-      }
+      })
+
       fnc._onchange()
       
       return fnc
     },
 
-    flip : function() {
+    flip() {
       let start = [],
           ordered = null
     
@@ -302,7 +310,7 @@ let Pattern = function() {
   		return fnc
     },
     
-    invert: function() {
+    invert() {
       let prime0 = fnc.values[ 0 ]
       
       for( let i = 1; i < fnc.values.length; i++ ) {
@@ -317,7 +325,7 @@ let Pattern = function() {
   		return fnc
     },
   
-    switch : function( to ) {
+    switch( to ) {
       if( fnc.storage[ to ] ) {
         fnc.values = fnc.storage[ to ].slice( 0 )
       }
@@ -327,7 +335,7 @@ let Pattern = function() {
       return fnc
     },
   
-    rotate : function( amt ) {
+    rotate( amt ) {
       if( amt > 0 ) {
         while( amt > 0 ) {
           let end = fnc.values.pop()
@@ -362,8 +370,8 @@ let Pattern = function() {
     'transpose','reverse','shuffle','scale',
     'store', 'range', 'set'
   ]
-  
-  for( let key in methodNames ) { Gibber.addSequencingToMethod( fnc, methodNames[ key ] ) }
+   
+  for( let key of methodNames ) { Gibber.addSequencingToMethod( fnc, key ) }
   // TODO: Gibber.createProxyMethods( fnc, methodNames , true )
   
   // for( let i = 0; i < methodNames.length; i++ ) {
