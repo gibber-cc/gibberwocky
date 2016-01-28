@@ -9,7 +9,7 @@ var Scheduler = {
     return a.time - b.time
   }),
   
-  // all ticks take the form of { time:timeInSamples, callback:function }
+  // all ticks take the form of { time:timeInSamples, seq:obj }
   advance : function( advanceAmount, beat ) {
     var end = this.phase + advanceAmount,
         nextTick = this.queue.peek()
@@ -22,7 +22,7 @@ var Scheduler = {
       var beatOffset = (nextTick.time - this.phase) / advanceAmount
 
       // execute callback function for tick passing schedule, time and beatOffset    
-      nextTick.callback( this, beat, nextTick.time, beatOffset )
+      nextTick.seq.tick( this, beat, nextTick.time, beatOffset )
 
       // recursively call advance
       this.advance( advanceAmount, beat ) 
@@ -38,9 +38,8 @@ var Scheduler = {
     }
   },
 
-  addMessage: function( _callback, _time ) {
-    this.queue.push({ callback:_callback, time:_time  })
-    // console.log( "CURRENT TIME: " + Scheduler.phase, "| NEXT TIME:" + _time )
+  addMessage: function( _seq, _time ) {
+    this.queue.push({ seq:_seq, time:_time  })
   },
 
   outputMessages: function() {
@@ -52,35 +51,6 @@ var Scheduler = {
     Scheduler.advance( 22050, beat )
 
     Scheduler.outputMessages()
-    /*
-     *if (beat == 0) {
-     *  mul = 1 + (mul % 4);
-     *}
-     *var msgarr = []; 
-     * // generate some randomized beats:
-     *var div = Math.pow(2, (beat+mul+1) % 5);
-     *var lim = 1;
-     *for (var i=0; i<lim; i++) {
-     *  // timestamp within beat (0..1)
-     *  var t = i/lim; //random(div)/div;
-     *  // MIDI note value
-     *  var n = 36 + (beat*3)%16; //notes[beat % notes.length]; //pick(notes)
-     *  // MIDI velocity
-     *  var v = (1-t) * (1-t) * (1-t) * 100; //64 + random(32);
-     *  // duration (ms)
-     *  var d = (beat+1) * (beat+1) * (t+1) * 6;
-     *  // seq~ schedule format:
-     *  // add <seqid> <phase> <arguments...>
-     *  // seqid is the beat number
-     *  // phase is 0..1 within that beat
-     *  // arguments is a max message, as space-delimited strings and numbers
-     *  var msgstring = "add " + beat + " " + t + " " + n + " " + v + " " + d
-     *  msgarr.push( msgstring )
-     *  // Gibber.log( msgstring )
-     *}
-    */
-
-    // this.send( this.msgs ) // sends array as comma-delimited strings
   },
 
 }
