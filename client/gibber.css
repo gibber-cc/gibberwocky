@@ -6,9 +6,11 @@
   display:inline-block;
 }
 
+
+/* TODO: change width to 30% before publishing. */
 #console {
   display:inline-block;
-  width:30%;
+  width:29.25%;
   background:#eee;
   float:right;
   height:100%;

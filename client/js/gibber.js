@@ -1,6 +1,6 @@
 !function() {
 
-var Gibber = {
+let Gibber = {
   Communication: require( './communication.js' ),
   codemirror: null,
   max: null,
@@ -11,14 +11,14 @@ var Gibber = {
   Seq:   null,
   currentTrack:null,
   //Pattern: require( './pattern.js' ),
-  export : function() {
+  export() {
     window.Seq = this.Seq
     window.Track = this.Track
     window.Scheduler = this.Scheduler
     window.Communication = this.Communication
     window.log = this.log
   },
-  init: function() {
+  init() {
     this.max = window.max
     this.Environment.init( Gibber )
     this.log = this.Environment.log
@@ -26,9 +26,8 @@ var Gibber = {
     this.currentTrack = this.Track( this, 1 ) // how to determine actual "id" from Max?
     this.export()
   },
-  addSequencingToMethod: function( obj, methodName ) {
-    obj[ methodName ].seq = function( values, timings, id ) {
-      if( id === undefined ) id = 0
+  addSequencingToMethod( obj, methodName ) {
+    obj[ methodName ].seq = function( values, timings, id=0 ) {
 
       if( obj.sequences[ methodName ] === undefined ) obj.sequences[ methodName ] = []
 

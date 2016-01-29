@@ -2,30 +2,33 @@
 let Gibber = null,
     CodeMirror = require( 'codemirror' )
 
-const exampleCode = 
-`// play note immediately
+const exampleCode = `// ctrl+enter to execute line or selection
 this.note( 84 )
 
-// ctrl+enter to execute line or selection
-this.note.seq( [64,66,67,69], 1/2 )
+// 'bass' sequence, defaults to id #0
+this.note.seq( 40, 1 )
 
-this.note.values.reverse.seq( null, 4 )
-this.note.values.rotate.seq( 1, 2 )
+// 'melody' parallel sequence with id #1 (last arg)
+this.note.seq( [64,66,67,69], 1/4, 1 )
 
-// stop
-this.note.seq.stop()
+// reverse and rotate 'melody'
+this.note[1].values.reverse.seq( null, 2 )
+this.note[1].values.rotate.seq( 1, 1 )
 
-// start
-this.note.seq.start()
+// stop 'bass'
+this.note[ 0 ].seq.stop()
 
-// create a parallel sequence with id 1 (0 is default)
-this.note.seq( 71, 1/2, 1/4 )
+// start 'bass'
+this.note[ 0 ].seq.start()
 
-// longhand reference to sequence
-this.sequences.note[ 1 ].stop()
+// create a parallel sequence with id #2 (last arg)
+this.note.seq( 71, 1/8, 2 )
+
+// longhand reference to sequence 
+this.sequences.note[ 2 ].stop()
 
 // sugar
-this.note[ 1 ].start()`
+this.note[ 2 ].start()`
 
 require( '../node_modules/codemirror/mode/javascript/javascript.js' )
 
@@ -68,11 +71,10 @@ let Environment = {
       try {
         let selectedCode = Environment.getSelectionCodeColumn( Environment.codemirror, false )
 
-        //console.log( selectedCode.code )
-
         Environment.flash( Environment.codemirror, selectedCode.selection )
 
-        let func = new Function( selectedCode.code ).bind( Gibber.currentTrack )()
+        let func = new Function( selectedCode.code ).bind( Gibber.currentTrack )
+        Gibber.Scheduler.functionsToExecute.push( func )
         //  Gibber.codeMarkup.process( selectedCode.code, selectedCode.selection )
       } catch (e) {
         console.log( e )

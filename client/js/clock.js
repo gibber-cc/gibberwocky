@@ -5,6 +5,7 @@ var Queue = require( './priorityqueue.js' )
 var Scheduler = {
   phase: 0,
   msgs: [],
+  functionsToExecute: [],
   queue: new Queue( function( a, b ) {
     return a.time - b.time
   }),
@@ -37,6 +38,7 @@ var Scheduler = {
       }
 
       this.phase += advanceAmount   // increment phase
+      this.currentTime = this.phase
     }
   },
 
@@ -52,6 +54,10 @@ var Scheduler = {
   },
 
   seq( beat ) {
+    if( (beat) % 4 === 1 ) {
+      for( let func of Scheduler.functionsToExecute ) func()
+      Scheduler.functionsToExecute = []
+    }
     Scheduler.advance( 1, beat )
 
     Scheduler.outputMessages()
