@@ -45,6 +45,8 @@ let Marker = {
          case 'THIS.METHOD.SEQ':
            let valuesPattern =  track[ components[ 1 ] ].values,
                timingsPattern = track[ components[ 1 ] ].timings
+           
+           // console.log( components[ 1 ], valuesPattern, timingsPattern )
 
            for( var i = 0, length = args.length >= 2 ? 2 : 1; i < length; i++ ) {
              let patternNode = args[ i ]
@@ -63,7 +65,7 @@ let Marker = {
 
   _markPattern: {
     Literal( patternNode, containerNode, components, cm, track, hasIndex, patternType, patternObject ) {
-       let [ className, start, end ] = Marker._getNamesAndPosition( patternNode, node, components, hasIndex, patternType ),
+       let [ className, start, end ] = Marker._getNamesAndPosition( patternNode, containerNode, components, hasIndex, patternType ),
            cssName = className + '_0',
            marker = cm.markText( start, end, { 'className':cssName, startStyle:'annotation-left-border', endStyle:'annotation-right-border' } )
        
@@ -105,10 +107,31 @@ let Marker = {
         track.markup.textMarkers[ patternName ][ count ] = marker
        
         if( track.markup.cssClasses[ patternName ] === undefined ) track.markup.cssClasses[ patternName ] = []
-
         track.markup.cssClasses[ patternName ][ count ] = cssClassName 
+        
         count++
-      } 
+      }
+      
+      var highlighted = null
+      patternObject.update = () => {
+        if( !patternObject.update.shouldUpdate ) return 
+
+        if( highlighted ) { $( highlighted ).remove( 'annotation-border' ) }
+         
+        let className = '.note_0_values_' + patternObject.update.currentIndex
+
+        $( className ).add( 'annotation-border' )
+
+        highlighted = className
+      }
+
+      patternObject.filters.push( ( args ) => {
+        patternObject.update.shouldUpdate = true
+        patternObject.update.currentIndex = args[ 2 ]
+        
+        Gibber.Environment.animationScheduler.updates.push( patternObject.update ) 
+        return args
+      }) 
     }
   },
 

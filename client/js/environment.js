@@ -8,12 +8,14 @@ require( '../node_modules/codemirror/mode/javascript/javascript.js' )
 let Environment = {
   codeMarkup: require( './codeMarkup.js' ),
   debug: true,
+  animationScheduler: require( './animationScheduler.js' ),
 
   init( gibber ) {
     Gibber = gibber
     
     this.createCodeMirror()
     this.createConsole()
+    this.animationScheduler.init()
   },
   
   createCodeMirror() {
