@@ -7,6 +7,7 @@ require( '../node_modules/codemirror/mode/javascript/javascript.js' )
 
 let Environment = {
   codeMarkup: require( './codeMarkup.js' ),
+  debug: true,
 
   init( gibber ) {
     Gibber = gibber
@@ -47,11 +48,17 @@ let Environment = {
         let selectedCode = Environment.getSelectionCodeColumn( cm, false )
 
         Environment.flash( cm, selectedCode.selection )
+        
+        let func = new Function( selectedCode.code ).bind( Gibber.currentTrack ),
+            markupFunction = () => { Environment.codeMarkup.process( selectedCode.code, selectedCode.selection, cm, Gibber.currentTrack ) }
 
-        let func = new Function( selectedCode.code ).bind( Gibber.currentTrack )
-        Gibber.Scheduler.functionsToExecute.push( func )
- 
-        Environment.codeMarkup.process( selectedCode.code, selectedCode.selection, cm, Gibber.currentTrack )
+        if( !Environment.debug ) {
+          Gibber.Scheduler.functionsToExecute.push( func );
+          Gibber.Scheduler.functionsToExecute.push( markupFunction  )
+        }else{
+          func()
+          markupFunction()
+        }
       } catch (e) {
         console.log( e )
         Environment.log( 'ERROR', e )

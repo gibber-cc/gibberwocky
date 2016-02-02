@@ -56,7 +56,7 @@ var Scheduler = {
   seq( beat ) {
     if( (beat) % 4 === 1 ) {
       for( let func of Scheduler.functionsToExecute ) func()
-      Scheduler.functionsToExecute = []
+      Scheduler.functionsToExecute.length = 0
     }
     Scheduler.advance( 1, beat )
 

@@ -22,3 +22,13 @@ body { margin:0; padding:0 }
 
 #console .CodeMirror { background-color:#efefef }
 #editor  .CodeMirror { background-color:#efefef }
+
+.annotation-highlight { background-color: #ffffff }
+.annotation-border { 
+  border: solid #999 1px;
+  border-top-color:#999;
+  border-bottom-color:#999;
+  box-sizing:border-box !important;
+}
+.annotation-right-border { border-right-color:#999 !important }
+.annotation-left-border  { border-left-color:#999 !important }

@@ -79,7 +79,7 @@ let Communication = {
   },
 
   send( code ) {
-    this.wsocket.send( code )
+    if( this.connected ) this.wsocket.send( code )
   },
 
   querystring : null,

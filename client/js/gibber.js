@@ -1,6 +1,7 @@
 !function() {
 
 let Gibber = {
+  '$': require( './utility.js' ).create,
   Communication: require( './communication.js' ),
   codemirror: null,
   max: null,
