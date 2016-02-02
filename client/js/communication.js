@@ -6,7 +6,7 @@ let Communication = {
   
   init( _Gibber ) { 
     Gibber = _Gibber
-    this.createWebSocket()
+    //this.createWebSocket()
     this.send = this.send.bind( Communication )
   },
 
