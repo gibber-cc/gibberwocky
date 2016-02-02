@@ -44,14 +44,14 @@ let Environment = {
 
     'Ctrl-Enter'( cm ) {
       try {
-        let selectedCode = Environment.getSelectionCodeColumn( Environment.codemirror, false )
+        let selectedCode = Environment.getSelectionCodeColumn( cm, false )
 
-        Environment.flash( Environment.codemirror, selectedCode.selection )
+        Environment.flash( cm, selectedCode.selection )
 
         let func = new Function( selectedCode.code ).bind( Gibber.currentTrack )
         Gibber.Scheduler.functionsToExecute.push( func )
  
-        Environment.codeMarkup.process( selectedCode.code, selectedCode.selection )
+        Environment.codeMarkup.process( selectedCode.code, selectedCode.selection, cm, Gibber.currentTrack )
       } catch (e) {
         console.log( e )
         Environment.log( 'ERROR', e )

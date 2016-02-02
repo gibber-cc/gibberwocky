@@ -1,6 +1,4 @@
-!function() {
-
-var Track = function( Gibber, _id ) {
+let Track = function( Gibber, id ) {
   // seq~ schedule format:
   // add <seqid> <phase> <arguments...>
   // seqid is the beat number
@@ -8,19 +6,20 @@ var Track = function( Gibber, _id ) {
   // arguments is a max message, as space-delimited strings and numbers
   
   //var msgstring = "add " + beat + " " + t + " " + n + " " + v + " " + d 
-  var track = {
-    id: _id,
+  let track = {
+    id,
 		sequences:{},
-    note : function( notenum, velocity, duration ) {
+
+    note( notenum, velocity, duration ) {
       var msg = [ 'note', notenum, velocity, duration ].join( ' ' )
       Gibber.Communication.send( msg )
     }
   }
-  
+
+  Gibber.Environment.codeMarkup.prepareObject( track ) 
   Gibber.addSequencingToMethod( track, 'note' )
 
 	return track
 }
 
 module.exports = Track
-}()
