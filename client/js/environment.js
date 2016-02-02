@@ -50,7 +50,8 @@ let Environment = {
 
         let func = new Function( selectedCode.code ).bind( Gibber.currentTrack )
         Gibber.Scheduler.functionsToExecute.push( func )
-        //  Gibber.codeMarkup.process( selectedCode.code, selectedCode.selection )
+ 
+        Environment.codeMarkup.process( selectedCode.code, selectedCode.selection )
       } catch (e) {
         console.log( e )
         Environment.log( 'ERROR', e )

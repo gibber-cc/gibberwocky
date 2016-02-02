@@ -6,8 +6,7 @@
   display:inline-block;
 }
 
-
-/* TODO: change width to 30% before publishing. */
+/* TODO: fix in max and change width to 30% before publishing. */
 #console {
   display:inline-block;
   width:29.25%;
@@ -22,3 +21,4 @@
 body { margin:0; padding:0 }
 
 #console .CodeMirror { background-color:#efefef }
+#editor  .CodeMirror { background-color:#efefef }

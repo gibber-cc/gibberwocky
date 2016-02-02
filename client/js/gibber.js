@@ -4,13 +4,13 @@ let Gibber = {
   Communication: require( './communication.js' ),
   codemirror: null,
   max: null,
-  codeMarkup: null, //require( './codeMarkup.js' ),
   Environment: require( './environment.js' ),
   Scheduler: require( './clock.js' ),
   Track: require( './track.js' ),
   Seq:   null,
   currentTrack:null,
   //Pattern: require( './pattern.js' ),
+
   export() {
     window.Seq = this.Seq
     window.Track = this.Track
@@ -18,6 +18,7 @@ let Gibber = {
     window.Communication = this.Communication
     window.log = this.log
   },
+
   init() {
     this.max = window.max
     this.Environment.init( Gibber )
@@ -26,6 +27,7 @@ let Gibber = {
     this.currentTrack = this.Track( this, 1 ) // how to determine actual "id" from Max?
     this.export()
   },
+
   addSequencingToMethod( obj, methodName ) {
     obj[ methodName ].seq = function( values, timings, id=0 ) {
 
@@ -56,7 +58,7 @@ let Gibber = {
 }
 
 Gibber.Pattern = require( './pattern.js' )( Gibber )
-Gibber.Seq     = require( './seq.js')( Gibber )
+Gibber.Seq     = require( './seq.js' )( Gibber )
 
 module.exports = Gibber
 
