@@ -47,11 +47,13 @@ let Marker = {
 
          case 'THIS.METHOD.SEQ':
            let valuesPattern =  track[ components[ 1 ] ][ index ].values,
-               timingsPattern = track[ components[ 1 ] ][ index ].timings
-           
-           for( var i = 0, length = args.length >= 2 ? 2 : 1; i < length; i++ ) {
-             var patternNode = args[ i ]
-             Marker._markPattern[ patternNode.type ]( patternNode, expressionNode, components, codemirror, track, index, Marker._patternTypes[ i ], i === 0 ? valuesPattern : timingsPattern )
+               timingsPattern = track[ components[ 1 ] ][ index ].timings,
+               valuesNode = args[ 0 ],
+               timingsNode= args[ 1 ]
+
+           Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
+           if( timingsNode ) {
+             Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern )  
            }
 
            break;
@@ -69,11 +71,11 @@ let Marker = {
   },
 
   _createBorderCycleFunction( classNamePrefix, patternObject ) {
-    let highlighted = null,
-        modCount = 0,
-        lastBorder = null
+    let modCount = 0,
+        lastBorder = null,
+        lastClassName = null
     
-    let cycle = () => {
+    let cycle = function() {
       let className = '.' + classNamePrefix + '_' +  patternObject.update.currentIndex,
           border = 'top'
 
@@ -82,11 +84,22 @@ let Marker = {
         case 2: border = 'bottom'; break;
         case 3: border = 'left'; break;
       }
+
       $( className ).add( 'annotation-' + border + '-border' )
+      
       if( lastBorder )
         $( className ).remove( 'annotation-' + lastBorder + '-border' )
       
       lastBorder = border
+      lastClassName = className
+    }
+
+    cycle.clear = function() {
+      modCount = 1
+      if( lastBorder && lastClassName )
+        $( lastClassName ).remove( 'annotation-' + lastBorder + '-border' )
+      
+      lastBorder = null
     }
 
     return cycle
@@ -145,7 +158,8 @@ let Marker = {
 
     ArrayExpression( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) {
       let [ patternName, start, end ] = Marker._getNamesAndPosition( patternNode, containerNode, components, index, patternType ),
-          marker, count = 0
+          marker, 
+          count = 0
 
       for( let element of patternNode.elements ) {
         let cssClassName = patternName + '_' + count,
@@ -172,18 +186,27 @@ let Marker = {
       patternObject.update = () => {
         if( !patternObject.update.shouldUpdate ) return 
          
-        let className = '.note_' + index + '_values_' + patternObject.update.currentIndex
+        let className = `.note_${ index }_${ patternType }_${ patternObject.update.currentIndex }`
         
         if( highlighted !== className ) {
           if( highlighted ) { $( highlighted ).remove( 'annotation-border' ) }
           $( className ).add( 'annotation-border' )
           highlighted = className
+          cycle.clear()
         }else{
           cycle()
         }
       }
 
       Marker._addPatternFilter( patternObject )
+    },
+
+    // CallExpression denotes an array that calls a method, like .rnd()
+    CallExpression( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) {
+      var args = Array.prototype.slice.call( arguments, 0 )
+      args[ 0 ] = patternNode.callee.object
+
+      Marker._markPattern.ArrayExpression.apply( null, args )
     }
   },
 
