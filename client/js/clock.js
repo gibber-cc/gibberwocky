@@ -9,7 +9,15 @@ var Scheduler = {
   queue: new Queue( function( a, b ) {
     return a.time - b.time
   }),
-  
+  mockBeat: 0,
+  mockRun() {
+    let seqFunc = () => {
+      this.seq( this.mockBeat++ % 8 )
+    } 
+    this.mockInterval = setInterval( seqFunc, 500 )
+  },
+  mockInterval: null,
+
   // all ticks take the form of { time:timeInSamples, seq:obj }
   advance( advanceAmount, beat ) {
     var end = this.phase + advanceAmount,
@@ -54,7 +62,7 @@ var Scheduler = {
   },
 
   seq( beat ) {
-    if( (beat) % 4 === 1 ) {
+    if( beat % 4 === 1 ) {
       for( let func of Scheduler.functionsToExecute ) func()
       Scheduler.functionsToExecute.length = 0
     }

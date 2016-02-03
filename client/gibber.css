@@ -23,12 +23,17 @@ body { margin:0; padding:0 }
 #console .CodeMirror { background-color:#efefef }
 #editor  .CodeMirror { background-color:#efefef }
 
+.annotation { padding:1px }
 .annotation-highlight { background-color: #ffffff }
 .annotation-border { 
   border: solid #999 1px;
-  border-top-color:#999;
-  border-bottom-color:#999;
+  padding:0 !important;
   box-sizing:border-box !important;
 }
-.annotation-right-border { border-right-color:#999 !important }
-.annotation-left-border  { border-left-color:#999 !important }
+.annotation-right-border  { border-right-color:#000   !important }
+.annotation-left-border   { border-left-color:#000    !important }
+.annotation-top-border    { border-top-color:#000     !important } 
+.annotation-bottom-border { border-bottom-color:#000 !important }
+.annotation-no-left-border{ border-left-color:transparent !important }
+.annotation-no-right-border{border-right-color:transparent !important }
+.annotation-no-horizontal-border { border-width: 1px 0 }
