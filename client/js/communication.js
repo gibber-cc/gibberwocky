@@ -5,8 +5,9 @@ let Communication = {
   socketInitialized: false,
   
   init( _Gibber ) { 
+    console.log(' ommcunication init' )
     Gibber = _Gibber
-    //this.createWebSocket()
+    this.createWebSocket()
     this.send = this.send.bind( Communication )
   },
 
@@ -79,7 +80,7 @@ let Communication = {
   },
 
   send( code ) {
-    if( this.connected ) this.wsocket.send( code )
+    if( Communication.connected ) Communication.wsocket.send( code )
   },
 
   querystring : null,
