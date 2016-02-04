@@ -175,7 +175,7 @@ let Marker = {
         
         elementStart.ch = element.start
         elementEnd.ch   = element.end
-        marker = cm.markText( elementStart, elementEnd, { 'className':cssClassName } )
+        marker = cm.markText( elementStart, elementEnd, { 'className':cssClassName + ' annotation' } )
         
         if( track.markup.textMarkers[ patternName  ] === undefined ) track.markup.textMarkers[ patternName ] = []
         track.markup.textMarkers[ patternName ][ count ] = marker

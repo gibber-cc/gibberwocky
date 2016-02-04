@@ -33,7 +33,7 @@ body { margin:0; padding:0 }
 .annotation-right-border  { border-right-color:#000   !important }
 .annotation-left-border   { border-left-color:#000    !important }
 .annotation-top-border    { border-top-color:#000     !important } 
-.annotation-bottom-border { border-bottom-color:#000 !important }
-.annotation-no-left-border{ border-left-color:transparent !important }
+.annotation-bottom-border { border-bottom-color:#000  !important }
+.annotation-no-left-border{ border-left-color:transparent  !important }
 .annotation-no-right-border{border-right-color:transparent !important }
 .annotation-no-horizontal-border { border-width: 1px 0 }
