@@ -55,6 +55,8 @@ let seqclosure = function( Gibber ) {
 
       this.values = valuesPattern
       this.timings = timingsPattern
+      this.values.nextTime = 0
+      this.timings.nextTime = 0
     },
 
     externalMessages: {
@@ -69,7 +71,7 @@ let seqclosure = function( Gibber ) {
     start() {
       if( this.running ) return
       this.running = true
-      
+     
       Gibber.Scheduler.addMessage( this, 0 )     
       
       return this
@@ -78,12 +80,23 @@ let seqclosure = function( Gibber ) {
     stop() {
       this.running = false
     },
+    
+    lastBeat:0,
+    lastBeatOffset:0,
 
-    tick( scheduler, beat, beatOffset ) {
+    tick( scheduler, beat, beatOffset, tickAbsoluteTime ) {
       if( !this.running ) return
       
       let value = null
- 
+
+      this.values.nextTime = this.timings.nextTime = beatOffset // for scheduling pattern updates
+
+      /*
+       *if( beatOffset <= this.lastBeatOffset && beat === this.lastBeat ) { this.values.nextTime = this.timings.nextTime += .25 }
+       *this.lastBeatOffset = beatOffset
+       *this.lastBeat = beat
+       */
+
       // call method or anonymous function immediately
       if( this.externalMessages[ this.key ] !== undefined ) {
         

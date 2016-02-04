@@ -1,16 +1,42 @@
+const Queue = require( './priorityqueue.js' )
+
 let Scheduler = {
-  updates: [],
+  currentTime : null,
+  queue: new Queue( function( a, b ) {
+    return a.time - b.time
+  }),
 
   init() {
+    //this.currentTime = Performance.now()
     window.requestAnimationFrame( this.onAnimationFrame ) 
   },
+  
+  add( func, offset, idx ) {
+    let time = this.currentTime + offset
+    this.queue.push({ func, time })
 
-  onAnimationFrame() {
-    for( let func of this.updates ) {
-      func()
+    return time
+  },
+
+  run( timestamp ) {
+    let nextEvent = this.queue.peek()
+    //if( nextEvent ) console.log( nextEvent.time, timestamp )   
+    if( this.queue.length && nextEvent.time <= timestamp ) {
+
+      // remove event
+      this.queue.pop()
+
+      nextEvent.func()
+      
+      // call recursively
+      this.run( timestamp )
     }
-    
-    this.updates.length = 0
+  },
+
+  onAnimationFrame( timestamp ) {
+    this.currentTime = timestamp
+
+    this.run( timestamp )    
 
     window.requestAnimationFrame( this.onAnimationFrame )
   }

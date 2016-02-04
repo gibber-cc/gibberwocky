@@ -125,11 +125,18 @@ let Utility = {
       return value
     }
   },
-  random :  function() {
+
+  random() {
     this.randomFlag = true
     this.randomArgs = Array.prototype.slice.call( arguments, 0 )
 
     return this
+  },
+  
+  beatsToMs( beats, bpm=120 ) {
+    const beatsPerSecond = bpm / 60
+
+    return (beats * beatsPerSecond ) * 1000
   },
 
   export( destination ) {

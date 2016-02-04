@@ -9,7 +9,8 @@ const callDepths = [
   'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ'
 ]
 
-const $ = require( './utility.js' ).create
+const Utility = require( './utility.js' )
+const $ = Utility.create
 
 let Marker = {
   _patternTypes: [ 'values', 'timings', 'index' ],
@@ -116,10 +117,15 @@ let Marker = {
 
   _addPatternFilter( patternObject ) {
     patternObject.filters.push( ( args ) => {
-      patternObject.update.shouldUpdate = true
-      patternObject.update.currentIndex = args[ 2 ]
+      const wait = Utility.beatsToMs( ( patternObject.nextTime * .25 ) + .25,  120 ) // TODO: should .25 be a variable representing advance amount?
+
+      var idx = args[ 2 ], time
+      time = Gibber.Environment.animationScheduler.add( function() {
+        patternObject.update.shouldUpdate = true
+        patternObject.update.currentIndex = idx
+        patternObject.update()
+      }, wait, idx ) 
       
-      Gibber.Environment.animationScheduler.updates.push( patternObject.update ) 
       return args
     }) 
   },
@@ -151,7 +157,7 @@ let Marker = {
 
        track.markup.cssClasses[ className ][ index ] = cssName
        setTimeout( () => { $( '.' + cssName )[1].classList.add( 'annotation-no-horizontal-border' ) }, 250 )
-
+       
        Marker._addPatternUpdates( patternObject, className )
        Marker._addPatternFilter( patternObject )
     },
@@ -183,11 +189,12 @@ let Marker = {
       let highlighted = null,
           cycle = Marker._createBorderCycleFunction( patternName, patternObject )
       
+      patternObject.patternType = patternType 
       patternObject.update = () => {
         if( !patternObject.update.shouldUpdate ) return 
          
         let className = `.note_${ index }_${ patternType }_${ patternObject.update.currentIndex }`
-        
+        //console.log( patternObject.update.currentIndex ) 
         if( highlighted !== className ) {
           if( highlighted ) { $( highlighted ).remove( 'annotation-border' ) }
           $( className ).add( 'annotation-border' )
@@ -196,6 +203,8 @@ let Marker = {
         }else{
           cycle()
         }
+
+        patternObject.update.shouldUpdate = false
       }
 
       Marker._addPatternFilter( patternObject )

@@ -1,8 +1,8 @@
 !function() {
 
-var Queue = require( './priorityqueue.js' )
+const Queue = require( './priorityqueue.js' )
 
-var Scheduler = {
+let Scheduler = {
   phase: 0,
   msgs: [],
   functionsToExecute: [],

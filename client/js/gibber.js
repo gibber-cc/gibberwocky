@@ -28,7 +28,11 @@ let Gibber = {
     this.max = window.max
     this.Environment.init( Gibber )
     this.log = this.Environment.log
-    if( !this.Environment.debug ) { this.Communication.init( Gibber ) }
+    if( this.Environment.debug ) {
+      this.Scheduler.mockRun()
+    }else{
+      this.Communication.init( Gibber ) 
+    }
     this.currentTrack = this.Track( this, 1 ) // how to determine actual "id" from Max?
     this.export()
   },
