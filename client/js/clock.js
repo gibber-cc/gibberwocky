@@ -6,29 +6,29 @@ let Scheduler = {
   phase: 0,
   msgs: [],
   functionsToExecute: [],
-  queue: new Queue( function( a, b ) {
-    return a.time - b.time
-  }),
+  queue: new Queue( ( a, b ) => a.time - b.time ),
   mockBeat: 0,
+  mockInterval: null,
+
   mockRun() {
     let seqFunc = () => {
       this.seq( this.mockBeat++ % 8 )
     } 
     this.mockInterval = setInterval( seqFunc, 500 )
   },
-  mockInterval: null,
 
   // all ticks take the form of { time:timeInSamples, seq:obj }
   advance( advanceAmount, beat ) {
-    var end = this.phase + advanceAmount,
-        nextTick = this.queue.peek()
+    let end = this.phase + advanceAmount,
+        nextTick = this.queue.peek(),
+        beatOffset
        
     if( this.queue.length && nextTick.time < end ) {
 
       // remove tick
       this.queue.pop()
 
-      var beatOffset = ( nextTick.time - this.phase ) / advanceAmount
+       beatOffset = ( nextTick.time - this.phase ) / advanceAmount
 
       this.currentTime = nextTick.time
 

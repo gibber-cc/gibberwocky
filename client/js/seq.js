@@ -1,20 +1,18 @@
 'use strict';
 
-var Queue = require( './priorityqueue.js' )
-
 let seqclosure = function( Gibber ) {
 
   let proto = {
-    create( _values, _timings, _key, _object ) {
+    create( _values, _timings, _key, _object = null ) {
       let seq = Object.create( this )
 
       Object.assign( seq, {
-        phase: 0,
-        running:false,
-        values: _values,
+        phase:   0,
+        running: false,
+        values:  _values,
         timings: _timings,
-        object: _object || null,
-        key: _key,
+        object:  _object,
+        key:     _key,
       })
       
       seq.init()
@@ -23,14 +21,14 @@ let seqclosure = function( Gibber ) {
     },
     
     init() {
-      if( !Array.isArray( this.values  ) ) this.values  = [ this.values ] 
+      if( !Array.isArray( this.values ) ) this.values  = [ this.values ] 
       if( this.timings !== undefined && !Array.isArray( this.timings ) ) this.timings = [ this.timings ]
       
       let valuesPattern = Gibber.Pattern.apply( null, this.values ),
           timingsPattern = Gibber.Pattern.apply( null, this.timings )
 
       if( this.values.randomFlag ) {
-        valuesPattern.filters.push( function() {
+        valuesPattern.filters.push( () => {
           var idx = Gibber.Utility.rndi( 0, valuesPattern.values.length - 1 )
           return [ valuesPattern.values[ idx ], 1, idx ] 
         })
@@ -41,7 +39,7 @@ let seqclosure = function( Gibber ) {
 
       if( this.timings !== undefined ) {
         if( this.timings.randomFlag ) {
-          timingsPattern.filters.push( function() { 
+          timingsPattern.filters.push( ()=> { 
             var idx = Gibber.Utility.rndi( 0, timingsPattern.values.length - 1)
             return [ timingsPattern.values[ idx ], 1, idx ] 
           })
@@ -55,8 +53,7 @@ let seqclosure = function( Gibber ) {
 
       this.values = valuesPattern
       this.timings = timingsPattern
-      this.values.nextTime = 0
-      this.timings.nextTime = 0
+      this.values.nextTime = this.timings.nextTime = 0
     },
 
     externalMessages: {

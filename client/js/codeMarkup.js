@@ -15,14 +15,14 @@ const $ = Utility.create
 let Marker = {
   _patternTypes: [ 'values', 'timings', 'index' ],
 
-  prepareObject : function( obj ) {
+  prepareObject( obj ) {
     obj.markup = {
       textMarkers: {},
       cssClasses:  {} 
     }  
   },
 
-  process: function( code, position, codemirror, track ) {
+  process( code, position, codemirror, track ) {
     let tree = acorn.parse( code, { locations:true } ).body
     
     for( let node of tree ) {
@@ -34,14 +34,14 @@ let Marker = {
   },
 
   _process: {
-    'ExpressionStatement': function( expressionNode, codemirror, track ) {
+    ExpressionStatement: function( expressionNode, codemirror, track ) {
       let [ components, depthOfCall, index ] = Marker._getExpressionHierarchy( expressionNode.expression ),
           args = expressionNode.expression.arguments
       
       // if index is passed as argument to .seq call...
       if( args.length > 2 ) { index = args[ 2 ].value }
       
-      console.log( "depth of call", depthOfCall, components )
+      //console.log( "depth of call", depthOfCall, components )
       let valuesPattern, timingsPattern, valuesNode, timingsNode
 
       switch( callDepths[ depthOfCall ] ) {
@@ -281,6 +281,7 @@ let Marker = {
       Marker._markPattern.ArrayExpression.apply( null, args )
     }
   },
+
   _updatePattern( pattern, patternClassName, track ) {
     let marker, pos, newMarker
     if( pattern.values.length > 1 ) {
@@ -303,6 +304,7 @@ let Marker = {
       // track.markup.textMarkers[ patternClassName ] = newMarker
     }
   },
+
   _getNamesAndPosition( patternNode, containerNode, components, index=0, patternType ) {
     let start = patternNode.loc.start,
         end   = patternNode.loc.end,

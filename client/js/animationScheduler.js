@@ -2,12 +2,9 @@ const Queue = require( './priorityqueue.js' )
 
 let Scheduler = {
   currentTime : null,
-  queue: new Queue( function( a, b ) {
-    return a.time - b.time
-  }),
+  queue: new Queue( ( a, b ) => a.time - b.time ),
 
   init() {
-    //this.currentTime = Performance.now()
     window.requestAnimationFrame( this.onAnimationFrame ) 
   },
   
@@ -20,7 +17,7 @@ let Scheduler = {
 
   run( timestamp ) {
     let nextEvent = this.queue.peek()
-    //if( nextEvent ) console.log( nextEvent.time, timestamp )   
+    
     if( this.queue.length && nextEvent.time <= timestamp ) {
 
       // remove event
