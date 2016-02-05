@@ -23,7 +23,10 @@ body { margin:0; padding:0 }
 #console .CodeMirror { background-color:#efefef }
 #editor  .CodeMirror { background-color:#efefef }
 
-.annotation { padding:1px }
+.annotation { 
+  padding:1px;
+  box-sizing:border-box !important;
+}
 .annotation-highlight { background-color: #ffffff }
 .annotation-border { 
   border: solid #999 1px;
@@ -36,4 +39,8 @@ body { margin:0; padding:0 }
 .annotation-bottom-border { border-bottom-color:#000  !important }
 .annotation-no-left-border{ border-left-color:transparent  !important }
 .annotation-no-right-border{border-right-color:transparent !important }
-.annotation-no-horizontal-border { border-width: 1px 0 }
+.annotation-no-horizontal-border { 
+  border-width: 1px 0;
+  padding-left:0 !important; 
+  padding-right:0 !important;
+}

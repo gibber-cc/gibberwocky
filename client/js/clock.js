@@ -63,7 +63,13 @@ let Scheduler = {
 
   seq( beat ) {
     if( beat % 4 === 1 ) {
-      for( let func of Scheduler.functionsToExecute ) func()
+      for( let func of Scheduler.functionsToExecute ) {
+        try {
+          func()
+        } catch( e ) {
+          console.log( 'error with user submitted code:', e )
+        }
+      }
       Scheduler.functionsToExecute.length = 0
     }
     Scheduler.advance( 1, beat )

@@ -1,26 +1,26 @@
 const exampleCode = `// ctrl+enter to execute line or selection
 this.note( 84 )
 
-// 'bass' sequence, defaults to id #0
-this.note.seq( [40,60,50,70], 1/4 )
+// creates sequencer at this.note[0] (0 is default)
+this.note.seq( [40,60,50,70], [1/4,1/8,1/16].rnd(1/16,2) )
 
-// 'melody' parallel sequence with id #1 (last arg)
+// parallel sequence at this.note[1] (1 is last arg)
 this.note.seq( [64,66,67,69], 1/4, 1 )
 
-// reverse and rotate 'melody'
-this.note[1].values.reverse.seq( null, 2 )
-this.note[1].values.rotate.seq( 1, 1 )
+// sequence reversal and transposition of this.note[1]
+this.note[ 1 ].values.reverse.seq( null, 2 )
+this.note[ 1 ].values.transpose.seq( [1,2,3,-6], 1 )
 
-// stop 'bass'
-this.note[ 0 ].seq.stop()
+// stop this.note[0]
+this.note[ 0 ].stop()
 
-// start 'bass'
-this.note[ 0 ].seq.start()
+// start this.note[0]
+this.note[ 0 ].start()
 
-// create a parallel sequence with id #2 (last arg)
+// parallel sequence at this.note[2] (2 is last arg)
 this.note.seq( 71, 1/8, 2 )
 
-// longhand reference to sequence 
+// longhand reference to sequencer 
 this.sequences.note[ 2 ].stop()
 
 // sugar
