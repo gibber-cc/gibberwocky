@@ -2,7 +2,9 @@ module.exports = function( Gibber ) {
 
 "use strict"
 
-let PatternProto = {
+let PatternProto = Object.create( function(){} )
+
+Object.assign( PatternProto, {
   concat( _pattern ) { this.values = this.values.concat( _pattern.values ) },  
   toString() { return this.values.toString() },
   valueOf() { return this.values },
@@ -37,7 +39,7 @@ let PatternProto = {
 
   // used when _onchange has not been assigned to individual patterns
   _onchange() {},
-}
+})
 
 let Pattern = function( ...args ) {
   /*

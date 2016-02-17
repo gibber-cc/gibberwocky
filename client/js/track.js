@@ -11,15 +11,21 @@ let Track = function( Gibber, id ) {
 		sequences:{},
 
     note( notenum, velocity, duration ) {
-      var msg = [ 'note', notenum, velocity, duration ].join( ' ' )
+      var msg = `note ${notenum} ${velocity} ${duration}`
+      Gibber.Communication.send( msg )
+    },
+
+    cc( ccnum, value ) {
+      var msg =  `cc ${ccnum} ${value}`
       Gibber.Communication.send( msg )
     }
   }
 
   Gibber.Environment.codeMarkup.prepareObject( track ) 
   Gibber.addSequencingToMethod( track, 'note' )
-
-	return track
+  Gibber.addSequencingToMethod( track, 'cc' )
+	
+  return track
 }
 
 module.exports = Track

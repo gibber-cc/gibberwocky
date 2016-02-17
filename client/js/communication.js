@@ -21,7 +21,7 @@ let Communication = {
           port = this.querystring.port || '8081',
           address = "ws://" + host + ":" + port
 
-      this.wsocket = new WebSocket(address);
+      this.wsocket = new WebSocket(address)
       
       this.wsocket.onopen = function(ev) {        
         Gibber.log( 'CONNECTED to ' + address )
@@ -32,7 +32,7 @@ let Communication = {
           
         // apparently this first reply is necessary
         this.wsocket.send( 'update on' )
-      }.bind( Communication );
+      }.bind( Communication )
 
       this.wsocket.onclose = function(ev) {
         Gibber.log( 'DISCONNECTED from ' + address )

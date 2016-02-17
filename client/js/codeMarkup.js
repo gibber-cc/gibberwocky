@@ -274,12 +274,25 @@ let Marker = {
     },
 
     // CallExpression denotes an array that calls a method, like .rnd()
+    // could also represent an anonymous function call, like Rndi(19,40)
     CallExpression( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) {
       var args = Array.prototype.slice.call( arguments, 0 )
-      args[ 0 ] = patternNode.callee.object
 
-      Marker._markPattern.ArrayExpression.apply( null, args )
-    }
+      if( patternNode.callee.type === 'MemberExpression' ) {
+        args[ 0 ] = patternNode.callee.object
+
+        Marker._markPattern.ArrayExpression.apply( null, args )
+      } else {
+        args[ 0 ] = patternNode.callee
+        console.log( patternNode, args[0] )
+        Marker._markPattern.Identifier.apply( null, args )
+      }
+    },
+
+    Identifier( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) {
+       console.log( 'Identifier:', patternNode )
+       // mark up anonymous functions with comments here...
+    }, 
   },
 
   _updatePattern( pattern, patternClassName, track ) {

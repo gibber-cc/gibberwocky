@@ -3,16 +3,16 @@
 let seqclosure = function( Gibber ) {
 
   let proto = {
-    create( _values, _timings, _key, _object = null ) {
+    create( values, timings, key, object = null ) {
       let seq = Object.create( this )
 
       Object.assign( seq, {
         phase:   0,
         running: false,
-        values:  _values,
-        timings: _timings,
-        object:  _object,
-        key:     _key,
+        values,
+        timings,
+        object,
+        key,
       })
       
       seq.init()
