@@ -273,27 +273,45 @@ let Marker = {
       patternObject._onchange = () => { Marker._updatePattern( patternObject, patternName, track ) }
     },
 
-    // CallExpression denotes an array that calls a method, like .rnd()
+    // CallExpression denotes an array (or other object) that calls a method, like .rnd()
     // could also represent an anonymous function call, like Rndi(19,40)
     CallExpression( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) {
       var args = Array.prototype.slice.call( arguments, 0 )
+      // console.log( patternNode.callee.type, patternObject )
 
-      if( patternNode.callee.type === 'MemberExpression' ) {
+      if( patternNode.callee.type === 'MemberExpression' && patternNode.callee.object.type === 'ArrayExpression' ) {
         args[ 0 ] = patternNode.callee.object
 
         Marker._markPattern.ArrayExpression.apply( null, args )
-      } else {
-        args[ 0 ] = patternNode.callee
-        console.log( patternNode, args[0] )
+      } else if (patternNode.callee.type === 'Identifier' ) {
+        // function like Euclid
         Marker._markPattern.Identifier.apply( null, args )
       }
     },
 
     Identifier( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) {
-       console.log( 'Identifier:', patternNode )
+       // console.log( 'Identifier:', patternNode )
        // mark up anonymous functions with comments here...
+       
+       let [ className, start, end ] = Marker._getNamesAndPosition( patternNode, containerNode, components, index, patternType ),
+           commentStart = end,
+           commentEnd = {}
+       
+       Object.assign( commentEnd, commentStart )
+
+       patternObject.update = () => {
+         //console.log('UPDATE', commentStart, commentEnd )
+         let val ='/* ' + patternObject.update.value + ' */'
+        
+         cm.replaceRange( val, commentStart, commentEnd )
+         
+         commentEnd.ch = commentStart.ch + val.length
+       }
+
+       Marker._addPatternFilter( patternObject )
     }, 
   },
+
 
   _updatePattern( pattern, patternClassName, track ) {
     let marker, pos, newMarker
