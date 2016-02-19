@@ -88,12 +88,6 @@ let seqclosure = function( Gibber ) {
 
       this.values.nextTime = this.timings.nextTime = beatOffset // for scheduling pattern updates
 
-      /*
-       *if( beatOffset <= this.lastBeatOffset && beat === this.lastBeat ) { this.values.nextTime = this.timings.nextTime += .25 }
-       *this.lastBeatOffset = beatOffset
-       *this.lastBeat = beat
-       */
-
       // call method or anonymous function immediately
       if( this.externalMessages[ this.key ] !== undefined ) {
         

@@ -141,9 +141,9 @@ let Marker = {
   _addPatternFilter( patternObject ) {
     patternObject.filters.push( ( args ) => {
       const wait = Utility.beatsToMs( ( patternObject.nextTime * .25 ) + .25,  120 ) // TODO: should .25 be a variable representing advance amount?
+      var idx = args[ 2 ]
 
-      var idx = args[ 2 ], time
-      time = Gibber.Environment.animationScheduler.add( function() {
+      Gibber.Environment.animationScheduler.add( () => {
         patternObject.update.shouldUpdate = true
         patternObject.update.currentIndex = idx
         patternObject.update()
@@ -290,25 +290,58 @@ let Marker = {
     },
 
     Identifier( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) {
-       // console.log( 'Identifier:', patternNode )
-       // mark up anonymous functions with comments here...
-       
+       // mark up anonymous functions with comments here... 
        let [ className, start, end ] = Marker._getNamesAndPosition( patternNode, containerNode, components, index, patternType ),
            commentStart = end,
-           commentEnd = {}
+           commentEnd = {},
+           marker = null
        
        Object.assign( commentEnd, commentStart )
+       
+        
+       commentEnd.ch += 1
+       //commentStart.ch -= 1
+
+       marker = cm.markText( commentStart, commentEnd, { className })
+        
+       //if( track.markup.textMarkers[ className  ] === undefined ) track.markup.textMarkers[ className ] = []
+       //track.markup.textMarkers[ className ][ 0 ] = marker
 
        patternObject.update = () => {
-         //console.log('UPDATE', commentStart, commentEnd )
-         let val ='/* ' + patternObject.update.value + ' */'
-        
-         cm.replaceRange( val, commentStart, commentEnd )
-         
-         commentEnd.ch = commentStart.ch + val.length
+         if( !patternObject.update.shouldUpdate ) return
+
+         let val ='/* ' + patternObject.update.value.pop() + ' */',
+             pos = marker.find(),
+             end = Object.assign( {}, pos.to )
+          
+         end.ch = pos.from.ch + val.length 
+
+         cm.replaceRange( val, pos.from, pos.to )
+
+         marker.clear()
+
+         marker = cm.markText( pos.from, end, { className })
+
+         patternObject.update.shouldUpdate = false
        }
+       patternObject.update.value = []
 
        Marker._addPatternFilter( patternObject )
+       // TODO: why don't I have to delay this???? It makes no sense.
+/*
+ *       patternObject.filters.push( ( args ) => {
+ *         const wait = Utility.beatsToMs( ( patternObject.nextTime * .25 ) + .25,  120 ) // TODO: should .25 be a variable representing advance amount?
+ *         let idx = args[ 2 ]
+ *
+ *         Gibber.Environment.animationScheduler.add( () => {
+ *           patternObject.update.shouldUpdate = true
+ *           patternObject.update.currentIndex = idx
+ *           patternObject.update()
+ *         }, wait, idx ) 
+ *         
+ *         return args
+ *       }) 
+ */
     }, 
   },
 
