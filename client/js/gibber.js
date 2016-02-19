@@ -17,6 +17,9 @@ let Gibber = {
     window.Seq           = this.Seq
     window.Track         = this.Track
     window.Scheduler     = this.Scheduler
+    window.Pattern       = this.Pattern
+    window.Euclid        = this.Euclid
+    window.Arp           = this.Arp
     window.Communication = this.Communication
     window.log           = this.log
 

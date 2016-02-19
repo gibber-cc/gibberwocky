@@ -81,7 +81,7 @@ let Pattern = function( ...args ) {
     */
 
     // if pattern has update function, set new value
-    if( fnc.update && fnc.update.value ) fnc.update.value.push( val )
+    if( fnc.update && fnc.update.value ) fnc.update.value.unshift( val )
     
     return val
   }

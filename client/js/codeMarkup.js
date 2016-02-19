@@ -28,7 +28,11 @@ let Marker = {
     for( let node of tree ) {
       if( node.type === 'ExpressionStatement' ) { // not control flow
         node.verticalOffset = position.start.line
-        this._process[ node.type ]( node, codemirror, track )
+        try {
+          this._process[ node.type ]( node, codemirror, track )
+        } catch( error ) {
+          console.log( 'error processing annotation for', node.expression.type )
+        }
       }
     }
   },
@@ -298,7 +302,6 @@ let Marker = {
        
        Object.assign( commentEnd, commentStart )
        
-        
        commentEnd.ch += 1
        //commentStart.ch -= 1
 

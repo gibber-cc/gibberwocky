@@ -21,38 +21,44 @@ let seqclosure = function( Gibber ) {
     },
     
     init() {
-      if( !Array.isArray( this.values ) ) this.values  = [ this.values ] 
-      if( this.timings !== undefined && !Array.isArray( this.timings ) ) this.timings = [ this.timings ]
-      
-      let valuesPattern = Gibber.Pattern.apply( null, this.values ),
-          timingsPattern = Gibber.Pattern.apply( null, this.timings )
+      let valuesPattern, timingsPattern
 
-      if( this.values.randomFlag ) {
-        valuesPattern.filters.push( () => {
-          var idx = Gibber.Utility.rndi( 0, valuesPattern.values.length - 1 )
-          return [ valuesPattern.values[ idx ], 1, idx ] 
-        })
-        for( var i = 0; i < this.values.randomArgs.length; i+=2 ) {
-          valuesPattern.repeat( this.values.randomArgs[ i ], this.values.randomArgs[ i + 1 ] )
-        }
-      }
+      if( ! Gibber.Pattern.prototype.isPrototypeOf( this.values ) ) {
+        if( !Array.isArray( this.values ) ) this.values  = [ this.values ] 
+        valuesPattern = Gibber.Pattern.apply( null, this.values ) 
 
-      if( this.timings !== undefined ) {
-        if( this.timings.randomFlag ) {
-          timingsPattern.filters.push( ()=> { 
-            var idx = Gibber.Utility.rndi( 0, timingsPattern.values.length - 1)
-            return [ timingsPattern.values[ idx ], 1, idx ] 
+        if( this.values.randomFlag ) {
+          valuesPattern.filters.push( () => {
+            var idx = Gibber.Utility.rndi( 0, valuesPattern.values.length - 1 )
+            return [ valuesPattern.values[ idx ], 1, idx ] 
           })
-          for( var i = 0; i < this.timings.randomArgs.length; i+=2 ) {
-            timingsPattern.repeat( this.timings.randomArgs[ i ], this.timings.randomArgs[ i + 1 ] )
+          for( var i = 0; i < this.values.randomArgs.length; i+=2 ) {
+            valuesPattern.repeat( this.values.randomArgs[ i ], this.values.randomArgs[ i + 1 ] )
           }
         }
-        
-        // timingsPattern.seq = obj.seq
+
+        this.values = valuesPattern
       }
 
-      this.values = valuesPattern
-      this.timings = timingsPattern
+      if( ! Gibber.Pattern.prototype.isPrototypeOf( this.timings ) ) {
+        if( this.timings !== undefined && !Array.isArray( this.timings ) ) this.timings = [ this.timings ]
+        timingsPattern = Gibber.Pattern.apply( null, this.timings )
+
+        if( this.timings !== undefined ) {
+          if( this.timings.randomFlag ) {
+            timingsPattern.filters.push( ()=> { 
+              var idx = Gibber.Utility.rndi( 0, timingsPattern.values.length - 1)
+              return [ timingsPattern.values[ idx ], 1, idx ] 
+            })
+            for( var i = 0; i < this.timings.randomArgs.length; i+=2 ) {
+              timingsPattern.repeat( this.timings.randomArgs[ i ], this.timings.randomArgs[ i + 1 ] )
+            }
+          }
+        }
+
+        this.timings = timingsPattern
+      } 
+
       this.values.nextTime = this.timings.nextTime = 0
     },
 
