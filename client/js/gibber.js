@@ -8,6 +8,7 @@ let Gibber = {
   Euclid:        require( './euclidean.js' ),
   Seq:           null,
   Pattern:       null,
+  Arp:           null,
   currentTrack:  null,
   codemirror:    null,
   max:           null,
@@ -100,5 +101,6 @@ let Gibber = {
 
 Gibber.Pattern = require( './pattern.js' )( Gibber )
 Gibber.Seq     = require( './seq.js' )( Gibber )
+Gibber.Arp     = require( './arp.js' )( Gibber )
 
 module.exports = Gibber

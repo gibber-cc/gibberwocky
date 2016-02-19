@@ -324,27 +324,13 @@ let Marker = {
 
          patternObject.update.shouldUpdate = false
        }
+
+       // store value changes in array and then pop them every time the annotation is updated
        patternObject.update.value = []
 
        Marker._addPatternFilter( patternObject )
-       // TODO: why don't I have to delay this???? It makes no sense.
-/*
- *       patternObject.filters.push( ( args ) => {
- *         const wait = Utility.beatsToMs( ( patternObject.nextTime * .25 ) + .25,  120 ) // TODO: should .25 be a variable representing advance amount?
- *         let idx = args[ 2 ]
- *
- *         Gibber.Environment.animationScheduler.add( () => {
- *           patternObject.update.shouldUpdate = true
- *           patternObject.update.currentIndex = idx
- *           patternObject.update()
- *         }, wait, idx ) 
- *         
- *         return args
- *       }) 
- */
     }, 
   },
-
 
   _updatePattern( pattern, patternClassName, track ) {
     let marker, pos, newMarker
