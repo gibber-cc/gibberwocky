@@ -1,17 +1,18 @@
 let Gibber = {
   Utility:       require( './utility.js' ),
-  '$':           null,
   Communication: require( './communication.js' ),
   Environment:   require( './environment.js' ),
   Scheduler:     require( './clock.js' ),
   Track:         require( './track.js' ),
   Euclid:        require( './euclidean.js' ),
+  Theory:        require( './theory.js' ),
   Seq:           null,
   Pattern:       null,
   Arp:           null,
   currentTrack:  null,
   codemirror:    null,
   max:           null,
+  '$':           null,
 
   export() {
     window.Seq           = this.Seq

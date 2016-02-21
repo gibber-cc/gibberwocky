@@ -1,7 +1,14 @@
 module.exports = function( Gibber ) {
 
 let Arp = function( chord = [0,2,4,6], octaves = 1, pattern = 'updown2' ) {
-  let notes = chord.slice( 0 ), arp
+  let notes, arp 
+  
+  if( typeof chord === 'string' ) {
+    let _chord = Gibber.Theory.Chord.create( chord )
+    chord = _chord.notes
+  }
+
+  notes = chord.slice( 0 )
 
   for( let i = 1; i < octaves; i++ ) {
     let offset =  i * 12

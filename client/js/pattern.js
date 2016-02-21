@@ -80,7 +80,8 @@ let Pattern = function( ...args ) {
     }
     */
 
-    // if pattern has update function, set new value
+    // if pattern has update function, add new value to array
+    // values are popped when updated by animation scheduler
     if( fnc.update && fnc.update.value ) fnc.update.value.unshift( val )
     
     return val
@@ -374,30 +375,11 @@ let Pattern = function( ...args ) {
   ]
    
   for( let key of methodNames ) { Gibber.addSequencingToMethod( fnc, key ) }
-  // TODO: Gibber.createProxyMethods( fnc, methodNames , true )
   
-  // for( let i = 0; i < methodNames.length; i++ ) {
-  //  let name = methodNames[ i ]
-  //
-  //  fnc[ name ].listeners = {}
-  //  }
   fnc.listeners = {}
   fnc.sequences = {}
 
   // TODO: Gibber.createProxyProperties( fnc, { 'stepSize':0, 'start':0, 'end':0 })
-  
-  // trying to figure out a way for calls like: a.note.durations.seq( [1/8,1/16], 1/2 ) ...
-    
-  // future( function() {
-  //   fnc._seq = fnc.seq
-  //
-  //   fnc.seq = function() {
-  //     let args = Array.prototype.slice.call( arguments, 0 )
-  //
-  //     fnc.set.seq.apply( fnc, args )
-  //   }
-  // }, ms(100) )
-  
   
   fnc.__proto__ = PatternProto 
   
