@@ -30,18 +30,24 @@ let Note = {
   },
 
   create( value ) {
-    let midiValue, note
+    let midiValue = Note.convertToMIDI( value ),
+        note = Object.create( this )
+
+    note.value = midiValue
+
+    return note
+  },
+
+  convertToMIDI( value ) {
+    let midiValue
 
     if( typeof value === 'string' ) { 
       midiValue = this.convertStringToMIDI( value )
     } else {
       midiValue = this.convertScaleMemberToMIDI( value, Scale.master )
     }
-
-    note = Object.create( this )
-    note.value = midiValue
-
-    return note
+    
+    return midiValue
   },
 
   convertStringToMIDI( stringValue ) {
@@ -81,6 +87,7 @@ let Chord = {
     }
     
     if( chord.extension ) {
+      // split each extension into array
       chord.extensions = extension.split(/(b?#?\d+)/i)
       
       for( let i = 0; i < chord.extensions.length; i++ ) {

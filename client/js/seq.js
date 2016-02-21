@@ -1,6 +1,8 @@
 'use strict';
 
 let seqclosure = function( Gibber ) {
+  
+  let Theory = Gibber.Theory
 
   let proto = {
     create( values, timings, key, object = null ) {
@@ -38,6 +40,13 @@ let seqclosure = function( Gibber ) {
         }
 
         this.values = valuesPattern
+      }
+
+      if( this.key === 'note' ) {
+        valuesPattern.filters.push( ( args ) => {
+          args[ 0 ] = Theory.Note.convertToMIDI( args[ 0 ] )
+          return args
+        })
       }
 
       if( ! Gibber.Pattern.prototype.isPrototypeOf( this.timings ) ) {
