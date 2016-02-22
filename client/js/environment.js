@@ -7,7 +7,7 @@ require( '../node_modules/codemirror/mode/javascript/javascript.js' )
 
 let Environment = {
   codeMarkup: require( './codeMarkup.js' ),
-  debug: true,
+  debug: false,
   _codemirror: CodeMirror,
   animationScheduler: require( './animationScheduler.js' ),
 

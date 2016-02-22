@@ -5,7 +5,7 @@ let seqclosure = function( Gibber ) {
   let Theory = Gibber.Theory
 
   let proto = {
-    create( values, timings, key, object = null ) {
+    create( values, timings, key, object = null, priority=0 ) {
       let seq = Object.create( this )
 
       Object.assign( seq, {
@@ -15,6 +15,7 @@ let seqclosure = function( Gibber ) {
         timings,
         object,
         key,
+        priority
       })
       
       seq.init()
@@ -43,8 +44,27 @@ let seqclosure = function( Gibber ) {
       }
 
       if( this.key === 'note' ) {
-        valuesPattern.filters.push( ( args ) => {
+        this.values.filters.push( ( args ) => {
           args[ 0 ] = Theory.Note.convertToMIDI( args[ 0 ] )
+          return args
+        })
+      } else if( this.key === 'chord' ) {
+        this.values.filters.push( ( args ) => {
+          let chord = args[ 0 ], out = []
+          
+          if( typeof chord === 'string' ) {
+            let chordObj = Gibber.Theory.Chord.create( chord )
+
+            out = chordObj.notes 
+          }else{
+            for( let i = 0; i < chord.length; i++ ) {
+              let note = Gibber.Theory.Note.convertToMIDI( chord[i] )
+              out.push( note )            
+            }
+          }
+
+          args[0] = out
+
           return args
         })
       }
@@ -77,6 +97,15 @@ let seqclosure = function( Gibber ) {
         // let msgstring = "add " + beat + " " + t + " " + n + " " + v + " " + d
 
         return 'add ' + beat + ' ' +  beatOffset + ' ' + number 
+      },
+      chord( chord, beat, beatOffset ) {
+        let msg = []
+
+        for( let i = 0; i < chord.length; i++ ) {
+          msg.push( `add ${beat} ${beatOffset} ${chord[i]}` )
+        }
+
+        return msg
       }
     },
 
@@ -103,7 +132,7 @@ let seqclosure = function( Gibber ) {
 
       this.values.nextTime = this.timings.nextTime = beatOffset // for scheduling pattern updates
 
-      // call method or anonymous function immediately
+      // delay messages  
       if( this.externalMessages[ this.key ] !== undefined ) {
         
         value = this.values()
@@ -111,9 +140,9 @@ let seqclosure = function( Gibber ) {
 
         let msg = this.externalMessages[ this.key ]( value, beat, beatOffset )
 
-        scheduler.msgs.push( msg )
+        scheduler.msgs.push( msg, this.priority )
       
-      } else { // schedule internal method / function call
+      } else { // schedule internal method / function call immediately
         
         value = this.values()
         if( typeof value === 'function' ) {

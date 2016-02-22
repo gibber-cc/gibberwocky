@@ -23,6 +23,8 @@ let Gibber = {
     window.Arp           = this.Arp
     window.Communication = this.Communication
     window.log           = this.log
+    window.Theory        = this.Theory
+    window.Scale         = this.Theory.Scale.master
 
     this.Utility.export( window )
   },
@@ -32,6 +34,7 @@ let Gibber = {
     this.$   = Gibber.Utility.create
 
     this.Environment.init( Gibber )
+    this.Theory.init( Gibber )
     this.log = this.Environment.log
 
     if( this.Environment.debug ) {
@@ -45,13 +48,16 @@ let Gibber = {
     this.export()
   },
 
-  addSequencingToMethod( obj, methodName ) {
+  addSequencingToMethod( obj, methodName, priority ) {
+
+    if( !obj.sequences ) obj.sequences = {}
+
     obj[ methodName ].seq = function( values, timings, id=0 ) {
       if( obj.sequences[ methodName ] === undefined ) obj.sequences[ methodName ] = []
 
       if( obj.sequences[ methodName ][ id ] ) obj.sequences[ methodName ][ id ].stop() 
 
-      obj.sequences[ methodName ][ id ] = Gibber.Seq( values, timings, methodName, obj ).start()
+      obj.sequences[ methodName ][ id ] = Gibber.Seq( values, timings, methodName, obj, priority ).start()
 
       if( id === 0 ) {
         obj[ methodName ].values  = obj.sequences[ methodName ][ 0 ].values

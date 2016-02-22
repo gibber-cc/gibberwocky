@@ -4,6 +4,7 @@ let Arp = function( chord = [0,2,4,6], octaves = 1, pattern = 'updown2' ) {
   let notes, arp 
   
   if( typeof chord === 'string' ) {
+    // TODO: doesn't work... numbers can't be MIDI numbers because they go through scale conversion
     let _chord = Gibber.Theory.Chord.create( chord )
     chord = _chord.notes
   }
@@ -11,7 +12,8 @@ let Arp = function( chord = [0,2,4,6], octaves = 1, pattern = 'updown2' ) {
   notes = chord.slice( 0 )
 
   for( let i = 1; i < octaves; i++ ) {
-    let offset =  i * 12
+    // TODO: next line is messy... what if the mode and corresponding mode length changes?
+    let offset =  i * Gibber.Theory.Scale.master.modeNumbers.length
     for( let j = 0; j < chord.length; j++ ) {
       notes.push( chord[ j ] + offset )
     }

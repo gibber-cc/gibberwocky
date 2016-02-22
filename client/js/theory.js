@@ -1,21 +1,22 @@
-const noteIndices = {
-  c: 0,
-  'c#': 1, db: 1,
-  d:2,
-  'd#':3, eb:3,
-  e:4, fb:4,
-  f:5,
-  'f#':6, gb:6,
-  g:7,
-  'g#':8, ab:8,
-  a:9,
-  'a#':10, bb:10,
-  b:11, cb:11
-}
-
-const noteNames = [ 'c','db','d','eb','e','f','gb','g','ab','a','bb','b' ]
+let Gibber = null
 
 let Note = {
+  names: [ 'c','db','d','eb','e','f','gb','g','ab','a','bb','b' ],
+  indices: {
+    c: 0,
+    'c#': 1, db: 1,
+    d:2,
+    'd#':3, eb:3,
+    e:4, fb:4,
+    f:5,
+    'f#':6, gb:6,
+    g:7,
+    'g#':8, ab:8,
+    a:9,
+    'a#':10, bb:10,
+    b:11, cb:11
+  },
+
   getMIDI() { return this.value },
 
   getFrequency() {
@@ -26,7 +27,7 @@ let Note = {
     let octave = Math.floor( ( this.value / 12 ) ) - 1,
         index  = this.value % 12
 
-    return noteNames[ index ] + octave
+    return Note.names[ index ] + octave
   },
 
   create( value ) {
@@ -44,7 +45,7 @@ let Note = {
     if( typeof value === 'string' ) { 
       midiValue = this.convertStringToMIDI( value )
     } else {
-      midiValue = this.convertScaleMemberToMIDI( value, Scale.master )
+      midiValue = Scale.master.getMIDINumber( value ) 
     }
     
     return midiValue
@@ -53,7 +54,7 @@ let Note = {
   convertStringToMIDI( stringValue ) {
     let octave   = parseInt( stringValue.substr( -1 ) ),
         noteName = stringValue.substr( 0, stringValue.length === 2 ? 1 : 2 ),
-        noteNum  = noteIndices[ noteName ]
+        noteNum  = Note.indices[ noteName ]
     
     return ( octave + 1 ) * 12 + noteNum
   },
@@ -122,4 +123,79 @@ let Chord = {
   },
 }
 
-module.exports = { Note, Chord }
+let Scale = {
+  create( root, mode ) {
+    let scale = Object.create( this )
+
+    scale.rootNumber = Note.convertToMIDI( root )
+
+    scale.root = function( v ) {
+      if( typeof v === 'string' ) {
+        root = v
+        scale.rootNumber = Note.convertToMIDI( root )
+      }else{
+        return root
+      }
+    }
+    
+    scale.modeNumbers = Scale.modes[ mode ]
+
+    scale.mode = function( v ) {
+      if( typeof v === 'string' ) {
+        mode = v
+        scale.modeNumbers = Scale.modes[ mode ]
+      }else{
+        return mode
+      }
+    }
+
+    scale.root.valueOf = () => { return root }
+    scale.mode.valueOf = () => { return mode }
+
+    if( Gibber !== null ) {
+      Gibber.addSequencingToMethod( scale, 'root', 1 )
+      Gibber.addSequencingToMethod( scale, 'mode', 1 )
+    }
+
+    return scale
+  },
+
+  getMIDINumber( scaleDegree ) {
+    let mode   = this.modeNumbers,
+        octave = Math.floor( scaleDegree / mode.length ),
+        degree = mode[ scaleDegree % mode.length ]
+    
+    return this.rootNumber + (octave * 12) + degree
+  },
+
+  modes: {
+    Ionian:     [0,2,4,5,7,9,11],
+    Dorian:     [0,2,3,5,7,9,10],
+    Phrygian:   [0,1,3,5,7,8,10],
+    Lydian:     [0,2,4,6,7,9,11],
+    Mixolydian: [0,2,4,5,7,9,10],
+    Aeolian:    [0,2,3,5,7,8,10],
+    Locrian:    [0,1,3,5,6,8,10],
+    WholeHalf:  [0,2,3,5,6,8,9,11],
+    HalfWhole:  [0,1,3,4,6,7,9,10]
+  }
+}
+
+
+Scale.modes.Major = Scale.modes.Ionian
+Scale.modes.Minor = Scale.modes.Aeolian
+Scale.modes.Blues = Scale.modes.Mixolydian
+
+module.exports = {
+  Note, 
+  Chord, 
+  Scale, 
+
+  init( _Gibber ) { 
+    Gibber = _Gibber; 
+
+    Scale.master = Scale.create( 'c4','Aeolian' )
+    
+    return this 
+  } 
+}

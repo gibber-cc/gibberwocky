@@ -6,7 +6,13 @@ let Scheduler = {
   phase: 0,
   msgs: [],
   functionsToExecute: [],
-  queue: new Queue( ( a, b ) => a.time - b.time ),
+  queue: new Queue( ( a, b ) => {
+    if( a.time === b.time ) {
+      return b.priority - a.priority
+    }else{
+     return a.time - b.time
+    }
+  } ),
   mockBeat: 0,
   mockInterval: null,
 
@@ -28,7 +34,7 @@ let Scheduler = {
       // remove tick
       this.queue.pop()
 
-       beatOffset = ( nextTick.time - this.phase ) / advanceAmount
+      beatOffset = ( nextTick.time - this.phase ) / advanceAmount
 
       this.currentTime = nextTick.time
 
@@ -58,7 +64,13 @@ let Scheduler = {
   },
 
   outputMessages() {
-    this.msgs.forEach( Gibber.Communication.send )
+    this.msgs.forEach( ( msg ) => {
+      if( Array.isArray( msg ) ) { // for chords etc.
+        msg.forEach( Gibber.Communication.send )
+      }else{
+        Gibber.Communication.send( msg )
+      }
+    })
   },
 
   seq( beat ) {
