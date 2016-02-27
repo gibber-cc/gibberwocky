@@ -1,7 +1,7 @@
 module.exports = function( Gibber ) {
 
 let Arp = function( chord = [0,2,4,6], octaves = 1, pattern = 'updown2' ) {
-  let notes, arp 
+  let notes, arp
   
   if( typeof chord === 'string' ) {
     // TODO: doesn't work... numbers can't be MIDI numbers because they go through scale conversion
@@ -42,11 +42,11 @@ Arp.patterns = {
   },
 
   updown2( array ) { // do not repeat highest and lowest notes
-    var _tmp = array.slice( 0 )
-    _tmp.pop()
-    _tmp.reverse()
-    _tmp.pop()
-    return array.concat( _tmp )
+    var tmp = array.slice( 0 )
+    tmp.pop()
+    tmp.reverse()
+    tmp.pop()
+    return array.concat( tmp )
   }
 }
 

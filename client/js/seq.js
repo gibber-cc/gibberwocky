@@ -72,6 +72,7 @@ let seqclosure = function( Gibber ) {
       if( ! Gibber.Pattern.prototype.isPrototypeOf( this.timings ) ) {
         if( this.timings !== undefined && !Array.isArray( this.timings ) ) this.timings = [ this.timings ]
         timingsPattern = Gibber.Pattern.apply( null, this.timings )
+        timingsPattern.values.initial = this.timings.initial
 
         if( this.timings !== undefined ) {
           if( this.timings.randomFlag ) {
@@ -102,11 +103,14 @@ let seqclosure = function( Gibber ) {
         let msg = []
 
         for( let i = 0; i < chord.length; i++ ) {
-          msg.push( `add ${beat} ${beatOffset} ${chord[i]}` )
+          msg.push( `add note ${beat} ${beatOffset} ${chord[i]}` )
         }
 
         return msg
-      }
+      },
+      cc( number, value, beat, beatOffset ) {
+        return `add cc ${beat} ${beatOffset} ${number} ${value}`
+      },
     },
 
     start() {
@@ -125,47 +129,59 @@ let seqclosure = function( Gibber ) {
     lastBeat:0,
     lastBeatOffset:0,
 
-    tick( scheduler, beat, beatOffset, tickAbsoluteTime ) {
+    tick( scheduler, beat, beatOffset ) {
       if( !this.running ) return
-      
-      let value = null
-
-      this.values.nextTime = this.timings.nextTime = beatOffset // for scheduling pattern updates
-
-      // delay messages  
-      if( this.externalMessages[ this.key ] !== undefined ) {
-        
-        value = this.values()
-        if( typeof value === 'function' ) value = value()
-
-        let msg = this.externalMessages[ this.key ]( value, beat, beatOffset )
-
-        scheduler.msgs.push( msg, this.priority )
-      
-      } else { // schedule internal method / function call immediately
-        
-        value = this.values()
-        if( typeof value === 'function' ) {
-          value = value() // also executes anonymous functions
-        }
-
-        if( this.object && this.key ) {
-          
-          if( typeof this.object[ this.key ] === 'function' ) {
-            this.object[ this.key ]( value )
-          }else{
-            this.object[ this.key ] = value
-          }
-
-        }
-      }
 
       // pick a new timing and schedule tick
-      let nextTime = this.timings()
+      let nextTime = this.timings(),
+          shouldExecute
+      
+      //console.log( beat, beatOffset, shouldExecute ) 
+      if( typeof nextTime === 'function' )  nextTime = nextTime()
 
-      if( typeof nextTime === 'function' ) nextTime = nextTime()
+      if( typeof nextTime === 'object' ) {
+        shouldExecute = nextTime.shouldExecute
+        nextTime = nextTime.time
+      }else{
+        shouldExecute = true
+      }
+      
+      scheduler.addMessage( this, nextTime, true )
 
-      Gibber.Scheduler.addMessage( this, nextTime )
+      if( shouldExecute ) {
+        this.values.nextTime = beatOffset
+        this.timings.nextTime = beatOffset // for scheduling pattern updates
+        this.values.update.shouldUpdate = true
+
+        let value = this.values()
+        if( typeof value === 'function' ) value = value()
+
+        // delay messages  
+        if( this.externalMessages[ this.key ] !== undefined ) {
+          
+          let msg = this.externalMessages[ this.key ]( value, beat, beatOffset )
+
+          scheduler.msgs.push( msg, this.priority )
+
+        } else { // schedule internal method / function call immediately
+
+          if( this.object && this.key ) {
+            
+            if( typeof this.object[ this.key ] === 'function' ) {
+              this.object[ this.key ]( value )
+            }else{
+              this.object[ this.key ] = value
+            }
+
+          }
+          
+        }
+      }else{
+        this.timings.nextTime = beatOffset
+        //this.values.nextTime = beatOffset
+      }
+      
+      this.timings.update.shouldUpdate = true
     },
   }
 

@@ -1,4 +1,6 @@
-"use strict"
+module.exports = function( Gibber ) {
+
+let Pattern = Gibber.Pattern
 
 let flatten = function(){
    let flat = []
@@ -70,9 +72,10 @@ let getLargestArrayCount = function( input ) {
   return count
 }
 
-let Euclid = function( ones, length, dur ) {
+let Euclid = function( ones, length, time ) {
   let count = 0,
-      out = createStartingArray( length, ones )
+      out = createStartingArray( length, ones ),
+      onesAndZeros
 
  	function Inner( n,k ) {
     let operationCount = count++ === 0 ? k : getLargestArrayCount( out ),
@@ -95,14 +98,38 @@ let Euclid = function( ones, length, dur ) {
       return flatten.call( out )
     }
   }
+  
+  onesAndZeros = Inner( length, ones )
 
-  return calculateRhythms( Inner( length, ones ), dur )
+  let pattern = Gibber.Pattern.apply( null, onesAndZeros )
+
+  if( isNaN( time ) ) time = 1 / onesAndZeros.length
+
+  pattern.time = time
+
+  let output = { time, shouldExecute: 0 }
+  
+  pattern.filters.push( ( args ) => {
+    let val = args[ 0 ],
+        idx = args[ 2 ]
+
+    output.shouldExecute = val === 1 ? true : false 
+    
+    args[ 0 ] = output
+
+    return args
+  })
+
+
+  // out = calculateRhythms( onesAndZeros, dur )
+  // out.initial = onesAndZeros
+
+  return pattern //out
 }
 // E(5,8) = [ .25, .125, .25, .125, .25 ]
 let calculateRhythms = function( values, dur ) {
   let out = []
   
-  console.log( values, dur )
   if( typeof dur === 'undefined' ) dur = 1 / values.length
 
   let idx = 0,
@@ -176,4 +203,5 @@ Euclid.test = function( testKey ) {
   }
 }
 
-module.exports = Euclid
+return Euclid
+}

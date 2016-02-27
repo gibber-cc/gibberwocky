@@ -44,3 +44,8 @@ body { margin:0; padding:0 }
   padding-left:0 !important; 
   padding-right:0 !important;
 }
+
+.euclid {
+  background:#999 !important;
+  color:#fff !important;
+}

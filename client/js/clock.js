@@ -30,7 +30,6 @@ let Scheduler = {
         beatOffset
        
     if( this.queue.length && nextTick.time < end ) {
-
       // remove tick
       this.queue.pop()
 
@@ -39,13 +38,13 @@ let Scheduler = {
       this.currentTime = nextTick.time
 
       // execute callback function for tick passing schedule, time and beatOffset
-      nextTick.seq.tick( this, beat, beatOffset )
+      // console.log( 'next tick', nextTick.shouldExecute )
+      nextTick.seq.tick( this, beat, beatOffset, nextTick.shouldExecute )
 
       // recursively call advance
       this.advance( advanceAmount, beat ) 
     
-    }else{
-
+    } else {
       if( this.msgs.length ) {      // if output messages have been created
         this.outputMessages()       // output them
         this.msgs.length = 0        // and reset the contents of the output messages array
@@ -56,11 +55,10 @@ let Scheduler = {
     }
   },
 
-  addMessage( seq, time ) {
+  addMessage( seq, time, shouldExecute=true ) {
     time *= 4 // TODO: should this be a function of the time signature?
     time += this.currentTime || this.phase
-
-    this.queue.push({ seq, time })
+    this.queue.push({ seq, time, shouldExecute })
   },
 
   outputMessages() {

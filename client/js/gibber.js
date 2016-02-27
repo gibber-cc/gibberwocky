@@ -4,7 +4,7 @@ let Gibber = {
   Environment:   require( './environment.js' ),
   Scheduler:     require( './clock.js' ),
   Track:         require( './track.js' ),
-  Euclid:        require( './euclidean.js' ),
+  Euclid:        null, 
   Theory:        require( './theory.js' ),
   Seq:           null,
   Pattern:       null,
@@ -112,5 +112,6 @@ let Gibber = {
 Gibber.Pattern = require( './pattern.js' )( Gibber )
 Gibber.Seq     = require( './seq.js' )( Gibber )
 Gibber.Arp     = require( './arp.js' )( Gibber )
+Gibber.Euclid  = require( './euclidean.js')( Gibber )
 
 module.exports = Gibber

@@ -31,7 +31,7 @@ let Marker = {
         try {
           this._process[ node.type ]( node, codemirror, track )
         } catch( error ) {
-          console.log( 'error processing annotation for', node.expression.type )
+          console.log( 'error processing annotation for', node.expression.type, error )
         }
       }
     }
@@ -115,8 +115,8 @@ let Marker = {
 
       $( className ).add( 'annotation-' + border + '-border' )
       
-      if( lastBorder )
-        $( className ).remove( 'annotation-' + lastBorder + '-border' )
+      //if( lastBorder )
+        // $( className ).remove( 'annotation-' + lastBorder + '-border' )
       
       lastBorder = border
       lastClassName = className
@@ -124,8 +124,8 @@ let Marker = {
 
     cycle.clear = function() {
       modCount = 1
-      if( lastBorder && lastClassName )
-        $( lastClassName ).remove( 'annotation-' + lastBorder + '-border' )
+      //if( lastBorder && lastClassName )
+      //  $( lastClassName ).remove( 'annotation-' + lastBorder + '-border' )
       
       lastBorder = null
     }
@@ -137,22 +137,25 @@ let Marker = {
     let cycle = Marker._createBorderCycleFunction( className, patternObject )
     
     patternObject.update = () => {
-      if( !patternObject.update.shouldUpdate ) return 
-      cycle() 
+      // if( !patternObject.update.shouldUpdate ) return 
+      // cycle() 
     }
   },
 
   _addPatternFilter( patternObject ) {
     patternObject.filters.push( ( args ) => {
       const wait = Utility.beatsToMs( ( patternObject.nextTime * .25 ) + .25,  120 ) // TODO: should .25 be a variable representing advance amount?
-      var idx = args[ 2 ]
-
-      Gibber.Environment.animationScheduler.add( () => {
-        patternObject.update.shouldUpdate = true
-        patternObject.update.currentIndex = idx
-        patternObject.update()
-      }, wait, idx ) 
-      
+      let idx = args[ 2 ],
+          shouldUpdate = patternObject.update.shouldUpdate
+           
+      //console.log( 'pattern filter' )
+      //if( shouldUpdate ) {
+        Gibber.Environment.animationScheduler.add( () => {
+          //patternObject.update.shouldUpdate = shouldUpdate
+          patternObject.update.currentIndex = idx
+          patternObject.update()
+        }, wait, idx ) 
+      //}
       return args
     }) 
   },
@@ -176,7 +179,7 @@ let Marker = {
        Marker._addPatternUpdates( patternObject, className )
        Marker._addPatternFilter( patternObject )
 
-       patternObject._onchange = () => { Marker._updatePattern( patternObject, className, track ) }
+       patternObject._onchange = () => { Marker._updatePatternContents( patternObject, className, track ) }
     },
 
     BinaryExpression( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) { // TODO: same as literal, refactor?
@@ -230,11 +233,10 @@ let Marker = {
           setTimeout( () => { $( '.' + cssClassName )[ 1 ].classList.add( 'annotation-no-horizontal-border' ) }, 250 )
         }else{
           marker = cm.markText( elementStart, elementEnd, { 
-            'className':cssClassName + ' annotation', 
+            'className': cssClassName + ' annotation',
             inclusiveLeft:true, inclusiveRight:true
           } )
         }
-
 
         if( track.markup.textMarkers[ patternName  ] === undefined ) track.markup.textMarkers[ patternName ] = []
         track.markup.textMarkers[ patternName ][ count ] = marker
@@ -250,8 +252,8 @@ let Marker = {
       
       patternObject.patternType = patternType 
       patternObject.update = () => {
-        if( !patternObject.update.shouldUpdate ) return 
-         
+        // if( !patternObject.update.shouldUpdate ) return 
+        // console.log( 'array update', patternObject.phase )
         let className = `.${ components[ 1 ] }_${ index }_${ patternType }_` 
 
         if( components.length === 5 ) { // this.note[ 0 ].values.reverse.seq( [], [] ) 
@@ -270,11 +272,11 @@ let Marker = {
           cycle()
         }
 
-        patternObject.update.shouldUpdate = false
+        // patternObject.update.shouldUpdate = false
       }
 
       Marker._addPatternFilter( patternObject )
-      patternObject._onchange = () => { Marker._updatePattern( patternObject, patternName, track ) }
+      patternObject._onchange = () => { Marker._updatePatternContents( patternObject, patternName, track ) }
     },
 
     // CallExpression denotes an array (or other object) that calls a method, like .rnd()
@@ -289,54 +291,128 @@ let Marker = {
         Marker._markPattern.ArrayExpression.apply( null, args )
       } else if (patternNode.callee.type === 'Identifier' ) {
         // function like Euclid
+        console.log( patternNode.callee )
         Marker._markPattern.Identifier.apply( null, args )
       }
     },
 
     Identifier( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) {
-       // mark up anonymous functions with comments here... 
-       let [ className, start, end ] = Marker._getNamesAndPosition( patternNode, containerNode, components, index, patternType ),
-           commentStart = end,
-           commentEnd = {},
-           marker = null
+      // mark up anonymous functions with comments here... 
+      let [ className, start, end ] = Marker._getNamesAndPosition( patternNode, containerNode, components, index, patternType ),
+          commentStart = end,
+          commentEnd = {},
+          marker = null
+      
+      Object.assign( commentEnd, commentStart )
+      
+      commentEnd.ch += 1
+
+      marker = cm.markText( commentStart, commentEnd, { className })
        
-       Object.assign( commentEnd, commentStart )
-       
-       commentEnd.ch += 1
-       //commentStart.ch -= 1
+      //  if( track.markup.textMarkers[ className  ] === undefined ) track.markup.textMarkers[ className ] = []
+      //  track.markup.textMarkers[ className ][ 0 ] = marker
+      //  console.log( 'name', patternNode.callee.name )
+      
+      if( Marker.patternUpdates[ patternNode.callee.name ] ) {
+        patternObject.update = Marker.patternUpdates[ patternNode.callee.name ]( patternObject, marker, className, cm )
+      } else {
+        patternObject.update = Marker.patternUpdates.anonymousFunction( patternObject, marker, className, cm )
+      }
 
-       marker = cm.markText( commentStart, commentEnd, { className })
-        
-       //if( track.markup.textMarkers[ className  ] === undefined ) track.markup.textMarkers[ className ] = []
-       //track.markup.textMarkers[ className ][ 0 ] = marker
+      // store value changes in array and then pop them every time the annotation is updated
+      patternObject.update.value = []
 
-       patternObject.update = () => {
-         if( !patternObject.update.shouldUpdate ) return
-
-         let val ='/* ' + patternObject.update.value.pop() + ' */',
-             pos = marker.find(),
-             end = Object.assign( {}, pos.to )
-          
-         end.ch = pos.from.ch + val.length 
-
-         cm.replaceRange( val, pos.from, pos.to )
-
-         marker.clear()
-
-         marker = cm.markText( pos.from, end, { className })
-
-         patternObject.update.shouldUpdate = false
-       }
-
-       // store value changes in array and then pop them every time the annotation is updated
-       patternObject.update.value = []
-
-       Marker._addPatternFilter( patternObject )
+      Marker._addPatternFilter( patternObject )
     }, 
   },
 
-  _updatePattern( pattern, patternClassName, track ) {
+  patternUpdates: {
+    Euclid: ( patternObject, marker, className, cm ) => {
+      let val ='/* ' + patternObject.values.join('')  + ' */',
+          pos = marker.find(),
+          end = Object.assign( {}, pos.to ),
+          annotationStartCh = pos.from.ch + 3,
+          annotationEndCh   = annotationStartCh + 1,
+          annotationStart   = Object.assign( {}, pos.from ),
+          annotationEnd     = Object.assign( {}, pos.to ),
+          chStart           = annotationStartCh,
+          chCount           = annotationStartCh,
+          currentMarker, chEnd
+
+      end.ch = pos.from.ch + val.length
+      chEnd = end.ch - 5 
+
+      cm.replaceRange( val, pos.from, pos.to )
+
+      marker.clear()
+
+      marker = cm.markText( pos.from, end, { className })
+      
+      annotationStart.ch = annotationStartCh
+      annotationEnd.ch   = annotationEndCh
+
+      //console.log( chStart, chEnd, annotationStartCh, annotationEndCh )
+
+      //currentMarker = cm.markText( annotationStart, annotationEnd, { 'className': 'euclid' })
+      
+      let memberAnnotationStart = Object.assign( {}, annotationStart ),
+          memberAnnotationEnd   = Object.assign( {}, annotationEnd )
+
+      for( let i = 0; i < patternObject.values.length; i++ ) {
+        cm.markText( memberAnnotationStart, memberAnnotationEnd, { 'className': `${className}_${i}` })
+        memberAnnotationStart.ch += 1
+        memberAnnotationEnd.ch   += 1
+      }
+      
+      let count = 0, spanName, span
+      let update = () => {
+        // if( !patternObject.update.shouldUpdate ) return
+        let currentIdx = count++ % patternObject.values.length
+        
+        if( span !== undefined ) span.remove( 'euclid' )
+
+        spanName = `.${className}_${currentIdx}`
+
+        span = $( spanName )
+        span.add( 'euclid' )    
+        //if( annotationStart.ch++ > chEnd ) annotationStart.ch = chStart
+        //annotationEnd.ch = annotationStart.ch + 1
+        
+        //currentMarker.clear()
+        //console.log( annotationStart, annotationEnd )
+        //currentMarker = cm.markText( annotationStart, annotationEnd, { 'className': 'euclid' })
+
+
+        //patternObject.update.shouldUpdate = false
+      }
+      
+      return update 
+    },
+    anonymousFunction: ( patternObject, marker, className, cm ) => {
+      let update = () => {
+        // if( !patternObject.update.shouldUpdate ) return
+
+        let val ='/* ' + patternObject.update.value.pop() + ' */',
+            pos = marker.find(),
+            end = Object.assign( {}, pos.to )
+         
+        end.ch = pos.from.ch + val.length 
+
+        cm.replaceRange( val, pos.from, pos.to )
+
+        marker.clear()
+
+        marker = cm.markText( pos.from, end, { className })
+
+        // patternObject.update.shouldUpdate = false
+      }
+
+      return update
+    }
+  },
+  _updatePatternContents( pattern, patternClassName, track ) {
     let marker, pos, newMarker
+
     if( pattern.values.length > 1 ) {
       // array of values
       for( let i = 0; i < pattern.values.length; i++) {

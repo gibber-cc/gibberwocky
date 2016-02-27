@@ -1,6 +1,6 @@
 const exampleCode = `// ctrl+enter to execute line or selection
-// make sure the transport in Ableton is running before attempting
-// to execute any code.
+// make sure the transport in Ableton is running before 
+// attemptingto execute any code.
 
 // play a note identified by name
 this.note( 'c4' ) // ... or d4, fb2, e#5 etc.
@@ -40,8 +40,9 @@ Scale.root[ 0 ].stop()
 Scale.mode( 'Lydian' )
 
 // Create an arpegctor by passing notes of a chord, 
-// number of octaves to play, and style. Possible styles include
-// 'up', 'down', 'updown' (repeat top and bottom notes) and 'updown2'
+// number of octaves to play, and style. Possible styles 
+// include 'up', 'down', 'updown' (repeat top and bottom 
+// notes) and 'updown2'
 a = Arp( [0,2,3,5], 4, 'updown2' )
 
 // create sequencer using arpeggiator and 1/16 notes
@@ -53,7 +54,8 @@ a.transpose( 1 )
 // sequence transposition of one scale degree every measure
 a.transpose.seq( 1,1 )
 
-// reset the arpeggiator every 8 measures (removes transposition)
+// reset the arpeggiator every 8 measures 
+// (removes transposition)
 a.reset.seq( null, 8 )
 
 // stop sequence
@@ -62,13 +64,14 @@ this.note[ 0 ].stop()
 // creates sequencer at this.note[1] (0 is default)
 this.note.seq( [0,1,2,3], [1/4,1/8], 1 )
 
-// parallel sequence at this.note[2] with random note selection
-// (2 is last arg)
+// parallel sequence at this.note[2] with 
+// random note selection  (2 is last arg)
 this.note.seq( [5,6,7,8].rnd(), 1/4, 2 )
 
-// Every sequence contains two Pattern functions. The first, 'values',
-// determines the output of the sequencer. The second, 'timings', determines
-// when the sequencer fires.
+// Every sequence contains two Pattern functions. 
+// The first, 'values',determines the output of the 
+// sequencer. The second, 'timings', determines when the 
+// sequencer fires.
 
 // sequence transposition of this.note[2]
 this.note[ 2 ].values.transpose.seq( [1,2,3,-6], 1 )
@@ -85,4 +88,4 @@ this.sequences.note[ 2 ].stop()
 // sugar
 this.note[ 2 ].start()`
 
-module.exports = exampleCode
+module.exports = 'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode
