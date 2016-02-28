@@ -149,7 +149,6 @@ let seqclosure = function( Gibber ) {
 
       if( shouldExecute ) {
         this.values.nextTime = beatOffset
-        this.values.update.shouldUpdate = true
 
         let value = this.values()
         if( typeof value === 'function' ) value = value()

@@ -342,8 +342,6 @@ let Marker = {
 
       cm.replaceRange( val, pos.from, pos.to )
 
-      // marker.clear()
-
       commentMarker = cm.markText( pos.from, end, { className })
       track.markup.textMarkers[ className ] = {}
       
@@ -365,9 +363,8 @@ let Marker = {
       
       mark()
 
-      let count = 0, span 
-
-      let update = () => {
+      let count = 0, span, update 
+      update = () => {
         let currentIdx = count++ % patternObject.values.length
         
         if( span !== undefined ) {
@@ -385,7 +382,6 @@ let Marker = {
         }
         
         span.add( 'euclid0' )
-        
       }
 
       patternObject._onchange = () => {
@@ -394,7 +390,6 @@ let Marker = {
           let markerCh = track.markup.textMarkers[ className ][ i ],
               pos = markerCh.find()
           
-          //$( '.' + className + '_' + i ).innerText = patternObject.values[ i ]
           marker.doc.replaceRange( '' + patternObject.values[ i ], pos.from, pos.to )
           mark()
         }
@@ -404,8 +399,6 @@ let Marker = {
     },
     anonymousFunction: ( patternObject, marker, className, cm ) => {
       let update = () => {
-        // if( !patternObject.update.shouldUpdate ) return
-
         let val ='/* ' + patternObject.update.value.pop() + ' */',
             pos = marker.find(),
             end = Object.assign( {}, pos.to )
@@ -417,8 +410,6 @@ let Marker = {
         marker.clear()
 
         marker = cm.markText( pos.from, end, { className })
-
-        // patternObject.update.shouldUpdate = false
       }
 
       return update

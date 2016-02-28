@@ -7,6 +7,7 @@ let Gibber = {
   Euclid:        null, 
   Theory:        require( './theory.js' ),
   Seq:           null,
+  Score:         null,
   Pattern:       null,
   Arp:           null,
   currentTrack:  null,
@@ -111,6 +112,7 @@ let Gibber = {
 
 Gibber.Pattern = require( './pattern.js' )( Gibber )
 Gibber.Seq     = require( './seq.js' )( Gibber )
+Gibber.Score   = require( './score.js' )( Gibber )
 Gibber.Arp     = require( './arp.js' )( Gibber )
 Gibber.Euclid  = require( './euclidean.js')( Gibber )
 
