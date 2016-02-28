@@ -21,7 +21,7 @@ this.note( 0 )
 // default this id is set to 0 if no argument is passed.
 // Assigning sequences to different id numbers allows them
 // to run in parallel.
-this.note.seq( [0,1,2,3,4,5,6,7], 1/16 )
+this.note.seq( [0,1,2,3,4,5,6,7], Euclid(5,8) )
 
 // sequence the master scale to change root every measure
 Scale.root.seq( ['c4','d4','f4','g4'], 1 )
@@ -88,4 +88,4 @@ this.sequences.note[ 2 ].stop()
 // sugar
 this.note[ 2 ].start()`
 
-module.exports = 'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode
+module.exports = exampleCode//'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode
