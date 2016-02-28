@@ -136,7 +136,6 @@ let seqclosure = function( Gibber ) {
       let nextTime = this.timings(),
           shouldExecute
       
-      //console.log( beat, beatOffset, shouldExecute ) 
       if( typeof nextTime === 'function' )  nextTime = nextTime()
 
       if( typeof nextTime === 'object' ) {
@@ -150,7 +149,6 @@ let seqclosure = function( Gibber ) {
 
       if( shouldExecute ) {
         this.values.nextTime = beatOffset
-        this.timings.nextTime = beatOffset // for scheduling pattern updates
         this.values.update.shouldUpdate = true
 
         let value = this.values()
@@ -176,12 +174,9 @@ let seqclosure = function( Gibber ) {
           }
           
         }
-      }else{
-        this.timings.nextTime = beatOffset
-        //this.values.nextTime = beatOffset
       }
-      
-      this.timings.update.shouldUpdate = true
+ 
+      this.timings.nextTime = beatOffset // for scheduling pattern updates
     },
   }
 

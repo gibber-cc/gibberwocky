@@ -113,7 +113,7 @@ let Euclid = function( ones, length, time ) {
     let val = args[ 0 ],
         idx = args[ 2 ]
 
-    output.shouldExecute = val === 1 ? true : false 
+    output.shouldExecute = val
     
     args[ 0 ] = output
 

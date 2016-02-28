@@ -314,9 +314,9 @@ let Marker = {
       //  console.log( 'name', patternNode.callee.name )
       
       if( Marker.patternUpdates[ patternNode.callee.name ] ) {
-        patternObject.update = Marker.patternUpdates[ patternNode.callee.name ]( patternObject, marker, className, cm )
+        patternObject.update = Marker.patternUpdates[ patternNode.callee.name ]( patternObject, marker, className, cm, track )
       } else {
-        patternObject.update = Marker.patternUpdates.anonymousFunction( patternObject, marker, className, cm )
+        patternObject.update = Marker.patternUpdates.anonymousFunction( patternObject, marker, className, cm, track )
       }
 
       // store value changes in array and then pop them every time the annotation is updated
@@ -327,65 +327,79 @@ let Marker = {
   },
 
   patternUpdates: {
-    Euclid: ( patternObject, marker, className, cm ) => {
+    Euclid: ( patternObject, marker, className, cm, track ) => {
       let val ='/* ' + patternObject.values.join('')  + ' */',
           pos = marker.find(),
           end = Object.assign( {}, pos.to ),
           annotationStartCh = pos.from.ch + 3,
           annotationEndCh   = annotationStartCh + 1,
-          annotationStart   = Object.assign( {}, pos.from ),
-          annotationEnd     = Object.assign( {}, pos.to ),
-          chStart           = annotationStartCh,
-          chCount           = annotationStartCh,
+          memberAnnotationStart   = Object.assign( {}, pos.from ),
+          memberAnnotationEnd     = Object.assign( {}, pos.to ),
+          commentMarker,
           currentMarker, chEnd
 
       end.ch = pos.from.ch + val.length
-      chEnd = end.ch - 5 
 
       cm.replaceRange( val, pos.from, pos.to )
 
-      marker.clear()
+      // marker.clear()
 
-      marker = cm.markText( pos.from, end, { className })
+      commentMarker = cm.markText( pos.from, end, { className })
+      track.markup.textMarkers[ className ] = {}
       
-      annotationStart.ch = annotationStartCh
-      annotationEnd.ch   = annotationEndCh
+      let mark = () => {
+        memberAnnotationStart.ch = annotationStartCh
+        memberAnnotationEnd.ch   = annotationEndCh
 
-      //console.log( chStart, chEnd, annotationStartCh, annotationEndCh )
+        for( let i = 0; i < patternObject.values.length; i++ ) {
+          track.markup.textMarkers[ className ][ i ] = cm.markText(
+            memberAnnotationStart,  memberAnnotationEnd,
+            { 'className': `${className}_${i}` }
+          )
 
-      //currentMarker = cm.markText( annotationStart, annotationEnd, { 'className': 'euclid' })
-      
-      let memberAnnotationStart = Object.assign( {}, annotationStart ),
-          memberAnnotationEnd   = Object.assign( {}, annotationEnd )
+          memberAnnotationStart.ch += 1
+          memberAnnotationEnd.ch   += 1
+        }
 
-      for( let i = 0; i < patternObject.values.length; i++ ) {
-        cm.markText( memberAnnotationStart, memberAnnotationEnd, { 'className': `${className}_${i}` })
-        memberAnnotationStart.ch += 1
-        memberAnnotationEnd.ch   += 1
       }
       
-      let count = 0, spanName, span
+      mark()
+
+      let count = 0, span 
+
       let update = () => {
-        // if( !patternObject.update.shouldUpdate ) return
         let currentIdx = count++ % patternObject.values.length
         
-        if( span !== undefined ) span.remove( 'euclid' )
+        if( span !== undefined ) {
+          span.remove( 'euclid0' )
+        }
 
-        spanName = `.${className}_${currentIdx}`
-
+        let spanName = `.${className}_${currentIdx}`,
+            currentValue = patternObject.values[ currentIdx ]
+ 
         span = $( spanName )
-        span.add( 'euclid' )    
-        //if( annotationStart.ch++ > chEnd ) annotationStart.ch = chStart
-        //annotationEnd.ch = annotationStart.ch + 1
+
+        if( currentValue === 1 ) {
+          span.add( 'euclid1' )
+          setTimeout( ()=> { span.remove( 'euclid1' ) }, 50 )
+        }
         
-        //currentMarker.clear()
-        //console.log( annotationStart, annotationEnd )
-        //currentMarker = cm.markText( annotationStart, annotationEnd, { 'className': 'euclid' })
-
-
-        //patternObject.update.shouldUpdate = false
+        span.add( 'euclid0' )
+        
       }
-      
+
+      patternObject._onchange = () => {
+        for( let i = 0; i < patternObject.values.length; i++ ) {
+ 
+          let markerCh = track.markup.textMarkers[ className ][ i ],
+              pos = markerCh.find()
+          
+          //$( '.' + className + '_' + i ).innerText = patternObject.values[ i ]
+          marker.doc.replaceRange( '' + patternObject.values[ i ], pos.from, pos.to )
+          mark()
+        }
+      }
+
       return update 
     },
     anonymousFunction: ( patternObject, marker, className, cm ) => {
@@ -416,8 +430,6 @@ let Marker = {
     if( pattern.values.length > 1 ) {
       // array of values
       for( let i = 0; i < pattern.values.length; i++) {
-        let className = patternClassName
-        
         marker = track.markup.textMarkers[ patternClassName ][ i ]
         pos = marker.find()
 
