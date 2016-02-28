@@ -88,4 +88,4 @@ this.sequences.note[ 2 ].stop()
 // sugar
 this.note[ 2 ].start()`
 
-module.exports = exampleCode//'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode
+module.exports = 'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode
