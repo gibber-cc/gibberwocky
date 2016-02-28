@@ -17,6 +17,7 @@ let Gibber = {
 
   export() {
     window.Seq           = this.Seq
+    window.Score         = this.Score
     window.Track         = this.Track
     window.Scheduler     = this.Scheduler
     window.Pattern       = this.Pattern
