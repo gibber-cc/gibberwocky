@@ -88,4 +88,12 @@ this.sequences.note[ 2 ].stop()
 // sugar
 this.note[ 2 ].start()`
 
-module.exports = 'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode
+const exampleScoreCode = `Score([ 
+  0, function() { console.log('1') },
+  1/4, function() { console.log('2') },
+  1/4, function() { console.log('3') },
+  1/4, function() { console.log('4') },
+  1, function() { console.log('5555') },  
+])`
+
+module.exports = exampleScoreCode//'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode

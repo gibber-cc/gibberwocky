@@ -1,7 +1,7 @@
 const acorn = require( 'acorn' )
 
 const callDepths = [
-  null ,
+  'SCORE',
   'THIS.METHOD',
   'THIS.METHOD.SEQ',
   'THIS.METHOD[ 0 ].SEQ',
@@ -38,8 +38,18 @@ let Marker = {
   },
 
   _process: {
-    ExpressionStatement: function( expressionNode, codemirror, track ) {
-      let [ components, depthOfCall, index ] = Marker._getExpressionHierarchy( expressionNode.expression ),
+    ExpressionStatement( expressionNode, codemirror, track ){ 
+      console.log( expressionNode )
+      Marker._process[ expressionNode.expression.type ]( expressionNode, codemirror, track )
+    },
+
+    AssignmentExpression: function( expressionNode, codemirror, track ) {
+      console.log( 'assignment!', expressionNode.expression )
+
+    },
+
+    CallExpression( expressionNode, codemirror, track ) {
+      let [ components, depthOfCall, index ] = Marker._getCallExpressionHierarchy( expressionNode.expression ),
           args = expressionNode.expression.arguments
       
       // if index is passed as argument to .seq call...
@@ -49,7 +59,15 @@ let Marker = {
       let valuesPattern, timingsPattern, valuesNode, timingsNode
 
       switch( callDepths[ depthOfCall ] ) {
-         case 'THIS.METHOD':
+         case 'SCORE':
+           console.log( 'score no assignment?', components, expressionNode.expression )
+           if( Marker.functions[ expressionNode.expression.callee.name ] ) {
+             Marker.functions[ expressionNode.expression.callee.name ]( expressionNode.expression, codemirror, track, expressionNode.verticalOffset )            
+           }
+           break;
+
+         case 'THIS.METHOD': // also for calls to Score([]).start() 
+           console.log( 'SCORE.start()', components, depthOfCall, index )
            // console.log( 'simple method call, no sequencing so no markup' )
            break;
 
@@ -415,6 +433,30 @@ let Marker = {
       return update
     }
   },
+
+  functions:{
+    Score( node, cm, track, vOffset=0 ) {
+      //console.log( "SCORE", node )
+      var timelineNodes = node.arguments[ 0 ].elements
+      //console.log( timelineNodes )
+
+      for( let i = 0; i < timelineNodes.length; i+=2 ) {
+        var timeNode = timelineNodes[ i ],
+            functionNode = timelineNodes[ i + 1 ]
+            
+        functionNode.loc.start.line += vOffset - 1
+        functionNode.loc.end.line   += vOffset - 1
+        functionNode.loc.start.ch = functionNode.loc.start.column
+        functionNode.loc.end.ch = functionNode.loc.end.column
+
+        let marker = cm.markText( functionNode.loc.start, functionNode.loc.end, { className:'euclid1' } )
+
+        console.log( functionNode, marker )
+      }
+    }
+  },
+
+
   _updatePatternContents( pattern, patternClassName, track ) {
     let marker, pos, newMarker
 
@@ -457,7 +499,7 @@ let Marker = {
      return [ className, start, end ]
   },
 
-  _getExpressionHierarchy( expr ) {
+  _getCallExpressionHierarchy( expr ) {
     let callee = expr.callee,
         obj = callee.object,
         components = [],
@@ -469,9 +511,9 @@ let Marker = {
 
       if( obj.type === 'ThisExpression' ) {
         pushValue = 'this' 
-      }else if( obj.property.name ){
+      }else if( obj.property && obj.property.name ){
         pushValue = obj.property.name
-      }else if( obj.property.type === 'Literal' ){ // array index
+      }else if( obj.property && obj.property.type === 'Literal' ){ // array index
         pushValue = '[' + obj.property.value + ']'
         index = obj.property.value
       }
@@ -483,7 +525,9 @@ let Marker = {
     }
     
     components.reverse()
-    components.push( callee.property.name )
+    console.log( obj, callee )
+    if( callee.property )
+      components.push( callee.property.name )
 
     return [ components, depth, index ]
   },

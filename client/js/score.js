@@ -51,6 +51,8 @@ let Score = {
     //score.init()
   
     score.nextTime = score.schedule[ 0 ]
+    
+    score.start()
 
     return score
   },
@@ -189,7 +191,7 @@ return Score.create.bind( Score )
 }
 
 /*
-a = Gibber.Score.create([ 
+a = Score([ 
   0, function() { console.log('1') },
   1/4, function() { console.log('2') },
   1/4, function() { console.log('3') },
