@@ -44,12 +44,16 @@ body { margin:0; padding:0 }
   padding-left:0 !important; 
   padding-right:0 !important;
 }
-
+.scoreCurrentIndex { 
+  /*border: #700 1px solid */
+  /*font-weight:bold !important*/
+  background: #ddd
+}
 .euclid1 {
   background:#000 !important;
   color:#fff !important;
 }
 
-.euclid0 {
-  background:#ccc; 
-}
+.euclid0 {  background:#cfcccc; }
+
+

@@ -142,8 +142,8 @@ let Marker = {
 
       $( className ).add( 'annotation-' + border + '-border' )
       
-      //if( lastBorder )
-        // $( className ).remove( 'annotation-' + lastBorder + '-border' )
+      if( lastBorder )
+        $( className ).remove( 'annotation-' + lastBorder + '-border' )
       
       lastBorder = border
       lastClassName = className
@@ -151,8 +151,8 @@ let Marker = {
 
     cycle.clear = function() {
       modCount = 1
-      //if( lastBorder && lastClassName )
-      //  $( lastClassName ).remove( 'annotation-' + lastBorder + '-border' )
+      if( lastBorder && lastClassName )
+        $( lastClassName ).remove( 'annotation-' + lastBorder + '-border' )
       
       lastBorder = null
     }
@@ -165,7 +165,7 @@ let Marker = {
     
     patternObject.update = () => {
       // if( !patternObject.update.shouldUpdate ) return 
-      // cycle() 
+      cycle() 
     }
   },
 
@@ -228,7 +228,7 @@ let Marker = {
        
        if( track.markup.cssClasses[ className ] === undefined ) track.markup.cssClasses[ className ] = []
        track.markup.cssClasses[ className ][ index ] = cssName
-       console.log( cssName, start, end ) 
+
        setTimeout( () => { $( '.' + cssName )[ 1 ].classList.add( 'annotation-no-horizontal-border' ) }, 250 )
        
        Marker._addPatternUpdates( patternObject, className )
@@ -466,12 +466,12 @@ let Marker = {
       }
 
       let lastClass = 'score0'
-      $( '.' + lastClass ).add( 'euclid1' )
+      $( '.' + lastClass ).add( 'scoreCurrentIndex' )
       // TODO: global object usage is baaaad methinks?
       window[ objectName ].onadvance = ( idx ) => {
-        $( '.' + lastClass ).remove( 'euclid1' )
+        $( '.' + lastClass ).remove( 'scoreCurrentIndex' )
         lastClass = `score${idx}`
-        $( '.' + lastClass ).add( 'euclid1' ) 
+        $( '.' + lastClass ).add( 'scoreCurrentIndex' ) 
       }
     }
   },

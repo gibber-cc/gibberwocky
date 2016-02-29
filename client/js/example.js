@@ -96,4 +96,13 @@ const exampleScoreCode = `Score([
   1, function() { console.log('5555') },  
 ])`
 
-module.exports = exampleScoreCode//'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode
+const exampleScore2 = `s = Score([ 
+  0, function() { 
+    this.note.seq( 0, 1/4 )
+  },
+  1, function() { 
+    this.note.seq( [0,1], Euclid(3,4), 1 )
+  },
+  1, function() { console.log('5555') },  
+])`
+module.exports = exampleScore2 //'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode
