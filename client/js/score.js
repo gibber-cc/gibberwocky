@@ -152,9 +152,19 @@ let Score = {
               //fnc()
             }
           }else{
-            fnc()
+            fnc.call( Gibber.currentTrack )
           }
           if( typeof this.onadvance === 'function' ) this.onadvance( this.index - 1 )
+          
+          let marker = Gibber.currentTrack.markup.textMarkers[ 'score' ][ this.index - 1 ],
+              pos    = marker.find()
+          
+          pos.start = pos.from
+          pos.end   = pos.to
+          pos.start.line += 1
+          pos.end.line += 1
+          console.log( 'POS', pos )
+          Gibber.Environment.codeMarkup.process( fnc.toString().split('\n').slice(1,-1).join('\n'), pos, Gibber.Environment.codemirror, Gibber.currentTrack )
         }
       }
 

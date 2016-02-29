@@ -228,7 +228,7 @@ let Marker = {
        
        if( track.markup.cssClasses[ className ] === undefined ) track.markup.cssClasses[ className ] = []
        track.markup.cssClasses[ className ][ index ] = cssName
-       
+       console.log( cssName, start, end ) 
        setTimeout( () => { $( '.' + cssName )[ 1 ].classList.add( 'annotation-no-horizontal-border' ) }, 250 )
        
        Marker._addPatternUpdates( patternObject, className )
@@ -448,6 +448,7 @@ let Marker = {
       //console.log( "SCORE", node )
       var timelineNodes = node.arguments[ 0 ].elements
       //console.log( timelineNodes )
+      track.markup.textMarkers[ 'score' ] = []
 
       for( let i = 0; i < timelineNodes.length; i+=2 ) {
         var timeNode = timelineNodes[ i ],
@@ -459,6 +460,7 @@ let Marker = {
         functionNode.loc.end.ch = functionNode.loc.end.column
 
         let marker = cm.markText( functionNode.loc.start, functionNode.loc.end, { className:`score${i/2}` } )
+        track.markup.textMarkers[ 'score' ][ i/2 ] = marker
 
         console.log( functionNode, marker )
       }
