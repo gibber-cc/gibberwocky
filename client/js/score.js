@@ -34,7 +34,7 @@ let Score = {
       isPaused:   true,
     })
 
-    for( var i = 0; i < data.length; i+=2 ) {
+    for( let i = 0; i < data.length; i+=2 ) {
       score.schedule.push( data[ i ] )
       score.timeline.push( data[ i+1 ] )    
     }
@@ -55,12 +55,6 @@ let Score = {
     score.start()
 
     return score
-  },
-
-  tick( scheduler, beat, beatOffset ) {
-    if( !this.running ) return
-
-    // pick a new timing and schedule tick
   },
 
   start() { 
@@ -97,10 +91,10 @@ let Score = {
   },
   
   combine( ...args ) {
-    var score = [ 0, args[ 0 ] ]
+    let score = [ 0, args[ 0 ] ]
   
-    for( var i = 1; i < args.length; i++ ) {
-      var timeIndex = i * 2,
+    for( let i = 1; i < args.length; i++ ) {
+      let timeIndex = i * 2,
           valueIndex = timeIndex +  1,
           previousValueIndex = timeIndex - 1
 
@@ -145,12 +139,14 @@ let Score = {
           }
           this.oncomplete()
         }
+
         if( shouldExecute && fnc ) {
           if( Score.isPrototypeOf( fnc )  ) {
-            if( !fnc.codeblock ) {
+            if( !fnc.codeblock ) { // TODO: what do I replace codeblock with? isRunning?
               fnc.start()
-              console.log("STARTING SCORE")
+              // console.log("STARTING SCORE")
             }else{
+              // TODO: what is this for?
               fnc.rewind().next()
               //fnc.rewind().next()
               //fnc()
@@ -158,6 +154,7 @@ let Score = {
           }else{
             fnc()
           }
+          if( typeof this.onadvance === 'function' ) this.onadvance( this.index - 1 )
         }
       }
 
@@ -175,9 +172,9 @@ let Score = {
 
   oncomplete: function() {
     // console.log("ON COMPLETE", this.oncomplete.listeners )
-    var listeners = this.oncomplete.listeners
-    for( var i = listeners.length - 1; i >= 0; i-- ) {
-      var listener = listeners[i]
+    let listeners = this.oncomplete.listeners
+    for( let i = listeners.length - 1; i >= 0; i-- ) {
+      let listener = listeners[i]
       if( listener instanceof Score ) {
         listener.next()
       }

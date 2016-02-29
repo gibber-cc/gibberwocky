@@ -39,12 +39,21 @@ let Marker = {
 
   _process: {
     ExpressionStatement( expressionNode, codemirror, track ){ 
-      console.log( expressionNode )
+      //console.log( expressionNode )
       Marker._process[ expressionNode.expression.type ]( expressionNode, codemirror, track )
     },
 
     AssignmentExpression: function( expressionNode, codemirror, track ) {
       console.log( 'assignment!', expressionNode.expression )
+      if( Marker.functions[ expressionNode.expression.right.callee.name ] ) {
+        Marker.functions[ expressionNode.expression.right.callee.name ]( 
+          expressionNode.expression.right, 
+          codemirror,
+          track,
+          expressionNode.expression.left.name,
+          expressionNode.verticalOffset
+        )            
+      }
 
     },
 
@@ -435,7 +444,7 @@ let Marker = {
   },
 
   functions:{
-    Score( node, cm, track, vOffset=0 ) {
+    Score( node, cm, track, objectName, vOffset=0 ) {
       //console.log( "SCORE", node )
       var timelineNodes = node.arguments[ 0 ].elements
       //console.log( timelineNodes )
@@ -449,9 +458,18 @@ let Marker = {
         functionNode.loc.start.ch = functionNode.loc.start.column
         functionNode.loc.end.ch = functionNode.loc.end.column
 
-        let marker = cm.markText( functionNode.loc.start, functionNode.loc.end, { className:'euclid1' } )
+        let marker = cm.markText( functionNode.loc.start, functionNode.loc.end, { className:`score${i/2}` } )
 
         console.log( functionNode, marker )
+      }
+
+      let lastClass = 'score0'
+      $( '.' + lastClass ).add( 'euclid1' )
+      // TODO: global object usage is baaaad methinks?
+      window[ objectName ].onadvance = ( idx ) => {
+        $( '.' + lastClass ).remove( 'euclid1' )
+        lastClass = `score${idx}`
+        $( '.' + lastClass ).add( 'euclid1' ) 
       }
     }
   },
