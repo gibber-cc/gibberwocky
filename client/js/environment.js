@@ -4,6 +4,10 @@ let Gibber = null,
     exampleCode = require( './example.js' )
 
 require( '../node_modules/codemirror/mode/javascript/javascript.js' )
+require( '../node_modules/codemirror/addon/edit/matchbrackets.js' )
+require( '../node_modules/codemirror/addon/edit/closebrackets.js' )
+require( '../node_modules/codemirror/addon/hint/show-hint.js' )
+require( '../node_modules/codemirror/addon/hint/javascript-hint.js' )
 
 let Environment = {
   codeMarkup: require( './codeMarkup.js' ),
@@ -21,7 +25,15 @@ let Environment = {
   
   createCodeMirror() {
     CodeMirror.keyMap.gibber = this.keymap
-    this.codemirror = CodeMirror( document.querySelector('#editor'), { mode:'javascript', keyMap:'gibber', autofocus:true, value:exampleCode })
+    this.codemirror = CodeMirror( document.querySelector('#editor'), {
+      mode:'javascript', 
+      keyMap:'gibber',
+      autofocus:true, 
+      value: exampleCode,
+      matchBrackets: true,
+      autoCloseBrackets: true,
+      extraKeys: {"Ctrl-Space": "autocomplete"},
+    })
     this.codemirror.setSize( null, '100%' ) 
   },
 

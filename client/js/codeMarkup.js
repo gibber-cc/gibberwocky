@@ -23,11 +23,12 @@ let Marker = {
   },
 
   process( code, position, codemirror, track ) {
-    let tree = acorn.parse( code, { locations:true } ).body
+    let tree = acorn.parse( code, { locations:true, ecmaVersion:6 } ).body
     
     for( let node of tree ) {
       if( node.type === 'ExpressionStatement' ) { // not control flow
-        node.verticalOffset = position.start.line
+        node.verticalOffset  = position.start.line
+        node.horizontalOffset = position.horizontalOffset === undefined ? 0 : position.horizontalOffset
         try {
           this._process[ node.type ]( node, codemirror, track )
         } catch( error ) {
@@ -39,19 +40,18 @@ let Marker = {
 
   _process: {
     ExpressionStatement( expressionNode, codemirror, track ){ 
-      //console.log( expressionNode )
       Marker._process[ expressionNode.expression.type ]( expressionNode, codemirror, track )
     },
 
     AssignmentExpression: function( expressionNode, codemirror, track ) {
-      console.log( 'assignment!', expressionNode.expression )
       if( Marker.functions[ expressionNode.expression.right.callee.name ] ) {
         Marker.functions[ expressionNode.expression.right.callee.name ]( 
           expressionNode.expression.right, 
           codemirror,
           track,
           expressionNode.expression.left.name,
-          expressionNode.verticalOffset
+          expressionNode.verticalOffset,
+          expressionNode.horizontalOffset
         )            
       }
 
@@ -76,7 +76,6 @@ let Marker = {
            break;
 
          case 'THIS.METHOD': // also for calls to Score([]).start() 
-           console.log( 'SCORE.start()', components, depthOfCall, index )
            // console.log( 'simple method call, no sequencing so no markup' )
            break;
 
@@ -96,7 +95,6 @@ let Marker = {
            break;
 
          case 'THIS.METHOD[ 0 ].SEQ': // will this ever happen??? I guess after it has been sequenced once?
-          console.log( 'method # seq' )
           break;
 
          case 'THIS.METHOD.VALUES.REVERSE.SEQ':            
@@ -246,8 +244,8 @@ let Marker = {
             elementEnd   = Object.assign( {}, end   ),
             marker
         
-        elementStart.ch = element.start
-        elementEnd.ch   = element.end
+        elementStart.ch = element.start + containerNode.horizontalOffset
+        elementEnd.ch   = element.end   + containerNode.horizontalOffset
 
         if( element.type === 'BinaryExpression' ) {
           marker = cm.markText( elementStart, elementEnd, { 
@@ -318,7 +316,6 @@ let Marker = {
         Marker._markPattern.ArrayExpression.apply( null, args )
       } else if (patternNode.callee.type === 'Identifier' ) {
         // function like Euclid
-        console.log( patternNode.callee )
         Marker._markPattern.Identifier.apply( null, args )
       }
     },
@@ -446,12 +443,12 @@ let Marker = {
   functions:{
     Score( node, cm, track, objectName, vOffset=0 ) {
       //console.log( "SCORE", node )
-      var timelineNodes = node.arguments[ 0 ].elements
+      let timelineNodes = node.arguments[ 0 ].elements
       //console.log( timelineNodes )
       track.markup.textMarkers[ 'score' ] = []
 
       for( let i = 0; i < timelineNodes.length; i+=2 ) {
-        var timeNode = timelineNodes[ i ],
+        let timeNode = timelineNodes[ i ],
             functionNode = timelineNodes[ i + 1 ]
             
         functionNode.loc.start.line += vOffset - 1
@@ -462,7 +459,6 @@ let Marker = {
         let marker = cm.markText( functionNode.loc.start, functionNode.loc.end, { className:`score${i/2}` } )
         track.markup.textMarkers[ 'score' ][ i/2 ] = marker
 
-        console.log( functionNode, marker )
       }
 
       let lastClass = 'score0'
@@ -513,8 +509,8 @@ let Marker = {
 
      start.line += containerNode.verticalOffset - 1
      end.line   += containerNode.verticalOffset - 1
-     start.ch   = start.column
-     end.ch     = end.column
+     start.ch   = start.column + containerNode.horizontalOffset
+     end.ch     = end.column + containerNode.horizontalOffset
 
      return [ className, start, end ]
   },
@@ -545,7 +541,7 @@ let Marker = {
     }
     
     components.reverse()
-    console.log( obj, callee )
+    
     if( callee.property )
       components.push( callee.property.name )
 

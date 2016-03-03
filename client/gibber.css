@@ -23,6 +23,8 @@ body { margin:0; padding:0 }
 #console .CodeMirror { background-color:#efefef }
 #editor  .CodeMirror { background-color:#efefef }
 
+.CodeMirror-matchingbracket{ color: #b00 !important }
+
 .annotation { 
   padding:1px;
   box-sizing:border-box !important;

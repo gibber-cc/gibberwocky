@@ -48,8 +48,6 @@ let Score = {
     score.oncomplete.listeners = []
     score.oncomplete.owner = this
   
-    //score.init()
-  
     score.nextTime = score.schedule[ 0 ]
     
     score.start()
@@ -144,7 +142,6 @@ let Score = {
           if( Score.isPrototypeOf( fnc )  ) {
             if( !fnc.codeblock ) { // TODO: what do I replace codeblock with? isRunning?
               fnc.start()
-              // console.log("STARTING SCORE")
             }else{
               // TODO: what is this for?
               fnc.rewind().next()
@@ -155,15 +152,47 @@ let Score = {
             fnc.call( Gibber.currentTrack )
           }
           
-          
-          let marker = Gibber.currentTrack.markup.textMarkers[ 'score' ][ this.index - 1 ],
-              pos    = marker.find(),
-              code   = fnc.toString().split('\n').slice(1,-1).join('\n')
-          
-          pos.start = pos.from
-          pos.end   = pos.to
-          pos.start.line += 1
-          pos.end.line += 1
+          let marker      = Gibber.currentTrack.markup.textMarkers[ 'score' ][ this.index - 1 ],
+              pos         = marker.find(),
+              funcBody    = fnc.toString(),
+              isMultiLine = funcBody.includes('\n'),
+              code, line 
+
+          pos.start = Object.assign( {}, pos.from )
+          pos.end   = Object.assign( {}, pos.to   )
+
+          if( isMultiLine ) {
+            code  = fnc.toString().split('\n').slice(1,-1).join('\n')
+            pos.start.line += 1
+            pos.end.line += 1
+          } else {
+            if( funcBody.endsWith( '}' ) ) {
+              line  = marker.lines[ 0 ].text
+
+              let bracketIdx = line.indexOf( '{' ) + 1,
+                  commaIdx   = line.indexOf( ',' ),
+                  commaAmount = line.endsWith( ',' ) ? 1 : 0
+  
+              code = line.substr( bracketIdx, line.length - bracketIdx - 1 - commaAmount )
+
+              pos.horizontalOffset = bracketIdx//pos.start.ch
+
+            }else{
+              // TODO: why doesn't this work? acorn seems unable to parse arrow functions?
+              line = marker.lines[ 0 ].text
+              
+              let arrowIdx = line.indexOf( '>' ) + 1,
+                  commaAmount = line.endsWith( ',' ) ? 1 : 0
+
+              code = line.substr( arrowIdx, line.length - arrowIdx - commaAmount )
+
+              pos.horizontalOffset = arrowIdx
+
+            }
+          }
+          //funcBody = fnc.toString(),
+          //code = funcBody.match(/(?:function\s*\(\)*[\s]*[\{\n])([\s\S]*)\}/)[1]
+          //code = funcBody.match(/(?:(?:\(\))*(?:_)*(?:=>)\s*(?:\{)*)([\"\'\.\{\}\(\)\w\d\s\n]+)(?:\})/i)[1]
 
           // TODO: should not be Gibber.currentTrack ?
           Gibber.Environment.codeMarkup.process( code, pos, Gibber.Environment.codemirror, Gibber.currentTrack )

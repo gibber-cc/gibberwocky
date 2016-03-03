@@ -105,4 +105,21 @@ const exampleScore2 = `s = Score([
   },
   1, function() { console.log('5555') },  
 ])`
-module.exports = exampleScore2 //'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode
+
+const exampleScore3 = `s = Score([
+  0, ()=> {
+    this.note.seq( [0,1,2,3], 1/4 )
+  },
+  1, ()=> { this.note.seq( [0,1], Euclid(2,4), 1 ) },
+  2, function() { this.note.seq( [3,4], [1/4,1/8], 2 ) }
+])`
+
+const exampleScore4 = `s = Score([
+  0, ()=> this.note.seq( [0,1,2,3], 1/4 ),
+  1, ()=> this.note.seq( [0,2,4,5], 1/4, 1 ),
+  1, ()=> this.note.seq( [3,4,5,6],[1/4,1/8], 2 )
+])`
+
+
+
+module.exports = exampleScore4 //'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode
