@@ -3,13 +3,13 @@
 		"fileversion" : 1,
 		"appversion" : 		{
 			"major" : 7,
-			"minor" : 1,
+			"minor" : 2,
 			"revision" : 0,
 			"architecture" : "x86",
 			"modernui" : 1
 		}
 ,
-		"rect" : [ 81.0, 104.0, 867.0, 452.0 ],
+		"rect" : [ 179.0, 79.0, 958.0, 468.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 0,
 		"default_fontsize" : 12.0,
@@ -44,7 +44,6 @@
 					"numinlets" : 1,
 					"numoutlets" : 0,
 					"patching_rect" : [ 775.0, 342.5, 59.0, 47.0 ],
-					"presentation_rect" : [ 790.75, 459.0, 0.0, 0.0 ],
 					"style" : "",
 					"text" : "space toggles playback"
 				}
@@ -330,8 +329,8 @@
 					"numoutlets" : 4,
 					"offset" : [ 0.0, 0.0 ],
 					"outlettype" : [ "signal", "signal", "", "" ],
-					"patching_rect" : [ 3.0, 2.0, 847.0, 196.0 ],
-					"presentation_rect" : [ 0.0, 0.0, 847.0, 196.0 ],
+					"patching_rect" : [ 3.0, 2.0, 890.0, 196.0 ],
+					"presentation_rect" : [ 0.0, 0.0, 890.0, 196.0 ],
 					"saved_attribute_attributes" : 					{
 						"valueof" : 						{
 							"parameter_invisible" : 1,
@@ -476,8 +475,8 @@
 			}
  ],
 		"parameters" : 		{
-			"obj-2" : [ "amxd~[1]", "amxd~[1]", 0 ],
-			"obj-1" : [ "amxd~", "amxd~", 0 ]
+			"obj-1" : [ "amxd~", "amxd~", 0 ],
+			"obj-2" : [ "amxd~[1]", "amxd~[1]", 0 ]
 		}
 ,
 		"dependency_cache" : [ 			{
@@ -488,8 +487,7 @@
 			}
 , 			{
 				"name" : "jiffy.amxd",
-				"bootpath" : "~/code/gibber.max/client",
-				"type" : "amxd",
+				"type" : "JSON",
 				"implicit" : 1
 			}
 , 			{

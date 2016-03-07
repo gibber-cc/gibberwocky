@@ -11,7 +11,7 @@ require( '../node_modules/codemirror/addon/hint/javascript-hint.js' )
 
 let Environment = {
   codeMarkup: require( './codeMarkup.js' ),
-  debug: true,
+  debug: false,
   _codemirror: CodeMirror,
   animationScheduler: require( './animationScheduler.js' ),
 
