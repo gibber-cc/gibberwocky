@@ -119,7 +119,7 @@ let Pattern = function( ...args ) {
         fnc.end = start
       }
 
-      this.checkForUpdateFunction( 'range', [ fnc ] )
+      this.checkForUpdateFunction( 'range', fnc )
 
       return fnc
     },
@@ -387,6 +387,43 @@ let Pattern = function( ...args ) {
 }
 
 Pattern.listeners = {}
+
+Pattern.listeners.range = function( fnc ) {
+  //if( !Notation.isRunning ) return
+  
+  // TODO: don't use Gibber.currentTrack, store the object in the pattern
+  var obj = Gibber.currentTrack,
+      rangeStart = obj.markup.textMarkers[ fnc.patternName ][ fnc.start ].find(),
+      rangeEnd   = obj.markup.textMarkers[ fnc.patternName ][ fnc.end ].find()
+
+  if( !fnc.range.init ) {
+    fnc.range.init = true
+    var ptrnStart = obj.markup.textMarkers[ fnc.patternName ][ 0 ].find(),
+        ptrnEnd = obj.markup.textMarkers[ fnc.patternName ][ obj.markup.textMarkers[ fnc.patternName ].length - 1 ].find()
+
+    //fnc.column.editor.markText( ptrnStart.from, ptrnEnd.to, { className:'rangeOutside' })
+    //Gibber.Environment.codemirror.markText( ptrnStart.from, ptrnEnd.to, { className:'pattern-update-range-outside' })
+    if( !Pattern.listeners.range.initialzied ) Pattern.listeners.range.init()
+  }
+
+  if( fnc.range.mark ) fnc.range.mark.clear()
+  //fnc.range.mark = fnc.column.editor.markText( rangeStart.from, rangeEnd.to, { className:'rangeInside' })
+  // TODO: Dont use GE.codemirror... how else do I get this? stored in pattern is created?
+  fnc.range.mark = Gibber.Environment.codemirror.markText( rangeStart.from, rangeEnd.to, { className:'pattern-update-range-inside' })
+}
+
+Pattern.listeners.range.init = function() {
+  //$.injectCSS({ 
+  //  '.rangeOutside': {
+  //    'color':'#666 !important'
+  //  },
+  //  '.rangeInside': {
+  //    'color':'rgba(102, 153, 221, 1) !important'
+  //  }
+  //})
+  Pattern.listeners.range.initialized = true
+}
+
 Pattern.prototype = PatternProto
 
 return Pattern

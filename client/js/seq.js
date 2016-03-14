@@ -136,6 +136,8 @@ let seqclosure = function( Gibber ) {
       let nextTime = this.timings(),
           shouldExecute
       
+      //console.log( nextTime )
+
       if( typeof nextTime === 'function' )  nextTime = nextTime()
 
       if( typeof nextTime === 'object' ) {

@@ -4,7 +4,8 @@ let Gibber = {
   Environment:   require( './environment.js' ),
   Scheduler:     require( './clock.js' ),
   Track:         require( './track.js' ),
-  Euclid:        null, 
+  Gen:           null,
+  Euclid:        null,
   Theory:        require( './theory.js' ),
   Seq:           null,
   Score:         null,
@@ -27,6 +28,8 @@ let Gibber = {
     window.log           = this.log
     window.Theory        = this.Theory
     window.Scale         = this.Theory.Scale.master
+    
+    Gibber.Gen.export( window )
 
     this.Utility.export( window )
   },
@@ -116,5 +119,6 @@ Gibber.Seq     = require( './seq.js' )( Gibber )
 Gibber.Score   = require( './score.js' )( Gibber )
 Gibber.Arp     = require( './arp.js' )( Gibber )
 Gibber.Euclid  = require( './euclidean.js')( Gibber )
+Gibber.Gen     = require( './gen.js' )( Gibber )
 
 module.exports = Gibber

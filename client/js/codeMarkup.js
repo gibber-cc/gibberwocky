@@ -203,7 +203,8 @@ let Marker = {
        
        Marker._addPatternUpdates( patternObject, className )
        Marker._addPatternFilter( patternObject )
-
+       
+       patternObject.patternName = className
        patternObject._onchange = () => { Marker._updatePatternContents( patternObject, className, track ) }
     },
 
@@ -229,6 +230,8 @@ let Marker = {
 
        setTimeout( () => { $( '.' + cssName )[ 1 ].classList.add( 'annotation-no-horizontal-border' ) }, 250 )
        
+       patternObject.patternName = className
+
        Marker._addPatternUpdates( patternObject, className )
        Marker._addPatternFilter( patternObject )
     },
@@ -276,6 +279,8 @@ let Marker = {
           cycle = Marker._createBorderCycleFunction( patternName, patternObject )
       
       patternObject.patternType = patternType 
+      patternObject.patternName = patternName
+
       patternObject.update = () => {
         // if( !patternObject.update.shouldUpdate ) return 
         // console.log( 'array update', patternObject.phase )
@@ -342,7 +347,8 @@ let Marker = {
       } else {
         patternObject.update = Marker.patternUpdates.anonymousFunction( patternObject, marker, className, cm, track )
       }
-
+      
+      patternObject.patternName = className
       // store value changes in array and then pop them every time the annotation is updated
       patternObject.update.value = []
 

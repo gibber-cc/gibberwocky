@@ -116,10 +116,17 @@ const exampleScore3 = `s = Score([
 
 const exampleScore4 = `s = Score([
   0, ()=> this.note.seq( [0,1,2,3], 1/4 ),
+
   1, ()=> this.note.seq( [0,2,4,5], 1/4, 1 ),
+  
   1, ()=> this.note.seq( [3,4,5,6],[1/4,1/8], 2 )
 ])`
 
+const exampleRange = `this.note.seq( [0,1,2,3,4,5,6,7], 1/4 )
 
+this.note.values.range.seq( Rndi(0,6,2), 2 )`
 
-module.exports = exampleScore4 //'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode
+const genExample = `a = cycle( min( 0, max( 2,4 ) ) )
+console.log( a.out() )`
+
+module.exports = genExample//exampleScore4//exampleScore4 //'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode

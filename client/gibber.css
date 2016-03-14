@@ -58,4 +58,9 @@ body { margin:0; padding:0 }
 
 .euclid0 {  background:#cfcccc; }
 
+.pattern-update-range-outside { color:#888; }
+.pattern-update-range-inside  { 
+  /*color:#0f0 !important; */
+  text-decoration:underline;
+}
 
