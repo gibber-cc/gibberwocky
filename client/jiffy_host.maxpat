@@ -3,13 +3,13 @@
 		"fileversion" : 1,
 		"appversion" : 		{
 			"major" : 7,
-			"minor" : 1,
+			"minor" : 2,
 			"revision" : 0,
-			"architecture" : "x64",
+			"architecture" : "x86",
 			"modernui" : 1
 		}
 ,
-		"rect" : [ 35.0, 79.0, 922.0, 927.0 ],
+		"rect" : [ 179.0, 79.0, 958.0, 468.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 0,
 		"default_fontsize" : 12.0,
@@ -202,7 +202,7 @@
 									"Attack" : 8.0,
 									"Decay" : 123.0,
 									"Release" : 299.0,
-									"Sustain" : 2.079677,
+									"Sustain" : 39.0,
 									"VelMod" : 33.0,
 									"cutoff" : 1289.359985,
 									"env_amount" : 100.0,
@@ -239,7 +239,7 @@
 									"origin" : "Laverne.amxd",
 									"type" : "amxd",
 									"subtype" : "Undefined",
-									"embed" : 1,
+									"embed" : 0,
 									"snapshot" : 									{
 										"name" : "Laverne.amxd",
 										"origname" : "C74:/packages/Max for Live/patchers/Max Instrument/Laverne/Laverne.amxd",
@@ -248,7 +248,7 @@
 												"Attack" : 8.0,
 												"Decay" : 123.0,
 												"Release" : 299.0,
-												"Sustain" : 2.079677,
+												"Sustain" : 39.0,
 												"VelMod" : 33.0,
 												"cutoff" : 1289.359985,
 												"env_amount" : 100.0,
@@ -280,7 +280,25 @@
 										"filename" : "Laverne.amxd.maxsnap",
 										"filepath" : "~/Documents/Max 7/Snapshots",
 										"filepos" : -1,
-										"snapshotfileid" : "c6480d0b637e642b8e1aa0637e67fa21"
+										"snapshotfileid" : "f87bd3bf94c60a81b26c3e352f3982e6"
+									}
+
+								}
+, 								{
+									"filetype" : "C74Snapshot",
+									"version" : 2,
+									"minorversion" : 0,
+									"name" : "Laverne.amxd[1]",
+									"origin" : "Laverne.amxd",
+									"type" : "amxd",
+									"subtype" : "Undefined",
+									"embed" : 0,
+									"fileref" : 									{
+										"name" : "Laverne.amxd[1]",
+										"filename" : "Laverne.amxd[1].maxsnap",
+										"filepath" : "~/Documents/Max 7/Snapshots",
+										"filepos" : -1,
+										"snapshotfileid" : "e466692af8f5a1be8a3f3962fd3ae3d0"
 									}
 
 								}
@@ -311,8 +329,8 @@
 					"numoutlets" : 4,
 					"offset" : [ 0.0, 0.0 ],
 					"outlettype" : [ "signal", "signal", "", "" ],
-					"patching_rect" : [ 3.0, 3.0, 895.0, 196.0 ],
-					"presentation_rect" : [ 0.0, 0.0, 895.0, 196.0 ],
+					"patching_rect" : [ 3.0, 2.0, 890.0, 196.0 ],
+					"presentation_rect" : [ 0.0, 0.0, 890.0, 196.0 ],
 					"saved_attribute_attributes" : 					{
 						"valueof" : 						{
 							"parameter_invisible" : 1,
@@ -327,7 +345,7 @@
 						"annotation_name" : "",
 						"parameter_enable" : 1,
 						"patchername" : "jiffy.amxd",
-						"patchername_fallback" : "/www/gibberMax/client/jiffy.amxd"
+						"patchername_fallback" : "~/code/gibber.max/client/jiffy.amxd"
 					}
 ,
 					"snapshot" : 					{
@@ -341,7 +359,7 @@
 						"embed" : 1,
 						"snapshot" : 						{
 							"name" : "jiffy.amxd",
-							"origname" : "/www/gibberMax/client/jiffy.amxd"
+							"origname" : "~/code/gibber.max/client/jiffy.amxd"
 						}
 ,
 						"snapshotlist" : 						{
@@ -354,10 +372,10 @@
 									"origin" : "jiffy.amxd",
 									"type" : "amxd",
 									"subtype" : "Undefined",
-									"embed" : 1,
+									"embed" : 0,
 									"snapshot" : 									{
 										"name" : "jiffy.amxd",
-										"origname" : "/www/gibberMax/client/jiffy.amxd"
+										"origname" : "~/code/gibber.max/client/jiffy.amxd"
 									}
 ,
 									"fileref" : 									{
@@ -365,7 +383,7 @@
 										"filename" : "jiffy.amxd.maxsnap",
 										"filepath" : "~/Documents/Max 7/Snapshots",
 										"filepos" : -1,
-										"snapshotfileid" : "f9dcc9524df0eb469f9d34e087ca8482"
+										"snapshotfileid" : "2d10f9edf07b3fd2047f9e663e689626"
 									}
 
 								}
@@ -474,6 +492,12 @@
 			}
 , 			{
 				"name" : "Laverne.amxd.maxsnap",
+				"bootpath" : "~/Documents/Max 7/Snapshots",
+				"type" : "mx@s",
+				"implicit" : 1
+			}
+, 			{
+				"name" : "Laverne.amxd[1].maxsnap",
 				"bootpath" : "~/Documents/Max 7/Snapshots",
 				"type" : "mx@s",
 				"implicit" : 1
