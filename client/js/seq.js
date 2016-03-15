@@ -97,19 +97,19 @@ let seqclosure = function( Gibber ) {
         // arguments is a max message, as space-delimited strings and numbers. t is timestamp within beat 0..1
         // let msgstring = "add " + beat + " " + t + " " + n + " " + v + " " + d
 
-        return 'add ' + beat + ' ' +  beatOffset + ' ' + number 
+        return `add ${beat} ${beatOffset} note ${number}` 
       },
       chord( chord, beat, beatOffset ) {
         let msg = []
 
         for( let i = 0; i < chord.length; i++ ) {
-          msg.push( `add note ${beat} ${beatOffset} ${chord[i]}` )
+          msg.push( `add ${beat} ${beatOffset} note ${chord[i]}` )
         }
 
         return msg
       },
       cc( number, value, beat, beatOffset ) {
-        return `add cc ${beat} ${beatOffset} ${number} ${value}`
+        return `add ${beat} ${beatOffset} cc ${number} ${value}`
       },
     },
 
