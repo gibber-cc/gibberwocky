@@ -346,9 +346,9 @@ let Marker = {
       //  if( track.markup.textMarkers[ className  ] === undefined ) track.markup.textMarkers[ className ] = []
       //  track.markup.textMarkers[ className ][ 0 ] = marker
       //  console.log( 'name', patternNode.callee.name )
-      
-      if( Marker.patternUpdates[ patternNode.callee.name ] ) {
-        patternObject.update = Marker.patternUpdates[ patternNode.callee.name ]( patternObject, marker, className, cm, track )
+      let updateName = typeof patternNode.callee !== 'undefined' ? patternNode.calleee.name : patternNode.name 
+      if( Marker.patternUpdates[ updateName ] ) {
+        patternObject.update = Marker.patternUpdates[ updateName ]( patternObject, marker, className, cm, track )
       } else {
         patternObject.update = Marker.patternUpdates.anonymousFunction( patternObject, marker, className, cm, track )
       }
