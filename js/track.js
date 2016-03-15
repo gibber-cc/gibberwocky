@@ -20,6 +20,10 @@ let Track = function( Gibber, id ) {
     duration( value ) {
       Gibber.Communication.send( `duration ${value}` )
     },
+    
+    velocity( value ) {
+      Gibber.Communication.send( `velocity ${value}` )
+    },
 
     cc( ccnum, value ) {
       let msg =  `cc ${ccnum} ${value}`
@@ -53,7 +57,9 @@ let Track = function( Gibber, id ) {
   Gibber.addSequencingToMethod( track, 'note' )
   Gibber.addSequencingToMethod( track, 'cc' )
   Gibber.addSequencingToMethod( track, 'chord' )
-	
+  Gibber.addSequencingToMethod( track, 'velocity' )
+  Gibber.addSequencingToMethod( track, 'duration' )
+
   return track
 }
 

@@ -99,6 +99,15 @@ let seqclosure = function( Gibber ) {
 
         return `add ${beat} ${beatOffset} note ${number}` 
       },
+
+      duration( value, beat, beatOffset ) {
+        return `add ${beat} ${beatOffset} duration ${value}` 
+      },
+
+      velocity( value, beat, beatOffset ) {
+        return `add ${beat} ${beatOffset} velocity ${value}` 
+      },
+
       chord( chord, beat, beatOffset ) {
         let msg = []
 

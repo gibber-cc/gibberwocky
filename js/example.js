@@ -21,7 +21,13 @@ this.note( 0 )
 // default this id is set to 0 if no argument is passed.
 // Assigning sequences to different id numbers allows them
 // to run in parallel.
-this.note.seq( [0,1,2,3,4,5,6,7], Euclid(5,8) )
+this.note.seq( [0,1,2,3,4,5,6,7], 1/16 )
+
+// sequence velocity to use random values between 10-127 (midi range)
+this.velocity.seq( Rndi( 10,127 ), 1/16 )
+
+// sequence duration of notes in milliseconds
+this.duration.seq( [50, 250, 500, 1000].rnd(), 1/16 )
 
 // sequence the master scale to change root every measure
 Scale.root.seq( ['c4','d4','f4','g4'], 1 )
@@ -86,7 +92,27 @@ this.note[ 1 ].start()
 this.sequences.note[ 2 ].stop()
 
 // sugar
-this.note[ 2 ].start()`
+this.note[ 2 ].start()
+
+// create Score object. Scores are lists of functions with associated
+// relative time values. In the score below, the first function has
+// a time value of 0, which means it begins playing immediately. The
+// second has a value of 1, which means it beings playing one measure
+// after the previously executed function. The last function has a
+// timestamp of two, which means it begins playing two measures after
+// the previously executed function. Scores have start(), stop(),
+// loop(), pause() and rewind() methods.
+
+s = Score([ 
+  0, function() { 
+    this.note.seq( 0, 1/4 )
+  },
+  1, function() { 
+    this.note.seq( [0,1], Euclid(3,4), 1 )
+  },
+  2, function() { 
+    this.note.seq( [7,14,13,8].rnd(), [1/4,1/8].rnd(), 2 },  
+])`
 
 const exampleScoreCode = `Score([ 
   0, function() { console.log('1') },
@@ -103,7 +129,8 @@ const exampleScore2 = `s = Score([
   1, function() { 
     this.note.seq( [0,1], Euclid(3,4), 1 )
   },
-  1, function() { console.log('5555') },  
+  2, function() { 
+    this.note.seq( [7,14,13,8].rnd(), [1/4,1/8].rnd(), 2 },  
 ])`
 
 const exampleScore3 = `s = Score([
