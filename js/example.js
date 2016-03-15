@@ -111,7 +111,8 @@ s = Score([
     this.note.seq( [0,1], Euclid(3,4), 1 )
   },
   2, function() { 
-    this.note.seq( [7,14,13,8].rnd(), [1/4,1/8].rnd(), 2 },  
+    this.note.seq( [7,14,13,8].rnd(), [1/4,1/8].rnd(), 2 )
+  },  
 ])`
 
 const exampleScoreCode = `Score([ 
