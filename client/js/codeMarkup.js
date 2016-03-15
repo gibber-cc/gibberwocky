@@ -60,7 +60,6 @@ let Marker = {
     CallExpression( expressionNode, codemirror, track ) {
       let [ components, depthOfCall, index ] = Marker._getCallExpressionHierarchy( expressionNode.expression ),
           args = expressionNode.expression.arguments
-      
       // if index is passed as argument to .seq call...
       if( args.length > 2 ) { index = args[ 2 ].value }
       
@@ -80,6 +79,12 @@ let Marker = {
            break;
 
          case 'THIS.METHOD.SEQ':
+           if( expressionNode.expression.callee.object.object.type !== 'ThisExpression' ) {
+             var objName = expressionNode.expression.callee.object.object.name
+             track = window[ objName ]
+             if( !track.markup ) { Marker.prepareObject( track ) }
+             components.unshift( objName )
+           }
            valuesPattern =  track[ components[ 1 ] ][ index ].values,
            timingsPattern = track[ components[ 1 ] ][ index ].timings,
            valuesNode = args[ 0 ],
