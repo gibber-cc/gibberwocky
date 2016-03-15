@@ -129,4 +129,6 @@ this.note.values.range.seq( Rndi(0,6,2), 2 )`
 const genExample = `a = cycle( min( 0, max( 2,4 ) ) )
 console.log( a.out() )`
 
-module.exports = genExample//exampleScore4//exampleScore4 //'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode
+const simpleExample = 'this.note.seq( [0,1,2,3], 1/8 )'
+
+module.exports = exampleCode//simpleExample//genExample//exampleScore4//exampleScore4 //'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode

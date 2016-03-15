@@ -5,7 +5,7 @@ let Communication = {
   socketInitialized: false,
   
   init( _Gibber ) { 
-    console.log(' ommcunication init' )
+    console.log(' Communication init' )
     Gibber = _Gibber
     this.createWebSocket()
     this.send = this.send.bind( Communication )
@@ -20,8 +20,9 @@ let Communication = {
       let host = this.querystring.host || '127.0.0.1',
           port = this.querystring.port || '8081',
           address = "ws://" + host + ":" + port
-
-      this.wsocket = new WebSocket(address)
+      
+      Gibber.log( "ADDRESS", address )
+      this.wsocket = new WebSocket( address )
       
       this.wsocket.onopen = function(ev) {        
         Gibber.log( 'CONNECTED to ' + address )
@@ -43,7 +44,7 @@ let Communication = {
       }.bind( Communication )
 
       this.wsocket.onmessage = function( ev ) {
-        // Gibber.log('msg:', ev )
+        //Gibber.log('msg:', ev )
         this.handleMessage( ev )
       }.bind( Communication )
 
