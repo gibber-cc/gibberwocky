@@ -5,6 +5,7 @@ module.exports = function( Gibber ) {
 let PatternProto = Object.create( function(){} )
 
 Object.assign( PatternProto, {
+  DNR: -987654321,
   concat( _pattern ) { this.values = this.values.concat( _pattern.values ) },  
   toString() { return this.values.toString() },
   valueOf() { return this.values },
@@ -84,6 +85,8 @@ let Pattern = function( ...args ) {
     // values are popped when updated by animation scheduler
     if( fnc.update && fnc.update.value ) fnc.update.value.unshift( val )
     
+    if( val === fnc.DNR ) val = null
+
     return val
   }
    

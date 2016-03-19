@@ -16,6 +16,11 @@ let Track = function( Gibber, id ) {
       let msg = `note ${notenum} ${velocity} ${duration}`
       Gibber.Communication.send( msg )
     },
+
+    midinote( notenum, velocity=127, duration=250 ) {
+      let msg = `note ${notenum} ${velocity} ${duration}`
+      Gibber.Communication.send( msg )
+    },
     
     duration( value ) {
       Gibber.Communication.send( `duration ${value}` )
@@ -59,6 +64,7 @@ let Track = function( Gibber, id ) {
   Gibber.addSequencingToMethod( track, 'chord' )
   Gibber.addSequencingToMethod( track, 'velocity' )
   Gibber.addSequencingToMethod( track, 'duration' )
+  Gibber.addSequencingToMethod( track, 'midinote' )
 
   return track
 }

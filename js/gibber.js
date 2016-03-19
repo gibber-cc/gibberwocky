@@ -17,6 +17,7 @@ let Gibber = {
   '$':           null,
 
   export() {
+    window.Steps         = this.Steps
     window.Seq           = this.Seq
     window.Score         = this.Score
     window.Track         = this.Track
@@ -120,5 +121,6 @@ Gibber.Score   = require( './score.js' )( Gibber )
 Gibber.Arp     = require( './arp.js' )( Gibber )
 Gibber.Euclid  = require( './euclidean.js')( Gibber )
 Gibber.Gen     = require( './gen.js' )( Gibber )
+Gibber.Steps   = require( './steps.js' )( Gibber )
 
 module.exports = Gibber

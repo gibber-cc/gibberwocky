@@ -44,7 +44,7 @@ let Marker = {
     },
 
     AssignmentExpression: function( expressionNode, codemirror, track ) {
-      if( Marker.functions[ expressionNode.expression.right.callee.name ] ) {
+      if( expressionNode.expression.right.type !== 'Literal' && Marker.functions[ expressionNode.expression.right.callee.name ] ) {
         Marker.functions[ expressionNode.expression.right.callee.name ]( 
           expressionNode.expression.right, 
           codemirror,
@@ -63,7 +63,7 @@ let Marker = {
       // if index is passed as argument to .seq call...
       if( args.length > 2 ) { index = args[ 2 ].value }
       
-      //console.log( "depth of call", depthOfCall, components )
+      console.log( "depth of call", depthOfCall, components )
       let valuesPattern, timingsPattern, valuesNode, timingsNode
 
       switch( callDepths[ depthOfCall ] ) {
@@ -480,7 +480,66 @@ let Marker = {
         lastClass = `score${idx}`
         $( '.' + lastClass ).add( 'scoreCurrentIndex' ) 
       }
-    }
+    },
+
+    Steps( node, cm, track, objectName, vOffset=0 ) {
+      let steps = node.arguments[ 0 ].properties
+
+      track.markup.textMarkers[ 'step' ] = []
+      track.markup.textMarkers[ 'step' ].children = []
+
+      for( let key in steps ) {
+        let step = steps[ key ].value
+
+        if( step && step.value ) { // ensure it is a correctly formed step
+          step.loc.start.line += vOffset - 1
+          step.loc.end.line   += vOffset -1
+          step.loc.start.ch   = step.loc.start.column + 1
+          step.loc.end.ch     = step.loc.end.column - 1
+          
+          let marker = cm.markText( step.loc.start, step.loc.end, { className:`step${key}` } )
+          track.markup.textMarkers.step[ key ] = marker
+
+          track.markup.textMarkers.step[ key ].pattern = []
+
+          for( let i = 0; i < step.value.length; i++ ) {
+            let pos = { loc:{ start:{}, end:{}} }
+            Object.assign( pos.loc.start, step.loc.start )
+            Object.assign( pos.loc.end  , step.loc.end   )
+            pos.loc.start.ch += i
+            pos.loc.end.ch = pos.loc.start.ch + 1
+            let posMark = cm.markText( pos.loc.start, pos.loc.end, { className:`step_${key}_${i}` })
+            track.markup.textMarkers.step[ key ].pattern[ i ] = posMark
+          }
+
+          let count = 0, span, update 
+          update = () => {
+            let currentIdx = update.currentIndex // count++ % step.value.length
+      
+            if( span !== undefined ) {
+              span.remove( 'euclid0' )
+            }
+            
+            let spanName = `.step_${key}_${currentIdx}`,
+                currentValue = step.value[ currentIdx ]
+            
+            span = $( spanName )
+
+            if( currentValue !== '.' ) {
+              span.add( 'euclid1' )
+              setTimeout( ()=> { span.remove( 'euclid1' ) }, 50 )
+            }
+            
+            span.add( 'euclid0' )
+          }
+          let _key = steps[ key ].key.value
+
+          window[ objectName ].seqs[ _key ].values.update = update
+          Marker._addPatternFilter( window[ objectName ].seqs[ _key ].values )
+        }
+      }
+
+    },  
   },
 
 
