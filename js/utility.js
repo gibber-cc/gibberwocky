@@ -136,7 +136,9 @@ let Utility = {
   beatsToMs( beats, bpm=120 ) {
     const beatsPerSecond = bpm / 60
 
-    return (beats * beatsPerSecond ) * 1000
+    return (beats / beatsPerSecond ) * 1000
+
+    // 120 bpm two beats = beatsPersecond = 2 | 2 * 2 = 4 | 4 * 1000 = 4000
   },
 
   export( destination ) {

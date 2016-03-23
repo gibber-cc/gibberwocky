@@ -5,6 +5,7 @@ const Queue = require( './priorityqueue.js' )
 let Scheduler = {
   phase: 0,
   msgs: [],
+  bpm: 120,
   functionsToExecute: [],
   queue: new Queue( ( a, b ) => {
     if( a.time === b.time ) {

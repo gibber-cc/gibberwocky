@@ -5,6 +5,8 @@ let seqclosure = function( Gibber ) {
   let Theory = Gibber.Theory
 
   let proto = {
+    DO_NOT_OUTPUT: -987654321,
+
     create( values, timings, key, object = null, priority=0 ) {
       let seq = Object.create( this )
 
@@ -94,12 +96,13 @@ let seqclosure = function( Gibber ) {
 
     externalMessages: {
       note( number, beat, beatOffset ) {
-        // arguments is a max message, as space-delimited strings and numbers. t is timestamp within beat 0..1
         // let msgstring = "add " + beat + " " + t + " " + n + " " + v + " " + d
 
         return `add ${beat} ${beatOffset} note ${number}` 
       },
-
+      midinote( number, beat, beatOffset ) {
+        return `add ${beat} ${beatOffset} note ${number}` 
+      },
       duration( value, beat, beatOffset ) {
         return `add ${beat} ${beatOffset} duration ${value}` 
       },
@@ -160,37 +163,44 @@ let seqclosure = function( Gibber ) {
 
       if( shouldExecute ) {
         this.values.nextTime = beatOffset
+        this.values.beat = beat
+        this.values.beatOffset = beatOffset
+        this.values.scheduler = scheduler
 
         let value = this.values()
         if( typeof value === 'function' ) value = value()
-
-        // delay messages  
-        if( this.externalMessages[ this.key ] !== undefined ) {
-          
-          let msg = this.externalMessages[ this.key ]( value, beat, beatOffset )
-
-          scheduler.msgs.push( msg, this.priority )
-
-        } else { // schedule internal method / function call immediately
-
-          if( this.object && this.key ) {
+        
+        if( value !== this ) {
+          // delay messages  
+          if( this.externalMessages[ this.key ] !== undefined ) {
             
-            if( typeof this.object[ this.key ] === 'function' ) {
-              this.object[ this.key ]( value )
-            }else{
-              this.object[ this.key ] = value
-            }
+            let msg = this.externalMessages[ this.key ]( value, beat, beatOffset )
 
+            scheduler.msgs.push( msg, this.priority )
+
+          } else { // schedule internal method / function call immediately
+
+            if( this.object && this.key ) {
+              
+              if( typeof this.object[ this.key ] === 'function' ) {
+                this.object[ this.key ]( value )
+              }else{
+                this.object[ this.key ] = value
+              }
+
+            }
+            
           }
-          
         }
       }
  
       this.timings.nextTime = beatOffset // for scheduling pattern updates
     },
+    
   }
 
   proto.create = proto.create.bind( proto )
+  proto.create.DO_NOT_OUTPUT = proto.DO_NOT_OUTPUT
 
   return proto.create
 

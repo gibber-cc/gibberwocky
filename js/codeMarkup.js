@@ -106,6 +106,19 @@ let Marker = {
            break;
 
          case 'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ': // most useful?
+           // in a.seqs[71].values.reverse.seq() a is not properly identified; the current track is used instead
+           if( expressionNode.expression.callee.object.object.type !== 'ThisExpression' ) {
+             let obj = expressionNode.expression.callee.object
+
+             while( obj.object ) {
+               obj = obj.object
+             }
+             
+             var objName = obj.name //  expressionNode.expression.callee.object.object.name
+             track = window[ objName ]
+             if( !track.markup ) { Marker.prepareObject( track ) }
+             components.unshift( objName )
+           }
            valuesPattern =  track[ components[ 1 ] ][ index ][ components[3] ][ components[4] ].values,
            timingsPattern = track[ components[ 1 ] ][ index ][ components[3] ][ components[4] ].timings,
            valuesNode = args[ 0 ],
@@ -174,7 +187,7 @@ let Marker = {
 
   _addPatternFilter( patternObject ) {
     patternObject.filters.push( ( args ) => {
-      const wait = Utility.beatsToMs( ( patternObject.nextTime * .25 ) + .25,  120 ) // TODO: should .25 be a variable representing advance amount?
+      const wait = Utility.beatsToMs( patternObject.nextTime + 1,  Gibber.Scheduler.bpm ) // TODO: should .25 be a variable representing advance amount?
       let idx = args[ 2 ],
           shouldUpdate = patternObject.update.shouldUpdate
            
@@ -488,12 +501,24 @@ let Marker = {
       track.markup.textMarkers[ 'step' ] = []
       track.markup.textMarkers[ 'step' ].children = []
 
+      let mark = ( _step, _key, _cm, _track ) => {
+        for( let i = 0; i < _step.value.length; i++ ) {
+          let pos = { loc:{ start:{}, end:{}} }
+          Object.assign( pos.loc.start, _step.loc.start )
+          Object.assign( pos.loc.end  , _step.loc.end   )
+          pos.loc.start.ch += i
+          pos.loc.end.ch = pos.loc.start.ch + 1
+          let posMark = _cm.markText( pos.loc.start, pos.loc.end, { className:`step_${_key}_${i}` })
+          _track.markup.textMarkers.step[ _key ].pattern[ i ] = posMark
+        }
+      }
+
       for( let key in steps ) {
         let step = steps[ key ].value
 
         if( step && step.value ) { // ensure it is a correctly formed step
           step.loc.start.line += vOffset - 1
-          step.loc.end.line   += vOffset -1
+          step.loc.end.line   += vOffset - 1
           step.loc.start.ch   = step.loc.start.column + 1
           step.loc.end.ch     = step.loc.end.column - 1
           
@@ -501,16 +526,8 @@ let Marker = {
           track.markup.textMarkers.step[ key ] = marker
 
           track.markup.textMarkers.step[ key ].pattern = []
-
-          for( let i = 0; i < step.value.length; i++ ) {
-            let pos = { loc:{ start:{}, end:{}} }
-            Object.assign( pos.loc.start, step.loc.start )
-            Object.assign( pos.loc.end  , step.loc.end   )
-            pos.loc.start.ch += i
-            pos.loc.end.ch = pos.loc.start.ch + 1
-            let posMark = cm.markText( pos.loc.start, pos.loc.end, { className:`step_${key}_${i}` })
-            track.markup.textMarkers.step[ key ].pattern[ i ] = posMark
-          }
+          
+          mark( step, key, cm, track )
 
           let count = 0, span, update 
           update = () => {
@@ -532,10 +549,26 @@ let Marker = {
             
             span.add( 'euclid0' )
           }
-          let _key = steps[ key ].key.value
+          let _key = steps[ key ].key.value,
+              patternObject = window[ objectName ].seqs[ _key ].values
 
-          window[ objectName ].seqs[ _key ].values.update = update
-          Marker._addPatternFilter( window[ objectName ].seqs[ _key ].values )
+          patternObject._onchange = () => {
+            //console.log( 'change', patternObject.values.join('') )
+            marker.doc.replaceRange( patternObject.values.join(''), step.loc.start, step.loc.end )
+ 
+            //for( let i = 0; i < patternObject.values.length; i++ ) {
+ 
+              //let markerCh = track.markup.textMarkers.step[ key ].pattern[ i ],
+                //_pos = markerCh.find()
+         
+              //marker.doc.replaceRange( '' + patternObject.values[ i ], +pos.from, +pos.to )
+              mark( step, key, cm, track )
+            //}
+ 
+          }
+
+          patternObject.update = update
+          Marker._addPatternFilter( patternObject )
         }
       }
 
