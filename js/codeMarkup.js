@@ -529,7 +529,10 @@ let Marker = {
           
           mark( step, key, cm, track )
 
-          let count = 0, span, update 
+          let count = 0, span, update,
+              _key = steps[ key ].key.value,
+              patternObject = window[ objectName ].seqs[ _key ].values
+
           update = () => {
             let currentIdx = update.currentIndex // count++ % step.value.length
       
@@ -538,36 +541,26 @@ let Marker = {
             }
             
             let spanName = `.step_${key}_${currentIdx}`,
-                currentValue = step.value[ currentIdx ]
+                currentValue = patternObject.update.value.pop() //step.value[ currentIdx ]
             
             span = $( spanName )
 
-            if( currentValue !== '.' ) {
+            if( currentValue !== Gibber.Seq.DO_NOT_OUTPUT ) {
               span.add( 'euclid1' )
               setTimeout( ()=> { span.remove( 'euclid1' ) }, 50 )
             }
             
             span.add( 'euclid0' )
           }
-          let _key = steps[ key ].key.value,
-              patternObject = window[ objectName ].seqs[ _key ].values
 
           patternObject._onchange = () => {
-            //console.log( 'change', patternObject.values.join('') )
             marker.doc.replaceRange( patternObject.values.join(''), step.loc.start, step.loc.end )
- 
-            //for( let i = 0; i < patternObject.values.length; i++ ) {
- 
-              //let markerCh = track.markup.textMarkers.step[ key ].pattern[ i ],
-                //_pos = markerCh.find()
-         
-              //marker.doc.replaceRange( '' + patternObject.values[ i ], +pos.from, +pos.to )
-              mark( step, key, cm, track )
-            //}
- 
+            mark( step, key, cm, track )
           }
 
           patternObject.update = update
+          patternObject.update.value = []
+
           Marker._addPatternFilter( patternObject )
         }
       }
