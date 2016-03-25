@@ -6,6 +6,7 @@ let seqclosure = function( Gibber ) {
 
   let proto = {
     DO_NOT_OUTPUT: -987654321,
+    _seqs: [],
 
     create( values, timings, key, object = null, priority=0 ) {
       let seq = Object.create( this )
@@ -21,6 +22,8 @@ let seqclosure = function( Gibber ) {
       })
       
       seq.init()
+
+      proto._seqs.push( seq )
       
       return seq
     },
@@ -201,6 +204,7 @@ let seqclosure = function( Gibber ) {
 
   proto.create = proto.create.bind( proto )
   proto.create.DO_NOT_OUTPUT = proto.DO_NOT_OUTPUT
+  proto.create._seqs = proto._seqs
 
   return proto.create
 

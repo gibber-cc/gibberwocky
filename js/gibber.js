@@ -51,7 +51,57 @@ let Gibber = {
 
     this.currentTrack = this.Track( this, 1 ) // TODO: how to determine actual "id" from Max?
     
+    this.initSingletons( window )
+
     this.export()
+  },
+
+  singleton( target, key ) {
+    if( Array.isArray( key ) ) {
+      for( let i = 0; i < key.length; i++ ) {
+        Gibber.singleton( target, key[ i ] )
+      }
+      return
+    }
+    
+    if( target[ key ] !== undefined ) {
+      delete target[ key ]
+    }
+
+    let proxy = null
+    Object.defineProperty( target, key, {
+      get() { return proxy },
+      set(v) {
+        if( proxy && proxy.clear ) {
+          proxy.clear()
+        }
+
+        proxy = v
+      }
+    })
+  },
+
+  initSingletons: function( target ) {
+		var letters = "abcdefghijklmnopqrstuvwxyz"
+    
+		for(var l = 0; l < letters.length; l++) {
+
+			var lt = letters.charAt(l);
+      Gibber.singleton( target, lt )
+      
+    }
+  },
+
+  clear() {
+    for( let i = 0; i < this.Seq._seqs.length; i++ ){
+      this.Seq._seqs[ i ].stop()
+    }
+
+    for( let key in Gibber.currentTrack.markup.textMarkers ) {
+      let marker = Gibber.currentTrack.markup.textMarkers[ key ]
+
+      if( marker.clear ) marker.clear() 
+    }
   },
 
   addSequencingToMethod( obj, methodName, priority ) {

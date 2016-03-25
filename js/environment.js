@@ -87,7 +87,41 @@ let Environment = {
         console.log( e )
         Environment.log( 'ERROR', e )
       }
-    }
+    },
+    'Alt-Enter'( cm ) {
+      try {
+        let selectedCode = Environment.getSelectionCodeColumn( cm, true )
+
+        Environment.flash( cm, selectedCode.selection )
+        
+        let func = new Function( selectedCode.code ).bind( Gibber.currentTrack ),
+            markupFunction = () => { 
+              Environment.codeMarkup.process( 
+                selectedCode.code, 
+                selectedCode.selection, 
+                cm, 
+                Gibber.currentTrack 
+              ) 
+            }
+        
+        markupFunction.origin  = func
+
+        if( !Environment.debug ) {
+          Gibber.Scheduler.functionsToExecute.push( func );
+          Gibber.Scheduler.functionsToExecute.push( markupFunction  )
+        }else{
+          func()
+          markupFunction()
+        }
+      } catch (e) {
+        console.log( e )
+        Environment.log( 'ERROR', e )
+      }
+    },
+    'Ctrl-.'( cm ) {
+      Gibber.clear()
+      Gibber.log( 'All sequencers stopped.' )
+    },
   },
 
  	getSelectionCodeColumn( cm, findBlock ) {

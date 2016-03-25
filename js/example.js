@@ -159,17 +159,16 @@ console.log( a.out() )`
 
 const simpleExample = 'this.note.seq( [0,1,2,3], 1/8 )'
 
-const stepsExample = `k = 60; sn = 62; ch = 71; oh = 72;
- 
-a = Steps({
+const stepsExample = `a = Steps({
   [60]: '1f..5.8..4..f3.3',
   [62]: '....f.....1f....',
   [71]: '.e.a.e.a.e.a.a..',  
   [72]: '..............e.',
 })
 
-this.midinote.seq( 60,1/4 )
-this.rotate.seq( 1,1 )
-a.stop()`
+a.seqs[71].values.rotate.seq( 1,1 )
+`
+
+const rndExample = `this.note.seq( Rndi(50,60), 1/4 )`
 
 module.exports = stepsExample//simpleExample//genExample//exampleScore4//exampleScore4 //'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode

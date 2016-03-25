@@ -20,11 +20,13 @@ let Steps = {
         if( isNaN( velocity ) ) {
           velocity = 0
         }
-        
+
         // TODO: is there a better way to get access to beat, beatOffset and scheduler?
-        let msg = seq.externalMessages[ 'velocity' ]( (velocity * 8) -1, seq.values.beat, seq.values.beatOffset )
-        seq.values.scheduler.msgs.push( msg, 1 ) 
-        
+        if( velocity !== 0 ) {
+          let msg = seq.externalMessages[ 'velocity' ]( velocity, seq.values.beat, seq.values.beatOffset )
+          seq.values.scheduler.msgs.push( msg, 1 ) 
+        }
+
         args[ 0 ] = sym === '.' ? Gibber.Seq.DO_NOT_OUTPUT : key
 
         return args
@@ -62,6 +64,8 @@ let Steps = {
       this.seqs[ key ].stop()
     }
   },
+
+  clear() { this.stop() },
 
   /*
    *rotate( amt ) {

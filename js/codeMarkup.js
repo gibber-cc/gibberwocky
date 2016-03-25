@@ -553,6 +553,7 @@ let Marker = {
             span.add( 'euclid0' )
           }
 
+
           patternObject._onchange = () => {
             marker.doc.replaceRange( patternObject.values.join(''), step.loc.start, step.loc.end )
             mark( step, key, cm, track )
