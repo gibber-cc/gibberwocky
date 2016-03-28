@@ -411,7 +411,8 @@ let Marker = {
       
       mark()
 
-      let count = 0, span, update 
+      let count = 0, span, update
+
       update = () => {
         let currentIdx = count++ % patternObject.values.length
         
@@ -426,21 +427,25 @@ let Marker = {
 
         if( currentValue === 1 ) {
           span.add( 'euclid1' )
-          setTimeout( ()=> { span.remove( 'euclid1' ) }, 50 )
+          let activeSpan = span
+          setTimeout( ()=> { activeSpan.remove( 'euclid1' ) }, 50 )
         }
         
         span.add( 'euclid0' )
       }
 
       patternObject._onchange = () => {
-        for( let i = 0; i < patternObject.values.length; i++ ) {
- 
-          let markerCh = track.markup.textMarkers[ className ][ i ],
-              pos = markerCh.find()
-          
-          marker.doc.replaceRange( '' + patternObject.values[ i ], pos.from, pos.to )
-          mark()
-        }
+        let delay = Utility.beatsToMs( 1,  Gibber.Scheduler.bpm )
+        Gibber.Environment.animationScheduler.add( () => {
+          for( let i = 0; i < patternObject.values.length; i++ ) {
+   
+            let markerCh = track.markup.textMarkers[ className ][ i ],
+                pos = markerCh.find()
+            
+            marker.doc.replaceRange( '' + patternObject.values[ i ], pos.from, pos.to )
+            mark()
+          }
+        }, delay ) 
       }
 
       return update 
@@ -555,8 +560,11 @@ let Marker = {
 
 
           patternObject._onchange = () => {
-            marker.doc.replaceRange( patternObject.values.join(''), step.loc.start, step.loc.end )
-            mark( step, key, cm, track )
+            let delay = Utility.beatsToMs( 1,  Gibber.Scheduler.bpm )
+            Gibber.Environment.animationScheduler.add( () => {
+              marker.doc.replaceRange( patternObject.values.join(''), step.loc.start, step.loc.end )
+              mark( step, key, cm, track )
+            }, delay ) 
           }
 
           patternObject.update = update

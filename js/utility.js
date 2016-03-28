@@ -132,7 +132,11 @@ let Utility = {
 
     return this
   },
-  
+
+  shuffle : function( arr ) {
+    for( let j, x, i = arr.length; i; j = parseInt(Math.random() * i), x = arr[--i], arr[i] = arr[j], arr[j] = x );
+  },
+
   beatsToMs( beats, bpm=120 ) {
     const beatsPerSecond = bpm / 60
 

@@ -164,11 +164,32 @@ const stepsExample = `a = Steps({
   [62]: '....f.....1f....',
   [71]: '.e.a.e.a.e.a.a..',  
   [72]: '..............e.',
+})`
+
+const stepsExample2 = `/*
+alt-enter to execute block
+ctrl-enter to execute line or selection
+ctrl-. to stop all running sequencers
+*/
+
+a = Steps({
+  [60]: '3.3f..4..8.5...f',
+  [62]: '7.9.f4.....6f...',
+  [64]: '........7.9.c..d',
+  [65]: '..6..78..b......',
+  [67]: '.f..3.........f.',  
+  [71]: 'e.a.e.a.e.a.a...',  
+  [72]: '..............e.',
 })
 
+// rotate one pattern in step sequencer
+// every measure
 a.seqs[71].values.rotate.seq( 1,1 )
+
+// reverse all steps each measure
+a.reverse.seq( null, 4 )
 `
 
 const rndExample = `this.note.seq( Rndi(50,60), 1/4 )`
 
-module.exports = stepsExample//simpleExample//genExample//exampleScore4//exampleScore4 //'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode
+module.exports = stepsExample2//simpleExample//genExample//exampleScore4//exampleScore4 //'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode

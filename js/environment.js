@@ -33,6 +33,7 @@ let Environment = {
       matchBrackets: true,
       autoCloseBrackets: true,
       extraKeys: {"Ctrl-Space": "autocomplete"},
+      //theme:'the-matrix'
     })
     this.codemirror.setSize( null, '100%' ) 
   },

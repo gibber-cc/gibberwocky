@@ -1,5 +1,9 @@
 .CodeMirror-highlight { background:red !important }
 
+body {
+  font-family:'SourceCodeProExtraLight' !important
+}
+
 #editor {
   width:70%;
   height:100%;
@@ -20,8 +24,20 @@
 
 body { margin:0; padding:0 }
 
-#console .CodeMirror { background-color:#efefef }
-#editor  .CodeMirror { background-color:#efefef }
+.CodeMirror {
+  font-family: 'Source Code Pro', monospace;
+  background-color:#bbb;
+  color:#000;
+  font-weight:500;
+}
+
+/*
+ *#console .CodeMirror { background-color:#444 }
+ *#editor  .CodeMirror { 
+ *  background-color:#bbb;
+ *  color:#4a4a4a;
+ *}
+ */
 
 .CodeMirror-matchingbracket{ color: #b00 !important }
 
@@ -52,11 +68,11 @@ body { margin:0; padding:0 }
   background: #ddd
 }
 .euclid1 {
-  background:#000 !important;
+  background:#666 !important;
   color:#fff !important;
 }
 
-.euclid0 {  background:#cfcccc; }
+.euclid0 {  background:#c9c9c9; }
 
 .pattern-update-range-outside { color:#888; }
 .pattern-update-range-inside  { 

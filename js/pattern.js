@@ -266,7 +266,7 @@ let Pattern = function( ...args ) {
     },
 
     shuffle() { 
-      Gibber.Utilities.shuffle( fnc.values )
+      Gibber.Utility.shuffle( fnc.values )
       fnc._onchange()
       
       return fnc
