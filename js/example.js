@@ -184,10 +184,10 @@ a = Steps({
 
 // rotate one pattern in step sequencer
 // every measure
-a.seqs[71].values.rotate.seq( 1,1 )
+a[71].rotate.seq( 1,1 )
 
 // reverse all steps each measure
-a.reverse.seq( null, 4 )
+a.reverse.seq( null, 2 )
 `
 
 const rndExample = `this.note.seq( Rndi(50,60), 1/4 )`

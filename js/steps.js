@@ -33,6 +33,7 @@ let Steps = {
       })
 
       stepseq.seqs[ _key ] = seq
+      stepseq[ _key ] = seq.values
     }
 
     stepseq.start()
