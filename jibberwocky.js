@@ -140,7 +140,6 @@ function bang() {
 	
 	// set dict from tree.
 	var s = JSON.stringify(tree);
-	post(s);
 	dict.parse(s);
 	
 	
@@ -148,6 +147,5 @@ function bang() {
 }
 
 function store(key, value) {
-	post("key", key, value, "\n");
 	state[key] = value;
 }	
