@@ -61,7 +61,6 @@ let Communication = {
   handleMessage( msg ) {
     // key and data are separated by a space
     // TODO: will key always be three characters?
-
     let key = msg.data.substr( 0,3 ), data = msg.data.substr( 4 )
     switch( key ) {
       case 'seq' :
@@ -76,6 +75,7 @@ let Communication = {
         Gibber.Environment.console.setValue('')
         break;
       default:
+        //console.log( 'MSG', msg )
         break;
     }
   },
