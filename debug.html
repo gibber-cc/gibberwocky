@@ -1,0 +1,194 @@
+<html>
+<head>
+  <style>
+  html, body {
+    height: 100%;
+    width: 100%;
+    padding: 0px;
+    margin: 0px;
+    color:#000;
+    font-size: 10;
+    overflow:auto;
+    
+  	white-space: -moz-pre-wrap; /* Firefox 1.0-2.0 */
+  	white-space: pre-wrap;      /* current browsers */
+  	font-family: monospace;
+  }
+  </style>
+</head>
+
+<body>
+<b id="play"></b>
+<b id="bpm"></b> bpm
+<b id="signature"></b>
+<b id="bar"></b>
+<b id="beat"></b>
+<b id="connection"></b>
+
+<div id="send"></div>
+<div id="post"></div>
+<script>
+
+///// utils /////
+
+// get url args:
+var querystring = (function() {
+	var qstr = window.location.search;
+	var query = {};
+	var a = qstr.substr(1).split('&');
+	for (var i = 0; i < a.length; i++) {
+		var b = a[i].split('=');
+		query[decodeURIComponent(b[0])] = decodeURIComponent(b[1] || '');
+	}
+	return query;
+})();
+
+// debug messaging:
+function post(msg) {
+	document.getElementById("post").innerHTML += msg + "<br>";
+}
+
+// randoms
+function random(n) {
+	return Math.floor(Math.random()*n);
+}
+
+function pick(arr) {
+	return arr[random(arr.length)];
+}
+
+///// websocket /////
+
+var wsocket; 
+var connected = false;
+var connectTask;
+
+
+function ws_connect() {
+	if (connected) return;
+    if ('WebSocket' in window) {
+        var host = querystring.host || "localhost";
+        var port = querystring.port || "8081";
+        var address = "ws://" + host + ":" + port;
+        document.getElementById("connection").innerHTML = 'connecting to ' + address;
+        wsocket = new WebSocket(address);
+        wsocket.onopen = function(ev) {        
+            document.getElementById("connection").innerHTML = 'connected to ' + address;
+            connected = true;
+            // cancel the auto-reconnect task:
+            if (connectTask != undefined) clearInterval(connectTask);
+            // apparently this first reply is necessary
+            var message = 'get_scene';
+            send(message);
+        };
+
+        wsocket.onclose = function(ev) {
+            document.getElementById("connection").innerHTML = 'disconnected from ' + address;	
+            connected = false;
+            // set up an auto-reconnect task:
+            connectTask = setInterval(ws_connect, 1000);
+        };
+
+        wsocket.onmessage = function(ev) {
+        	handlemessage(ev.data);
+        };
+
+        wsocket.onerror = function(ev) {
+            post("WebSocket error");
+        };
+
+    } else {
+        post("WebSockets are not available in this browser!!!");
+    }
+}
+
+function send(msg) {
+	if(wsocket != undefined) wsocket.send(msg);
+	
+	document.getElementById("send").innerHTML = msg;
+}
+
+function handlemessage(msg) {
+	if (msg.charAt(0) == "{") {
+		var data = JSON.parse(msg);
+		post("received object");
+		console.log(data);
+		
+		// set up the globals:
+		document.getElementById("bar").innerHTML = data.bar;
+		document.getElementById("beat").innerHTML = data.bit;
+		document.getElementById("signature").innerHTML = data.sig;
+		document.getElementById("bpm").innerHTML = data.bpm;
+		document.getElementById("play").innerHTML = data.ply;
+		
+	} else {
+		var cmd = msg.substr(0, 3);
+		if (cmd == "seq") {
+			
+			var nextbeat = +msg.substr(4);
+			
+			// demo: generate notes etc.
+			var notes = [ 36, 38, 41, 43, 45, 42, 46 ];
+			var msgarr = []; 
+			
+			for (var i=0; i<4; i++) {
+				var track = 0;
+				var beat = nextbeat;
+				var phase = random(8)/8;
+				var pitch = pick(notes);
+				var vel = 60 + random(30);
+				var dur = 100;
+				
+				// this way works too:
+				//msgarr.push(track + " add " + beat + " " + phase + " note " + pitch + " " + vel + " " + dur);
+				
+				
+				msgarr.push(track + " add " + beat + " " + phase + " duration " + dur);
+				msgarr.push(track + " add " + beat + " " + phase + " velocity " + vel);
+				msgarr.push(track + " add " + beat + " " + phase + " pitch " + pitch);
+				
+				msgarr.push(track + " add " + beat + " " + phase + " set " + (6 - random(40)) + " " + "live_set tracks 0 devices 1 parameters 1" );
+			}
+			send(msgarr);	// sends array as comma-delimited strings
+			
+		} else if (cmd == "bar") {
+			var bar = +msg.substr(4);
+			document.getElementById("bar").innerHTML = bar;
+		
+		} else if (cmd == "bit") {
+			var beat = +msg.substr(4);
+			document.getElementById("beat").innerHTML = beat;
+		
+		} else if (cmd == "ply") {
+			var play = +msg.substr(4);
+			document.getElementById("play").innerHTML = play;
+		
+		} else if (cmd == "sig") {
+			var signature = msg.substr(4);
+			document.getElementById("signature").innerHTML = signature;
+			
+		} else if (cmd == "bpm") {
+		
+			var bpm = +msg.substr(4);
+			document.getElementById("bpm").innerHTML = bpm;
+			
+		} else if (cmd == "err") {
+			post("received " + msg);
+			
+		} else if (cmd == "clr") {
+			document.getElementById("post").innerHTML = "";
+			
+		} else {
+			post("received " + msg);
+		} 
+		
+	}
+}
+
+///// start up /////
+
+ws_connect();
+
+</script>
+</body>
+</html>
