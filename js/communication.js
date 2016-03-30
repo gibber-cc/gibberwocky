@@ -60,6 +60,7 @@ let Communication = {
   },
 
   callbacks: {},
+  count:0,
   handleMessage( msg ) {
     // key and data are separated by a space
     // TODO: will key always be three characters?
@@ -70,6 +71,7 @@ let Communication = {
           console.log( 'FAULTY WS SEQ MESSAGE', msg.data )
         }else{
           // console.log( 'WS', msg.data, key, data )
+          console.log( 'count', Communication.count++ )
           Gibber.Scheduler.seq( data );
         }
         break;
