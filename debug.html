@@ -46,6 +46,7 @@ var querystring = (function() {
 // debug messaging:
 function post(msg) {
 	document.getElementById("post").innerHTML += msg + "<br>";
+	console.log(msg);
 }
 
 // randoms
@@ -122,10 +123,14 @@ function handlemessage(msg) {
 		document.getElementById("play").innerHTML = data.ply;
 		
 	} else {
-		var cmd = msg.substr(0, 3);
+		var parts = msg.split(" ");
+		var track = parts[0];
+		var cmd = parts[1];
+		var arg = parts[2];
+	
 		if (cmd == "seq") {
 			
-			var nextbeat = +msg.substr(4);
+			var nextbeat = +arg;
 			
 			// demo: generate notes etc.
 			var notes = [ 36, 38, 41, 43, 45, 42, 46 ];
@@ -147,29 +152,38 @@ function handlemessage(msg) {
 				msgarr.push(track + " add " + beat + " " + phase + " velocity " + vel);
 				msgarr.push(track + " add " + beat + " " + phase + " pitch " + pitch);
 				
-				msgarr.push(track + " add " + beat + " " + phase + " set " + (6 - random(40)) + " " + "live_set tracks 0 devices 1 parameters 1" );
+				msgarr.push(track + " add " + beat + " " + phase + " set " + random() + " " + "live_set tracks 0 devices 1 parameters 1" );
+				
+				
 			}
+			
+			if (random(8) == 0) {
+				var code = "abs(cycle(" + random(10) + "))";
+				msgarr.push(track + " add " + beat + " " + phase + " gen " + code + " " + "live_set tracks 0 devices 1 parameters 1" );
+				
+			}
+			
 			send(msgarr);	// sends array as comma-delimited strings
 			
 		} else if (cmd == "bar") {
-			var bar = +msg.substr(4);
+			var bar = +arg;
 			document.getElementById("bar").innerHTML = bar;
 		
 		} else if (cmd == "bit") {
-			var beat = +msg.substr(4);
+			var beat = +arg;
 			document.getElementById("beat").innerHTML = beat;
 		
 		} else if (cmd == "ply") {
-			var play = +msg.substr(4);
+			var play = +arg;
 			document.getElementById("play").innerHTML = play;
 		
 		} else if (cmd == "sig") {
-			var signature = msg.substr(4);
+			var signature = arg;
 			document.getElementById("signature").innerHTML = signature;
 			
 		} else if (cmd == "bpm") {
 		
-			var bpm = +msg.substr(4);
+			var bpm = +arg;
 			document.getElementById("bpm").innerHTML = bpm;
 			
 		} else if (cmd == "err") {
