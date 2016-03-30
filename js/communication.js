@@ -61,17 +61,32 @@ let Communication = {
 
   callbacks: {},
   count:0,
-  handleMessage( msg ) {
+  handleMessage( _msg ) {
     // key and data are separated by a space
     // TODO: will key always be three characters?
-    let key = msg.data.substr( 0,3 ), data = msg.data.substr( 4 )
+    
+    let msg, isObject = false, id, key, data
+    
+    if( _msg.data.charAt( 0 ) === '{' ) {
+      data = _msg.data
+      isObject = true
+      key = null
+    }else{
+      msg = _msg.data.split( ' ' )
+      id = msg[ 0 ]
+      key = msg[ 1 ]
+      data = msg[ 2 ]
+    }
+    
+    if( id !== Gibber.Live.id ) return
+
+    //let key = msg.data.substr( 1,4 ), data = msg.data.substr( 5 )
     switch( key ) {
       case 'seq' :
         if( data === undefined ) {
-          console.log( 'FAULTY WS SEQ MESSAGE', msg.data )
+          console.log( 'FAULTY WS SEQ MESSAGE', _msg.data )
         }else{
           // console.log( 'WS', msg.data, key, data )
-          console.log( 'count', Communication.count++ )
           Gibber.Scheduler.seq( data );
         }
         break;
@@ -79,9 +94,9 @@ let Communication = {
         Gibber.Environment.console.setValue('')
         break;
       default:
-        if( msg.data.charAt( 0 ) === '{' ) {
+        if( isObject ) {
           if( Communication.callbacks.scene ) {
-            Communication.callbacks.scene( JSON.parse( msg.data ) )
+            Communication.callbacks.scene( JSON.parse( data ) )
           }
         }
         //console.log( 'MSG', msg )
