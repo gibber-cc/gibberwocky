@@ -27,7 +27,8 @@ let Communication = {
       this.wsocket.onopen = function(ev) {        
         Gibber.log( 'CONNECTED to ' + address )
         this.connected = true
-
+        
+        Gibber.Live.init()
         // cancel the auto-reconnect task:
         if ( this.connectTask !== undefined ) clearTimeout( this.connectTask )
           
@@ -58,6 +59,7 @@ let Communication = {
   
   },
 
+  callbacks: {},
   handleMessage( msg ) {
     // key and data are separated by a space
     // TODO: will key always be three characters?
@@ -75,6 +77,11 @@ let Communication = {
         Gibber.Environment.console.setValue('')
         break;
       default:
+        if( msg.data.charAt( 0 ) === '{' ) {
+          if( Communication.callbacks.scene ) {
+            Communication.callbacks.scene( JSON.parse( msg.data ) )
+          }
+        }
         //console.log( 'MSG', msg )
         break;
     }

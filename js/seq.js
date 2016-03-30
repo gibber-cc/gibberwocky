@@ -101,17 +101,17 @@ let seqclosure = function( Gibber ) {
       note( number, beat, beatOffset ) {
         // let msgstring = "add " + beat + " " + t + " " + n + " " + v + " " + d
 
-        return `add ${beat} ${beatOffset} note ${number}` 
+        return `${Gibber.Live.id} add ${beat} ${beatOffset} pitch ${number}` 
       },
       midinote( number, beat, beatOffset ) {
-        return `add ${beat} ${beatOffset} note ${number}` 
+        return `${Gibber.Live.id} add ${beat} ${beatOffset} note ${number}` 
       },
       duration( value, beat, beatOffset ) {
-        return `add ${beat} ${beatOffset} duration ${value}` 
+        return `${Gibber.Live.id} add ${beat} ${beatOffset} duration ${value}` 
       },
 
       velocity( value, beat, beatOffset ) {
-        return `add ${beat} ${beatOffset} velocity ${value}` 
+        return `${Gibber.Live.id} add ${beat} ${beatOffset} velocity ${value}` 
       },
 
       chord( chord, beat, beatOffset ) {

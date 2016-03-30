@@ -4,9 +4,10 @@ let Gibber = {
   Environment:   require( './environment.js' ),
   Scheduler:     require( './clock.js' ),
   Track:         require( './track.js' ),
+  Theory:        require( './theory.js' ),
+  Live:          null,
   Gen:           null,
   Euclid:        null,
-  Theory:        require( './theory.js' ),
   Seq:           null,
   Score:         null,
   Pattern:       null,
@@ -172,5 +173,6 @@ Gibber.Arp     = require( './arp.js' )( Gibber )
 Gibber.Euclid  = require( './euclidean.js')( Gibber )
 Gibber.Gen     = require( './gen.js' )( Gibber )
 Gibber.Steps   = require( './steps.js' )( Gibber )
+Gibber.Live    = require( './live.js' )( Gibber )
 
 module.exports = Gibber
