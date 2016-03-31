@@ -32,7 +32,7 @@ function get_param_api(path) {
 	var api = new LiveAPI(path);
 	//about(api);
 	var tree = {
-		//id: api.id,
+		id: api.id,
 		path: path,
 		//type: api.type,
 		name: api.get("name")[0],
@@ -48,7 +48,7 @@ function get_param_api(path) {
 function get_devices_api(path) {
 	var api = new LiveAPI(path);
 	var tree = {
-		//id: api.id,
+		id: api.id,
 		path: path,
 		//type: api.type,
 		title: api.get("name")[0],
@@ -72,7 +72,7 @@ function get_devices_api(path) {
 function get_mixer_device_api(path) {
 	var api = new LiveAPI(path);
 	var tree = {
-		//id: api.id,
+		id: api.id,
 		path: unquote(api.path),
 		type: api.type,
 		sends: [],
@@ -91,7 +91,7 @@ function get_mixer_device_api(path) {
 function get_track_api(path) {
 	var api = new LiveAPI(path);
 	var tree = {
-		//id: api.id,
+		id: api.id,
 		path: unquote(api.path),
 		//type: api.type,
 		name: api.get("name")[0],
