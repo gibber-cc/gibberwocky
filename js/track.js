@@ -13,25 +13,25 @@ let Track = function( Gibber, id ) {
     note( notenum, velocity=127, duration=250 ) {
       notenum = Gibber.Theory.Note.convertToMIDI( notenum )
 
-      let msg = `note ${notenum} ${velocity} ${duration}`
+      let msg = `$(Gibber.Live.id} note ${notenum} ${velocity} ${duration}`
       Gibber.Communication.send( msg )
     },
 
     midinote( notenum, velocity=127, duration=250 ) {
-      let msg = `note ${notenum} ${velocity} ${duration}`
+      let msg = `$(Gibber.Live.id} note ${notenum} ${velocity} ${duration}`
       Gibber.Communication.send( msg )
     },
     
     duration( value ) {
-      Gibber.Communication.send( `duration ${value}` )
+      Gibber.Communication.send( `$(Gibber.Live.id} duration ${value}` )
     },
     
     velocity( value ) {
-      Gibber.Communication.send( `velocity ${value}` )
+      Gibber.Communication.send( `$(Gibber.Live.id} velocity ${value}` )
     },
 
     cc( ccnum, value ) {
-      let msg =  `cc ${ccnum} ${value}`
+      let msg =  `$(Gibber.Live.id} cc ${ccnum} ${value}`
       Gibber.Communication.send( msg )
     },
 

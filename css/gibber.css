@@ -1,7 +1,8 @@
 .CodeMirror-highlight { background:red !important }
 
 body {
-  font-family:'SourceCodeProExtraLight' !important
+  font-family:'SourceCodeProExtraLight' !important;
+  background-color:#bbb;
 }
 
 #editor {
@@ -26,6 +27,7 @@ body { margin:0; padding:0 }
 
 .CodeMirror {
   font-family: 'Source Code Pro', monospace;
+  font-size: .8em;
   background-color:#bbb;
   color:#000;
   font-weight:500;

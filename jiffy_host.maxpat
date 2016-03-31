@@ -3,13 +3,13 @@
 		"fileversion" : 1,
 		"appversion" : 		{
 			"major" : 7,
-			"minor" : 2,
+			"minor" : 1,
 			"revision" : 0,
-			"architecture" : "x86",
+			"architecture" : "x64",
 			"modernui" : 1
 		}
 ,
-		"rect" : [ 179.0, 79.0, 958.0, 468.0 ],
+		"rect" : [ 73.0, 79.0, 944.0, 468.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 0,
 		"default_fontsize" : 12.0,
@@ -37,6 +37,18 @@
 		"style" : "",
 		"subpatcher_template" : "",
 		"boxes" : [ 			{
+				"box" : 				{
+					"id" : "obj-5",
+					"maxclass" : "message",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 697.0, 435.0, 169.0, 22.0 ],
+					"style" : ""
+				}
+
+			}
+, 			{
 				"box" : 				{
 					"id" : "obj-18",
 					"linecount" : 3,
@@ -239,7 +251,7 @@
 									"origin" : "Laverne.amxd",
 									"type" : "amxd",
 									"subtype" : "Undefined",
-									"embed" : 0,
+									"embed" : 1,
 									"snapshot" : 									{
 										"name" : "Laverne.amxd",
 										"origname" : "C74:/packages/Max for Live/patchers/Max Instrument/Laverne/Laverne.amxd",
@@ -280,25 +292,7 @@
 										"filename" : "Laverne.amxd.maxsnap",
 										"filepath" : "~/Documents/Max 7/Snapshots",
 										"filepos" : -1,
-										"snapshotfileid" : "f87bd3bf94c60a81b26c3e352f3982e6"
-									}
-
-								}
-, 								{
-									"filetype" : "C74Snapshot",
-									"version" : 2,
-									"minorversion" : 0,
-									"name" : "Laverne.amxd[1]",
-									"origin" : "Laverne.amxd",
-									"type" : "amxd",
-									"subtype" : "Undefined",
-									"embed" : 0,
-									"fileref" : 									{
-										"name" : "Laverne.amxd[1]",
-										"filename" : "Laverne.amxd[1].maxsnap",
-										"filepath" : "~/Documents/Max 7/Snapshots",
-										"filepos" : -1,
-										"snapshotfileid" : "e466692af8f5a1be8a3f3962fd3ae3d0"
+										"snapshotfileid" : "c6480d0b637e642b8e1aa0637e67fa21"
 									}
 
 								}
@@ -329,8 +323,8 @@
 					"numoutlets" : 4,
 					"offset" : [ 0.0, 0.0 ],
 					"outlettype" : [ "signal", "signal", "", "" ],
-					"patching_rect" : [ 3.0, 2.0, 890.0, 196.0 ],
-					"presentation_rect" : [ 0.0, 0.0, 890.0, 196.0 ],
+					"patching_rect" : [ 3.0, 0.0, 876.5, 196.0 ],
+					"presentation_rect" : [ 0.0, 0.0, 876.5, 196.0 ],
 					"saved_attribute_attributes" : 					{
 						"valueof" : 						{
 							"parameter_invisible" : 1,
@@ -344,8 +338,8 @@
 					"saved_object_attributes" : 					{
 						"annotation_name" : "",
 						"parameter_enable" : 1,
-						"patchername" : "jiffy.amxd",
-						"patchername_fallback" : "~/code/gibber.max/client/jiffy.amxd"
+						"patchername" : "jibberwocky.amxd",
+						"patchername_fallback" : "/www/gibberMax/jibberwocky.amxd"
 					}
 ,
 					"snapshot" : 					{
@@ -358,8 +352,15 @@
 						"subtype" : "Undefined",
 						"embed" : 1,
 						"snapshot" : 						{
-							"name" : "jiffy.amxd",
-							"origname" : "~/code/gibber.max/client/jiffy.amxd"
+							"name" : "jibberwocky.amxd",
+							"origname" : "/www/gibberMax/jibberwocky.amxd",
+							"valuedictionary" : 							{
+								"parameter_values" : 								{
+
+								}
+
+							}
+
 						}
 ,
 						"snapshotlist" : 						{
@@ -368,22 +369,29 @@
 									"filetype" : "C74Snapshot",
 									"version" : 2,
 									"minorversion" : 0,
-									"name" : "jiffy.amxd",
-									"origin" : "jiffy.amxd",
+									"name" : "jibberwocky.amxd",
+									"origin" : "jibberwocky.amxd",
 									"type" : "amxd",
 									"subtype" : "Undefined",
-									"embed" : 0,
+									"embed" : 1,
 									"snapshot" : 									{
-										"name" : "jiffy.amxd",
-										"origname" : "~/code/gibber.max/client/jiffy.amxd"
+										"name" : "jibberwocky.amxd",
+										"origname" : "/www/gibberMax/jibberwocky.amxd",
+										"valuedictionary" : 										{
+											"parameter_values" : 											{
+
+											}
+
+										}
+
 									}
 ,
 									"fileref" : 									{
-										"name" : "jiffy.amxd",
-										"filename" : "jiffy.amxd.maxsnap",
+										"name" : "jibberwocky.amxd",
+										"filename" : "jibberwocky.amxd.maxsnap",
 										"filepath" : "~/Documents/Max 7/Snapshots",
 										"filepos" : -1,
-										"snapshotfileid" : "2d10f9edf07b3fd2047f9e663e689626"
+										"snapshotfileid" : "c1f551202d151adc4aab33399e46fc25"
 									}
 
 								}
@@ -403,6 +411,15 @@
 		"lines" : [ 			{
 				"patchline" : 				{
 					"destination" : [ "obj-2", 2 ],
+					"disabled" : 0,
+					"hidden" : 0,
+					"source" : [ "obj-1", 2 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-5", 1 ],
 					"disabled" : 0,
 					"hidden" : 0,
 					"source" : [ "obj-1", 2 ]
@@ -475,29 +492,119 @@
 			}
  ],
 		"parameters" : 		{
-			"obj-1" : [ "amxd~", "amxd~", 0 ],
-			"obj-2" : [ "amxd~[1]", "amxd~[1]", 0 ]
+			"obj-2" : [ "amxd~[1]", "amxd~[1]", 0 ],
+			"obj-1" : [ "amxd~", "amxd~", 0 ]
 		}
 ,
 		"dependency_cache" : [ 			{
-				"name" : "jiffy.amxd.maxsnap",
+				"name" : "jibberwocky.amxd.maxsnap",
 				"bootpath" : "~/Documents/Max 7/Snapshots",
 				"type" : "mx@s",
 				"implicit" : 1
 			}
 , 			{
-				"name" : "jiffy.amxd",
+				"name" : "jibberwocky.amxd",
+				"type" : "JSON",
+				"implicit" : 1
+			}
+, 			{
+				"name" : "jibbergen0.maxpat",
+				"bootpath" : "/www/gibberMax",
+				"type" : "JSON",
+				"implicit" : 1
+			}
+, 			{
+				"name" : "jibbergen1.maxpat",
+				"bootpath" : "/www/gibberMax",
+				"type" : "JSON",
+				"implicit" : 1
+			}
+, 			{
+				"name" : "jibbergen2.maxpat",
+				"bootpath" : "/www/gibberMax",
+				"type" : "JSON",
+				"implicit" : 1
+			}
+, 			{
+				"name" : "jibbergen3.maxpat",
+				"bootpath" : "/www/gibberMax",
+				"type" : "JSON",
+				"implicit" : 1
+			}
+, 			{
+				"name" : "jibbergen4.maxpat",
+				"bootpath" : "/www/gibberMax",
+				"type" : "JSON",
+				"implicit" : 1
+			}
+, 			{
+				"name" : "jibbergen5.maxpat",
+				"bootpath" : "/www/gibberMax",
+				"type" : "JSON",
+				"implicit" : 1
+			}
+, 			{
+				"name" : "jibbergen6.maxpat",
+				"bootpath" : "/www/gibberMax",
+				"type" : "JSON",
+				"implicit" : 1
+			}
+, 			{
+				"name" : "jibbergen7.maxpat",
+				"bootpath" : "/www/gibberMax",
+				"type" : "JSON",
+				"implicit" : 1
+			}
+, 			{
+				"name" : "jibbergen8.maxpat",
+				"bootpath" : "/www/gibberMax",
+				"type" : "JSON",
+				"implicit" : 1
+			}
+, 			{
+				"name" : "jibbergen9.maxpat",
+				"bootpath" : "/www/gibberMax",
+				"type" : "JSON",
+				"implicit" : 1
+			}
+, 			{
+				"name" : "jibbergen10.maxpat",
+				"bootpath" : "/www/gibberMax",
+				"type" : "JSON",
+				"implicit" : 1
+			}
+, 			{
+				"name" : "jibbergen11.maxpat",
+				"bootpath" : "/www/gibberMax",
+				"type" : "JSON",
+				"implicit" : 1
+			}
+, 			{
+				"name" : "jibbergen12.maxpat",
+				"bootpath" : "/www/gibberMax",
+				"type" : "JSON",
+				"implicit" : 1
+			}
+, 			{
+				"name" : "jibbergen13.maxpat",
+				"bootpath" : "/www/gibberMax",
+				"type" : "JSON",
+				"implicit" : 1
+			}
+, 			{
+				"name" : "jibbergen14.maxpat",
+				"bootpath" : "/www/gibberMax",
+				"type" : "JSON",
+				"implicit" : 1
+			}
+, 			{
+				"name" : "jibbergen15.maxpat",
+				"bootpath" : "/www/gibberMax",
 				"type" : "JSON",
 				"implicit" : 1
 			}
 , 			{
 				"name" : "Laverne.amxd.maxsnap",
-				"bootpath" : "~/Documents/Max 7/Snapshots",
-				"type" : "mx@s",
-				"implicit" : 1
-			}
-, 			{
-				"name" : "Laverne.amxd[1].maxsnap",
 				"bootpath" : "~/Documents/Max 7/Snapshots",
 				"type" : "mx@s",
 				"implicit" : 1

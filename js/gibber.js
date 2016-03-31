@@ -105,16 +105,17 @@ let Gibber = {
     }
   },
 
-  addSequencingToMethod( obj, methodName, priority ) {
-
+  addSequencingToMethod( obj, methodName, priority, overrideName ) {
+    
     if( !obj.sequences ) obj.sequences = {}
+    if( overrideName === undefined ) overrideName = methodName 
 
     obj[ methodName ].seq = function( values, timings, id=0 ) {
       if( obj.sequences[ methodName ] === undefined ) obj.sequences[ methodName ] = []
 
       if( obj.sequences[ methodName ][ id ] ) obj.sequences[ methodName ][ id ].stop() 
 
-      obj.sequences[ methodName ][ id ] = Gibber.Seq( values, timings, methodName, obj, priority ).start()
+      obj.sequences[ methodName ][ id ] = Gibber.Seq( values, timings, overrideName, obj, priority ).start()
 
       if( id === 0 ) {
         obj[ methodName ].values  = obj.sequences[ methodName ][ 0 ].values

@@ -118,7 +118,7 @@ let seqclosure = function( Gibber ) {
         let msg = []
 
         for( let i = 0; i < chord.length; i++ ) {
-          msg.push( `add ${beat} ${beatOffset} note ${chord[i]}` )
+          msg.push( `${Gibber.Live.id} add ${beat} ${beatOffset} note ${chord[i]}` )
         }
 
         return msg
@@ -205,6 +205,7 @@ let seqclosure = function( Gibber ) {
   proto.create = proto.create.bind( proto )
   proto.create.DO_NOT_OUTPUT = proto.DO_NOT_OUTPUT
   proto.create._seqs = proto._seqs
+  proto.create.proto = proto
 
   return proto.create
 
