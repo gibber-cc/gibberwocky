@@ -7,7 +7,7 @@ const binops = [
 ]
 
 const monops = [
-  'acos','acosh','asin','asinh','atan','atan2','atanh','cos','cosh','degrees',
+  'abs','acos','acosh','asin','asinh','atan','atan2','atanh','cos','cosh','degrees',
   'fastcos','fastsin','fasttan','hypot','radians','sin','sinh','tan','tanh'
 ]
 
@@ -99,13 +99,13 @@ let Gen  = {
     
     body = this.gen( paramArray )
 
-    out = paramArray.join( ';\n' )
+    out = paramArray.join( ';' )
 
     if( paramArray.length ) {
-      out += ';\n'
+      out += ';'
     }
     
-    out += 'out1 = '
+    out += 'out1='
     out += body + ';'
 
     return out
@@ -123,7 +123,7 @@ let Gen  = {
       }else if( typeof p === 'number' ) {
         let pName = 'p' + Gen.getUID()
         str += pName
-        paramArray.push( `Param ${pName}` )
+        paramArray.push( `Param ${pName}=${p}` )
       }else if( p === Gen.time ) {
         str += p
       }else{

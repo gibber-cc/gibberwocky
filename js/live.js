@@ -44,7 +44,7 @@ let Live = {
           }
         }
         p.idx = parameterCount++
-
+        console.log( seqKey, parameter.name  )
         Gibber.addSequencingToMethod( d, parameter.name, 0, seqKey )
       }
     }
