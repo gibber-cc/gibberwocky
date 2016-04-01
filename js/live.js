@@ -31,7 +31,7 @@ let Live = {
 
         Gibber.Seq.proto.externalMessages[ seqKey ] = ( value, beat, beatOffset ) => {
           //Gibber.Communication.send( '0 add 1 0 set 0 live_set tracks 0 devices 1 parameters 2' )
-          let msg = `${Gibber.Live.id} add ${beat} ${beatOffset} set ${value} live_set tracks ${Live.id} devices ${d.idx} parameters ${p.idx}` 
+          let msg = `${Gibber.Live.id} add ${beat} ${beatOffset} set ${value} ${parameter.path}`
           //console.log( msg )
           return msg
         }
@@ -44,7 +44,7 @@ let Live = {
           }
         }
         p.idx = parameterCount++
-        console.log( seqKey, parameter.name  )
+        //console.log( seqKey, parameter.name  )
         Gibber.addSequencingToMethod( d, parameter.name, 0, seqKey )
       }
     }
