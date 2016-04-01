@@ -33,13 +33,15 @@ function get_param_api(path) {
 	//about(api);
 	var tree = {
 		id: api.id,
-		path: path,
-		//type: api.type,
+		//path: path,
+		//type: api.type, // always "DeviceParameter"
 		name: api.get("name")[0],
+		//original_name: api.get("original_name")[0],
 		min: api.get("min")[0],
 		max: api.get("max")[0],
-		//state: api.get("state")[0],
-		value: api.get("value")[0],
+		//state: api.get("state")[0], // whether currently enabled or not
+		value: api.get("value")[0], // initial value
+		quantized: (api.get("is_quantized")[0] === 1), // true for bools and enums
 		/* is quantized, is enabled, original_name */
 	};
 	return tree;

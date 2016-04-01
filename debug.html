@@ -9,10 +9,12 @@
     color:#000;
     font-size: 10;
     overflow:auto;
-    
+  	font-family: monospace;
+  }
+  
+  .post { 
   	white-space: -moz-pre-wrap; /* Firefox 1.0-2.0 */
   	white-space: pre-wrap;      /* current browsers */
-  	font-family: monospace;
   }
   </style>
 </head>
@@ -64,9 +66,15 @@ var wsocket;
 var connected = false;
 var connectTask;
 
+var track = querystring.track || 0;
 
 function ws_connect() {
-	if (connected) return;
+	if (connected) {
+		if (connectTask != undefined) {
+			clearInterval(connectTask);
+            connectTask = undefined;
+        }
+	}
     if ('WebSocket' in window) {
         var host = querystring.host || "localhost";
         var port = querystring.port || "8081";
@@ -76,18 +84,20 @@ function ws_connect() {
         wsocket.onopen = function(ev) {        
             document.getElementById("connection").innerHTML = 'connected to ' + address;
             connected = true;
+            
             // cancel the auto-reconnect task:
             if (connectTask != undefined) clearInterval(connectTask);
-            // apparently this first reply is necessary
-            var message = 'get_scene';
-            send(message);
+            connectTask = undefined;
+            
+            // handshake
+            send("get_scene");
         };
 
         wsocket.onclose = function(ev) {
             document.getElementById("connection").innerHTML = 'disconnected from ' + address;	
             connected = false;
             // set up an auto-reconnect task:
-            connectTask = setInterval(ws_connect, 1000);
+            if (connectTask != undefined) connectTask = setInterval(ws_connect, 4000);
         };
 
         wsocket.onmessage = function(ev) {
@@ -109,18 +119,24 @@ function send(msg) {
 	document.getElementById("send").innerHTML = msg;
 }
 
+var lom = {};
+var gens = [];
+
 function handlemessage(msg) {
 	if (msg.charAt(0) == "{") {
-		var data = JSON.parse(msg);
+		lom = JSON.parse(msg);
 		post("received object");
-		console.log(data);
+		console.log(lom);
+		
+		// clear memory:
+		gens = [];
 		
 		// set up the globals:
-		document.getElementById("bar").innerHTML = data.bar;
-		document.getElementById("beat").innerHTML = data.bit;
-		document.getElementById("signature").innerHTML = data.sig;
-		document.getElementById("bpm").innerHTML = data.bpm;
-		document.getElementById("play").innerHTML = data.ply;
+		document.getElementById("bar").innerHTML = lom.bar;
+		document.getElementById("beat").innerHTML = lom.bit;
+		document.getElementById("signature").innerHTML = lom.sig;
+		document.getElementById("bpm").innerHTML = lom.bpm;
+		document.getElementById("play").innerHTML = lom.ply;
 		
 	} else {
 		var parts = msg.split(" ");
@@ -130,40 +146,89 @@ function handlemessage(msg) {
 	
 		if (cmd == "seq") {
 			
-			var nextbeat = +arg;
+			var beat = +arg;
 			
 			// demo: generate notes etc.
 			var notes = [ 60, 62, 64, 65, 67, 71, 72 ];
 			var msgarr = []; 
 			
-			for (var i=0; i<4; i++) {
-				var track = 0;
-				var beat = nextbeat;
-				var phase = random(8)/8;
+			for (var j=0; j<2; j++) {
+				var divs = Math.pow(2, random((j+1)*2)+1);
+				var div = 1/divs;
 				var pitch = pick(notes);
-				var vel = 60 + random(30);
-				var dur = 100;
+				var dur = 500*div;
+			
+				for (var i=0; i<divs; i++) {
+					var phase = i*div;
+					var vel = 60 + random(30);
 				
-				// this way works too:
-				//msgarr.push(track + " add " + beat + " " + phase + " note " + pitch + " " + vel + " " + dur);
+					// this way works too:
+					//msgarr.push(track + " add " + beat + " " + phase + " note " + pitch + " " + vel + " " + dur);
+				
+					msgarr.push(track + " add " + beat + " " + phase + " duration " + dur);
+					msgarr.push(track + " add " + beat + " " + phase + " velocity " + vel);
+					msgarr.push(track + " add " + beat + " " + phase + " pitch " + pitch);
 				
 				
-				msgarr.push(track + " add " + beat + " " + phase + " duration " + dur);
-				msgarr.push(track + " add " + beat + " " + phase + " velocity " + vel);
-				msgarr.push(track + " add " + beat + " " + phase + " pitch " + pitch);
+				}
+			}			
+			
+			var phase = 0;
+			
+			// "set" a parameter:
+			var param = pick(lom.tracks[0].devices[1].parameters);
+			if (param.name != "Device On") {
+				var val;
+				if (param.quantized) {
+					val = param.min + random(param.max - param.min);
+				} else {
+					val = param.min + Math.random() * (param.max - param.min);
+				}
 				
-				msgarr.push(track + " add " + beat + " " + phase + " set " + random() + " " + "live_set tracks 0 devices 1 parameters 1" );
-				
-				
+				msgarr.push(track + " add " + beat + " " + phase + " zet " + param.id + " " + val );
+				//console.log(param.name, " ", val);
+			
 			}
 			
-			if (random(8) == 0) {
-				var code = "abs(cycle(" + random(10) + "))";
-				msgarr.push(track + " add " + beat + " " + phase + " gen " + code + " " + "live_set tracks 0 devices 1 parameters 1" );
-				
+			// gen testing:
+		
+			// unset?
+			if (random(16) < gens.length) {	
+				var which = random(gens.length);
+				var id = gens[which];
+				gens.splice(which, 1);
+				msgarr.push(track + " add " + beat + " " + phase + " ungen " + id);	
 			}
 			
-			send(msgarr);	// sends array as comma-delimited strings
+			if (random(16) < gens.length && random(2) == 0) {	
+				// set a parameter:
+				var which = random(gens.length);
+				var id = gens[which];
+				
+				msgarr.push(track + " add " + beat + " " + phase + " genp " + id + " p0 " + random(4));	
+			} else {
+			
+				// add a new mapping:
+				var param = pick(lom.tracks[0].devices[1].parameters);
+				if (param.name != "Device On") {
+					var code = "Param p0(" + random(4) + ");";
+				
+					code += "out1 = rate(in1, (p0+1)*" + 1/Math.pow(2, random(4)) + ");";
+			
+					// wrap the code in quotes:
+					code = '"' + code + '"';
+			
+					var msg = track + " add " + beat + " " + phase + " gen " + param.id + " " + code;
+			
+					msgarr.push(msg);
+			
+					console.log	(msg);
+			
+					gens.push(param.id);
+				}
+			}
+			
+			send(msgarr.join("~"));	
 			
 		} else if (cmd == "bar") {
 			var bar = +arg;
