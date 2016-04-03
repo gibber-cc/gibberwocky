@@ -9,49 +9,57 @@ let Track = function( Gibber, id ) {
   let track = {
     id,
 		sequences:{},
+    note( ...args ) {
+      args[i] = Gibber.Theory.Note.convertToMIDI( args[i] )
 
-    note( notenum, velocity=127, duration=250 ) {
-      notenum = Gibber.Theory.Note.convertToMIDI( notenum )
-
-      let msg = `$(Gibber.Live.id} note ${notenum} ${velocity} ${duration}`
+      let msg = `${Gibber.Live.id} note ${args.join(' ')}`
       Gibber.Communication.send( msg )
     },
 
-    midinote( notenum, velocity=127, duration=250 ) {
-      let msg = `$(Gibber.Live.id} note ${notenum} ${velocity} ${duration}`
+    midinote( ...args ) {
+      let msg = `${Gibber.Live.id} note ${args.join(' ')}`
       Gibber.Communication.send( msg )
     },
     
     duration( value ) {
-      Gibber.Communication.send( `$(Gibber.Live.id} duration ${value}` )
+      Gibber.Communication.send( `${Gibber.Live.id} duration ${value}` )
     },
     
     velocity( value ) {
-      Gibber.Communication.send( `$(Gibber.Live.id} velocity ${value}` )
+      Gibber.Communication.send( `${Gibber.Live.id} velocity ${value}` )
     },
 
     cc( ccnum, value ) {
-      let msg =  `$(Gibber.Live.id} cc ${ccnum} ${value}`
+      let msg =  `${Gibber.Live.id} cc ${ccnum} ${value}`
       Gibber.Communication.send( msg )
     },
 
-    chord( chord, velocity=127, duration=250 ) {
+    chord( chord, velocity='', duration='' ) {
       let msg = []
       
-      if( typeof chord === 'string' ) {
+      if( typeof chord  === 'string' ) {
         let chordObj = Gibber.Theory.Chord.create( chord )
 
         chord = chordObj.notes 
-
+        console.log( 'chord', chord )
         for( let i = 0; i < chord.length; i++ ) {
           let note = chord[ i ] // Gibber.Theory.Note.convertToMIDI( chord[i] )
-          msg.push( `note ${note} ${velocity} ${duration}` )
+          msg.push( `${Gibber.Live.id} note ${note} ${velocity} ${duration}`.trimRight() )
         }
       }else{
         for( let i = 0; i < chord.length; i++ ) {
           let note = Gibber.Theory.Note.convertToMIDI( chord[i] )
-          msg.push( `note ${note} ${velocity} ${duration}` )
+          msg.push( `${Gibber.Live.id} note ${note} ${velocity} ${duration}`.trimRight() )
         }
+      }
+
+      Gibber.Communication.send( msg )
+    },
+
+    midichord( chord, velocity='', duration='' ) {
+      let msg = []
+      for( let i = 0; i < chord.length; i++ ) {
+        msg.push( `${Gibber.Live.id} note ${chord[i]} ${velocity} ${duration}`.trimRight() )
       }
 
       Gibber.Communication.send( msg )

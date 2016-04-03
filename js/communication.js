@@ -105,7 +105,10 @@ let Communication = {
   },
 
   send( code ) {
-    if( Communication.connected ) Communication.wsocket.send( code )
+    if( Communication.connected ) {
+      console.log( code )
+      Communication.wsocket.send( code )
+    }
   },
 
   querystring : null,
