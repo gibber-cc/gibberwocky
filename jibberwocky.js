@@ -82,7 +82,6 @@ function get_devices_api(path) {
 
 function get_track_api(path) {
 	var api = new LiveAPI(path);
-	post("track", api.get("type")[0]);
 	var tree = {
 		id: api.id,
 		//path: unquote(api.path),
