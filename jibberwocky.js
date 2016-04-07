@@ -82,11 +82,13 @@ function get_devices_api(path) {
 
 function get_track_api(path) {
 	var api = new LiveAPI(path);
+	post("track", api.get("type")[0]);
 	var tree = {
 		id: api.id,
 		//path: unquote(api.path),
 		//type: api.type, // always "Track"
 		name: api.get("name")[0],
+		midi_input: api.get("has_midi_input")[0],	// 1 for midi tracks
 		devices: [],
 		/* clip_slots, view ; mute, arm, routing, playing/fired slot, audio/midi IO, etc. */
 	};
