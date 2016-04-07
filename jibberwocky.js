@@ -52,7 +52,7 @@ function get_devices_api(path) {
 	var tree = {
 		id: api.id,
 		path: path,
-		//type: api.type,
+		type: api.type, // 0(undefined), 1(instrument), 2(audio_effect), 3(midi_effect).
 		title: api.get("name")[0],
 		name: api.get("class_display_name")[0],
 		parameters: [],
