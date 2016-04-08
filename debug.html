@@ -186,6 +186,17 @@ function handlemessage(msg) {
 				}
 				
 				msgarr.push(track + " add " + beat + " " + phase + " zet " + param.id + " " + val );
+				
+				//console.log(param.name, " ", val);
+			
+			}
+			
+			var param = pick(lom.tracks[0].devices[1].parameters);
+			if (param.name != "Device On") {
+				var val = Math.random();
+				
+				msgarr.push(track + " add " + beat + " " + phase + " set " + param.id + " " + val );
+				
 				//console.log(param.name, " ", val);
 			
 			}

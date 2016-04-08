@@ -28,22 +28,28 @@ function unquote(str) {
 
 
 var dict = new Dict("lom");
-
+var ranges_dict = new Dict("param_ranges");
+var ranges_obj = {};
 
 function get_param_api(path) {
 	var api = new LiveAPI(path);
+	var min = api.get("min")[0];
+	var max = api.get("max")[0];
 	var tree = {
 		id: api.id,
 		//path: path,
 		//type: api.type, // always "DeviceParameter"
 		name: api.get("name")[0],
 		//original_name: api.get("original_name")[0],
-		min: api.get("min")[0],
-		max: api.get("max")[0],
+		min: min,
+		max: max,
 		//state: api.get("state")[0], // whether currently enabled or not
 		value: api.get("value")[0], // initial value
 		quantized: (api.get("is_quantized")[0] === 1), // true for bools and enums
 	};
+	
+	ranges_obj[api.id] = { min: min, max: max };
+	
 	return tree;
 }
 
@@ -153,6 +159,9 @@ function bang() {
 	// set dict from tree.
 	var s = JSON.stringify(tree);
 	dict.parse(s);
+	
+	var s = JSON.stringify(ranges_obj);
+	ranges_dict.parse(s);
 	
 	outlet(0, "bang");
 }
