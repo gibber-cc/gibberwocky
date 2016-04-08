@@ -213,7 +213,7 @@ function handlemessage(msg) {
 				if (param.name != "Device On") {
 					var code = "Param p0(" + random(4) + ");";
 				
-					code += "out1 = rate(in1, (p0+1)*" + 1/Math.pow(2, random(4)) + ");";
+					code += "out1 = 1 - rate(in1, (p0+1)*" + (1/Math.pow(2, random(4))) + ");";
 			
 					// wrap the code in quotes:
 					code = '"' + code + '"';
@@ -222,7 +222,7 @@ function handlemessage(msg) {
 			
 					msgarr.push(msg);
 			
-					console.log	(msg);
+					//console.log	(msg);
 			
 					gens.push(param.id);
 				}
