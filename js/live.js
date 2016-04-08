@@ -37,9 +37,10 @@ let Live = {
         d[ parameter.name ] = p = ( _v ) => {
           if( _v !== undefined ) {
             if( typeof _v === 'object' && _v.isGen ) {
+              _v.assignParamID( parameter.id )
               Gibber.Communication.send( `${Gibber.Live.id} gen ${parameter.id} "${_v.out()}"` )
-              v = _v          
-            }else{
+              v = _v
+              
               v = _v
               Gibber.Communication.send( `${Gibber.Live.id} set ${parameter.id} ${v}` )
             }

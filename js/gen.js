@@ -30,19 +30,34 @@ let Gen  = {
         params = Array.prototype.slice.call( arguments, 1 )
     
     obj.name = name
+    obj.active = false
     
     for( let key of Gen.functions[ name ].properties ) { 
-      let prop = { 
-        value: params[ count++ ], 
-        valueOf: ()=> { return prop.value },
+      //let prop = { 
+      //  value: params[ count++ ], 
+      //  valueOf: ()=> { return prop.value },
+      //  uid: Gen.getUID()
+      //}
+
+      //obj[ key ] = prop //params[ count++ ]
+
+      //Object.defineProperty( obj, key, {
+      //  get: ()=> prop,
+      //  set: (v)=> prop.value = v
+      //})
+      //
+      let value = params[ count++ ]
+      obj[ key ] = ( v ) => {
+        if( v === undefined ) {
+          return value
+        }else{
+          value = v
+          if( obj.active ) {
+            Gibber.Communication.send( `${Gibber.Live.id} genp ${obj.paramID} ${obj[ key ].uid} ${v}` ) 
+          }
+        }
       }
-
-      obj[ key ] = prop //params[ count++ ]
-
-      Object.defineProperty( obj, key, {
-        get: ()=> prop,
-        set: (v)=> prop.value = v
-      })
+      obj[ key ].uid = Gen.getUID()
 
       Gibber.addSequencingToMethod( obj, key )
     }
@@ -53,7 +68,7 @@ let Gen  = {
   createBinopFunctions() {
     for( let key of binops ) {
       Gen.functions[ key ] = {
-        properties:['in1','in2'], str:key
+        properties:['0','1'], str:key
       }
     }
   },
@@ -61,7 +76,21 @@ let Gen  = {
   createMonopFunctions() {
     for( let key of monops ) {
       Gen.functions[ key ] = {
-        properties:['in1'], str:key
+        properties:['0'], str:key
+      }
+    }
+  },
+
+  assignParamID: function( id ) {
+    this.paramID = id
+    
+    console.log( 'param id', id, this )
+
+    let count = 0, param
+    while( param = this[ count++ ] ) {
+      console.log( param, param() )
+      if( typeof param() === 'object' ) {
+        param().assignParamID( id )
       }
     }
   },
@@ -83,14 +112,14 @@ let Gen  = {
   },
 
   functions: {
-    phasor: { properties:[ 'frequency' ],  str:'phasor' },
-    cycle:  { properties:[ 'frequency' ],  str:'cycle' },
+    phasor: { properties:[ '0' ],  str:'phasor' },
+    cycle:  { properties:[ '0' ],  str:'cycle' },
   },
 
   _count: 0,
 
   getUID() {
-    return Gen._count++
+    return 'p' + Gen._count++
   },
 
   time: 'time',
@@ -117,13 +146,21 @@ let Gen  = {
     let def = Gen.functions[ this.name ],
         str = def.str + '(',
         count = 0
+    
+
+    // tell Gibber that this gen object is part of an active gen graph
+    // so that changes to it are forwarded to m4l
+    this.active = true
 
     for( let property of def.properties ) {
-      let p = this[ property ].value
+      let p = this[ property ](),
+          uid = this[ property ].uid
+      
+      //console.log( this.name, property, def.properties, uid )
       if( Gen.isPrototypeOf( p ) ) {
         str += p.gen( paramArray )
       }else if( typeof p === 'number' ) {
-        let pName = 'p' + Gen.getUID()
+        let pName = uid
         str += pName
         paramArray.push( `Param ${pName}(${p})` )
       }else if( p === Gen.time ) {

@@ -3,6 +3,7 @@ let Gibber = null
 let Communication = {
   webSocketPort: 8081, // default?
   socketInitialized: false,
+  debug: false,
   
   init( _Gibber ) { 
     //console.log(' Communication init' )
@@ -106,7 +107,7 @@ let Communication = {
 
   send( code ) {
     if( Communication.connected ) {
-      console.log( code )
+      if( Communication.debug ) console.log( code )
       Communication.wsocket.send( code )
     }
   },
