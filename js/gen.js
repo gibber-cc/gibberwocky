@@ -20,6 +20,8 @@ let Gen  = {
     Gen.createBinopFunctions()
     Gen.createMonopFunctions()
   },
+  
+  isGen:true,
 
   // if property is !== ugen (it's a number) a Param must be made using a default
   create( name ) {
@@ -123,7 +125,7 @@ let Gen  = {
       }else if( typeof p === 'number' ) {
         let pName = 'p' + Gen.getUID()
         str += pName
-        paramArray.push( `Param ${pName}=${p}` )
+        paramArray.push( `Param ${pName}(${p})` )
       }else if( p === Gen.time ) {
         str += p
       }else{

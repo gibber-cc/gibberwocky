@@ -30,21 +30,24 @@ let Live = {
             seqKey = `${Live.id} ${device.title} ${parameter.name}`
 
         Gibber.Seq.proto.externalMessages[ seqKey ] = ( value, beat, beatOffset ) => {
-          //Gibber.Communication.send( '0 add 1 0 set 0 live_set tracks 0 devices 1 parameters 2' )
-          let msg = `${Gibber.Live.id} add ${beat} ${beatOffset} set ${value} ${parameter.path}`
-          //console.log( msg )
+          let msg = `${Gibber.Live.id} add ${beat} ${beatOffset} set ${parameter.id} ${value}` 
           return msg
         }
 
         d[ parameter.name ] = p = ( _v ) => {
           if( _v !== undefined ) {
-            v = _v
+            if( typeof _v === 'object' && _v.isGen ) {
+              Gibber.Communication.send( `${Gibber.Live.id} gen ${parameter.id} "${_v.out()}"` )
+              v = _v          
+            }else{
+              v = _v
+              Gibber.Communication.send( `${Gibber.Live.id} set ${parameter.id} ${v}` )
+            }
           }else{
             return v
           }
         }
         p.idx = parameterCount++
-        //console.log( seqKey, parameter.name  )
         Gibber.addSequencingToMethod( d, parameter.name, 0, seqKey )
       }
     }
