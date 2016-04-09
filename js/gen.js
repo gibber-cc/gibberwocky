@@ -84,11 +84,9 @@ let Gen  = {
   assignParamID: function( id ) {
     this.paramID = id
     
-    console.log( 'param id', id, this )
 
     let count = 0, param
     while( param = this[ count++ ] ) {
-      console.log( param, param() )
       if( typeof param() === 'object' ) {
         param().assignParamID( id )
       }
@@ -176,12 +174,49 @@ let Gen  = {
     return str
   },
 
+  composites: { 
+    lfo( frequency = .1, amp = .5, center = .5 ) {
+      let _cycle = cycle( frequency ),
+          _mul   = mul( _cycle, amp ),
+          _add   = add( center, _mul ) 
+       
+      _add.frequency = (v) => {
+        if( v === undefined ) {
+          return _cycle[ 0 ]()
+        }else{
+          _cycle[0]( v )
+        }
+      }
+      _add.amp = (v) => {
+        if( v === undefined ) {
+          return _mul[ 1 ]()
+        }else{
+          _mul[1]( v )
+        }
+      }
+      _add.center = (v) => {
+        if( v === undefined ) {
+          return _add[ 0 ]()
+        }else{
+          _add[0]( v )
+        }
+      }
+
+      Gibber.addSequencingToMethod( _add, 'frequency' )
+      Gibber.addSequencingToMethod( _add, 'amp' )
+      Gibber.addSequencingToMethod( _add, 'center' )
+
+      return _add
+    }
+  },
+
   export( obj ) {
     for( let key in Gen.functions ) {
       obj[ key ] = Gen.create.bind( Gen, key )
     }
 
     Object.assign( obj, Gen.constants )
+    Object.assign( obj, Gen.composites )
   }
 }
 
