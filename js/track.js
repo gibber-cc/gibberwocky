@@ -10,8 +10,8 @@ let Track = function( Gibber, id ) {
     id,
 		sequences:{},
     note( ...args ) {
-      args[i] = Gibber.Theory.Note.convertToMIDI( args[i] )
-
+      args[0] = Gibber.Theory.Note.convertToMIDI( args[0] )
+      
       let msg = `${Gibber.Live.id} note ${args.join(' ')}`
       Gibber.Communication.send( msg )
     },
@@ -44,12 +44,13 @@ let Track = function( Gibber, id ) {
         console.log( 'chord', chord )
         for( let i = 0; i < chord.length; i++ ) {
           let note = chord[ i ] // Gibber.Theory.Note.convertToMIDI( chord[i] )
-          msg.push( `${Gibber.Live.id} note ${note} ${velocity} ${duration}`.trimRight() )
+          this.note( chord[ i ] )//msg.push( `${Gibber.Live.id} note ${note} ${velocity} ${duration}`.trimRight() )
         }
       }else{
         for( let i = 0; i < chord.length; i++ ) {
           let note = Gibber.Theory.Note.convertToMIDI( chord[i] )
-          msg.push( `${Gibber.Live.id} note ${note} ${velocity} ${duration}`.trimRight() )
+          this.note( chord[i] )
+         // msg.push( `${Gibber.Live.id} note ${note} ${velocity} ${duration}`.trimRight() )
         }
       }
 

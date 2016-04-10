@@ -36,6 +36,14 @@ let Live = {
         return d[ param.name ]
       }
 
+      d.galumph = ( value ) => d.pickRandomParameter()( value )
+      d.on =  ()=>  { d.isOn = 1; d['Device On']( d.isOn ) }
+      d.off = ()=>  { d.isOn = 0; d['Device On']( d.isOn ) }
+      d.toggle = ()=> { d.isOn = d.isOn === 1 ? 0 : 1; d['Device On']( d.isOn ) }
+
+      Gibber.addSequencingToMethod( d, 'galumph' )
+      Gibber.addSequencingToMethod( d, 'toggle' )
+
       for( let parameter of device.parameters ) {
         let v = parameter.value,
             p,
