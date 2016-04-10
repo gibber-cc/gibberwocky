@@ -5,9 +5,8 @@ This repo is for a plugin to live code MIDI sequences using JavaScript inside Ma
 ## Installing
 
 1. Follow the instructions for installing the Max Worldmaking Package: https://github.com/worldmaking/Max_Worldmaking_Package. This will install a websocket external for Max that the code editor will use to communicate with Max4Live and Max/MSP.
-2. In Ableton Live, place the `client/jiffy.amxd` M4L object on a MIDI track. Add an instrument of your choice to this track.
+2. In Ableton Live, place the `jibberwocky.amxd` M4L object on a MIDI track. Add an instrument of your choice to this track.
 3. Follow the instructions inside the code editor of the M4L device. Click the `open in browser` button to launch the editor in a larger browser window (with normal debugging capabilities) as opposed to the small editor featured in the plugin.
-4. For experimenting with using the plugin in Max/MSP (not M4L) open `client/jiffy_host.maxpat` file in Max.
 
 ## Development
 

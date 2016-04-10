@@ -1,0 +1,15 @@
+cp jibbergen0.maxpat jibbergen1.maxpat 
+cp jibbergen0.maxpat jibbergen2.maxpat 
+cp jibbergen0.maxpat jibbergen3.maxpat 
+cp jibbergen0.maxpat jibbergen4.maxpat 
+cp jibbergen0.maxpat jibbergen5.maxpat 
+cp jibbergen0.maxpat jibbergen6.maxpat 
+cp jibbergen0.maxpat jibbergen7.maxpat 
+cp jibbergen0.maxpat jibbergen8.maxpat 
+cp jibbergen0.maxpat jibbergen9.maxpat 
+cp jibbergen0.maxpat jibbergen10.maxpat 
+cp jibbergen0.maxpat jibbergen11.maxpat 
+cp jibbergen0.maxpat jibbergen12.maxpat 
+cp jibbergen0.maxpat jibbergen13.maxpat 
+cp jibbergen0.maxpat jibbergen14.maxpat 
+cp jibbergen0.maxpat jibbergen15.maxpat 
