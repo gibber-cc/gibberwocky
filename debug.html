@@ -141,6 +141,7 @@ function handlemessage(msg) {
 	} else {
 		var parts = msg.split(" ");
 		var track = parts[0];
+		var device = pick(lom.tracks[track].devices);
 		var cmd = parts[1];
 		var arg = parts[2];
 	
@@ -176,7 +177,7 @@ function handlemessage(msg) {
 			var phase = 0;
 			
 			// "set" a parameter:
-			var param = pick(lom.tracks[track].devices[1].parameters);
+			var param = pick(device.parameters);
 			if (param.name != "Device On") {
 				var val;
 				if (param.quantized) {
@@ -191,7 +192,7 @@ function handlemessage(msg) {
 			
 			}
 			
-			var param = pick(lom.tracks[track].devices[1].parameters);
+			var param = pick(device.parameters);
 			if (param.name != "Device On") {
 				var val = Math.random();
 				
@@ -220,7 +221,7 @@ function handlemessage(msg) {
 			} else {
 			
 				// add a new mapping:
-				var param = pick(lom.tracks[track].devices[1].parameters);
+				var param = pick(device.parameters);
 				if (param.name != "Device On") {
 					var code = "Param p0(" + random(4) + ");";
 				
