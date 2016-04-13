@@ -50,7 +50,7 @@ let Gibber = {
       this.Communication.init( Gibber ) 
     }
 
-    this.currentTrack = this.Track( this, 1 ) // TODO: how to determine actual "id" from Max?
+    //this.currentTrack = this.Track( this, 1 ) // TODO: how to determine actual "id" from Max?
     
     this.initSingletons( window )
 

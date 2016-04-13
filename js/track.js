@@ -1,4 +1,4 @@
-let Track = function( Gibber, id ) {
+let Track = function( Gibber, id, spec ) {
   // seq~ schedule format:
   // add <seqid> <phase> <arguments...>
   // seqid is the beat number
@@ -8,29 +8,30 @@ let Track = function( Gibber, id ) {
   //var msgstring = "add " + beat + " " + t + " " + n + " " + v + " " + d 
   let track = {
     id,
+    spec,
 		sequences:{},
     note( ...args ) {
       args[0] = Gibber.Theory.Note.convertToMIDI( args[0] )
       
-      let msg = `${Gibber.Live.id} note ${args.join(' ')}`
+      let msg = `${track.id} note ${args.join(' ')}`
       Gibber.Communication.send( msg )
     },
 
     midinote( ...args ) {
-      let msg = `${Gibber.Live.id} note ${args.join(' ')}`
+      let msg = `${track.id} note ${args.join(' ')}`
       Gibber.Communication.send( msg )
     },
     
     duration( value ) {
-      Gibber.Communication.send( `${Gibber.Live.id} duration ${value}` )
+      Gibber.Communication.send( `${track.id} duration ${value}` )
     },
     
     velocity( value ) {
-      Gibber.Communication.send( `${Gibber.Live.id} velocity ${value}` )
+      Gibber.Communication.send( `${track.id} velocity ${value}` )
     },
 
     cc( ccnum, value ) {
-      let msg =  `${Gibber.Live.id} cc ${ccnum} ${value}`
+      let msg =  `${track.id} cc ${ccnum} ${value}`
       Gibber.Communication.send( msg )
     },
 
@@ -60,12 +61,36 @@ let Track = function( Gibber, id ) {
     midichord( chord, velocity='', duration='' ) {
       let msg = []
       for( let i = 0; i < chord.length; i++ ) {
-        msg.push( `${Gibber.Live.id} note ${chord[i]} ${velocity} ${duration}`.trimRight() )
+        msg.push( `${track.id} note ${chord[i]} ${velocity} ${duration}`.trimRight() )
       }
 
       Gibber.Communication.send( msg )
     },
+
+    pan( value ) {
+      Gibber.Communication.send( `${track.id} set ${spec.panning.id} ${value}` )
+    },
+
+    volume( value ) {
+      Gibber.Communication.send( `${track.id} set ${spec.volume.id} ${value}` )
+    }
   }
+
+  
+
+  //if( p.properties.quantized === 1 ) _v = Math.round( _v )
+
+  //if( _v !== undefined ) {
+  //  if( typeof _v === 'object' && _v.isGen ) {
+  //    _v.assignParamID( parameter.id )
+  //    Gibber.Communication.send( `${Gibber.Live.id} gen ${parameter.id} "${_v.out()}"` )
+  //  }else{
+  //    v = _v
+  //    Gibber.Communication.send( `${Gibber.Live.id} set ${parameter.id} ${v}` )
+  //  }
+  //}else{
+  //  return v
+  //}
 
   Gibber.Environment.codeMarkup.prepareObject( track ) 
   Gibber.addSequencingToMethod( track, 'note' )
