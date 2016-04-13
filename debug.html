@@ -141,6 +141,8 @@ function handlemessage(msg) {
 	} else {
 		var parts = msg.split(" ");
 		var track = parts[0];
+		// or search for first device with midi_input == 1
+		// subsequent devices are effects
 		var device = pick(lom.tracks[track].devices);
 		var cmd = parts[1];
 		var arg = parts[2];
