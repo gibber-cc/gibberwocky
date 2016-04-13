@@ -204,6 +204,14 @@ function handlemessage(msg) {
 			
 			}
 			
+			// mute / solo testing:
+			if (random(4) == 0) {
+				if (random(2)) {	
+					msgarr.push(track + " add " + beat + " " + phase + " mute " + random(2));
+				} else {
+					msgarr.push(track + " add " + beat + " " + phase + " solo " + random(2));
+				}
+			}
 			// gen testing:
 		
 			// unset?
