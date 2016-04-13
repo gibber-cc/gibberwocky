@@ -75,35 +75,15 @@ let Track = {
     Gibber.addSequencingToMethod( track, 'duration' )
     Gibber.addSequencingToMethod( track, 'midinote' )
 
-    track.createMethod( 'pan', spec.panning )
-    track.createMethod( 'volume', spec.volume )
+    Gibber.addMethod( track, 'pan', spec.panning )
+    Gibber.addMethod( track, 'volume', spec.volume )
 
     spec.sends.forEach( (element, idx) => {
-      track.createMethod( idx, element, track.sends, track ) 
+      Gibber.addMethod( track.sends, idx, element )
     })
 
     return track
   },
-
-  createMethod( name, properties, obj=this, track=this ) {
-    let v = properties.value
-    obj[ name ] = ( _v ) => {
-      if( properties.quantized === 1 ) _v = Math.round( _v )
-      if( _v !== undefined ) {
-        if( typeof _v === 'object' && _v.isGen ) {
-          _v.assignParamID( properties.id )
-          Gibber.Communication.send( `${track.id} gen ${properties.id} "${_v.out()}"` )
-        }else{
-          v = _v
-          Gibber.Communication.send( `${track.id} set ${properties.id} ${v}` )
-        }
-      }else{
-        return v
-      }
-    }
-    return obj
-  }
-
 }
 
 return Track.create.bind( Track )

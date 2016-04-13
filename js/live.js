@@ -20,8 +20,19 @@ let Live = {
 
   processLOM() {
     Live.LOM.tracks.forEach( Live.processTrack )
+    
     Gibber.currentTrack = Live.tracks.find( (element)=> { return element.id = Live.id } )
+    
+    Gibber.Live.master = Gibber.Track( Live.id, Live.LOM.master )
+    
+    for( let i = 0; i < Live.LOM.returns.length; i++ ) {
+      let spec = Live.LOM.returns[ i ]
+      Live.returns[ i ] = Gibber.Track( Live.id, spec )
+    }
+
     window.tracks = Live.tracks
+    window.master = Live.master
+    window.returns = Live.returns
   },
 
   processMaster() {
@@ -29,14 +40,11 @@ let Live = {
   },
 
   processTrack( track, idx ) {
-    //track.devices = {}
     let deviceCount = 0, currentTrack
-    Live.tracks[ idx ] = currentTrack = Gibber.Track( idx, track )
+    Live.tracks[ idx ] = currentTrack = Gibber.Track( Live.id, track )
     currentTrack.devices = []
 
     track.devices.forEach( Live.processDevice, currentTrack )
-
-    //for( let device of track.devices ) {
   },
 
   processDevice( device, idx ) {
@@ -64,37 +72,7 @@ let Live = {
     Gibber.addSequencingToMethod( d, 'galumph' )
     Gibber.addSequencingToMethod( d, 'toggle' )
 
-    for( let parameter of device.parameters ) {
-      let v = parameter.value,
-          p,
-          seqKey = `${Live.id} ${device.title} ${parameter.name}`
-
-      Gibber.Seq.proto.externalMessages[ seqKey ] = ( value, beat, beatOffset ) => {
-        let msg = `${Gibber.Live.id} add ${beat} ${beatOffset} set ${parameter.id} ${value}` 
-        return msg
-      }
-
-      d[ parameter.name ] = p = ( _v ) => {
-        if( p.properties.quantized === 1 ) _v = Math.round( _v )
-
-        if( _v !== undefined ) {
-          if( typeof _v === 'object' && _v.isGen ) {
-            _v.assignParamID( parameter.id )
-            Gibber.Communication.send( `${Gibber.Live.id} gen ${parameter.id} "${_v.out()}"` )
-          }else{
-            v = _v
-            Gibber.Communication.send( `${Gibber.Live.id} set ${parameter.id} ${v}` )
-          }
-        }else{
-          return v
-        }
-      }
-
-      p.properties = parameter
-
-      p.idx = parameterCount++
-      Gibber.addSequencingToMethod( d, parameter.name, 0, seqKey )
-    }
+    device.parameters.forEach( ( spec, idx ) => Gibber.addMethod( d, null, spec ) )
   },
 }
 
