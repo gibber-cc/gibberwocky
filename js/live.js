@@ -13,7 +13,6 @@ let Live = {
   handleScene( msg ) {
     Live.id = Communication.querystring.track
 
-    Gibber.log( 'LIVE ID = ', Live.id )
     Live.LOM = msg
 
     Live.processLOM()
@@ -32,12 +31,8 @@ let Live = {
   processTrack( track, idx ) {
     //track.devices = {}
     let deviceCount = 0, currentTrack
-    console.log( 'TRACK ID', track.id, idx )
-    Live.tracks[ idx ] = currentTrack = Gibber.Track( Gibber, idx )
+    Live.tracks[ idx ] = currentTrack = Gibber.Track( idx, track )
     currentTrack.devices = []
-    currentTrack.panning = track.panning
-    currentTrack.valume  = track.volume
-    currentTrack.sends   = track.sends
 
     track.devices.forEach( Live.processDevice, currentTrack )
 

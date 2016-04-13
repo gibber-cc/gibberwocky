@@ -3,9 +3,9 @@ let Gibber = {
   Communication: require( './communication.js' ),
   Environment:   require( './environment.js' ),
   Scheduler:     require( './clock.js' ),
-  Track:         require( './track.js' ),
   Theory:        require( './theory.js' ),
   Live:          null,
+  Track:         null,
   Gen:           null,
   Euclid:        null,
   Seq:           null,
@@ -175,5 +175,6 @@ Gibber.Euclid  = require( './euclidean.js')( Gibber )
 Gibber.Gen     = require( './gen.js' )( Gibber )
 Gibber.Steps   = require( './steps.js' )( Gibber )
 Gibber.Live    = require( './live.js' )( Gibber )
+Gibber.Track   = require( './track.js')( Gibber )
 
 module.exports = Gibber
