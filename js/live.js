@@ -28,6 +28,8 @@ let Live = {
     for( let i = 0; i < Live.LOM.returns.length; i++ ) {
       let spec = Live.LOM.returns[ i ]
       Live.returns[ i ] = Gibber.Track( Live.id, spec )
+      Live.returns[ i ].devices = []
+      spec.devices.forEach( Live.processDevice, Live.returns[i] )
     }
 
     window.tracks = Live.tracks
