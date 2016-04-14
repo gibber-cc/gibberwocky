@@ -102,7 +102,7 @@ function get_devices_api(path) {
 	return tree;
 }
 
-function get_track_api(path) {
+function get_track_api(path, is_master) {
 	
 	var api = new LiveAPI(path);
 	var tree = {

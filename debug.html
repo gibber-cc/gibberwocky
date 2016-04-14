@@ -141,6 +141,8 @@ function handlemessage(msg) {
 	} else {
 		var parts = msg.split(" ");
 		var track = parts[0];
+		// or search for first device with midi_input == 1
+		// subsequent devices are effects
 		var device = pick(lom.tracks[track].devices);
 		var cmd = parts[1];
 		var arg = parts[2];
@@ -202,6 +204,14 @@ function handlemessage(msg) {
 			
 			}
 			
+			// mute / solo testing:
+			if (random(4) == 0) {
+				if (random(2)) {	
+					msgarr.push(track + " add " + beat + " " + phase + " mute " + random(2));
+				} else {
+					msgarr.push(track + " add " + beat + " " + phase + " solo " + random(2));
+				}
+			}
 			// gen testing:
 		
 			// unset?
