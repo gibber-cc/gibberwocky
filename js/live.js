@@ -19,34 +19,25 @@ let Live = {
   },
 
   processLOM() {
-    Live.LOM.tracks.forEach( Live.processTrack )
-    
+    Live.tracks = Live.LOM.tracks.map( Live.processTrack )
     Gibber.currentTrack = Live.tracks.find( (element)=> { return element.id = Live.id } )
     
+    Live.returns = Live.LOM.returns.map( Live.processTrack )
+
     Gibber.Live.master = Gibber.Track( Live.id, Live.LOM.master )
     
-    for( let i = 0; i < Live.LOM.returns.length; i++ ) {
-      let spec = Live.LOM.returns[ i ]
-      Live.returns[ i ] = Gibber.Track( Live.id, spec )
-      Live.returns[ i ].devices = []
-      spec.devices.forEach( Live.processDevice, Live.returns[i] )
-    }
-
     window.tracks = Live.tracks
     window.master = Live.master
     window.returns = Live.returns
   },
 
-  processMaster() {
+  processTrack( spec ) {
+    let track = Gibber.Track( Live.id, spec )
+    track.devices = []
 
-  },
+    spec.devices.forEach( Live.processDevice, track )
 
-  processTrack( track, idx ) {
-    let deviceCount = 0, currentTrack
-    Live.tracks[ idx ] = currentTrack = Gibber.Track( Live.id, track )
-    currentTrack.devices = []
-
-    track.devices.forEach( Live.processDevice, currentTrack )
+    return track
   },
 
   processDevice( device, idx ) {
