@@ -12,6 +12,7 @@ let Steps = {
           key = parseInt( _key )
 
       let seq = Gibber.Seq( values, 1 / values.length, 'midinote', track, 0 )
+      seq.trackID = track.id
 
       seq.values.filters.push( function( args ) {
         let sym = args[ 0 ],

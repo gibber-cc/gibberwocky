@@ -32,6 +32,7 @@ let Live = {
   },
 
   processTrack( spec, idx ) {
+    console.log( 'process track id', idx )
     let track = Gibber.Track( idx, spec )
     track.devices = []
 
@@ -65,7 +66,7 @@ let Live = {
     Gibber.addSequencingToMethod( d, 'galumph' )
     Gibber.addSequencingToMethod( d, 'toggle' )
 
-    device.parameters.forEach( ( spec, idx ) => Gibber.addMethod( d, null, spec ) )
+    device.parameters.forEach( ( spec, idx ) => Gibber.addMethod( d, null, spec, currentTrack.id ) )
   },
 }
 

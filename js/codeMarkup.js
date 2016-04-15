@@ -323,6 +323,11 @@ let Marker = {
         // patternObject.update.shouldUpdate = false
       }
 
+      patternObject.clear = () => {
+        if( highlighted ) { $( highlighted ).remove( 'annotation-border' ) }
+        cycle.clear()
+      }
+
       Marker._addPatternFilter( patternObject )
       patternObject._onchange = () => { Marker._updatePatternContents( patternObject, patternName, track ) }
     },
@@ -471,20 +476,34 @@ let Marker = {
       return update 
     },
     anonymousFunction: ( patternObject, marker, className, cm ) => {
+      patternObject.commentMarker = marker
       let update = () => {
-        let val ='/* ' + patternObject.update.value.pop() + ' */',
-            pos = marker.find(),
+        if( !patternObject.commentMarker ) return
+        let val ='/* ' + patternObject.update.value.pop() + ' */,',
+            pos = patternObject.commentMarker.find(),
             end = Object.assign( {}, pos.to )
          
+        //pos.from.ch += 1
         end.ch = pos.from.ch + val.length 
+        //pos.from.ch += 1
 
         cm.replaceRange( val, pos.from, pos.to )
+        
 
-        marker.clear()
+        if( patternObject.commentMarker ) patternObject.commentMarker.clear()
 
-        marker = cm.markText( pos.from, end, { className })
+        patternObject.commentMarker = cm.markText( pos.from, end, { className, atomic:true })
       }
 
+      patternObject.clear = () => {
+        try{
+          let commentPos = patternObject.commentMarker.find()
+          commentPos.to.ch -= 1 // XXX wish I didn't have to do this
+          cm.replaceRange( '', commentPos.from, commentPos.to )
+          patternObject.commentMarker.clear()
+          delete patternObject.commentMarker
+        } catch( e ) {} // yes, I just did that XXX 
+      }
       return update
     }
   },

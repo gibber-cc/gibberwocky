@@ -119,19 +119,20 @@ let Gibber = {
 
       if( obj.sequences[ methodName ] === undefined ) obj.sequences[ methodName ] = []
 
-      if( obj.sequences[ methodName ][ id ] ) obj.sequences[ methodName ][ id ].stop() 
+      if( obj.sequences[ methodName ][ id ] ) obj.sequences[ methodName ][ id ].clear()
 
       obj.sequences[ methodName ][ id ] = seq = Gibber.Seq( values, timings, overrideName, obj, priority )
+      seq.trackID = obj.id
 
       if( id === 0 ) {
         obj[ methodName ].values  = obj.sequences[ methodName ][ 0 ].values
         obj[ methodName ].timings = obj.sequences[ methodName ][ 0 ].timings
       }
 
-      obj[ methodName ][ id ] = seq // obj.sequences[ methodName ][ id ]
+      obj[ methodName ][ id ] = seq
+
       seq.delay( delay )
       seq.start()
-      // setTimeout( ()=>{ obj[ methodName ][ id ].start() }, 0 )
  
       return seq
     }
@@ -184,8 +185,10 @@ let Gibber = {
   addMethod( obj, methodName, parameter, _trackID ) {
     let v = parameter.value,
         p,
-        trackID = _trackID || obj.id,
+        trackID = isNaN( _trackID ) ? obj.id : _trackID,
         seqKey = `${trackID} ${obj.id} ${parameter.id}`
+
+    console.log( "add method trackID", trackID )
 
     if( methodName === null ) methodName = parameter.name
 
@@ -196,7 +199,6 @@ let Gibber = {
     
     obj[ methodName ] = p = ( _v ) => {
       if( p.properties.quantized === 1 ) _v = Math.round( _v )
-
       if( _v !== undefined ) {
         if( typeof _v === 'object' && _v.isGen ) {
           _v.assignParamID( parameter.id )

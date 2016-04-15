@@ -19,7 +19,8 @@ let seqclosure = function( Gibber ) {
         timings,
         object,
         key,
-        priority
+        priority,
+        trackID:-1
       })
       
       seq.init()
@@ -57,6 +58,7 @@ let seqclosure = function( Gibber ) {
       } else if( this.key === 'chord' ) {
         this.values.filters.push( ( args ) => {
           let chord = args[ 0 ], out = []
+          if( typeof chord === 'function' ) chord = chord()         
           
           if( typeof chord === 'string' ) {
             let chordObj = Gibber.Theory.Chord.create( chord )
@@ -99,27 +101,28 @@ let seqclosure = function( Gibber ) {
     },
 
     externalMessages: {
-      note( number, beat, beatOffset ) {
+      note( number, beat, beatOffset, trackID ) {
         // let msgstring = "add " + beat + " " + t + " " + n + " " + v + " " + d
 
-        return `${Gibber.Live.id} add ${beat} ${beatOffset} note ${number}` 
+        return `${trackID} add ${beat} ${beatOffset} note ${number}` 
       },
-      midinote( number, beat, beatOffset ) {
-        return `${Gibber.Live.id} add ${beat} ${beatOffset} note ${number}` 
+      midinote( number, beat, beatOffset, trackID ) {
+        return `${trackID} add ${beat} ${beatOffset} note ${number}` 
       },
-      duration( value, beat, beatOffset ) {
-        return `${Gibber.Live.id} add ${beat} ${beatOffset} duration ${value}` 
-      },
-
-      velocity( value, beat, beatOffset ) {
-        return `${Gibber.Live.id} add ${beat} ${beatOffset} velocity ${value}` 
+      duration( value, beat, beatOffset, trackID ) {
+        return `${trackID} add ${beat} ${beatOffset} duration ${value}` 
       },
 
-      chord( chord, beat, beatOffset ) {
+      velocity( value, beat, beatOffset, trackID ) {
+        return `${trackID} add ${beat} ${beatOffset} velocity ${value}` 
+      },
+
+      chord( chord, beat, beatOffset, trackID ) {
+        console.log( chord )
         let msg = []
 
         for( let i = 0; i < chord.length; i++ ) {
-          msg.push( `${Gibber.Live.id} add ${beat} ${beatOffset} note ${chord[i]}` )
+          msg.push( `${trackID} add ${beat} ${beatOffset} note ${chord[i]}` )
         }
 
         return msg
@@ -149,7 +152,6 @@ let seqclosure = function( Gibber ) {
     },
     
     delay( v ) { 
-      console.log( 'OFFSET IS ', v )
       this.offset = v
       return this
     },
@@ -161,7 +163,6 @@ let seqclosure = function( Gibber ) {
       let nextTime = this.timings(),
           shouldExecute
       
-      //console.log( nextTime )
 
       if( typeof nextTime === 'function' )  nextTime = nextTime()
 
@@ -182,12 +183,11 @@ let seqclosure = function( Gibber ) {
 
         let value = this.values()
         if( typeof value === 'function' ) value = value()
-        
         if( value !== this ) {
           // delay messages  
           if( this.externalMessages[ this.key ] !== undefined ) {
             
-            let msg = this.externalMessages[ this.key ]( value, beat, beatOffset )
+            let msg = this.externalMessages[ this.key ]( value, beat, beatOffset, this.trackID )
 
             scheduler.msgs.push( msg, this.priority )
 
