@@ -14,6 +14,7 @@ let seqclosure = function( Gibber ) {
       Object.assign( seq, {
         phase:   0,
         running: false,
+        offset: 0,
         values,
         timings,
         object,
@@ -131,8 +132,8 @@ let seqclosure = function( Gibber ) {
     start() {
       if( this.running ) return
       this.running = true
-     
-      Gibber.Scheduler.addMessage( this, 0 )     
+      console.log( 'starting with offset', this.offset ) 
+      Gibber.Scheduler.addMessage( this, this.offset )     
       
       return this
     },
@@ -141,8 +142,11 @@ let seqclosure = function( Gibber ) {
       this.running = false
     },
     
-    lastBeat:0,
-    lastBeatOffset:0,
+    delay( v ) { 
+      console.log( 'OFFSET IS ', v )
+      this.offset = v
+      return this
+    },
 
     tick( scheduler, beat, beatOffset ) {
       if( !this.running ) return

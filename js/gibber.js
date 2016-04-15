@@ -109,21 +109,32 @@ let Gibber = {
     
     if( !obj.sequences ) obj.sequences = {}
     if( overrideName === undefined ) overrideName = methodName 
+    
+    let lastId = 0
+    obj[ methodName ].seq = function( values, timings, id=0, delay=0 ) {
+      let seq
+      lastId = id
 
-    obj[ methodName ].seq = function( values, timings, id=0 ) {
       if( obj.sequences[ methodName ] === undefined ) obj.sequences[ methodName ] = []
 
       if( obj.sequences[ methodName ][ id ] ) obj.sequences[ methodName ][ id ].stop() 
 
-      obj.sequences[ methodName ][ id ] = Gibber.Seq( values, timings, overrideName, obj, priority ).start()
+      obj.sequences[ methodName ][ id ] = seq = Gibber.Seq( values, timings, overrideName, obj, priority )
 
       if( id === 0 ) {
         obj[ methodName ].values  = obj.sequences[ methodName ][ 0 ].values
         obj[ methodName ].timings = obj.sequences[ methodName ][ 0 ].timings
       }
 
-      obj[ methodName ][ id ] = obj.sequences[ methodName ][ id ]
+      obj[ methodName ][ id ] = seq // obj.sequences[ methodName ][ id ]
+      seq.delay( delay )
+      seq.start()
+      // setTimeout( ()=>{ obj[ methodName ][ id ].start() }, 0 )
+ 
+      return seq
     }
+    
+    obj[ methodName ].seq.delay = v => obj[ methodName ][ lastId ].delay( v )
 
     obj[ methodName ].seq.stop = function() {
       obj.sequences[ methodName ][ 0 ].stop()
@@ -134,6 +145,8 @@ let Gibber = {
       obj.sequences[ methodName ][ 0 ].start()
       return obj
     }
+
+
   },
 
   addSequencingToProtoMethod( proto, methodName ) {
@@ -166,15 +179,16 @@ let Gibber = {
     }
   },
 
-  addMethod( obj, methodName, parameter ) {
+  addMethod( obj, methodName, parameter, _trackID ) {
     let v = parameter.value,
         p,
-        seqKey = `${Gibber.Live.id} ${obj.id} ${parameter.id}`
+        trackID = _trackID || obj.id,
+        seqKey = `${trackID} ${obj.id} ${parameter.id}`
 
     if( methodName === null ) methodName = parameter.name
 
     Gibber.Seq.proto.externalMessages[ seqKey ] = ( value, beat, beatOffset ) => {
-      let msg = `${Gibber.Live.id} add ${beat} ${beatOffset} set ${parameter.id} ${value}` 
+      let msg = `${trackID} add ${beat} ${beatOffset} set ${parameter.id} ${value}` 
       return msg
     }
     
@@ -184,10 +198,10 @@ let Gibber = {
       if( _v !== undefined ) {
         if( typeof _v === 'object' && _v.isGen ) {
           _v.assignParamID( parameter.id )
-          Gibber.Communication.send( `${Gibber.Live.id} gen ${parameter.id} "${_v.out()}"` )
+          Gibber.Communication.send( `${trackID} gen ${parameter.id} "${_v.out()}"` )
         }else{
           v = _v
-          Gibber.Communication.send( `${Gibber.Live.id} set ${parameter.id} ${v}` )
+          Gibber.Communication.send( `${trackID} set ${parameter.id} ${v}` )
         }
       }else{
         return v

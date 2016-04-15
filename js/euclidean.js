@@ -72,7 +72,7 @@ let getLargestArrayCount = function( input ) {
   return count
 }
 
-let Euclid = function( ones, length, time ) {
+let Euclid = function( ones, length, time, rotation ) {
   let count = 0,
       out = createStartingArray( length, ones ),
       onesAndZeros
@@ -103,9 +103,10 @@ let Euclid = function( ones, length, time ) {
 
   let pattern = Gibber.Pattern.apply( null, onesAndZeros )
 
-  if( isNaN( time ) ) time = 1 / onesAndZeros.length
+  if( isNaN( time ) || time === null ) time = 1 / onesAndZeros.length
 
   pattern.time = time
+  console.log( time )
 
   let output = { time, shouldExecute: 0 }
   
@@ -120,10 +121,35 @@ let Euclid = function( ones, length, time ) {
     return args
   })
 
+  pattern.reseed = ( ...args )=> {
+    let n, k
+    
+    if( Array.isArray( args[0] ) ) {
+      k = args[0][0]
+      n = args[0][1]
+    }else{
+      k = args[0]
+      n = args[1]
+    }
+
+    if( n === undefined ) n = 16
+    
+    out = createStartingArray( n,k )
+    let _onesAndZeros = Inner( n,k )
+    
+    pattern.set( _onesAndZeros )
+    pattern.time = 1 / n
+
+    // this.checkForUpdateFunction( 'reseed', pattern )
+
+    return pattern
+  }
+
+  Gibber.addSequencingToMethod( pattern, 'reseed' )
 
   // out = calculateRhythms( onesAndZeros, dur )
   // out.initial = onesAndZeros
-
+  if( typeof rotation === 'number' ) pattern.rotate( rotation )
   return pattern //out
 }
 // E(5,8) = [ .25, .125, .25, .125, .25 ]

@@ -443,8 +443,8 @@ let Marker = {
                 pos = markerCh.find()
             
             marker.doc.replaceRange( '' + patternObject.values[ i ], pos.from, pos.to )
-            mark()
           }
+          mark()
         }, delay ) 
       }
 

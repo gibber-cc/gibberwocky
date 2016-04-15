@@ -26,13 +26,13 @@ let Live = {
 
     Gibber.Live.master = Gibber.Track( Live.id, Live.LOM.master )
     
-    window.tracks = Live.tracks
-    window.master = Live.master
+    window.tracks  = Live.tracks
+    window.master  = Live.master
     window.returns = Live.returns
   },
 
-  processTrack( spec ) {
-    let track = Gibber.Track( Live.id, spec )
+  processTrack( spec, idx ) {
+    let track = Gibber.Track( idx, spec )
     track.devices = []
 
     spec.devices.forEach( Live.processDevice, track )

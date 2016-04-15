@@ -141,8 +141,16 @@ let Utility = {
     const beatsPerSecond = bpm / 60
 
     return (beats / beatsPerSecond ) * 1000
+  },
 
-    // 120 bpm two beats = beatsPersecond = 2 | 2 * 2 = 4 | 4 * 1000 = 4000
+  future( func, time ) {
+    let msg = {
+      tick( scheduler, beat, beatOffset ) {
+        func()
+      }
+    }
+
+    Gibber.Scheduler.addMessage( msg, time )
   },
 
   export( destination ) {
@@ -150,6 +158,7 @@ let Utility = {
     destination.rndi = Utility.rndi
     destination.Rndf = Utility.Rndf
     destination.Rndi = Utility.Rndi
+    destination.future = Utility.future
 
     Array.prototype.random = Array.prototype.rnd = Utility.random
   }

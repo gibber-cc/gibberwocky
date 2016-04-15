@@ -27,7 +27,7 @@ body { margin:0; padding:0 }
 
 .CodeMirror {
   font-family: 'Source Code Pro', monospace;
-  font-size: .5em;
+  font-size: .7em;
   background-color:#bbb;
   color:#000;
   font-weight:500;
