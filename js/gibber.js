@@ -95,14 +95,16 @@ let Gibber = {
 
   clear() {
     for( let i = 0; i < this.Seq._seqs.length; i++ ){
-      this.Seq._seqs[ i ].stop()
+      this.Seq._seqs[ i ].clear()
     }
-
+    
+    setTimeout( () => {
     for( let key in Gibber.currentTrack.markup.textMarkers ) {
       let marker = Gibber.currentTrack.markup.textMarkers[ key ]
 
       if( marker.clear ) marker.clear() 
     }
+    }, 500 )
   },
 
   addSequencingToMethod( obj, methodName, priority, overrideName ) {

@@ -141,6 +141,12 @@ let seqclosure = function( Gibber ) {
     stop() {
       this.running = false
     },
+
+    clear() {
+      this.stop()
+      if( typeof this.timings.clear === 'function' ) this.timings.clear()
+      if( typeof this.values.clear === 'function' )  this.values.clear()
+    },
     
     delay( v ) { 
       console.log( 'OFFSET IS ', v )

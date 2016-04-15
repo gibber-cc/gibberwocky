@@ -389,8 +389,17 @@ let Marker = {
       end.ch = pos.from.ch + val.length
 
       cm.replaceRange( val, pos.from, pos.to )
+      let element = document.createElement('span')
+      element.innerText = val
+      element.style = 'background-color:rgba(255,0,0,.1) !important; display:inline; color:inherit'
+      element.setAttribute( 'class', 'ELEMENT_TEST' )
 
-      commentMarker = cm.markText( pos.from, end, { className })
+      patternObject.commentMarker = cm.markText( pos.from, end, { className, atomic:true }) //replacedWith:element })
+
+
+      //setTimeout( ()=>{
+      //  $( '.'+className )[0].addEventListener( 'click', ()=>{ console.log('ARGH' ) } )
+      //}, 500 )
       track.markup.textMarkers[ className ] = {}
       
       let mark = () => {
@@ -411,7 +420,7 @@ let Marker = {
       
       mark()
 
-      let count = 0, span, update
+      let count = 0, span, update, activeSpans = []
 
       update = () => {
         let currentIdx = count++ % patternObject.values.length
@@ -427,8 +436,11 @@ let Marker = {
 
         if( currentValue === 1 ) {
           span.add( 'euclid1' )
-          let activeSpan = span
-          setTimeout( ()=> { activeSpan.remove( 'euclid1' ) }, 50 )
+          activeSpans.push( span )
+          setTimeout( ()=> { 
+            activeSpans.forEach( _span => _span.remove( 'euclid1' ) )
+            activeSpans.length = 0 
+          }, 50 )
         }
         
         span.add( 'euclid0' )
@@ -446,6 +458,14 @@ let Marker = {
           }
           mark()
         }, delay ) 
+      }
+
+      patternObject.clear = () => {
+        try{
+          let commentPos = patternObject.commentMarker.find()
+          cm.replaceRange( '', commentPos.from, commentPos.to )
+          patternObject.commentMarker.clear()
+        } catch( e ) {} // yes, I just did that XXX 
       }
 
       return update 
