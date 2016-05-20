@@ -192,4 +192,4 @@ a.reverse.seq( null, 2 )
 
 const rndExample = `this.note.seq( Rndi(50,60), 1/4 )`
 
-module.exports = stepsExample2//simpleExample//genExample//exampleScore4//exampleScore4 //'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode
+module.exports = exampleCode//stepsExample2//simpleExample//genExample//exampleScore4//exampleScore4 //'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode
