@@ -2,9 +2,7 @@
 
 This repo is for a plugin to live code MIDI sequences using JavaScript inside Max4Live and in an abstraction for Max/MSP.
 
-A screen capture of an early version:
-
-<iframe src="https://player.vimeo.com/video/162157104?byline=0&portrait=0" width="720" height="405" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>
+[A screen capture of an early version](https://vimeo.com/162157104).
 
 ## Installing
 
