@@ -2,6 +2,10 @@
 
 This repo is for a plugin to live code MIDI sequences using JavaScript inside Max4Live and in an abstraction for Max/MSP.
 
+A screen capture of an early version:
+
+<iframe src="https://player.vimeo.com/video/162157104?byline=0&portrait=0" width="720" height="405" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>
+
 ## Installing
 
 1. Follow the instructions for installing the Max Worldmaking Package: https://github.com/worldmaking/Max_Worldmaking_Package. This will install a websocket external for Max that the code editor will use to communicate with Max4Live and Max/MSP.
