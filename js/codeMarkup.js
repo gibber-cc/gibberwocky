@@ -394,10 +394,10 @@ let Marker = {
       end.ch = pos.from.ch + val.length
 
       cm.replaceRange( val, pos.from, pos.to )
-      let element = document.createElement('span')
-      element.innerText = val
-      element.style = 'background-color:rgba(255,0,0,.1) !important; display:inline; color:inherit'
-      element.setAttribute( 'class', 'ELEMENT_TEST' )
+      //let element = document.createElement('span')
+      //element.innerText = val
+      //element.style = 'background-color:rgba(255,0,0,.1) !important; display:inline; color:inherit'
+      //element.setAttribute( 'class', 'ELEMENT_TEST' )
 
       patternObject.commentMarker = cm.markText( pos.from, end, { className, atomic:true }) //replacedWith:element })
 

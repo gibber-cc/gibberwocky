@@ -3,7 +3,7 @@ module.exports = function( Gibber ) {
 const binops = [ 
   'min','max','add','sub','mul','div','rdiv','mod','rsub','rmod','absdiff',
   'and','or','gt','eq','eqp','gte','gtep','gtp','lt','lte','ltep','ltp','neq',
-  'step'
+  'step', 'rate'
 ]
 
 const monops = [
@@ -112,6 +112,7 @@ let Gen  = {
   functions: {
     phasor: { properties:[ '0' ],  str:'phasor' },
     cycle:  { properties:[ '0' ],  str:'cycle' },
+    rate:   { properties:[ '0','1' ], str:'rate' }
   },
 
   _count: 0,
@@ -163,6 +164,8 @@ let Gen  = {
         paramArray.push( `Param ${pName}(${p})` )
       }else if( p === Gen.time ) {
         str += p
+      }else if( typeof p === 'string' ) {
+        str += p
       }else{
         console.log( 'CODEGEN ERROR:', p )
       }
@@ -207,6 +210,12 @@ let Gen  = {
       Gibber.addSequencingToMethod( _add, 'center' )
 
       return _add
+    },
+    
+    beat( num ) {
+      return rate( 'in1', num )
+      // beat( n ) => rate(in1, n)
+      // final string should be rate( in1, num )
     }
   },
 

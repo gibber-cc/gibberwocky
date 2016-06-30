@@ -46,6 +46,9 @@ let Live = {
         d = currentTrack.devices[ device.title ] = currentTrack.devices[ idx ] = { idx },
         parameterCount = 0
     
+    console.log( 'device', device ) 
+    if( device.type === 1 ) currentTrack.instrument = d
+
     d.pickRandomParameter = ()=> {
       let idx = Gibber.Utility.rndi( 0, device.parameters.length - 1 ),
           param = device.parameters[ idx ]
