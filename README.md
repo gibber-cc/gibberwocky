@@ -1,6 +1,6 @@
 # Gibberwocky
 
-This repo is for a plugin to live code MIDI sequences using JavaScript from inside Max4Live and in an abstraction for Max/MSP/Jitter.
+This repo is for a plugin to live code Ableton Live using browser-based editor. It is implemented using Max4Live, Max/MSP/Jitter, and JavaScript, and draws significantly from the Gibber browser-based live coding platform.
 
 [A screen capture of an early version](https://vimeo.com/162157104).
 
