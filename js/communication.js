@@ -16,8 +16,8 @@ let Communication = {
     if ( this.connected ) return
 
     if ( 'WebSocket' in window ) {
-      Gibber.log( 'Connecting' , this.querystring.host, this.querystring.port )
-
+      //Gibber.log( 'Connecting' , this.querystring.host, this.querystring.port )
+      Gibber.log( 'initializing...' )
       let host = this.querystring.host || '127.0.0.1',
           port = this.querystring.port || '8081',
           address = "ws://" + host + ":" + port
@@ -26,7 +26,8 @@ let Communication = {
       this.wsocket = new WebSocket( address )
       
       this.wsocket.onopen = function(ev) {        
-        Gibber.log( 'CONNECTED to ' + address )
+        //Gibber.log( 'CONNECTED to ' + address )
+        Gibber.log('gibberwocky is ready to burble.')
         this.connected = true
         
         Gibber.Live.init()
