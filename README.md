@@ -1,6 +1,6 @@
-# gibber.max
+# Gibberwokcy
 
-This repo is for a plugin to live code MIDI sequences using JavaScript inside Max4Live and in an abstraction for Max/MSP.
+This repo is for a plugin to live code MIDI sequences using JavaScript from inside Max4Live and in an abstraction for Max/MSP/Jitter.
 
 [A screen capture of an early version](https://vimeo.com/162157104).
 
