@@ -14,7 +14,16 @@ This repo is for a plugin to live code Ableton Live using browser-based editor. 
 2. There's some extra example code to look at located in js/example/js.
 3. This is alpha-release software; there will probably be a lot of work on it during the summer of 2016 but we don't have a timeline for documentation etc. Thanks for your patience.
 
+
 ## Development
+
+### Max for Live device
+
+Remember to unfreeze the device to edit it, and freeze it again afterward.
+
+Also, watch out to *not* edit the .amxd directly in Max, but only launch the editor from within Live. I don't know why this makes a difference, but it caused all kinds of headaches. 
+
+### Browser-based client editor
 
 First, install all packages with: 
 
