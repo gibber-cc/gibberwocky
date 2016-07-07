@@ -27,18 +27,30 @@ for (var f of css_sources) {
 }
 css += "\n</style>\n" + css_end_str;
 
+/*
 var js = js_start_str + "\n<script>\n";
 for (var f of js_sources) {
 	js += fs.readFileSync(f, "utf-8");
 }
 js += "\n</script>\n" + js_end_str;
+*/
 
 // find our insertion points:
 var css_start = result.indexOf(css_start_str);
 var css_end   = result.indexOf(css_end_str) + css_end_str.length;
-var  js_start = result.indexOf( js_start_str);
-var  js_end   = result.indexOf( js_end_str) + js_end_str.length;
+//var  js_start = result.indexOf( js_start_str);
+//var  js_end   = result.indexOf( js_end_str) + js_end_str.length;
 
+if (css_start >= 0 && css_end >= 0) {
+
+	var a = result.slice(0, css_start);
+	var b = result.slice(css_end, -1);
+
+	var result = a + css + b;
+	fs.writeFileSync(filename, result);
+}
+
+/*
 if (css_start >= 0 && css_end >= 0 && js_start >= 0 && js_end >= 0) {
 
 	var a = result.slice(0, css_start);
@@ -50,4 +62,4 @@ if (css_start >= 0 && css_end >= 0 && js_start >= 0 && js_end >= 0) {
 	console.log(result);
 
 	fs.writeFileSync(filename, result);
-}
+}*/
