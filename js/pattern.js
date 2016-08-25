@@ -49,6 +49,7 @@ let Pattern = function( ...args ) {
    *  return Gibber.construct( Pattern, args )
    *}
    */
+  let isFunction = args.length === 1 && typeof args[0] === 'function'
 
   let fnc = function() {
     let len = fnc.getLength(),
@@ -59,17 +60,21 @@ let Pattern = function( ...args ) {
     }else{
       idx = fnc.phase > -1 ? Math.floor( fnc.start + (fnc.phase % len ) ) : Math.floor( fnc.end + (fnc.phase % len ) )
     }
+
+    if( isFunction ) {
+      val = fnc.values[ 0 ]()
+      args = fnc.runFilters( val, idx )
+    }else{
+      val = fnc.values[ Math.floor( idx % fnc.values.length ) ]
+      args = fnc.runFilters( val, idx )
     
-    val = fnc.values[ Math.floor( idx % fnc.values.length ) ]
-    args = fnc.runFilters( val, idx )
-    
-    fnc.phase += fnc.stepSize * args[ 1 ]
-    val = args[ 0 ]
-    
-    // check to see if value is a function, and if so evaluate it
-    if( typeof val === 'function' ) {
-      val = val()
+      fnc.phase += fnc.stepSize * args[ 1 ]
+      val = args[ 0 ]
     }
+    // check to see if value is a function, and if so evaluate it
+    //if( typeof val === 'function' ) {
+      //val = val()
+    //}
     /*else if ( Array.isArray( val ) ) {
       // if val is an Array, loop through array and evaluate any functions found there. TODO: IS THIS SMART?
 

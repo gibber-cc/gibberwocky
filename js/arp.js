@@ -9,19 +9,60 @@ let Arp = function( chord = [0,2,4,6], octaves = 1, pattern = 'updown2' ) {
     chord = _chord.notes
   }
 
-  notes = chord.slice( 0 )
+  notes = Gibber.Pattern.apply( null, chord.slice( 0 ) )
 
-  for( let i = 1; i < octaves; i++ ) {
-    // TODO: next line is messy... what if the mode and corresponding mode length changes?
-    let offset =  i * Gibber.Theory.Scale.master.modeNumbers.length
-    for( let j = 0; j < chord.length; j++ ) {
-      notes.push( chord[ j ] + offset )
-    }
-  }
+  if( pattern === 'down' ) notes.reverse()
   
-  notes = Arp.patterns[ pattern ]( notes )
+  let maxLength = notes.values.length * octaves,
+      dir = pattern !== 'down' ? 'up' : 'down'
 
-  arp = Gibber.Pattern.apply( null, notes )
+  arp = ()=> {
+    arp.phase++
+    if( arp.phase >= maxLength ) {
+      arp.phase = 0
+    }
+
+    if( arp.phase % notes.values.length === 0 ) {
+      if( dir === 'up' ) {
+        if( arp.octave < octaves ) {
+          arp.octave += 1 
+        }else{ 
+          if( pattern === 'up' ) {
+            arp.octave = 1
+          }else{
+            dir = 'down'
+            notes.reverse()
+          }
+        }
+      }else{
+        if( arp.octave > 1 ) {
+          arp.octave += -1
+        }else{
+          if( pattern === 'down' ) {
+            arp.octave = octaves
+          } else {
+            dir = 'up'
+            notes.reverse()
+          }
+        }
+      }
+    }
+
+    let octaveMod,
+        note = arp.notes()
+    
+    note = Gibber.Theory.Note.convertToMIDI( note )
+    
+    for( let i = 1; i < arp.octave; i++ ) {
+      note += 12
+    }
+
+    return note
+  }
+
+  arp.octave = 0
+  arp.phase = -1
+  arp.notes = notes
 
   return arp
 }

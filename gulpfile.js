@@ -9,17 +9,17 @@ var gutil = require( 'gulp-util' )
 gulp.task('build', function () {
   
   var b = browserify({
-    entries: './js/index.js',
-    debug:true
-  }).transform( babel.configure({ presets:['es2015']}) ).bundle()
+    entries: './js/index.js'
+  }).transform( babel.configure({ sourceMaps:false, presets:['es2015']}) ).bundle()
 
   b.pipe( source('index.js') ).pipe( gulp.dest( './dist/' ) )
+  //b.pipe( source('index.js') ).pipe( gulp.dest( './' ) )
 });
 
 watchify.args.entries = './js/index.js'
 watchify.args.debug = true
 
-var b = watchify( browserify( watchify.args ).transform( babel.configure({ presets:['es2015']} ) ) )
+var b = watchify( browserify( watchify.args ).transform( babel.configure({ sourceMaps:false, presets:['es2015']} ) ) )
 b.on( 'update', bundle )
 b.on( 'log', gutil.log )
 
