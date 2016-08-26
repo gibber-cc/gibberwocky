@@ -477,7 +477,30 @@ body { margin:0; padding:0 }
   font-size:.8em;
 }
 
+#console { width:100% }
+
 #lomView ul { padding: 0 }
+
+#demos ul { padding: 0; padding-left:10px; list-style:none; cursor:pointer }
+
+#demos ul li { margin-bottom: 5px }
+
+#splitbar {
+  display:inline-block;
+  top:0;
+  position:absolute;
+  height:100%;
+  width:5px;
+  background:#666;
+  cursor: ew-resize
+}
+
+#tabs {
+  display:inline-block;
+  top:0;
+  position:relative;
+  left:5px;
+}
 .vtree ul.vtree-subtree, .vtree li.vtree-leaf {
 	margin: 0;
 	padding: 0;
@@ -611,17 +634,26 @@ body { margin:0; padding:0 }
 <body>
 <div id='editor'></div>
 
-<div id='sidebar' class="microlib_tabs">
-  <div class="microlib_tabs_tab" data-title="Console" >
-    <div id='console'></div>
-  </div>
+<div id='sidebar'>
+  <div id='splitbar'></div>
 
-  <div class="microlib_tabs_tab" data-title="LOM">
-    <div id='lomView'></div>
-  </div>
+  <div id='tabs' class='microlib_tabs'>
+    <div class="microlib_tabs_tab" data-title="console" >
+      <div id='console'></div>
+    </div>
 
-  <div class="microlib_tabs_tab" data-title="Reference" >
-    <p>reference</p>      
+    <div class="microlib_tabs_tab" data-title="lom">
+      <div id='lomView'></div>
+    </div>
+
+    <div class="microlib_tabs_tab" data-title="demos">
+      <div id="demos"></div>
+    </div>
+
+    <div class="microlib_tabs_tab" data-title="reference" >
+      <p>reference</p>      
+    </div>
+
   </div>
 </div>
 
@@ -1858,8 +1890,7 @@ module.exports = Communication;
 
 // singleton 
 var Gibber = null,
-    CodeMirror = require('codemirror'),
-    exampleCode = require('./example.js');
+    CodeMirror = require('codemirror');
 
 require('../node_modules/codemirror/mode/javascript/javascript.js');
 require('../node_modules/codemirror/addon/edit/matchbrackets.js');
@@ -1880,9 +1911,41 @@ var Environment = {
     Gibber = gibber;
 
     this.createCodeMirror();
-    this.createConsole();
+    this.createSidePanel();
+    this.setupSplit();
     //this.lomView.init( Gibber )
     this.animationScheduler.init();
+  },
+  createSidePanel: function createSidePanel() {
+    this.tabs = new ML.Tabs('#tabs');
+
+    this.createConsole();
+    this.createDemoList();
+  },
+  setupSplit: function setupSplit() {
+    var splitDiv = document.querySelector('#splitBar'),
+        editor = document.querySelector('#editor'),
+        sidebar = document.querySelector('#sidebar'),
+        mousemove = void 0,
+        _mouseup = void 0;
+
+    _mouseup = function mouseup(evt) {
+      window.removeEventListener('mousemove', mousemove);
+      window.removeEventListener('mouseup', _mouseup);
+    };
+
+    mousemove = function mousemove(evt) {
+      var splitPos = evt.clientX;
+
+      editor.style.width = splitPos + 'px';
+      sidebar.style.left = splitPos + 'px';
+      sidebar.style.width = window.innerWidth - splitPos + 'px';
+    };
+
+    splitDiv.addEventListener('mousedown', function (evt) {
+      window.addEventListener('mousemove', mousemove);
+      window.addEventListener('mouseup', _mouseup);
+    });
   },
   createCodeMirror: function createCodeMirror() {
     CodeMirror.keyMap.gibber = this.keymap;
@@ -1890,7 +1953,7 @@ var Environment = {
       mode: 'javascript',
       keyMap: 'gibber',
       autofocus: true,
-      value: exampleCode,
+      value: Gibber.Examples.default,
       matchBrackets: true,
       autoCloseBrackets: true,
       extraKeys: { "Ctrl-Space": "autocomplete" }
@@ -1898,10 +1961,33 @@ var Environment = {
     this.codemirror.setSize(null, '100%');
   },
   createConsole: function createConsole() {
-    this.tabs = new ML.Tabs('#sidebar');
 
     this.console = CodeMirror(document.querySelector('#console'), { mode: 'javascript', autofocus: false, lineWrapping: true });
     this.console.setSize(null, '100%');
+  },
+  createDemoList: function createDemoList() {
+    var container = document.querySelector('#demos'),
+        list = document.createElement('ul');
+
+    var _loop = function _loop(demoName) {
+      var li = document.createElement('li'),
+          txt = Gibber.Examples[demoName];
+
+      li.innerText = demoName;
+
+      li.addEventListener('click', function () {
+        Environment.codemirror.setValue(txt);
+      });
+
+      list.appendChild(li);
+    };
+
+    for (var demoName in Gibber.Examples) {
+      _loop(demoName);
+    }
+
+    container.innerHTML = '';
+    container.appendChild(list);
   },
   log: function log() {
     var args = Array.prototype.slice.call(arguments, 0);
@@ -2049,7 +2135,7 @@ var Environment = {
 };
 
 module.exports = Environment;
-},{"../node_modules/codemirror/addon/edit/closebrackets.js":26,"../node_modules/codemirror/addon/edit/matchbrackets.js":27,"../node_modules/codemirror/addon/hint/javascript-hint.js":28,"../node_modules/codemirror/addon/hint/show-hint.js":29,"../node_modules/codemirror/mode/javascript/javascript.js":31,"./animationScheduler.js":1,"./codeMarkup.js":4,"./example.js":8,"./lomView.js":13,"./tabs-standalone.microlib-latest.js":19,"codemirror":30}],7:[function(require,module,exports){
+},{"../node_modules/codemirror/addon/edit/closebrackets.js":26,"../node_modules/codemirror/addon/edit/matchbrackets.js":27,"../node_modules/codemirror/addon/hint/javascript-hint.js":28,"../node_modules/codemirror/addon/hint/show-hint.js":29,"../node_modules/codemirror/mode/javascript/javascript.js":31,"./animationScheduler.js":1,"./codeMarkup.js":4,"./lomView.js":13,"./tabs-standalone.microlib-latest.js":19,"codemirror":30}],7:[function(require,module,exports){
 'use strict';
 
 module.exports = function (Gibber) {
@@ -2296,29 +2382,32 @@ module.exports = function (Gibber) {
 },{}],8:[function(require,module,exports){
 'use strict';
 
-var exampleCode = '// ctrl+enter to execute line or selection\n// make sure the transport in Ableton is running before \n// attemptingto execute any code.\n\n// play a note identified by name\nthis.note( \'c4\' ) // ... or d4, fb2, e#5 etc.\n\n// play a note identified by number. The number represents a\n// position in the master scale object. By default the master\n// scale is set to c4 Aeolian\n\nthis.note( 0 )\n\n// Change master scale root\nScale.master.root( \'eb2\' )\nthis.note( 0 )\n\n// sequence calls to the note method every 1/16 note\n// traveling up the current master scale. An optional\n// third argument assigns an id# to the sequencer; by\n// default this id is set to 0 if no argument is passed.\n// Assigning sequences to different id numbers allows them\n// to run in parallel.\nthis.note.seq( [0,1,2,3,4,5,6,7], 1/16 )\n\n// sequence velocity to use random values between 10-127 (midi range)\nthis.velocity.seq( Rndi( 10,127 ), 1/16 )\n\n// sequence duration of notes in milliseconds\nthis.duration.seq( [50, 250, 500, 1000].rnd(), 1/16 )\n\n// sequence the master scale to change root every measure\nScale.root.seq( [\'c4\',\'d4\',\'f4\',\'g4\'], 1 )\n\n// sequence the master scale to change mode every measure\nScale.mode.seq( [\'Aeolian\',\'Lydian\', \'WholeHalf\'], 1 )\n\n// stop the sequence with id# 0 from running\nthis.note[ 0 ].stop()\n\n// stop scale sequencing\nScale.mode[ 0 ].stop()\nScale.root[ 0 ].stop()\n\n// set scale mode\nScale.mode( \'Lydian\' )\n\n// Create an arpegctor by passing notes of a chord, \n// number of octaves to play, and style. Possible styles \n// include \'up\', \'down\', \'updown\' (repeat top and bottom \n// notes) and \'updown2\'\na = Arp( [0,2,3,5], 4, \'updown2\' )\n\n// create sequencer using arpeggiator and 1/16 notes\nthis.note.seq( a, 1/16 )\n\n// transpose the notes in our arpeggio by one scale degree\na.transpose( 1 )\n\n// sequence transposition of one scale degree every measure\na.transpose.seq( 1,1 )\n\n// reset the arpeggiator every 8 measures \n// (removes transposition)\na.reset.seq( null, 8 )\n\n// stop sequence\nthis.note[ 0 ].stop()\n\n// creates sequencer at this.note[1] (0 is default)\nthis.note.seq( [0,1,2,3], [1/4,1/8], 1 )\n\n// parallel sequence at this.note[2] with \n// random note selection  (2 is last arg)\nthis.note.seq( [5,6,7,8].rnd(), 1/4, 2 )\n\n// Every sequence contains two Pattern functions. \n// The first, \'values\',determines the output of the \n// sequencer. The second, \'timings\', determines when the \n// sequencer fires.\n\n// sequence transposition of this.note[2]\nthis.note[ 2 ].values.transpose.seq( [1,2,3,-6], 1 )\n\n// stop this.note[1]\nthis.note[ 1 ].stop()\n\n// start this.note[0]\nthis.note[ 1 ].start()\n\n// longhand reference to sequencer \nthis.sequences.note[ 2 ].stop()\n\n// sugar\nthis.note[ 2 ].start()\n\n// create Score object. Scores are lists of functions with associated\n// relative time values. In the score below, the first function has\n// a time value of 0, which means it begins playing immediately. The\n// second has a value of 1, which means it beings playing one measure\n// after the previously executed function. The last function has a\n// timestamp of two, which means it begins playing two measures after\n// the previously executed function. Scores have start(), stop(),\n// loop(), pause() and rewind() methods.\n\ns = Score([ \n  0, function() { \n    this.note.seq( 0, 1/4 )\n  },\n  1, function() { \n    this.note.seq( [0,1], Euclid(3,4), 1 )\n  },\n  2, function() { \n    this.note.seq( [7,14,13,8].rnd(), [1/4,1/8].rnd(), 2 )\n  },  \n])';
+var Examples = {
+  default: '// ctrl+enter to execute line or selection\n// make sure the transport in Ableton is running before \n// attemptingto execute any code.\n\n// play a note identified by name\nthis.note( \'c4\' ) // ... or d4, fb2, e#5 etc.\n\n// play a note identified by number. The number represents a\n// position in the master scale object. By default the master\n// scale is set to c4 Aeolian\n\nthis.note( 0 )\n\n// Change master scale root\nScale.master.root( \'eb2\' )\nthis.note( 0 )\n\n// sequence calls to the note method every 1/16 note\n// traveling up the current master scale. An optional\n// third argument assigns an id# to the sequencer; by\n// default this id is set to 0 if no argument is passed.\n// Assigning sequences to different id numbers allows them\n// to run in parallel.\nthis.note.seq( [0,1,2,3,4,5,6,7], 1/16 )\n\n// sequence velocity to use random values between 10-127 (midi range)\nthis.velocity.seq( Rndi( 10,127 ), 1/16 )\n\n// sequence duration of notes in milliseconds\nthis.duration.seq( [50, 250, 500, 1000].rnd(), 1/16 )\n\n// sequence the master scale to change root every measure\nScale.root.seq( [\'c4\',\'d4\',\'f4\',\'g4\'], 1 )\n\n// sequence the master scale to change mode every measure\nScale.mode.seq( [\'Aeolian\',\'Lydian\', \'WholeHalf\'], 1 )\n\n// stop the sequence with id# 0 from running\nthis.note[ 0 ].stop()\n\n// stop scale sequencing\nScale.mode[ 0 ].stop()\nScale.root[ 0 ].stop()\n\n// set scale mode\nScale.mode( \'Lydian\' )\n\n// Create an arpegctor by passing notes of a chord, \n// number of octaves to play, and style. Possible styles \n// include \'up\', \'down\', \'updown\' (repeat top and bottom \n// notes) and \'updown2\'\na = Arp( [0,2,3,5], 4, \'updown2\' )\n\n// create sequencer using arpeggiator and 1/16 notes\nthis.note.seq( a, 1/16 )\n\n// transpose the notes in our arpeggio by one scale degree\na.transpose( 1 )\n\n// sequence transposition of one scale degree every measure\na.transpose.seq( 1,1 )\n\n// reset the arpeggiator every 8 measures \n// (removes transposition)\na.reset.seq( null, 8 )\n\n// stop sequence\nthis.note[ 0 ].stop()\n\n// creates sequencer at this.note[1] (0 is default)\nthis.note.seq( [0,1,2,3], [1/4,1/8], 1 )\n\n// parallel sequence at this.note[2] with \n// random note selection  (2 is last arg)\nthis.note.seq( [5,6,7,8].rnd(), 1/4, 2 )\n\n// Every sequence contains two Pattern functions. \n// The first, \'values\',determines the output of the \n// sequencer. The second, \'timings\', determines when the \n// sequencer fires.\n\n// sequence transposition of this.note[2]\nthis.note[ 2 ].values.transpose.seq( [1,2,3,-6], 1 )\n\n// stop this.note[1]\nthis.note[ 1 ].stop()\n\n// start this.note[0]\nthis.note[ 1 ].start()\n\n// longhand reference to sequencer \nthis.sequences.note[ 2 ].stop()\n\n// sugar\nthis.note[ 2 ].start()\n\n// create Score object. Scores are lists of functions with associated\n// relative time values. In the score below, the first function has\n// a time value of 0, which means it begins playing immediately. The\n// second has a value of 1, which means it beings playing one measure\n// after the previously executed function. The last function has a\n// timestamp of two, which means it begins playing two measures after\n// the previously executed function. Scores have start(), stop(),\n// loop(), pause() and rewind() methods.\n\ns = Score([ \n  0, function() { \n    this.note.seq( 0, 1/4 )\n  },\n  1, function() { \n    this.note.seq( [0,1], Euclid(3,4), 1 )\n  },\n  2, function() { \n    this.note.seq( [7,14,13,8].rnd(), [1/4,1/8].rnd(), 2 )\n  },  \n])',
 
-var exampleScoreCode = 'Score([ \n  0, function() { console.log(\'1\') },\n  1/4, function() { console.log(\'2\') },\n  1/4, function() { console.log(\'3\') },\n  1/4, function() { console.log(\'4\') },\n  1, function() { console.log(\'5555\') },  \n])';
+  exampleScoreCode: 'Score([ \n  0, function() { console.log(\'1\') },\n  1/4, function() { console.log(\'2\') },\n  1/4, function() { console.log(\'3\') },\n  1/4, function() { console.log(\'4\') },\n  1, function() { console.log(\'5555\') },  \n])',
 
-var exampleScore2 = 's = Score([ \n  0, function() { \n    this.note.seq( 0, 1/4 )\n  },\n  1, function() { \n    this.note.seq( [0,1], Euclid(3,4), 1 )\n  },\n  2, function() { \n    this.note.seq( [7,14,13,8].rnd(), [1/4,1/8].rnd(), 2 },  \n])';
+  exampleScore2: 's = Score([ \n  0, function() { \n    this.note.seq( 0, 1/4 )\n  },\n  1, function() { \n    this.note.seq( [0,1], Euclid(3,4), 1 )\n  },\n  2, function() { \n    this.note.seq( [7,14,13,8].rnd(), [1/4,1/8].rnd(), 2 },  \n])',
 
-var exampleScore3 = 's = Score([\n  0, ()=> {\n    this.note.seq( [0,1,2,3], 1/4 )\n  },\n  1, ()=> { this.note.seq( [0,1], Euclid(2,4), 1 ) },\n  2, function() { this.note.seq( [3,4], [1/4,1/8], 2 ) }\n])';
+  exampleScore3: 's = Score([\n  0, ()=> {\n    this.note.seq( [0,1,2,3], 1/4 )\n  },\n  1, ()=> { this.note.seq( [0,1], Euclid(2,4), 1 ) },\n  2, function() { this.note.seq( [3,4], [1/4,1/8], 2 ) }\n])',
 
-var exampleScore4 = 's = Score([\n  0, ()=> this.note.seq( [0,1,2,3], 1/4 ),\n\n  1, ()=> this.note.seq( [0,2,4,5], 1/4, 1 ),\n  \n  1, ()=> this.note.seq( [3,4,5,6],[1/4,1/8], 2 )\n])';
+  exampleScore4: 's = Score([\n  0, ()=> this.note.seq( [0,1,2,3], 1/4 ),\n\n  1, ()=> this.note.seq( [0,2,4,5], 1/4, 1 ),\n  \n  1, ()=> this.note.seq( [3,4,5,6],[1/4,1/8], 2 )\n])',
 
-var exampleRange = 'this.note.seq( [0,1,2,3,4,5,6,7], 1/4 )\n\nthis.note.values.range.seq( Rndi(0,6,2), 2 )';
+  exampleRange: 'this.note.seq( [0,1,2,3,4,5,6,7], 1/4 )\n\nthis.note.values.range.seq( Rndi(0,6,2), 2 )',
 
-var genExample = 'a = cycle( min( 0, max( 2,4 ) ) )\nconsole.log( a.out() )';
+  genExample: 'a = cycle( min( 0, max( 2,4 ) ) )\nconsole.log( a.out() )',
 
-var simpleExample = 'this.note.seq( [0,1,2,3], 1/8 )';
+  simpleExample: 'this.note.seq( [0,1,2,3], 1/8 )',
 
-var stepsExample = 'a = Steps({\n  [60]: \'1f..5.8..4..f3.3\',\n  [62]: \'....f.....1f....\',\n  [71]: \'.e.a.e.a.e.a.a..\',  \n  [72]: \'..............e.\',\n})';
+  stepsExample: 'a = Steps({\n  [60]: \'1f..5.8..4..f3.3\',\n  [62]: \'....f.....1f....\',\n  [71]: \'.e.a.e.a.e.a.a..\',  \n  [72]: \'..............e.\',\n})',
 
-var stepsExample2 = '/*\nalt-enter to execute block\nctrl-enter to execute line or selection\nctrl-. to stop all running sequencers\n*/\n\na = Steps({\n  [60]: \'3.3f..4..8.5...f\',\n  [62]: \'7.9.f4.....6f...\',\n  [64]: \'........7.9.c..d\',\n  [65]: \'..6..78..b......\',\n  [67]: \'.f..3.........f.\',  \n  [71]: \'e.a.e.a.e.a.a...\',  \n  [72]: \'..............e.\',\n})\n\n// rotate one pattern in step sequencer\n// every measure\na[71].rotate.seq( 1,1 )\n\n// reverse all steps each measure\na.reverse.seq( null, 2 )\n';
+  stepsExample2: '/*\nalt-enter to execute block\nctrl-enter to execute line or selection\nctrl-. to stop all running sequencers\n*/\n\na = Steps({\n  [60]: \'3.3f..4..8.5...f\',\n  [62]: \'7.9.f4.....6f...\',\n  [64]: \'........7.9.c..d\',\n  [65]: \'..6..78..b......\',\n  [67]: \'.f..3.........f.\',  \n  [71]: \'e.a.e.a.e.a.a...\',  \n  [72]: \'..............e.\',\n})\n\n// rotate one pattern in step sequencer\n// every measure\na[71].rotate.seq( 1,1 )\n\n// reverse all steps each measure\na.reverse.seq( null, 2 )\n',
 
-var rndExample = 'this.note.seq( Rndi(50,60), 1/4 )';
+  rndExample: 'this.note.seq( Rndi(50,60), 1/4 )'
 
-module.exports = exampleCode; //stepsExample2//simpleExample//genExample//exampleScore4//exampleScore4 //'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode
+};
+
+module.exports = Examples; //stepsExample2//simpleExample//genExample//exampleScore4//exampleScore4 //'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode
 },{}],9:[function(require,module,exports){
 'use strict';
 
@@ -2665,6 +2754,7 @@ var Gibber = {
   Environment: require('./environment.js'),
   Scheduler: require('./clock.js'),
   Theory: require('./theory.js'),
+  Examples: require('./example.js'),
   Live: null,
   Track: null,
   Gen: null,
@@ -2892,7 +2982,7 @@ Gibber.Live = require('./live.js')(Gibber);
 Gibber.Track = require('./track.js')(Gibber);
 
 module.exports = Gibber;
-},{"./arp.js":2,"./clock.js":3,"./communication.js":5,"./environment.js":6,"./euclidean.js":7,"./gen.js":9,"./live.js":12,"./pattern.js":14,"./score.js":16,"./seq.js":17,"./steps.js":18,"./theory.js":20,"./track.js":21,"./utility.js":22}],11:[function(require,module,exports){
+},{"./arp.js":2,"./clock.js":3,"./communication.js":5,"./environment.js":6,"./euclidean.js":7,"./example.js":8,"./gen.js":9,"./live.js":12,"./pattern.js":14,"./score.js":16,"./seq.js":17,"./steps.js":18,"./theory.js":20,"./track.js":21,"./utility.js":22}],11:[function(require,module,exports){
 'use strict';
 
 require('babel-polyfill');

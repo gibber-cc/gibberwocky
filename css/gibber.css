@@ -98,4 +98,27 @@ body { margin:0; padding:0 }
   font-size:.8em;
 }
 
+#console { width:100% }
+
 #lomView ul { padding: 0 }
+
+#demos ul { padding: 0; padding-left:10px; list-style:none; cursor:pointer }
+
+#demos ul li { margin-bottom: 5px }
+
+#splitbar {
+  display:inline-block;
+  top:0;
+  position:absolute;
+  height:100%;
+  width:5px;
+  background:#666;
+  cursor: ew-resize
+}
+
+#tabs {
+  display:inline-block;
+  top:0;
+  position:relative;
+  left:5px;
+}

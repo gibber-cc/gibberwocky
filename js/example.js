@@ -1,4 +1,6 @@
-const exampleCode = `// ctrl+enter to execute line or selection
+
+const Examples = {
+  default : `// ctrl+enter to execute line or selection
 // make sure the transport in Ableton is running before 
 // attemptingto execute any code.
 
@@ -113,17 +115,17 @@ s = Score([
   2, function() { 
     this.note.seq( [7,14,13,8].rnd(), [1/4,1/8].rnd(), 2 )
   },  
-])`
+])`,
 
-const exampleScoreCode = `Score([ 
+exampleScoreCode : `Score([ 
   0, function() { console.log('1') },
   1/4, function() { console.log('2') },
   1/4, function() { console.log('3') },
   1/4, function() { console.log('4') },
   1, function() { console.log('5555') },  
-])`
+])`,
 
-const exampleScore2 = `s = Score([ 
+exampleScore2 : `s = Score([ 
   0, function() { 
     this.note.seq( 0, 1/4 )
   },
@@ -132,41 +134,41 @@ const exampleScore2 = `s = Score([
   },
   2, function() { 
     this.note.seq( [7,14,13,8].rnd(), [1/4,1/8].rnd(), 2 },  
-])`
+])`,
 
-const exampleScore3 = `s = Score([
+exampleScore3 : `s = Score([
   0, ()=> {
     this.note.seq( [0,1,2,3], 1/4 )
   },
   1, ()=> { this.note.seq( [0,1], Euclid(2,4), 1 ) },
   2, function() { this.note.seq( [3,4], [1/4,1/8], 2 ) }
-])`
+])`,
 
-const exampleScore4 = `s = Score([
+exampleScore4 : `s = Score([
   0, ()=> this.note.seq( [0,1,2,3], 1/4 ),
 
   1, ()=> this.note.seq( [0,2,4,5], 1/4, 1 ),
   
   1, ()=> this.note.seq( [3,4,5,6],[1/4,1/8], 2 )
-])`
+])`,
 
-const exampleRange = `this.note.seq( [0,1,2,3,4,5,6,7], 1/4 )
+exampleRange : `this.note.seq( [0,1,2,3,4,5,6,7], 1/4 )
 
-this.note.values.range.seq( Rndi(0,6,2), 2 )`
+this.note.values.range.seq( Rndi(0,6,2), 2 )`,
 
-const genExample = `a = cycle( min( 0, max( 2,4 ) ) )
-console.log( a.out() )`
+genExample : `a = cycle( min( 0, max( 2,4 ) ) )
+console.log( a.out() )`,
 
-const simpleExample = 'this.note.seq( [0,1,2,3], 1/8 )'
+simpleExample : 'this.note.seq( [0,1,2,3], 1/8 )',
 
-const stepsExample = `a = Steps({
+stepsExample : `a = Steps({
   [60]: '1f..5.8..4..f3.3',
   [62]: '....f.....1f....',
   [71]: '.e.a.e.a.e.a.a..',  
   [72]: '..............e.',
-})`
+})`,
 
-const stepsExample2 = `/*
+stepsExample2 : `/*
 alt-enter to execute block
 ctrl-enter to execute line or selection
 ctrl-. to stop all running sequencers
@@ -188,8 +190,10 @@ a[71].rotate.seq( 1,1 )
 
 // reverse all steps each measure
 a.reverse.seq( null, 2 )
-`
+`,
 
-const rndExample = `this.note.seq( Rndi(50,60), 1/4 )`
+rndExample : `this.note.seq( Rndi(50,60), 1/4 )`
 
-module.exports = exampleCode//stepsExample2//simpleExample//genExample//exampleScore4//exampleScore4 //'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode
+}
+
+module.exports = Examples//stepsExample2//simpleExample//genExample//exampleScore4//exampleScore4 //'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode

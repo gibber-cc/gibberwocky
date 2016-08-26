@@ -4,6 +4,7 @@ let Gibber = {
   Environment:   require( './environment.js' ),
   Scheduler:     require( './clock.js' ),
   Theory:        require( './theory.js' ),
+  Examples:      require( './example.js' ),
   Live:          null,
   Track:         null,
   Gen:           null,

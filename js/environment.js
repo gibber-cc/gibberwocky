@@ -1,7 +1,6 @@
 // singleton 
 let Gibber = null,
-    CodeMirror = require( 'codemirror' ),
-    exampleCode = require( './example.js' )
+    CodeMirror = require( 'codemirror' )
 
 require( '../node_modules/codemirror/mode/javascript/javascript.js' )
 require( '../node_modules/codemirror/addon/edit/matchbrackets.js' )
@@ -20,20 +19,53 @@ let Environment = {
 
   init( gibber ) {
     Gibber = gibber
-    
-    this.createCodeMirror()
-    this.createConsole()
+
+    this.createCodeMirror()   
+    this.createSidePanel()
+    this.setupSplit()
     //this.lomView.init( Gibber )
     this.animationScheduler.init()
   },
+
+  createSidePanel() {
+    this.tabs = new ML.Tabs( '#tabs' )
+
+    this.createConsole()
+    this.createDemoList()
+  },
   
+  setupSplit() {
+    let splitDiv = document.querySelector( '#splitBar' ),
+        editor   = document.querySelector( '#editor'   ),
+        sidebar  = document.querySelector( '#sidebar'  ),
+        mousemove, mouseup
+
+    mouseup = evt => {
+      window.removeEventListener( 'mousemove', mousemove )
+      window.removeEventListener( 'mouseup', mouseup )
+    }
+
+    mousemove = evt => {
+      let splitPos = evt.clientX
+
+      editor.style.width = splitPos + 'px'
+      sidebar.style.left = splitPos  + 'px'
+      sidebar.style.width = (window.innerWidth - splitPos) + 'px'
+    }
+
+    splitDiv.addEventListener( 'mousedown', evt => {
+      window.addEventListener( 'mousemove', mousemove )
+      window.addEventListener( 'mouseup', mouseup )
+    })
+  },
+
   createCodeMirror() {
     CodeMirror.keyMap.gibber = this.keymap
     this.codemirror = CodeMirror( document.querySelector('#editor'), {
       mode:'javascript', 
       keyMap:'gibber',
       autofocus:true, 
-      value: exampleCode,
+      value: Gibber.Examples.default,
       matchBrackets: true,
       autoCloseBrackets: true,
       extraKeys: {"Ctrl-Space": "autocomplete"},
@@ -43,10 +75,30 @@ let Environment = {
   },
 
   createConsole() {
-    this.tabs = new ML.Tabs( '#sidebar' )
-
+    
     this.console = CodeMirror( document.querySelector('#console'), { mode:'javascript', autofocus:false, lineWrapping:true })
     this.console.setSize( null, '100%' )
+  },
+
+  createDemoList() {
+    let container = document.querySelector('#demos'),
+        list = document.createElement( 'ul' )
+
+    for( let demoName in Gibber.Examples ) {
+      let li = document.createElement( 'li' ),
+          txt = Gibber.Examples[ demoName ]
+      
+      li.innerText = demoName 
+
+      li.addEventListener( 'click', () => {
+        Environment.codemirror.setValue( txt )
+      })
+      
+      list.appendChild( li )
+    }
+    
+    container.innerHTML = ''
+    container.appendChild( list )
   },
 
   log() {
