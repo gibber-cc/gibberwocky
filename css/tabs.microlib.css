@@ -1,20 +1,21 @@
 .microlib_tabs_nav {
     width: 100%;
-    height: 30px;
+    height: 26px;
 }
 
 .microlib_tabs_nav_item {
     float: left;
-    height: 30px;
-    padding: 0 5px;
-    line-height: 40px;
+    height: 26px;
+    padding: 0 10px;
+    line-height: 26px;
     border-right: 1px solid #000;
     border-bottom: 1px solid #000;
 }
 
 .microlib_tabs_nav_item:hover,
 .microlib_tabs_nav_item.microlib_active {
-    background: #e7e7e7;
+    background: #000;
+    color:white;
     cursor: pointer;
 }
 
