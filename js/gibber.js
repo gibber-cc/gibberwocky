@@ -12,6 +12,7 @@ let Gibber = {
   Score:         null,
   Pattern:       null,
   Arp:           null,
+  lomView:       require( './lomView.js' ),
   currentTrack:  null,
   codemirror:    null,
   max:           null,
@@ -188,7 +189,7 @@ let Gibber = {
         trackID = isNaN( _trackID ) ? obj.id : _trackID,
         seqKey = `${trackID} ${obj.id} ${parameter.id}`
 
-    console.log( "add method trackID", trackID )
+    //console.log( "add method trackID", trackID )
 
     if( methodName === null ) methodName = parameter.name
 

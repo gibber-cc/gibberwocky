@@ -24,7 +24,11 @@ let Live = {
     
     Live.returns = Live.LOM.returns.map( Live.processTrack )
 
-    Gibber.Live.master = Gibber.Track( Live.id, Live.LOM.master )
+    Gibber.Live.master = Live.processTrack( Live.LOM.master ) //Gibber.Track( Live.id, Live.LOM.master )
+
+    for( let track of Live.tracks ) {
+      Live.tracks[ track.spec.name ] = track
+    }
     
     window.tracks  = Live.tracks
     window.master  = Live.master
@@ -32,12 +36,13 @@ let Live = {
   },
 
   processTrack( spec, idx ) {
-    console.log( 'process track id', idx )
     let track = Gibber.Track( idx, spec )
     track.devices = []
 
     spec.devices.forEach( Live.processDevice, track )
-
+    for( let device of track.devices ) {
+      track.devices[ device.name ] = device
+    }
     return track
   },
 
@@ -46,7 +51,7 @@ let Live = {
         d = currentTrack.devices[ device.title ] = currentTrack.devices[ idx ] = { idx },
         parameterCount = 0
     
-    console.log( 'device', device ) 
+    //console.log( 'device', device ) 
     if( device.type === 1 ) currentTrack.instrument = d
 
     d.pickRandomParameter = ()=> {
@@ -70,6 +75,9 @@ let Live = {
     Gibber.addSequencingToMethod( d, 'toggle' )
 
     device.parameters.forEach( ( spec, idx ) => Gibber.addMethod( d, null, spec, currentTrack.id ) )
+    d.parameters = device.parameters.slice( 0 )
+    d.name = device.name
+    d.title = device.title
   },
 }
 

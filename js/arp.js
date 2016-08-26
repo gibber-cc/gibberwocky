@@ -57,6 +57,11 @@ let Arp = function( chord = [0,2,4,6], octaves = 1, pattern = 'updown2' ) {
       note += 12
     }
 
+    arp.transpose = notes.transpose.bind( notes )
+    arp.reset = notes.reset.bind( notes )
+    arp.reverse = notes.reverse.bind( notes )
+    arp.rotate  = notes.rotate.bind( notes )
+
     return note
   }
 
