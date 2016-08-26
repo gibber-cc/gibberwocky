@@ -6,7 +6,8 @@ var css_sources = [
 	"./css/codemirror.css",
     "./css/show-hint.css",
     "./css/gibber.css",
-    "./css/vanillatree.css"
+    "./css/vanillatree.css",
+    "./css/tabs.microlib.css"
 ];
 
 var js_sources = [

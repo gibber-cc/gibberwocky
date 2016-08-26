@@ -12,15 +12,17 @@ body {
 }
 
 /* TODO: fix in max and change width to 30% before publishing. */
-#console {
+#sidebar {
   display:inline-block;
   width:29.25%;
-  background:#eee;
   float:right;
   height:100%;
   border-left:1px black solid;
   box-sizing:border-box;
   overflow:scroll;
+  font-family:sans-serif;
+  font-weight:lighter;
+  font-size:.8em
 }
 
 body { margin:0; padding:0 }
@@ -91,4 +93,7 @@ body { margin:0; padding:0 }
   user-select: none;           /* Non-prefixed version, currently
                                   not supported by any browser */
 } 
-
+.vtree {
+  font-family:sans-serif;
+  font-size:.8em;
+}

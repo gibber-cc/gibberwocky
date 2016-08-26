@@ -33,6 +33,8 @@ let Live = {
     window.tracks  = Live.tracks
     window.master  = Live.master
     window.returns = Live.returns
+
+    Gibber.Environment.lomView.init( Gibber )
   },
 
   processTrack( spec, idx ) {

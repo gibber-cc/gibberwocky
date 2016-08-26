@@ -1,18 +1,18 @@
 require( './vanillatree.js' )
 
+let Gibber = null
+
 let lomView = {
   tree: null,
 
-  init() {
+  init( _gibber ) {
+    Gibber = _gibber
     this.setup()
     this.create()
   },
 
   setup() {
-    let elem = document.querySelector('#console')
-    elem.innerHTML = ''
-
-    this.tree = new VanillaTree('#console', {
+    this.tree = new VanillaTree('#lomView', {
       placeholder: ''
       //contextmenu: [{
       //  label: 'Label 1',
@@ -26,9 +26,9 @@ let lomView = {
       //  }
       //}]
     })
-    elem.addEventListener( 'vtree-select', function( evt ) {
-      console.log( evt, evt.detail )
-    });
+    //elem.addEventListener( 'vtree-select', function( evt ) {
+    //  console.log( evt, evt.detail )
+    //});
   },
 
   processTrack( track, id ) {
@@ -50,4 +50,4 @@ let lomView = {
   }
 }
 
-module.exports = lomView
+module.exports = lomView 

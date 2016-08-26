@@ -9,17 +9,21 @@ require( '../node_modules/codemirror/addon/edit/closebrackets.js' )
 require( '../node_modules/codemirror/addon/hint/show-hint.js' )
 require( '../node_modules/codemirror/addon/hint/javascript-hint.js' )
 
+require( './tabs-standalone.microlib-latest.js' )
+
 let Environment = {
   codeMarkup: require( './codeMarkup.js' ),
   debug: false,
   _codemirror: CodeMirror,
   animationScheduler: require( './animationScheduler.js' ),
+  lomView: require( './lomView.js' ),
 
   init( gibber ) {
     Gibber = gibber
     
     this.createCodeMirror()
     this.createConsole()
+    //this.lomView.init( Gibber )
     this.animationScheduler.init()
   },
   
@@ -39,6 +43,8 @@ let Environment = {
   },
 
   createConsole() {
+    this.tabs = new ML.Tabs( '#sidebar' )
+
     this.console = CodeMirror( document.querySelector('#console'), { mode:'javascript', autofocus:false, lineWrapping:true })
     this.console.setSize( null, '100%' )
   },

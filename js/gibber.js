@@ -12,7 +12,6 @@ let Gibber = {
   Score:         null,
   Pattern:       null,
   Arp:           null,
-  lomView:       require( './lomView.js' ),
   currentTrack:  null,
   codemirror:    null,
   max:           null,
