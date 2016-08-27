@@ -10,10 +10,10 @@ let Scheduler = {
   bpm: 120,
   functionsToExecute: [],
   queue: new Queue( ( a, b ) => {
-    if( a.time === b.time ) {
+    if( a.time.eq( b.time ) ) {
       return b.priority - a.priority
     }else{
-     return a.time - b.time
+     return a.time.minus( b.time )
     }
   } ),
   mockBeat: 0,
@@ -31,28 +31,37 @@ let Scheduler = {
   advance( advanceAmount, beat ) {
     let end = this.phase + advanceAmount,
         nextTick = this.queue.peek(),
+        shouldEnd = false,
         beatOffset
-       
+
     this.currentBeat = beat
 
-    if( this.queue.length && nparseFloat( time.toFixed(6) ),extTick.time < end ) {
-      // remove tick
-      this.queue.pop()
+    //if( nextTick !== undefined ) console.log( 'nextTick:', nextTick.time.toFixed(6), 'beat:', beat, 'end:', end, 'phase:', this.phase, 'offset:', nextTick.time.minus( this.phase ).div( advanceAmount ).toFixed(6) )
 
-      //console.log( 'ntt', nextTick.time, 'phase', this.phase )
+    if( this.queue.length && parseFloat( nextTick.time.toFixed(6) ) < end ) {
+      beatOffset = nextTick.time.minus( this.phase ).div( advanceAmount )
+      
+      //if( parseFloat( beatOffset.toFixed(6) ) < 1 ) {
+        // remove tick
+        this.queue.pop()
 
-      beatOffset = ( nextTick.time - this.phase ) / advanceAmount
+      
+        this.currentTime = nextTick.time
 
-      this.currentTime = nextTick.time
+        // execute callback function for tick passing schedule, time and beatOffset
+        // console.log( 'next tick', nextTick.shouldExecute )
+        nextTick.seq.tick( this, beat, beatOffset, nextTick.shouldExecute )
 
-      // execute callback function for tick passing schedule, time and beatOffset
-      // console.log( 'next tick', nextTick.shouldExecute )
-      nextTick.seq.tick( this, beat, beatOffset, nextTick.shouldExecute )
-
-      // recursively call advance
-      this.advance( advanceAmount, beat ) 
-    
+        // recursively call advance
+        this.advance( advanceAmount, beat ) 
+      //}else{
+        //shouldEnd = true
+      //}
     } else {
+      shouldEnd = true
+    }
+
+    if( shouldEnd ) {
       if( this.msgs.length ) {      // if output messages have been created
         this.outputMessages()       // output them
         this.msgs.length = 0        // and reset the contents of the output messages array
@@ -64,10 +73,12 @@ let Scheduler = {
   },
 
   addMessage( seq, time, shouldExecute=true ) {
-    //time = parseFloat( time.toFixed( 6 ) )
-    time *= 4 // TODO: should this be a function of the time signature?
-    time += this.currentTime || this.phase
-    this.queue.push({ seq, Big(time), shouldExecute })
+    // TODO: should this be a function of the time signature?
+    time = time.times( 4 ).plus( this.currentTime )
+
+    //console.log( time.toFixed( 6 ) )
+ 
+    this.queue.push({ seq, time, shouldExecute })
   },
 
   outputMessages() {
@@ -76,17 +87,20 @@ let Scheduler = {
         msg.forEach( Gibber.Communication.send )
       }else{
         if( msg !== 0 ) {
-          console.log( msg.split(' ')[2], this.currentBeat, msg )
+          //console.log( msg.split(' ')[2], this.currentBeat, msg )
         }
-        if( msg !== 0 && parseInt( msg.split(' ')[2] ) == this.currentBeat ) {
+        //if( msg !== 0 && parseInt( msg.split(' ')[2] ) == this.currentBeat ) {
+        if( msg !== 0 ) {
           Gibber.Communication.send( msg )
         }
+        //}
       }
     })
   },
 
   seq( beat ) {
-    if( beat % 4 === 1 ) {
+    beat = parseInt( beat )
+    if( beat === 1 ) {
       for( let func of Scheduler.functionsToExecute ) {
         try {
           func()

@@ -158,7 +158,7 @@ let seqclosure = function( Gibber ) {
       if( this.running ) return
       this.running = true
       //console.log( 'starting with offset', this.offset ) 
-      Gibber.Scheduler.addMessage( this, this.offset )     
+      Gibber.Scheduler.addMessage( this, Big( this.offset ) )     
       
       return this
     },
@@ -194,15 +194,9 @@ let seqclosure = function( Gibber ) {
         shouldExecute = true
       }
 
-            //if( round( nextTime, 6 ) === 1 ) {
-      //  console.log( 'offset:',  )
-      //  beatOffset = 0
-      //  beat = (beat + 2) % 4
-      //  //shouldDelay = true
-      //}
-      //nextTime = round( nextTime, 6 )
+      scheduler.addMessage( this, Big( nextTime ), true )
 
-      scheduler.addMessage( this, nextTime, true )
+      let _beatOffset = parseFloat( beatOffset.toFixed( 6 ) )
 
       if( shouldExecute ) {
         let shouldDelay = false
@@ -221,10 +215,12 @@ let seqclosure = function( Gibber ) {
             //    msgBeat = roundedOffset >= 1 ? beat + 1: beat,
             //    msgOffset = roundedOffset >= 1 ? beatOffset - 1 : beatOffset,
             //    msg
-            
 
+            if( _beatOffset === -0 ) {
+              _beatOffset = 0
+            }
 
-            let msg = this.externalMessages[ this.key ]( value, beat, beatOffset,  this.trackID )
+            let msg = this.externalMessages[ this.key ]( value, beat, _beatOffset,  this.trackID )
             
             if( shouldDelay ) {
               scheduler.delayed.push( msg, this.priority )
@@ -248,7 +244,7 @@ let seqclosure = function( Gibber ) {
         }
       }
  
-      this.timings.nextTime = beatOffset // for scheduling pattern updates
+      this.timings.nextTime = _beatOffset // for scheduling pattern updates
     },
     
   }

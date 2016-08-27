@@ -108,7 +108,7 @@ let Communication = {
 
   send( code ) {
     if( Communication.connected ) {
-      if( Communication.debug ) console.log( code )
+      if( Communication.debug ) console.log( 'beat:', Gibber.Scheduler.currentBeat, 'msg:', code  )
       Communication.wsocket.send( code )
     }
   },

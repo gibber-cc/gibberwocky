@@ -827,10 +827,10 @@ module.exports = function (Gibber) {
     bpm: 120,
     functionsToExecute: [],
     queue: new Queue(function (a, b) {
-      if (a.time === b.time) {
+      if (a.time.eq(b.time)) {
         return b.priority - a.priority;
       } else {
-        return a.time - b.time;
+        return a.time.minus(b.time);
       }
     }),
     mockBeat: 0,
@@ -851,17 +851,19 @@ module.exports = function (Gibber) {
     advance: function advance(advanceAmount, beat) {
       var end = this.phase + advanceAmount,
           nextTick = this.queue.peek(),
+          shouldEnd = false,
           beatOffset = void 0;
 
       this.currentBeat = beat;
 
-      if (this.queue.length && nparseFloat(time.toFixed(6)), extTick.time < end) {
+      //if( nextTick !== undefined ) console.log( 'nextTick:', nextTick.time.toFixed(6), 'beat:', beat, 'end:', end, 'phase:', this.phase, 'offset:', nextTick.time.minus( this.phase ).div( advanceAmount ).toFixed(6) )
+
+      if (this.queue.length && parseFloat(nextTick.time.toFixed(6)) < end) {
+        beatOffset = nextTick.time.minus(this.phase).div(advanceAmount);
+
+        //if( parseFloat( beatOffset.toFixed(6) ) < 1 ) {
         // remove tick
         this.queue.pop();
-
-        //console.log( 'ntt', nextTick.time, 'phase', this.phase )
-
-        beatOffset = (nextTick.time - this.phase) / advanceAmount;
 
         this.currentTime = nextTick.time;
 
@@ -871,7 +873,14 @@ module.exports = function (Gibber) {
 
         // recursively call advance
         this.advance(advanceAmount, beat);
+        //}else{
+        //shouldEnd = true
+        //}
       } else {
+        shouldEnd = true;
+      }
+
+      if (shouldEnd) {
         if (this.msgs.length) {
           // if output messages have been created
           this.outputMessages(); // output them
@@ -885,30 +894,33 @@ module.exports = function (Gibber) {
     addMessage: function addMessage(seq, time) {
       var shouldExecute = arguments.length <= 2 || arguments[2] === undefined ? true : arguments[2];
 
-      //time = parseFloat( time.toFixed( 6 ) )
-      time *= 4; // TODO: should this be a function of the time signature?
-      time += this.currentTime || this.phase;
+      // TODO: should this be a function of the time signature?
+      time = time.times(4).plus(this.currentTime);
+
+      //console.log( time.toFixed( 6 ) )
+
       this.queue.push({ seq: seq, time: time, shouldExecute: shouldExecute });
     },
     outputMessages: function outputMessages() {
-      var _this2 = this;
-
       this.msgs.forEach(function (msg) {
         if (Array.isArray(msg)) {
           // for chords etc.
           msg.forEach(Gibber.Communication.send);
         } else {
+          if (msg !== 0) {}
+          //console.log( msg.split(' ')[2], this.currentBeat, msg )
+
+          //if( msg !== 0 && parseInt( msg.split(' ')[2] ) == this.currentBeat ) {
           if (msg !== 0) {
-            console.log(msg.split(' ')[2], _this2.currentBeat, msg);
-          }
-          if (msg !== 0 && parseInt(msg.split(' ')[2]) == _this2.currentBeat) {
             Gibber.Communication.send(msg);
           }
+          //}
         }
       });
     },
     seq: function seq(beat) {
-      if (beat % 4 === 1) {
+      beat = parseInt(beat);
+      if (beat === 1) {
         var _iteratorNormalCompletion = true;
         var _didIteratorError = false;
         var _iteratorError = undefined;
@@ -1879,7 +1891,7 @@ var Communication = {
   },
   send: function send(code) {
     if (Communication.connected) {
-      if (Communication.debug) console.log(code);
+      if (Communication.debug) console.log('beat:', Gibber.Scheduler.currentBeat, 'msg:', code);
       Communication.wsocket.send(code);
     }
   },
@@ -4404,7 +4416,7 @@ var seqclosure = function seqclosure(Gibber) {
       if (this.running) return;
       this.running = true;
       //console.log( 'starting with offset', this.offset ) 
-      Gibber.Scheduler.addMessage(this, this.offset);
+      Gibber.Scheduler.addMessage(this, Big(this.offset));
 
       return this;
     },
@@ -4437,15 +4449,9 @@ var seqclosure = function seqclosure(Gibber) {
         shouldExecute = true;
       }
 
-      //if( round( nextTime, 6 ) === 1 ) {
-      //  console.log( 'offset:',  )
-      //  beatOffset = 0
-      //  beat = (beat + 2) % 4
-      //  //shouldDelay = true
-      //}
-      //nextTime = round( nextTime, 6 )
+      scheduler.addMessage(this, Big(nextTime), true);
 
-      scheduler.addMessage(this, nextTime, true);
+      var _beatOffset = parseFloat(beatOffset.toFixed(6));
 
       if (shouldExecute) {
         var shouldDelay = false;
@@ -4465,8 +4471,11 @@ var seqclosure = function seqclosure(Gibber) {
             //    msgOffset = roundedOffset >= 1 ? beatOffset - 1 : beatOffset,
             //    msg
 
+            if (_beatOffset === -0) {
+              _beatOffset = 0;
+            }
 
-            var msg = this.externalMessages[this.key](value, beat, beatOffset, this.trackID);
+            var msg = this.externalMessages[this.key](value, beat, _beatOffset, this.trackID);
 
             if (shouldDelay) {
               scheduler.delayed.push(msg, this.priority);
@@ -4488,7 +4497,7 @@ var seqclosure = function seqclosure(Gibber) {
         }
       }
 
-      this.timings.nextTime = beatOffset; // for scheduling pattern updates
+      this.timings.nextTime = _beatOffset; // for scheduling pattern updates
     }
   };
 
