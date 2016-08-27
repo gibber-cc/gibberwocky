@@ -95,8 +95,9 @@ this.sequences.note[ 2 ].stop()
 
 // sugar
 this.note[ 2 ].start()
+`,
 
-// create Score object. Scores are lists of functions with associated
+  [ 'using the Score() object']  : `// Scores are lists of functions with associated
 // relative time values. In the score below, the first function has
 // a time value of 0, which means it begins playing immediately. The
 // second has a value of 1, which means it beings playing one measure
@@ -117,58 +118,25 @@ s = Score([
   },  
 ])`,
 
-exampleScoreCode : `Score([ 
-  0, function() { console.log('1') },
-  1/4, function() { console.log('2') },
-  1/4, function() { console.log('3') },
-  1/4, function() { console.log('4') },
-  1, function() { console.log('5555') },  
-])`,
 
-exampleScore2 : `s = Score([ 
-  0, function() { 
-    this.note.seq( 0, 1/4 )
-  },
-  1, function() { 
-    this.note.seq( [0,1], Euclid(3,4), 1 )
-  },
-  2, function() { 
-    this.note.seq( [7,14,13,8].rnd(), [1/4,1/8].rnd(), 2 },  
-])`,
+[ 'example score w/ arrow functions' ]: `// scores become much terser using arrow functions
+// (note: Safari does not currently support arrow functions)
 
-exampleScore3 : `s = Score([
-  0, ()=> {
-    this.note.seq( [0,1,2,3], 1/4 )
-  },
-  1, ()=> { this.note.seq( [0,1], Euclid(2,4), 1 ) },
-  2, function() { this.note.seq( [3,4], [1/4,1/8], 2 ) }
-])`,
-
-exampleScore4 : `s = Score([
+s = Score([
   0, ()=> this.note.seq( [0,1,2,3], 1/4 ),
-
-  1, ()=> this.note.seq( [0,2,4,5], 1/4, 1 ),
-  
-  1, ()=> this.note.seq( [3,4,5,6],[1/4,1/8], 2 )
+  1, ()=> this.note.seq( [0,1], Euclid(2,4), 1 ),
+  1, ()=> this.note.seq( [3,4], [1/4,1/8], 2 )
 ])`,
 
-exampleRange : `this.note.seq( [0,1,2,3,4,5,6,7], 1/4 )
+
+['sequencing pattern ranges' ] : `this.note.seq( [0,1,2,3,4,5,6,7], 1/4 )
 
 this.note.values.range.seq( Rndi(0,6,2), 2 )`,
 
 genExample : `a = cycle( min( 0, max( 2,4 ) ) )
 console.log( a.out() )`,
 
-simpleExample : 'this.note.seq( [0,1,2,3], 1/8 )',
-
-stepsExample : `a = Steps({
-  [60]: '1f..5.8..4..f3.3',
-  [62]: '....f.....1f....',
-  [71]: '.e.a.e.a.e.a.a..',  
-  [72]: '..............e.',
-})`,
-
-stepsExample2 : `/*
+['using the Steps() object (step-sequencer)'] : `/*
 alt-enter to execute block
 ctrl-enter to execute line or selection
 ctrl-. to stop all running sequencers

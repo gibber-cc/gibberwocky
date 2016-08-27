@@ -39,7 +39,7 @@ let Communication = {
       }.bind( Communication )
 
       this.wsocket.onclose = function(ev) {
-        Gibber.log( 'DISCONNECTED from ' + address )
+        Gibber.log( 'disconnected from ' + address )
         this.connected = false
 
         // set up an auto-reconnect task:
@@ -86,9 +86,9 @@ let Communication = {
     switch( key ) {
       case 'seq' :
         if( data === undefined ) {
-          console.log( 'FAULTY WS SEQ MESSAGE', _msg.data )
+          console.log( 'faulty ws seq message', _msg.data )
         }else{
-          // console.log( 'WS', msg.data, key, data )
+          //console.log( 'WS', key, data )
           Gibber.Scheduler.seq( data );
         }
         break;

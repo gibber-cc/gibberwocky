@@ -1,5 +1,27 @@
 'use strict';
 
+let round = function(value, exp) {
+  //if (typeof exp === 'undefined' || +exp === 0)
+  //  return Math.floor(value);
+
+  //value = +value;
+  //exp = +exp;
+
+  //if (isNaN(value) || !(typeof exp === 'number' && exp % 1 === 0))
+  //  return NaN;
+
+  //// Shift
+  //value = value.toString().split('e');
+  //value = Math.floor(+(value[0] + 'e' + (value[1] ? (+value[1] + exp) : exp)));
+
+  //// Shift back
+  //value = value.toString().split('e');
+  //return +(value[0] + 'e' + (value[1] ? (+value[1] - exp) : -exp));
+  return parseFloat( value.toFixed( exp ) )
+}
+
+const Big = require( 'big.js' )
+
 let seqclosure = function( Gibber ) {
   
   let Theory = Gibber.Theory
@@ -118,7 +140,7 @@ let seqclosure = function( Gibber ) {
       },
 
       chord( chord, beat, beatOffset, trackID ) {
-        console.log( chord )
+        //console.log( chord )
         let msg = []
 
         for( let i = 0; i < chord.length; i++ ) {
@@ -135,7 +157,7 @@ let seqclosure = function( Gibber ) {
     start() {
       if( this.running ) return
       this.running = true
-      console.log( 'starting with offset', this.offset ) 
+      //console.log( 'starting with offset', this.offset ) 
       Gibber.Scheduler.addMessage( this, this.offset )     
       
       return this
@@ -160,10 +182,9 @@ let seqclosure = function( Gibber ) {
       if( !this.running ) return
 
       // pick a new timing and schedule tick
-      let nextTime = this.timings(),
+      let nextTime = this.timings(),//round( this.timings(), 4 ),
           shouldExecute
       
-
       if( typeof nextTime === 'function' )  nextTime = nextTime()
 
       if( typeof nextTime === 'object' ) {
@@ -172,10 +193,19 @@ let seqclosure = function( Gibber ) {
       }else{
         shouldExecute = true
       }
-      
+
+            //if( round( nextTime, 6 ) === 1 ) {
+      //  console.log( 'offset:',  )
+      //  beatOffset = 0
+      //  beat = (beat + 2) % 4
+      //  //shouldDelay = true
+      //}
+      //nextTime = round( nextTime, 6 )
+
       scheduler.addMessage( this, nextTime, true )
 
       if( shouldExecute ) {
+        let shouldDelay = false
         this.values.nextTime = beatOffset
         this.values.beat = beat
         this.values.beatOffset = beatOffset
@@ -186,10 +216,21 @@ let seqclosure = function( Gibber ) {
         if( value !== this ) {
           // delay messages  
           if( this.externalMessages[ this.key ] !== undefined ) {
-            
-            let msg = this.externalMessages[ this.key ]( value, beat, beatOffset, this.trackID )
 
-            scheduler.msgs.push( msg, this.priority )
+            //let roundedOffset = round( beatOffset, 4 ),
+            //    msgBeat = roundedOffset >= 1 ? beat + 1: beat,
+            //    msgOffset = roundedOffset >= 1 ? beatOffset - 1 : beatOffset,
+            //    msg
+            
+
+
+            let msg = this.externalMessages[ this.key ]( value, beat, beatOffset,  this.trackID )
+            
+            if( shouldDelay ) {
+              scheduler.delayed.push( msg, this.priority )
+            }else{
+              scheduler.msgs.push( msg, this.priority )
+            }
 
           } else { // schedule internal method / function call immediately
 

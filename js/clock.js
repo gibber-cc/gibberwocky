@@ -1,10 +1,12 @@
 !function() {
 
 const Queue = require( './priorityqueue.js' )
+const Big   = require( 'big.js' )
 
 let Scheduler = {
   phase: 0,
   msgs: [],
+  delayed: [],
   bpm: 120,
   functionsToExecute: [],
   queue: new Queue( ( a, b ) => {
@@ -16,6 +18,7 @@ let Scheduler = {
   } ),
   mockBeat: 0,
   mockInterval: null,
+  currentBeat: 1,
 
   mockRun() {
     let seqFunc = () => {
@@ -30,9 +33,13 @@ let Scheduler = {
         nextTick = this.queue.peek(),
         beatOffset
        
-    if( this.queue.length && nextTick.time < end ) {
+    this.currentBeat = beat
+
+    if( this.queue.length && nparseFloat( time.toFixed(6) ),extTick.time < end ) {
       // remove tick
       this.queue.pop()
+
+      //console.log( 'ntt', nextTick.time, 'phase', this.phase )
 
       beatOffset = ( nextTick.time - this.phase ) / advanceAmount
 
@@ -57,17 +64,23 @@ let Scheduler = {
   },
 
   addMessage( seq, time, shouldExecute=true ) {
+    //time = parseFloat( time.toFixed( 6 ) )
     time *= 4 // TODO: should this be a function of the time signature?
     time += this.currentTime || this.phase
-    this.queue.push({ seq, time, shouldExecute })
+    this.queue.push({ seq, Big(time), shouldExecute })
   },
 
   outputMessages() {
-    this.msgs.forEach( ( msg ) => {
+    this.msgs.forEach( msg => {
       if( Array.isArray( msg ) ) { // for chords etc.
         msg.forEach( Gibber.Communication.send )
       }else{
-        Gibber.Communication.send( msg )
+        if( msg !== 0 ) {
+          console.log( msg.split(' ')[2], this.currentBeat, msg )
+        }
+        if( msg !== 0 && parseInt( msg.split(' ')[2] ) == this.currentBeat ) {
+          Gibber.Communication.send( msg )
+        }
       }
     })
   },
@@ -84,7 +97,7 @@ let Scheduler = {
       Scheduler.functionsToExecute.length = 0
     }
     Scheduler.advance( 1, beat )
-
+    
     Scheduler.outputMessages()
   },
 
