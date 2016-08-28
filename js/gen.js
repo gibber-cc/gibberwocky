@@ -21,6 +21,8 @@ let Gen  = {
     Gen.createMonopFunctions()
   },
   
+  connected: [],
+
   isGen:true,
 
   // if property is !== ugen (it's a number) a Param must be made using a default
@@ -53,6 +55,7 @@ let Gen  = {
         }else{
           value = v
           if( obj.active ) {
+            console.log( `${Gibber.Live.id} genp ${obj.paramID} ${obj[ key ].uid} ${v}` )
             Gibber.Communication.send( `${Gibber.Live.id} genp ${obj.paramID} ${obj[ key ].uid} ${v}` ) 
           }
         }
@@ -90,6 +93,12 @@ let Gen  = {
       if( typeof param() === 'object' ) {
         param().assignParamID( id )
       }
+    }
+  },
+
+  clear() {
+    for( let param of Gen.connected ) {
+      Gibber.Communication.send( '1 ungen ' + param )
     }
   },
 

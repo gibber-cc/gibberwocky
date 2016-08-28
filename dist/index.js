@@ -252,6 +252,7 @@ module.exports = function (Gibber) {
           for (var _iterator = Scheduler.functionsToExecute[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
             var func = _step.value;
 
+            console.log('GO');
             try {
               func();
             } catch (e) {
@@ -1782,6 +1783,8 @@ module.exports = function (Gibber) {
     },
 
 
+    connected: [],
+
     isGen: true,
 
     // if property is !== ugen (it's a number) a Param must be made using a default
@@ -1821,6 +1824,7 @@ module.exports = function (Gibber) {
             } else {
               value = v;
               if (obj.active) {
+                console.log(Gibber.Live.id + ' genp ' + obj.paramID + ' ' + obj[key].uid + ' ' + v);
                 Gibber.Communication.send(Gibber.Live.id + ' genp ' + obj.paramID + ' ' + obj[key].uid + ' ' + v);
               }
             }
@@ -1920,6 +1924,34 @@ module.exports = function (Gibber) {
       }
     },
 
+    clear: function clear() {
+      var _iteratorNormalCompletion4 = true;
+      var _didIteratorError4 = false;
+      var _iteratorError4 = undefined;
+
+      try {
+        for (var _iterator4 = Gen.connected[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
+          var param = _step4.value;
+
+          Gibber.Communication.send('1 ungen ' + param);
+        }
+      } catch (err) {
+        _didIteratorError4 = true;
+        _iteratorError4 = err;
+      } finally {
+        try {
+          if (!_iteratorNormalCompletion4 && _iterator4.return) {
+            _iterator4.return();
+          }
+        } finally {
+          if (_didIteratorError4) {
+            throw _iteratorError4;
+          }
+        }
+      }
+    },
+
+
     constants: {
       degtorad: Math.PI / 180,
       E: Math.E,
@@ -1978,13 +2010,13 @@ module.exports = function (Gibber) {
       // so that changes to it are forwarded to m4l
       this.active = true;
 
-      var _iteratorNormalCompletion4 = true;
-      var _didIteratorError4 = false;
-      var _iteratorError4 = undefined;
+      var _iteratorNormalCompletion5 = true;
+      var _didIteratorError5 = false;
+      var _iteratorError5 = undefined;
 
       try {
-        for (var _iterator4 = def.properties[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
-          var property = _step4.value;
+        for (var _iterator5 = def.properties[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
+          var property = _step5.value;
 
           var p = this[property](),
               uid = this[property].uid;
@@ -2007,16 +2039,16 @@ module.exports = function (Gibber) {
           if (count++ < def.properties.length - 1) str += ',';
         }
       } catch (err) {
-        _didIteratorError4 = true;
-        _iteratorError4 = err;
+        _didIteratorError5 = true;
+        _iteratorError5 = err;
       } finally {
         try {
-          if (!_iteratorNormalCompletion4 && _iterator4.return) {
-            _iterator4.return();
+          if (!_iteratorNormalCompletion5 && _iterator5.return) {
+            _iterator5.return();
           }
         } finally {
-          if (_didIteratorError4) {
-            throw _iteratorError4;
+          if (_didIteratorError5) {
+            throw _iteratorError5;
           }
         }
       }
@@ -2210,6 +2242,8 @@ var Gibber = {
         if (marker.clear) marker.clear();
       }
     }, 500);
+
+    Gibber.Gen.clear();
   },
   addSequencingToMethod: function addSequencingToMethod(obj, methodName, priority, overrideName) {
 
@@ -2309,6 +2343,7 @@ var Gibber = {
       if (_v !== undefined) {
         if ((typeof _v === 'undefined' ? 'undefined' : _typeof(_v)) === 'object' && _v.isGen) {
           _v.assignParamID(parameter.id);
+          Gibber.Gen.connected.push(parameter.id);
           Gibber.Communication.send(trackID + ' gen ' + parameter.id + ' "' + _v.out() + '"');
         } else {
           v = _v;

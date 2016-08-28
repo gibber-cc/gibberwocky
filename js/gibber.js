@@ -106,6 +106,8 @@ let Gibber = {
       if( marker.clear ) marker.clear() 
     }
     }, 500 )
+
+    Gibber.Gen.clear()
   },
 
   addSequencingToMethod( obj, methodName, priority, overrideName ) {
@@ -203,6 +205,7 @@ let Gibber = {
       if( _v !== undefined ) {
         if( typeof _v === 'object' && _v.isGen ) {
           _v.assignParamID( parameter.id )
+          Gibber.Gen.connected.push( parameter.id )
           Gibber.Communication.send( `${trackID} gen ${parameter.id} "${_v.out()}"` )
         }else{
           v = _v
