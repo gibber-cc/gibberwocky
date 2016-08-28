@@ -63,6 +63,7 @@ let Scheduler = {
   },
 
   addMessage( seq, time, shouldExecute=true ) {
+    if( typeof time === 'number' ) time = Big( time )
     // TODO: should 4 be a function of the time signature?
     time = time.times( 4 ).plus( this.currentTime )
 

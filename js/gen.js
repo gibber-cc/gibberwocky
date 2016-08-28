@@ -3,7 +3,7 @@ module.exports = function( Gibber ) {
 const binops = [ 
   'min','max','add','sub','mul','div','rdiv','mod','rsub','rmod','absdiff',
   'and','or','gt','eq','eqp','gte','gtep','gtp','lt','lte','ltep','ltp','neq',
-  'step', 'rate'
+  'sah', 'step', 'rate'
 ]
 
 const monops = [
@@ -101,6 +101,8 @@ let Gen  = {
     for( let ugen of Gen.connected ) {
       Gibber.Communication.send( `${ugen.track} ungen ${ugen.paramID}` )
     }
+
+    Gen.connected.length = 0
   },
 
   constants: {
@@ -122,7 +124,8 @@ let Gen  = {
   functions: {
     phasor: { properties:[ '0' ],  str:'phasor' },
     cycle:  { properties:[ '0' ],  str:'cycle' },
-    rate:   { properties:[ '0','1' ], str:'rate' }
+    rate:   { properties:[ '0','1' ], str:'rate' },
+    noise:  { properties:[], str:'noise' }
   },
 
   _count: 0,
