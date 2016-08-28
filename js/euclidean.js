@@ -106,7 +106,6 @@ let Euclid = function( ones, length, time, rotation ) {
   if( isNaN( time ) || time === null ) time = 1 / onesAndZeros.length
 
   pattern.time = time
-  console.log( time )
 
   let output = { time, shouldExecute: 0 }
   

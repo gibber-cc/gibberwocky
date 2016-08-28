@@ -194,12 +194,9 @@ module.exports = function (Gibber) {
 
       this.currentBeat = beat;
 
-      //if( nextTick !== undefined ) console.log( 'nextTick:', nextTick.time.toFixed(6), 'beat:', beat, 'end:', end, 'phase:', this.phase, 'offset:', nextTick.time.minus( this.phase ).div( advanceAmount ).toFixed(6) )
-
       if (this.queue.length && parseFloat(nextTick.time.toFixed(6)) < end) {
         beatOffset = nextTick.time.minus(this.phase).div(advanceAmount);
 
-        //if( parseFloat( beatOffset.toFixed(6) ) < 1 ) {
         // remove tick
         this.queue.pop();
 
@@ -211,14 +208,7 @@ module.exports = function (Gibber) {
 
         // recursively call advance
         this.advance(advanceAmount, beat);
-        //}else{
-        //shouldEnd = true
-        //}
       } else {
-        shouldEnd = true;
-      }
-
-      if (shouldEnd) {
         if (this.msgs.length) {
           // if output messages have been created
           this.outputMessages(); // output them
@@ -232,10 +222,8 @@ module.exports = function (Gibber) {
     addMessage: function addMessage(seq, time) {
       var shouldExecute = arguments.length <= 2 || arguments[2] === undefined ? true : arguments[2];
 
-      // TODO: should this be a function of the time signature?
+      // TODO: should 4 be a function of the time signature?
       time = time.times(4).plus(this.currentTime);
-
-      //console.log( time.toFixed( 6 ) )
 
       this.queue.push({ seq: seq, time: time, shouldExecute: shouldExecute });
     },
@@ -245,19 +233,16 @@ module.exports = function (Gibber) {
           // for chords etc.
           msg.forEach(Gibber.Communication.send);
         } else {
-          if (msg !== 0) {}
-          //console.log( msg.split(' ')[2], this.currentBeat, msg )
-
-          //if( msg !== 0 && parseInt( msg.split(' ')[2] ) == this.currentBeat ) {
           if (msg !== 0) {
+            // XXX
             Gibber.Communication.send(msg);
           }
-          //}
         }
       });
     },
     seq: function seq(beat) {
       beat = parseInt(beat);
+
       if (beat === 1) {
         var _iteratorNormalCompletion = true;
         var _didIteratorError = false;
@@ -290,6 +275,7 @@ module.exports = function (Gibber) {
 
         Scheduler.functionsToExecute.length = 0;
       }
+
       Scheduler.advance(1, beat);
 
       Scheduler.outputMessages();
@@ -305,7 +291,7 @@ var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = [
 
 var acorn = require('acorn');
 
-var callDepths = ['SCORE', 'THIS.METHOD', 'THIS.METHOD.SEQ', 'THIS.METHOD[ 0 ].SEQ', 'THIS.METHOD.VALUES.REVERSE.SEQ', 'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ'];
+var callDepths = ['SCORE', 'THIS.METHOD', 'THIS.METHOD.SEQ', 'THIS.METHOD[ 0 ].SEQ', 'THIS.METHOD.VALUES.REVERSE.SEQ', 'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ', 'TRACKS[0].METHOD.SEQ', 'TRACKS[0].METHOD[0].SEQ', 'TRACKS[0].METHOD.VALUES.REVERSE.SEQ', 'TRACKS[0].METHOD[0].VALUES.REVERSE.SEQ'];
 
 var Utility = require('./utility.js');
 var $ = Utility.create;
@@ -384,7 +370,7 @@ var Marker = {
         index = args[2].value;
       }
 
-      console.log("depth of call", depthOfCall, components);
+      //console.log( "depth of call", depthOfCall, components )
       var valuesPattern = void 0,
           timingsPattern = void 0,
           valuesNode = void 0,
@@ -392,7 +378,7 @@ var Marker = {
 
       switch (callDepths[depthOfCall]) {
         case 'SCORE':
-          console.log('score no assignment?', components, expressionNode.expression);
+          //console.log( 'score no assignment?', components, expressionNode.expression )
           if (Marker.functions[expressionNode.expression.callee.name]) {
             Marker.functions[expressionNode.expression.callee.name](expressionNode.expression, codemirror, track, expressionNode.verticalOffset);
           }
@@ -425,6 +411,19 @@ var Marker = {
 
         case 'THIS.METHOD[ 0 ].SEQ':
           // will this ever happen??? I guess after it has been sequenced once?
+          track = window[components[0]][components[1].slice(1, -1)];
+          valuesPattern = track[components[2]][0].values;
+          timingsPattern = track[components[2]][0].timings;
+          valuesNode = args[0];
+          timingsNode = args[1];
+
+          valuesPattern.codemirro = timingsPattern.codemirror = codemirror;
+
+          Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, 0, 'values', valuesPattern);
+          if (timingsNode) {
+            Marker._markPattern[timingsNode.type](timingsNode, expressionNode, components, codemirror, track, 0, 'timings', timingsPattern);
+          }
+
           break;
 
         case 'THIS.METHOD.VALUES.REVERSE.SEQ':
@@ -796,6 +795,7 @@ var Marker = {
 
       end.ch = pos.from.ch + val.length;
 
+      pos.to.ch -= 1;
       cm.replaceRange(val, pos.from, pos.to);
       //let element = document.createElement('span')
       //element.innerText = val
@@ -1064,7 +1064,11 @@ var Marker = {
     cssName = null,
         marker = void 0;
 
-    className.splice(1, 0, index); // insert index into array
+    if (components[1][0] === '[') {
+      className = ['tracks', components[1].slice(1, -1)].concat(components.slice(2, components.length - 1));
+    } else {
+      className.splice(1, 0, index); // insert index into array
+    }
 
     className.push(patternType);
     className = className.join('_');
@@ -1094,6 +1098,8 @@ var Marker = {
         // array index
         pushValue = '[' + obj.property.value + ']';
         index = obj.property.value;
+      } else if (obj.type === 'Identifier') {
+        pushValue = obj.name;
       }
 
       if (pushValue !== null) components.push(pushValue);
@@ -1613,7 +1619,6 @@ module.exports = function (Gibber) {
     if (isNaN(time) || time === null) time = 1 / onesAndZeros.length;
 
     pattern.time = time;
-    console.log(time);
 
     var output = { time: time, shouldExecute: 0 };
 
@@ -3593,26 +3598,6 @@ song.start()
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj; };
 
-var round = function round(value, exp) {
-  //if (typeof exp === 'undefined' || +exp === 0)
-  //  return Math.floor(value);
-
-  //value = +value;
-  //exp = +exp;
-
-  //if (isNaN(value) || !(typeof exp === 'number' && exp % 1 === 0))
-  //  return NaN;
-
-  //// Shift
-  //value = value.toString().split('e');
-  //value = Math.floor(+(value[0] + 'e' + (value[1] ? (+value[1] + exp) : exp)));
-
-  //// Shift back
-  //value = value.toString().split('e');
-  //return +(value[0] + 'e' + (value[1] ? (+value[1] - exp) : -exp));
-  return parseFloat(value.toFixed(exp));
-};
-
 var Big = require('big.js');
 
 var seqclosure = function seqclosure(Gibber) {
@@ -3775,8 +3760,7 @@ var seqclosure = function seqclosure(Gibber) {
 
       // pick a new timing and schedule tick
       var nextTime = this.timings(),
-          //round( this.timings(), 4 ),
-      shouldExecute = void 0;
+          shouldExecute = void 0;
 
       if (typeof nextTime === 'function') nextTime = nextTime();
 
@@ -3801,25 +3785,12 @@ var seqclosure = function seqclosure(Gibber) {
         var value = this.values();
         if (typeof value === 'function') value = value();
         if (value !== this) {
+          // WTF??? XXX
           // delay messages  
           if (this.externalMessages[this.key] !== undefined) {
 
-            //let roundedOffset = round( beatOffset, 4 ),
-            //    msgBeat = roundedOffset >= 1 ? beat + 1: beat,
-            //    msgOffset = roundedOffset >= 1 ? beatOffset - 1 : beatOffset,
-            //    msg
-
-            if (_beatOffset === -0) {
-              _beatOffset = 0;
-            }
-
             var msg = this.externalMessages[this.key](value, beat, _beatOffset, this.trackID);
-
-            if (shouldDelay) {
-              scheduler.delayed.push(msg, this.priority);
-            } else {
-              scheduler.msgs.push(msg, this.priority);
-            }
+            scheduler.msgs.push(msg, this.priority);
           } else {
             // schedule internal method / function call immediately
 

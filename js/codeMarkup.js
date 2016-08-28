@@ -6,7 +6,11 @@ const callDepths = [
   'THIS.METHOD.SEQ',
   'THIS.METHOD[ 0 ].SEQ',
   'THIS.METHOD.VALUES.REVERSE.SEQ',
-  'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ'
+  'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ',
+  'TRACKS[0].METHOD.SEQ',
+  'TRACKS[0].METHOD[0].SEQ',
+  'TRACKS[0].METHOD.VALUES.REVERSE.SEQ',
+  'TRACKS[0].METHOD[0].VALUES.REVERSE.SEQ'
 ]
 
 const Utility = require( './utility.js' )
@@ -63,12 +67,12 @@ let Marker = {
       // if index is passed as argument to .seq call...
       if( args.length > 2 ) { index = args[ 2 ].value }
       
-      console.log( "depth of call", depthOfCall, components )
+      //console.log( "depth of call", depthOfCall, components )
       let valuesPattern, timingsPattern, valuesNode, timingsNode
 
       switch( callDepths[ depthOfCall ] ) {
          case 'SCORE':
-           console.log( 'score no assignment?', components, expressionNode.expression )
+           //console.log( 'score no assignment?', components, expressionNode.expression )
            if( Marker.functions[ expressionNode.expression.callee.name ] ) {
              Marker.functions[ expressionNode.expression.callee.name ]( expressionNode.expression, codemirror, track, expressionNode.verticalOffset )            
            }
@@ -100,7 +104,20 @@ let Marker = {
            break;
 
          case 'THIS.METHOD[ 0 ].SEQ': // will this ever happen??? I guess after it has been sequenced once?
-          break;
+           track = window[ components[0] ][ components[1].slice(1,-1) ]
+           valuesPattern =  track[ components[2] ][ 0 ].values
+           timingsPattern = track[ components[2] ][ 0 ].timings
+           valuesNode = args[0]
+           timingsNode = args[1]
+
+           valuesPattern.codemirro = timingsPattern.codemirror = codemirror
+
+           Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, 0, 'values', valuesPattern ) 
+           if( timingsNode ) {
+             Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, 0, 'timings', timingsPattern )  
+           }
+
+           break;
 
          case 'THIS.METHOD.VALUES.REVERSE.SEQ':            
            break;
@@ -393,6 +410,7 @@ let Marker = {
 
       end.ch = pos.from.ch + val.length
 
+      pos.to.ch -= 1
       cm.replaceRange( val, pos.from, pos.to )
       //let element = document.createElement('span')
       //element.innerText = val
@@ -646,8 +664,12 @@ let Marker = {
         cssName   = null,
         marker
 
-     className.splice( 1, 0, index ) // insert index into array
-      
+     if( components[1][0] === '[' ) {
+       className = [ 'tracks', components[1].slice(1,-1) ].concat( components.slice( 2, components.length - 1 ) )
+     }else{
+       className.splice( 1, 0, index ) // insert index into array
+     }
+
      className.push( patternType )
      className = className.join( '_' )
 
@@ -676,7 +698,10 @@ let Marker = {
       }else if( obj.property && obj.property.type === 'Literal' ){ // array index
         pushValue = '[' + obj.property.value + ']'
         index = obj.property.value
+      }else if( obj.type === 'Identifier' ) {
+        pushValue = obj.name
       }
+
       
       if( pushValue !== null ) components.push( pushValue ) 
 

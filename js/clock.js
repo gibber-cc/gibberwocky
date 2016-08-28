@@ -36,32 +36,22 @@ let Scheduler = {
 
     this.currentBeat = beat
 
-    //if( nextTick !== undefined ) console.log( 'nextTick:', nextTick.time.toFixed(6), 'beat:', beat, 'end:', end, 'phase:', this.phase, 'offset:', nextTick.time.minus( this.phase ).div( advanceAmount ).toFixed(6) )
-
     if( this.queue.length && parseFloat( nextTick.time.toFixed(6) ) < end ) {
       beatOffset = nextTick.time.minus( this.phase ).div( advanceAmount )
       
-      //if( parseFloat( beatOffset.toFixed(6) ) < 1 ) {
-        // remove tick
-        this.queue.pop()
+      // remove tick
+      this.queue.pop()
 
       
-        this.currentTime = nextTick.time
+      this.currentTime = nextTick.time
 
-        // execute callback function for tick passing schedule, time and beatOffset
-        // console.log( 'next tick', nextTick.shouldExecute )
-        nextTick.seq.tick( this, beat, beatOffset, nextTick.shouldExecute )
+      // execute callback function for tick passing schedule, time and beatOffset
+      // console.log( 'next tick', nextTick.shouldExecute )
+      nextTick.seq.tick( this, beat, beatOffset, nextTick.shouldExecute )
 
-        // recursively call advance
-        this.advance( advanceAmount, beat ) 
-      //}else{
-        //shouldEnd = true
-      //}
+      // recursively call advance
+      this.advance( advanceAmount, beat ) 
     } else {
-      shouldEnd = true
-    }
-
-    if( shouldEnd ) {
       if( this.msgs.length ) {      // if output messages have been created
         this.outputMessages()       // output them
         this.msgs.length = 0        // and reset the contents of the output messages array
@@ -73,11 +63,9 @@ let Scheduler = {
   },
 
   addMessage( seq, time, shouldExecute=true ) {
-    // TODO: should this be a function of the time signature?
+    // TODO: should 4 be a function of the time signature?
     time = time.times( 4 ).plus( this.currentTime )
 
-    //console.log( time.toFixed( 6 ) )
- 
     this.queue.push({ seq, time, shouldExecute })
   },
 
@@ -86,20 +74,16 @@ let Scheduler = {
       if( Array.isArray( msg ) ) { // for chords etc.
         msg.forEach( Gibber.Communication.send )
       }else{
-        if( msg !== 0 ) {
-          //console.log( msg.split(' ')[2], this.currentBeat, msg )
-        }
-        //if( msg !== 0 && parseInt( msg.split(' ')[2] ) == this.currentBeat ) {
-        if( msg !== 0 ) {
+        if( msg !== 0 ) { // XXX
           Gibber.Communication.send( msg )
         }
-        //}
       }
     })
   },
 
   seq( beat ) {
     beat = parseInt( beat )
+
     if( beat === 1 ) {
       for( let func of Scheduler.functionsToExecute ) {
         try {
@@ -110,6 +94,7 @@ let Scheduler = {
       }
       Scheduler.functionsToExecute.length = 0
     }
+
     Scheduler.advance( 1, beat )
     
     Scheduler.outputMessages()

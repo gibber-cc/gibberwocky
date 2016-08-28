@@ -1,25 +1,5 @@
 'use strict';
 
-let round = function(value, exp) {
-  //if (typeof exp === 'undefined' || +exp === 0)
-  //  return Math.floor(value);
-
-  //value = +value;
-  //exp = +exp;
-
-  //if (isNaN(value) || !(typeof exp === 'number' && exp % 1 === 0))
-  //  return NaN;
-
-  //// Shift
-  //value = value.toString().split('e');
-  //value = Math.floor(+(value[0] + 'e' + (value[1] ? (+value[1] + exp) : exp)));
-
-  //// Shift back
-  //value = value.toString().split('e');
-  //return +(value[0] + 'e' + (value[1] ? (+value[1] - exp) : -exp));
-  return parseFloat( value.toFixed( exp ) )
-}
-
 const Big = require( 'big.js' )
 
 let seqclosure = function( Gibber ) {
@@ -182,7 +162,7 @@ let seqclosure = function( Gibber ) {
       if( !this.running ) return
 
       // pick a new timing and schedule tick
-      let nextTime = this.timings(),//round( this.timings(), 4 ),
+      let nextTime = this.timings(),
           shouldExecute
       
       if( typeof nextTime === 'function' )  nextTime = nextTime()
@@ -207,26 +187,12 @@ let seqclosure = function( Gibber ) {
 
         let value = this.values()
         if( typeof value === 'function' ) value = value()
-        if( value !== this ) {
+        if( value !== this ) { // WTF??? XXX
           // delay messages  
           if( this.externalMessages[ this.key ] !== undefined ) {
 
-            //let roundedOffset = round( beatOffset, 4 ),
-            //    msgBeat = roundedOffset >= 1 ? beat + 1: beat,
-            //    msgOffset = roundedOffset >= 1 ? beatOffset - 1 : beatOffset,
-            //    msg
-
-            if( _beatOffset === -0 ) {
-              _beatOffset = 0
-            }
-
             let msg = this.externalMessages[ this.key ]( value, beat, _beatOffset,  this.trackID )
-            
-            if( shouldDelay ) {
-              scheduler.delayed.push( msg, this.priority )
-            }else{
-              scheduler.msgs.push( msg, this.priority )
-            }
+            scheduler.msgs.push( msg, this.priority )
 
           } else { // schedule internal method / function call immediately
 
