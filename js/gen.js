@@ -24,6 +24,7 @@ let Gen  = {
   connected: [],
 
   isGen:true,
+  debug:false,
 
   // if property is !== ugen (it's a number) a Param must be made using a default
   create( name ) {
@@ -55,8 +56,8 @@ let Gen  = {
         }else{
           value = v
           if( obj.active ) {
-            console.log( `${Gibber.Live.id} genp ${obj.paramID} ${obj[ key ].uid} ${v}` )
-            Gibber.Communication.send( `${Gibber.Live.id} genp ${obj.paramID} ${obj[ key ].uid} ${v}` ) 
+            console.log( `${obj.track} genp ${obj.paramID} ${obj[ key ].uid} ${v}` )
+            Gibber.Communication.send( `${obj.track} genp ${obj.paramID} ${obj[ key ].uid} ${v}` ) 
           }
         }
       }
@@ -84,21 +85,21 @@ let Gen  = {
     }
   },
 
-  assignParamID: function( id ) {
+  assignTrackAndParamID: function( track, id ) {
     this.paramID = id
-    
+    this.track = track
 
     let count = 0, param
     while( param = this[ count++ ] ) {
       if( typeof param() === 'object' ) {
-        param().assignParamID( id )
+        param().assignTrackAndParamID( track, id )
       }
     }
   },
 
   clear() {
-    for( let param of Gen.connected ) {
-      Gibber.Communication.send( '1 ungen ' + param )
+    for( let ugen of Gen.connected ) {
+      Gibber.Communication.send( `${ugen.track} ungen ${ugen.paramID}` )
     }
   },
 
@@ -146,6 +147,8 @@ let Gen  = {
     
     out += 'out1='
     out += body + ';'
+    
+    if( Gen.debug ) console.log( out )
 
     return out
   },

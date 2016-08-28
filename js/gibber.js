@@ -204,8 +204,8 @@ let Gibber = {
       if( p.properties.quantized === 1 ) _v = Math.round( _v )
       if( _v !== undefined ) {
         if( typeof _v === 'object' && _v.isGen ) {
-          _v.assignParamID( parameter.id )
-          Gibber.Gen.connected.push( parameter.id )
+          _v.assignTrackAndParamID( trackID, parameter.id )
+          Gibber.Gen.connected.push( _v )
           Gibber.Communication.send( `${trackID} gen ${parameter.id} "${_v.out()}"` )
         }else{
           v = _v

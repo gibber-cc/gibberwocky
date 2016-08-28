@@ -2448,6 +2448,7 @@ module.exports = function (Gibber) {
     connected: [],
 
     isGen: true,
+    debug: false,
 
     // if property is !== ugen (it's a number) a Param must be made using a default
     create: function create(name) {
@@ -2486,8 +2487,8 @@ module.exports = function (Gibber) {
             } else {
               value = v;
               if (obj.active) {
-                console.log(Gibber.Live.id + ' genp ' + obj.paramID + ' ' + obj[key].uid + ' ' + v);
-                Gibber.Communication.send(Gibber.Live.id + ' genp ' + obj.paramID + ' ' + obj[key].uid + ' ' + v);
+                console.log(obj.track + ' genp ' + obj.paramID + ' ' + obj[key].uid + ' ' + v);
+                Gibber.Communication.send(obj.track + ' genp ' + obj.paramID + ' ' + obj[key].uid + ' ' + v);
               }
             }
           };
@@ -2574,14 +2575,15 @@ module.exports = function (Gibber) {
     },
 
 
-    assignParamID: function assignParamID(id) {
+    assignTrackAndParamID: function assignTrackAndParamID(track, id) {
       this.paramID = id;
+      this.track = track;
 
       var count = 0,
           param = void 0;
       while (param = this[count++]) {
         if (_typeof(param()) === 'object') {
-          param().assignParamID(id);
+          param().assignTrackAndParamID(track, id);
         }
       }
     },
@@ -2593,9 +2595,9 @@ module.exports = function (Gibber) {
 
       try {
         for (var _iterator4 = Gen.connected[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
-          var param = _step4.value;
+          var ugen = _step4.value;
 
-          Gibber.Communication.send('1 ungen ' + param);
+          Gibber.Communication.send(ugen.track + ' ungen ' + ugen.paramID);
         }
       } catch (err) {
         _didIteratorError4 = true;
@@ -2660,6 +2662,8 @@ module.exports = function (Gibber) {
 
       out += 'out1=';
       out += body + ';';
+
+      if (Gen.debug) console.log(out);
 
       return out;
     },
@@ -3004,8 +3008,8 @@ var Gibber = {
       if (_p.properties.quantized === 1) _v = Math.round(_v);
       if (_v !== undefined) {
         if ((typeof _v === 'undefined' ? 'undefined' : _typeof(_v)) === 'object' && _v.isGen) {
-          _v.assignParamID(parameter.id);
-          Gibber.Gen.connected.push(parameter.id);
+          _v.assignTrackAndParamID(trackID, parameter.id);
+          Gibber.Gen.connected.push(_v);
           Gibber.Communication.send(trackID + ' gen ' + parameter.id + ' "' + _v.out() + '"');
         } else {
           v = _v;
