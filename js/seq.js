@@ -180,9 +180,9 @@ let seqclosure = function( Gibber ) {
 
       if( shouldExecute ) {
         let shouldDelay = false
-        this.values.nextTime = beatOffset
+        this.values.nextTime = _beatOffset
         this.values.beat = beat
-        this.values.beatOffset = beatOffset
+        this.values.beatOffset = _beatOffset
         this.values.scheduler = scheduler
 
         let value = this.values()

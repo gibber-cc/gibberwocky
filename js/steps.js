@@ -84,9 +84,6 @@ const groupMethodNames = [
   'reset','flip', 'invert', 'set'
 ]
 
-
-
-
 return Steps.create
 
 }

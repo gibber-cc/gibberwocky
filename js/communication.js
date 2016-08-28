@@ -95,6 +95,9 @@ let Communication = {
       case 'clr' :
         Gibber.Environment.console.setValue('')
         break;
+      case 'bpm' :
+        Gibber.Scheduler.bpm = data
+        break;
       default:
         if( isObject ) {
           if( Communication.callbacks.scene ) {

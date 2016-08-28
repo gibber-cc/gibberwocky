@@ -513,10 +513,10 @@ var Marker = {
   _addPatternFilter: function _addPatternFilter(patternObject) {
     patternObject.filters.push(function (args) {
       var wait = Utility.beatsToMs(patternObject.nextTime + 1, Gibber.Scheduler.bpm); // TODO: should .25 be a variable representing advance amount?
+
       var idx = args[2],
           shouldUpdate = patternObject.update.shouldUpdate;
 
-      //console.log( 'pattern filter' )
       //if( shouldUpdate ) {
       Gibber.Environment.animationScheduler.add(function () {
         //patternObject.update.shouldUpdate = shouldUpdate
@@ -1224,6 +1224,9 @@ var Communication = {
         break;
       case 'clr':
         Gibber.Environment.console.setValue('');
+        break;
+      case 'bpm':
+        Gibber.Scheduler.bpm = data;
         break;
       default:
         if (isObject) {
@@ -3820,9 +3823,9 @@ var seqclosure = function seqclosure(Gibber) {
 
       if (shouldExecute) {
         var shouldDelay = false;
-        this.values.nextTime = beatOffset;
+        this.values.nextTime = _beatOffset;
         this.values.beat = beat;
-        this.values.beatOffset = beatOffset;
+        this.values.beatOffset = _beatOffset;
         this.values.scheduler = scheduler;
 
         var value = this.values();

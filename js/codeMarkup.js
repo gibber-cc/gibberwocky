@@ -205,10 +205,10 @@ let Marker = {
   _addPatternFilter( patternObject ) {
     patternObject.filters.push( ( args ) => {
       const wait = Utility.beatsToMs( patternObject.nextTime + 1,  Gibber.Scheduler.bpm ) // TODO: should .25 be a variable representing advance amount?
+
       let idx = args[ 2 ],
           shouldUpdate = patternObject.update.shouldUpdate
-           
-      //console.log( 'pattern filter' )
+        
       //if( shouldUpdate ) {
         Gibber.Environment.animationScheduler.add( () => {
           //patternObject.update.shouldUpdate = shouldUpdate
@@ -597,7 +597,7 @@ let Marker = {
 
           update = () => {
             let currentIdx = update.currentIndex // count++ % step.value.length
-      
+            
             if( span !== undefined ) {
               span.remove( 'euclid0' )
             }
@@ -614,7 +614,6 @@ let Marker = {
             
             span.add( 'euclid0' )
           }
-
 
           patternObject._onchange = () => {
             let delay = Utility.beatsToMs( 1,  Gibber.Scheduler.bpm )
