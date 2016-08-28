@@ -3413,6 +3413,7 @@ module.exports = function (Gibber) {
       if (isFunction) {
         val = fnc.values[0]();
         args = fnc.runFilters(val, idx);
+        val = args[0];
       } else {
         val = fnc.values[Math.floor(idx % fnc.values.length)];
         args = fnc.runFilters(val, idx);
@@ -4380,20 +4381,18 @@ var seqclosure = function seqclosure(Gibber) {
           return args;
         });
       } else if (this.key === 'chord') {
+
         this.values.filters.push(function (args) {
           var chord = args[0],
-              out = [];
-          if (typeof chord === 'function') chord = chord();
+              out = void 0;
 
           if (typeof chord === 'string') {
             var chordObj = Gibber.Theory.Chord.create(chord);
 
             out = chordObj.notes;
           } else {
-            for (var _i = 0; _i < chord.length; _i++) {
-              var note = Gibber.Theory.Note.convertToMIDI(chord[_i]);
-              out.push(note);
-            }
+            if (typeof chord === 'function') chord = chord();
+            out = chord.map(Gibber.Theory.Note.convertToMIDI);
           }
 
           args[0] = out;
@@ -5120,23 +5119,15 @@ module.exports = function (Gibber) {
           var msg = [];
 
           if (typeof _chord === 'string') {
-            var chordObj = Gibber.Theory.Chord.create(_chord);
-
-            _chord = chordObj.notes;
-            console.log('chord', _chord);
-            for (var i = 0; i < _chord.length; i++) {
-              var note = _chord[i]; // Gibber.Theory.Note.convertToMIDI( chord[i] )
-              this.note(_chord[i]); //msg.push( `${Gibber.Live.id} note ${note} ${velocity} ${duration}`.trimRight() )
-            }
+            _chord = Gibber.Theory.Chord.create(_chord).notes;
+            _chord.forEach(function (v) {
+              return track.midinote(v);
+            });
           } else {
-            for (var _i = 0; _i < _chord.length; _i++) {
-              var _note = Gibber.Theory.Note.convertToMIDI(_chord[_i]);
-              this.note(_chord[_i]);
-              // msg.push( `${Gibber.Live.id} note ${note} ${velocity} ${duration}`.trimRight() )
-            }
+            _chord.forEach(function (v) {
+              return track.note(v);
+            });
           }
-
-          Gibber.Communication.send(msg);
         },
         midichord: function midichord(chord) {
           var velocity = arguments.length <= 1 || arguments[1] === undefined ? '' : arguments[1];

@@ -53,28 +53,26 @@ let seqclosure = function( Gibber ) {
       }
 
       if( this.key === 'note' ) {
-        this.values.filters.push( ( args ) => {
+        this.values.filters.push( args => {
           args[ 0 ] = Theory.Note.convertToMIDI( args[ 0 ] )
           return args
         })
       } else if( this.key === 'chord' ) {
-        this.values.filters.push( ( args ) => {
-          let chord = args[ 0 ], out = []
-          if( typeof chord === 'function' ) chord = chord()         
-          
+
+        this.values.filters.push( args => {
+          let chord = args[ 0 ], out
+
           if( typeof chord === 'string' ) {
             let chordObj = Gibber.Theory.Chord.create( chord )
 
             out = chordObj.notes 
           }else{
-            for( let i = 0; i < chord.length; i++ ) {
-              let note = Gibber.Theory.Note.convertToMIDI( chord[i] )
-              out.push( note )            
-            }
+            if( typeof chord === 'function' ) chord = chord()
+            out = chord.map( Gibber.Theory.Note.convertToMIDI )
           }
 
           args[0] = out
-
+          
           return args
         })
       }

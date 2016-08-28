@@ -64,6 +64,7 @@ let Pattern = function( ...args ) {
     if( isFunction ) {
       val = fnc.values[ 0 ]()
       args = fnc.runFilters( val, idx )
+      val = args[0]
     }else{
       val = fnc.values[ Math.floor( idx % fnc.values.length ) ]
       args = fnc.runFilters( val, idx )

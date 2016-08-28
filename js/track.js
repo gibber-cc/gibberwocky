@@ -37,24 +37,12 @@ let Track = {
       chord( chord, velocity='', duration='' ) {
         let msg = []
         
-        if( typeof chord  === 'string' ) {
-          let chordObj = Gibber.Theory.Chord.create( chord )
-
-          chord = chordObj.notes 
-          console.log( 'chord', chord )
-          for( let i = 0; i < chord.length; i++ ) {
-            let note = chord[ i ] // Gibber.Theory.Note.convertToMIDI( chord[i] )
-            this.note( chord[ i ] )//msg.push( `${Gibber.Live.id} note ${note} ${velocity} ${duration}`.trimRight() )
-          }
+        if( typeof chord  === 'string' ){
+          chord = Gibber.Theory.Chord.create( chord ).notes
+          chord.forEach( v => track.midinote( v ) )
         }else{
-          for( let i = 0; i < chord.length; i++ ) {
-            let note = Gibber.Theory.Note.convertToMIDI( chord[i] )
-            this.note( chord[i] )
-           // msg.push( `${Gibber.Live.id} note ${note} ${velocity} ${duration}`.trimRight() )
-          }
+          chord.forEach( v => track.note( v ) )
         }
-
-        Gibber.Communication.send( msg )
       },
 
       midichord( chord, velocity='', duration='' ) {
