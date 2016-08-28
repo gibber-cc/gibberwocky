@@ -1,6 +1,6 @@
 require( './vanillatree.js' )
 
-let Gibber = null
+let Gibber = null, count = -1
 
 let lomView = {
   tree: null,
@@ -9,9 +9,15 @@ let lomView = {
     Gibber = _gibber
     this.setup()
     this.create()
+
+    count++
+    if( count )
+      Gibber.log( 'the live object model (lom) has been updated.' )
   },
 
   setup() {
+    document.querySelector( '#lomView' ).innerHTML = ''
+
     this.tree = new VanillaTree('#lomView', {
       placeholder: ''
       //contextmenu: [{

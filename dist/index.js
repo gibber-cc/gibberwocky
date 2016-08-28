@@ -1192,7 +1192,7 @@ var Communication = {
   handleMessage: function handleMessage(_msg) {
     // key and data are separated by a space
     // TODO: will key always be three characters?
-
+    //console.log( 'MSG', _msg )
     var msg = void 0,
         isObject = false,
         id = void 0,
@@ -1210,7 +1210,7 @@ var Communication = {
       data = msg[2];
     }
 
-    if (id !== Gibber.Live.id) return;
+    if (id !== undefined && id !== Gibber.Live.id) return;
 
     //let key = msg.data.substr( 1,4 ), data = msg.data.substr( 5 )
     switch (key) {
@@ -1222,12 +1222,19 @@ var Communication = {
           Gibber.Scheduler.seq(data);
         }
         break;
+
       case 'clr':
         Gibber.Environment.console.setValue('');
         break;
+
       case 'bpm':
         Gibber.Scheduler.bpm = data;
         break;
+
+      case 'err':
+        console.error(id, key, data);
+        break;
+
       default:
         if (isObject) {
           if (Communication.callbacks.scene) {
@@ -2540,7 +2547,8 @@ module.exports = function (Gibber) {
 
 require('./vanillatree.js');
 
-var Gibber = null;
+var Gibber = null,
+    count = -1;
 
 var lomView = {
   tree: null,
@@ -2549,8 +2557,13 @@ var lomView = {
     Gibber = _gibber;
     this.setup();
     this.create();
+
+    count++;
+    if (count) Gibber.log('the live object model (lom) has been updated.');
   },
   setup: function setup() {
+    document.querySelector('#lomView').innerHTML = '';
+
     this.tree = new VanillaTree('#lomView', {
       placeholder: ''
       //contextmenu: [{

@@ -66,7 +66,7 @@ let Communication = {
   handleMessage( _msg ) {
     // key and data are separated by a space
     // TODO: will key always be three characters?
-    
+    //console.log( 'MSG', _msg )
     let msg, isObject = false, id, key, data
     
     if( _msg.data.charAt( 0 ) === '{' ) {
@@ -80,7 +80,7 @@ let Communication = {
       data = msg[ 2 ]
     }
     
-    if( id !== Gibber.Live.id ) return
+    if( id !== undefined && id !== Gibber.Live.id ) return
 
     //let key = msg.data.substr( 1,4 ), data = msg.data.substr( 5 )
     switch( key ) {
@@ -92,12 +92,19 @@ let Communication = {
           Gibber.Scheduler.seq( data );
         }
         break;
+
       case 'clr' :
         Gibber.Environment.console.setValue('')
         break;
+
       case 'bpm' :
         Gibber.Scheduler.bpm = data
         break;
+
+      case 'err':
+        console.error( id, key, data )
+        break;
+
       default:
         if( isObject ) {
           if( Communication.callbacks.scene ) {
