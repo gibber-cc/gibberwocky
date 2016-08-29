@@ -2352,7 +2352,7 @@ var Gibber = {
     if (methodName === null) methodName = parameter.name;
 
     Gibber.Seq.proto.externalMessages[seqKey] = function (value, beat, beatOffset) {
-      var msg = trackID + ' add ' + beat + ' ' + beatOffset + ' set ' + parameter.id + ' ' + value;
+      var msg = trackID + ' add ' + (beat + beatOffset) + ' set ' + parameter.id + ' ' + value;
       return msg;
     };
 
@@ -3764,32 +3764,32 @@ var seqclosure = function seqclosure(Gibber) {
 
 
     externalMessages: {
-      note: function note(number, beat, beatOffset, trackID) {
+      note: function note(number, beat, trackID) {
         // let msgstring = "add " + beat + " " + t + " " + n + " " + v + " " + d
 
-        return trackID + ' add ' + beat + ' ' + beatOffset + ' note ' + number;
+        return trackID + ' add ' + beat + ' note ' + number;
       },
       midinote: function midinote(number, beat, beatOffset, trackID) {
-        return trackID + ' add ' + beat + ' ' + beatOffset + ' note ' + number;
+        return trackID + ' add ' + beat + ' note ' + number;
       },
       duration: function duration(value, beat, beatOffset, trackID) {
-        return trackID + ' add ' + beat + ' ' + beatOffset + ' duration ' + value;
+        return trackID + ' add ' + beat + ' duration ' + value;
       },
       velocity: function velocity(value, beat, beatOffset, trackID) {
-        return trackID + ' add ' + beat + ' ' + beatOffset + ' velocity ' + value;
+        return trackID + ' add ' + beat + ' velocity ' + value;
       },
       chord: function chord(_chord, beat, beatOffset, trackID) {
         //console.log( chord )
         var msg = [];
 
         for (var i = 0; i < _chord.length; i++) {
-          msg.push(trackID + ' add ' + beat + ' ' + beatOffset + ' note ' + _chord[i]);
+          msg.push(trackID + ' add ' + beat + ' note ' + _chord[i]);
         }
 
         return msg;
       },
       cc: function cc(number, value, beat, beatOffset) {
-        return 'add ' + beat + ' ' + beatOffset + ' cc ' + number + ' ' + value;
+        return 'add ' + beat + ' cc ' + number + ' ' + value;
       }
     },
 
@@ -3847,7 +3847,7 @@ var seqclosure = function seqclosure(Gibber) {
           // delay messages  
           if (this.externalMessages[this.key] !== undefined) {
 
-            var msg = this.externalMessages[this.key](value, beat, _beatOffset, this.trackID);
+            var msg = this.externalMessages[this.key](value, beat + _beatOffset, this.trackID);
             scheduler.msgs.push(msg, this.priority);
           } else {
             // schedule internal method / function call immediately
