@@ -6,7 +6,7 @@ body {
 }
 
 #editor {
-  width:70%;
+  width:63%;
   height:100%;
   display:inline-block;
 }
@@ -14,7 +14,7 @@ body {
 /* TODO: fix in max and change width to 30% before publishing. */
 #sidebar {
   display:inline-block;
-  width:29.25%;
+  width:35%;
   float:right;
   height:100%;
   border-left:1px black solid;
