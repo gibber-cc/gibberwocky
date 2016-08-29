@@ -195,8 +195,8 @@ let Gibber = {
 
     if( methodName === null ) methodName = parameter.name
 
-    Gibber.Seq.proto.externalMessages[ seqKey ] = ( value, beat, beatOffset ) => {
-      let msg = `${trackID} add ${beat + beatOffset} set ${parameter.id} ${value}` 
+    Gibber.Seq.proto.externalMessages[ seqKey ] = ( value, beat ) => {
+      let msg = `${trackID} add ${beat} set ${parameter.id} ${value}` 
       return msg
     }
     

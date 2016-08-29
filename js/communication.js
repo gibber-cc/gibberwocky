@@ -79,7 +79,12 @@ let Communication = {
       msg = _msg.data.split( ' ' )
       id = msg[ 0 ]
       key = msg[ 1 ]
-      data = msg[ 2 ]
+
+      if( key === 'err' ) {
+        data = msg.slice( 2 ).join( ' ' )
+      }else{
+        data = msg[ 2 ]
+      }
     }
     
     if( id !== undefined && id !== Gibber.Live.id ) return
@@ -88,7 +93,7 @@ let Communication = {
       if( id !== undefined ) { 
         Gibber.log( 'debug.input:', id, key, data )
       }else{
-        Gibber.log( 'debug.input:', JSON.parse( data ) )
+        Gibber.log( 'debug.input (obj):', JSON.parse( data ) )
       }
     }
 
@@ -125,7 +130,7 @@ let Communication = {
 
   send( code ) {
     if( Communication.connected ) {
-      if( Communication.debug.output ) console.log( 'beat:', Gibber.Scheduler.currentBeat, 'msg:', code  )
+      if( Communication.debug.output ) Gibber.log( 'beat:', Gibber.Scheduler.currentBeat, 'msg:', code  )
       Communication.wsocket.send( code )
     }
   },

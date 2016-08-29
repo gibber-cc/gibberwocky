@@ -1208,7 +1208,12 @@ var Communication = {
       msg = _msg.data.split(' ');
       id = msg[0];
       key = msg[1];
-      data = msg[2];
+
+      if (key === 'err') {
+        data = msg.slice(2).join(' ');
+      } else {
+        data = msg[2];
+      }
     }
 
     if (id !== undefined && id !== Gibber.Live.id) return;
@@ -1217,7 +1222,7 @@ var Communication = {
       if (id !== undefined) {
         Gibber.log('debug.input:', id, key, data);
       } else {
-        Gibber.log('debug.input:', JSON.parse(data));
+        Gibber.log('debug.input (obj):', JSON.parse(data));
       }
     }
 
@@ -1253,7 +1258,7 @@ var Communication = {
   },
   send: function send(code) {
     if (Communication.connected) {
-      if (Communication.debug.output) console.log('beat:', Gibber.Scheduler.currentBeat, 'msg:', code);
+      if (Communication.debug.output) Gibber.log('beat:', Gibber.Scheduler.currentBeat, 'msg:', code);
       Communication.wsocket.send(code);
     }
   },
@@ -2376,8 +2381,8 @@ var Gibber = {
 
     if (methodName === null) methodName = parameter.name;
 
-    Gibber.Seq.proto.externalMessages[seqKey] = function (value, beat, beatOffset) {
-      var msg = trackID + ' add ' + (beat + beatOffset) + ' set ' + parameter.id + ' ' + value;
+    Gibber.Seq.proto.externalMessages[seqKey] = function (value, beat) {
+      var msg = trackID + ' add ' + beat + ' set ' + parameter.id + ' ' + value;
       return msg;
     };
 
@@ -3794,16 +3799,16 @@ var seqclosure = function seqclosure(Gibber) {
 
         return trackID + ' add ' + beat + ' note ' + number;
       },
-      midinote: function midinote(number, beat, beatOffset, trackID) {
+      midinote: function midinote(number, beat, trackID) {
         return trackID + ' add ' + beat + ' note ' + number;
       },
-      duration: function duration(value, beat, beatOffset, trackID) {
+      duration: function duration(value, beat, trackID) {
         return trackID + ' add ' + beat + ' duration ' + value;
       },
-      velocity: function velocity(value, beat, beatOffset, trackID) {
+      velocity: function velocity(value, beat, trackID) {
         return trackID + ' add ' + beat + ' velocity ' + value;
       },
-      chord: function chord(_chord, beat, beatOffset, trackID) {
+      chord: function chord(_chord, beat, trackID) {
         //console.log( chord )
         var msg = [];
 
@@ -3813,8 +3818,8 @@ var seqclosure = function seqclosure(Gibber) {
 
         return msg;
       },
-      cc: function cc(number, value, beat, beatOffset) {
-        return 'add ' + beat + ' cc ' + number + ' ' + value;
+      cc: function cc(number, value, beat) {
+        return trackID + ' add ' + beat + ' cc ' + number + ' ' + value;
       }
     },
 
