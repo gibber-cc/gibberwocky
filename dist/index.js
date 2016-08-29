@@ -2027,7 +2027,8 @@ module.exports = function (Gibber) {
       phasor: { properties: ['0'], str: 'phasor' },
       cycle: { properties: ['0'], str: 'cycle' },
       rate: { properties: ['0', '1'], str: 'rate' },
-      noise: { properties: [], str: 'noise' }
+      noise: { properties: [], str: 'noise' },
+      accum: { properties: ['0', '1'], str: 'accum' }
     },
 
     _count: 0,

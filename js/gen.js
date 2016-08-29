@@ -125,7 +125,8 @@ let Gen  = {
     phasor: { properties:[ '0' ],  str:'phasor' },
     cycle:  { properties:[ '0' ],  str:'cycle' },
     rate:   { properties:[ '0','1' ], str:'rate' },
-    noise:  { properties:[], str:'noise' }
+    noise:  { properties:[], str:'noise' },
+    accum:  { properties:[ '0','1' ], str:'accum' }
   },
 
   _count: 0,
@@ -205,6 +206,7 @@ let Gen  = {
           _cycle[0]( v )
         }
       }
+
       _add.amp = (v) => {
         if( v === undefined ) {
           return _mul[ 1 ]()
@@ -212,6 +214,7 @@ let Gen  = {
           _mul[1]( v )
         }
       }
+
       _add.center = (v) => {
         if( v === undefined ) {
           return _add[ 0 ]()
@@ -225,6 +228,14 @@ let Gen  = {
       Gibber.addSequencingToMethod( _add, 'center' )
 
       return _add
+    },
+
+    fade( time = 441000, from = 1, to = 0 ) {
+      let fade = gtp( sub( 1, accum( 1 / time, 0 ) ), 0 )
+
+      fade.shouldKill = time
+      
+      return fade
     },
     
     beat( num ) {
