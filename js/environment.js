@@ -16,6 +16,8 @@ let Environment = {
   _codemirror: CodeMirror,
   animationScheduler: require( './animationScheduler.js' ),
   lomView: require( './lomView.js' ),
+  consoleDiv:null,
+  consoleList:null,
 
   init( gibber ) {
     Gibber = gibber
@@ -83,7 +85,10 @@ let Environment = {
 
     list.setAttribute( 'id', 'console_list' )
 
-    document.querySelector( '#console' ).appendChild( list )
+    Environment.consoleList = list
+    Environment.consoleDiv = document.querySelector( '#console' )
+
+    Environment.consoleDiv.appendChild( list )
   },
 
   createDemoList() {
@@ -109,7 +114,8 @@ let Environment = {
 
   log( ...args ) {
     let consoleItem = Environment.createConsoleItem( args )
-    document.querySelector( '#console_list' ).appendChild( consoleItem )
+    Environment.consoleList.appendChild( consoleItem )
+    consoleItem.scrollIntoView()
   },
 
   error( ...args ) {
@@ -117,7 +123,8 @@ let Environment = {
     
     consoleItem.setAttribute( 'class', 'console_error' )
 
-    document.querySelector( '#console_list' ).appendChild( consoleItem )
+    Environment.consoleList.appendChild( consoleItem )
+    consoleItem.scrollIntoView()
   },
   
   createConsoleItem( args ) {

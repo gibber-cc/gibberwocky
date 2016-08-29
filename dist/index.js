@@ -1236,7 +1236,7 @@ var Communication = {
         break;
 
       case 'clr':
-        Gibber.Environment.console.setValue('');
+        Gibber.Environment.clearConsole();
         break;
 
       case 'bpm':
@@ -1300,6 +1300,8 @@ var Environment = {
   _codemirror: CodeMirror,
   animationScheduler: require('./animationScheduler.js'),
   lomView: require('./lomView.js'),
+  consoleDiv: null,
+  consoleList: null,
 
   init: function init(gibber) {
     Gibber = gibber;
@@ -1363,7 +1365,10 @@ var Environment = {
 
     list.setAttribute('id', 'console_list');
 
-    document.querySelector('#console').appendChild(list);
+    Environment.consoleList = list;
+    Environment.consoleDiv = document.querySelector('#console');
+
+    Environment.consoleDiv.appendChild(list);
   },
   createDemoList: function createDemoList() {
     var container = document.querySelector('#demos'),
@@ -1395,7 +1400,8 @@ var Environment = {
     }
 
     var consoleItem = Environment.createConsoleItem(args);
-    document.querySelector('#console_list').appendChild(consoleItem);
+    Environment.consoleList.appendChild(consoleItem);
+    consoleItem.scrollIntoView();
   },
   error: function error() {
     for (var _len2 = arguments.length, args = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
@@ -1406,13 +1412,17 @@ var Environment = {
 
     consoleItem.setAttribute('class', 'console_error');
 
-    document.querySelector('#console_list').appendChild(consoleItem);
+    Environment.consoleList.appendChild(consoleItem);
+    consoleItem.scrollIntoView();
   },
   createConsoleItem: function createConsoleItem(args) {
     var li = document.createElement('li');
     li.innerText = args.join(' ');
 
     return li;
+  },
+  clearConsole: function clearConsole() {
+    document.querySelector('#console_list').innerHTML = '';
   },
 
 
