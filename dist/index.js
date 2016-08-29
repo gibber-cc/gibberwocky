@@ -1127,10 +1127,12 @@ var Gibber = null;
 var Communication = {
   webSocketPort: 8081, // default?
   socketInitialized: false,
-  debug: false,
+  debug: {
+    input: false,
+    output: false
+  },
 
   init: function init(_Gibber) {
-    //console.log(' Communication init' )
     Gibber = _Gibber;
     this.createWebSocket();
     this.send = this.send.bind(Communication);
@@ -1188,16 +1190,15 @@ var Communication = {
 
 
   callbacks: {},
+
   count: 0,
+
   handleMessage: function handleMessage(_msg) {
-    // key and data are separated by a space
-    // TODO: will key always be three characters?
-    //console.log( 'MSG', _msg )
-    var msg = void 0,
-        isObject = false,
+    var isObject = false,
         id = void 0,
         key = void 0,
-        data = void 0;
+        data = void 0,
+        msg = void 0;
 
     if (_msg.data.charAt(0) === '{') {
       data = _msg.data;
@@ -1212,13 +1213,19 @@ var Communication = {
 
     if (id !== undefined && id !== Gibber.Live.id) return;
 
-    //let key = msg.data.substr( 1,4 ), data = msg.data.substr( 5 )
+    if (Communication.debug.input) {
+      if (id !== undefined) {
+        Gibber.log('debug.input:', id, key, data);
+      } else {
+        Gibber.log('debug.input:', JSON.parse(data));
+      }
+    }
+
     switch (key) {
       case 'seq':
         if (data === undefined) {
           console.log('faulty ws seq message', _msg.data);
         } else {
-          //console.log( 'WS', key, data )
           Gibber.Scheduler.seq(data);
         }
         break;
@@ -1232,7 +1239,7 @@ var Communication = {
         break;
 
       case 'err':
-        console.error(id, key, data);
+        Gibber.Environment.error(data);
         break;
 
       default:
@@ -1241,13 +1248,12 @@ var Communication = {
             Communication.callbacks.scene(JSON.parse(data));
           }
         }
-        //console.log( 'MSG', msg )
         break;
     }
   },
   send: function send(code) {
     if (Communication.connected) {
-      if (Communication.debug) console.log('beat:', Gibber.Scheduler.currentBeat, 'msg:', code);
+      if (Communication.debug.output) console.log('beat:', Gibber.Scheduler.currentBeat, 'msg:', code);
       Communication.wsocket.send(code);
     }
   },
@@ -1345,8 +1351,14 @@ var Environment = {
   },
   createConsole: function createConsole() {
 
-    this.console = CodeMirror(document.querySelector('#console'), { mode: 'javascript', autofocus: false, lineWrapping: true });
-    this.console.setSize(null, '100%');
+    //this.console = //CodeMirror( document.querySelector('#console'), { mode:'javascript', autofocus:false, lineWrapping:true })
+    //this.console.setSize( null, '100%' )
+
+    var list = document.createElement('ul');
+
+    list.setAttribute('id', 'console_list');
+
+    document.querySelector('#console').appendChild(list);
   },
   createDemoList: function createDemoList() {
     var container = document.querySelector('#demos'),
@@ -1373,16 +1385,29 @@ var Environment = {
     container.appendChild(list);
   },
   log: function log() {
-    var args = Array.prototype.slice.call(arguments, 0);
+    for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
+      args[_key] = arguments[_key];
+    }
 
-    // do not place newline before first log message
-    var currentValue = Environment.console.getValue();
-    if (currentValue.length) currentValue += '\n';
+    var consoleItem = Environment.createConsoleItem(args);
+    document.querySelector('#console_list').appendChild(consoleItem);
+  },
+  error: function error() {
+    for (var _len2 = arguments.length, args = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
+      args[_key2] = arguments[_key2];
+    }
 
-    Environment.console.setValue(currentValue + args.join(' '));
-    Environment.console.scrollIntoView({ line: Environment.console.lastLine(), ch: 0 });
+    var consoleItem = Environment.createConsoleItem(args);
 
-    console.log.apply(console, args);
+    consoleItem.setAttribute('class', 'console_error');
+
+    document.querySelector('#console_list').appendChild(consoleItem);
+  },
+  createConsoleItem: function createConsoleItem(args) {
+    var li = document.createElement('li');
+    li.innerText = args.join(' ');
+
+    return li;
   },
 
 

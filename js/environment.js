@@ -76,8 +76,14 @@ let Environment = {
 
   createConsole() {
     
-    this.console = CodeMirror( document.querySelector('#console'), { mode:'javascript', autofocus:false, lineWrapping:true })
-    this.console.setSize( null, '100%' )
+    //this.console = //CodeMirror( document.querySelector('#console'), { mode:'javascript', autofocus:false, lineWrapping:true })
+    //this.console.setSize( null, '100%' )
+
+    let list = document.createElement( 'ul' )
+
+    list.setAttribute( 'id', 'console_list' )
+
+    document.querySelector( '#console' ).appendChild( list )
   },
 
   createDemoList() {
@@ -101,17 +107,24 @@ let Environment = {
     container.appendChild( list )
   },
 
-  log() {
-    let args = Array.prototype.slice.call( arguments, 0 )
-    
-    // do not place newline before first log message
-    let currentValue = Environment.console.getValue() 
-    if( currentValue.length ) currentValue += '\n'
+  log( ...args ) {
+    let consoleItem = Environment.createConsoleItem( args )
+    document.querySelector( '#console_list' ).appendChild( consoleItem )
+  },
 
-    Environment.console.setValue( currentValue + args.join( ' ' ) )
-    Environment.console.scrollIntoView({ line:Environment.console.lastLine(), ch:0 })
+  error( ...args ) {
+    let consoleItem = Environment.createConsoleItem( args )
     
-    console.log.apply( console, args ) 
+    consoleItem.setAttribute( 'class', 'console_error' )
+
+    document.querySelector( '#console_list' ).appendChild( consoleItem )
+  },
+  
+  createConsoleItem( args ) {
+    let li = document.createElement( 'li' )
+    li.innerText = args.join( ' ' )
+
+    return li
   },
 
   keymap : {

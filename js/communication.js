@@ -3,10 +3,12 @@ let Gibber = null
 let Communication = {
   webSocketPort: 8081, // default?
   socketInitialized: false,
-  debug: false,
+  debug: {
+    input:false,
+    output:false
+  },
   
   init( _Gibber ) { 
-    //console.log(' Communication init' )
     Gibber = _Gibber
     this.createWebSocket()
     this.send = this.send.bind( Communication )
@@ -62,12 +64,12 @@ let Communication = {
   },
 
   callbacks: {},
+
   count:0,
+
   handleMessage( _msg ) {
-    // key and data are separated by a space
-    // TODO: will key always be three characters?
-    //console.log( 'MSG', _msg )
-    let msg, isObject = false, id, key, data
+    let isObject = false, 
+        id, key, data, msg
     
     if( _msg.data.charAt( 0 ) === '{' ) {
       data = _msg.data
@@ -82,13 +84,19 @@ let Communication = {
     
     if( id !== undefined && id !== Gibber.Live.id ) return
 
-    //let key = msg.data.substr( 1,4 ), data = msg.data.substr( 5 )
+    if( Communication.debug.input ) {
+      if( id !== undefined ) { 
+        Gibber.log( 'debug.input:', id, key, data )
+      }else{
+        Gibber.log( 'debug.input:', JSON.parse( data ) )
+      }
+    }
+
     switch( key ) {
       case 'seq' :
         if( data === undefined ) {
           console.log( 'faulty ws seq message', _msg.data )
         }else{
-          //console.log( 'WS', key, data )
           Gibber.Scheduler.seq( data );
         }
         break;
@@ -102,7 +110,7 @@ let Communication = {
         break;
 
       case 'err':
-        console.error( id, key, data )
+        Gibber.Environment.error( data )
         break;
 
       default:
@@ -111,14 +119,13 @@ let Communication = {
             Communication.callbacks.scene( JSON.parse( data ) )
           }
         }
-        //console.log( 'MSG', msg )
         break;
     }
   },
 
   send( code ) {
     if( Communication.connected ) {
-      if( Communication.debug ) console.log( 'beat:', Gibber.Scheduler.currentBeat, 'msg:', code  )
+      if( Communication.debug.output ) console.log( 'beat:', Gibber.Scheduler.currentBeat, 'msg:', code  )
       Communication.wsocket.send( code )
     }
   },
