@@ -127,6 +127,10 @@ let Environment = {
     return li
   },
 
+  clearConsole() {
+    document.querySelector( '#console_list' ).innerHTML = ''
+  },
+
   keymap : {
     fallthrough:'default',
 

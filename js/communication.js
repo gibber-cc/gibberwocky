@@ -107,7 +107,7 @@ let Communication = {
         break;
 
       case 'clr' :
-        Gibber.Environment.console.setValue('')
+        Gibber.Environment.clearConsole()
         break;
 
       case 'bpm' :
