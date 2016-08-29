@@ -196,7 +196,7 @@ let Gibber = {
     if( methodName === null ) methodName = parameter.name
 
     Gibber.Seq.proto.externalMessages[ seqKey ] = ( value, beat ) => {
-      let msg = `${trackID} add ${beat} set ${parameter.id} ${value}` 
+      let msg = `${Gibber.Live.id} add ${beat} set ${parameter.id} ${value}` 
       return msg
     }
     
@@ -206,10 +206,10 @@ let Gibber = {
         if( typeof _v === 'object' && _v.isGen ) {
           _v.assignTrackAndParamID( trackID, parameter.id )
           Gibber.Gen.connected.push( _v )
-          Gibber.Communication.send( `${trackID} gen ${parameter.id} "${_v.out()}"` )
+          Gibber.Communication.send( `${Gibber.Live.id} gen ${parameter.id} "${_v.out()}"` )
         }else{
           v = _v
-          Gibber.Communication.send( `${trackID} set ${parameter.id} ${v}` )
+          Gibber.Communication.send( `${Gibber.Live.id} set ${parameter.id} ${v}` )
         }
       }else{
         return v

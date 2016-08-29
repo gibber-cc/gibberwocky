@@ -1986,7 +1986,7 @@ module.exports = function (Gibber) {
         for (var _iterator4 = Gen.connected[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
           var ugen = _step4.value;
 
-          Gibber.Communication.send(ugen.track + ' ungen ' + ugen.paramID);
+          Gibber.Communication.send(Gibber.Live.id + ' ungen ' + ugen.paramID);
         }
       } catch (err) {
         _didIteratorError4 = true;
@@ -2392,7 +2392,7 @@ var Gibber = {
     if (methodName === null) methodName = parameter.name;
 
     Gibber.Seq.proto.externalMessages[seqKey] = function (value, beat) {
-      var msg = trackID + ' add ' + beat + ' set ' + parameter.id + ' ' + value;
+      var msg = Gibber.Live.id + ' add ' + beat + ' set ' + parameter.id + ' ' + value;
       return msg;
     };
 
@@ -2402,10 +2402,10 @@ var Gibber = {
         if ((typeof _v === 'undefined' ? 'undefined' : _typeof(_v)) === 'object' && _v.isGen) {
           _v.assignTrackAndParamID(trackID, parameter.id);
           Gibber.Gen.connected.push(_v);
-          Gibber.Communication.send(trackID + ' gen ' + parameter.id + ' "' + _v.out() + '"');
+          Gibber.Communication.send(Gibber.Live.id + ' gen ' + parameter.id + ' "' + _v.out() + '"');
         } else {
           v = _v;
-          Gibber.Communication.send(trackID + ' set ' + parameter.id + ' ' + v);
+          Gibber.Communication.send(Gibber.Live.id + ' set ' + parameter.id + ' ' + v);
         }
       } else {
         return v;
@@ -3887,7 +3887,7 @@ var seqclosure = function seqclosure(Gibber) {
           // delay messages  
           if (this.externalMessages[this.key] !== undefined) {
 
-            var msg = this.externalMessages[this.key](value, beat + _beatOffset, this.trackID);
+            var msg = this.externalMessages[this.key](value, beat + _beatOffset, Gibber.Live.id);
             scheduler.msgs.push(msg, this.priority);
           } else {
             // schedule internal method / function call immediately

@@ -189,7 +189,7 @@ let seqclosure = function( Gibber ) {
           // delay messages  
           if( this.externalMessages[ this.key ] !== undefined ) {
 
-            let msg = this.externalMessages[ this.key ]( value, beat + _beatOffset, this.trackID )
+            let msg = this.externalMessages[ this.key ]( value, beat + _beatOffset, Gibber.Live.id )
             scheduler.msgs.push( msg, this.priority )
 
           } else { // schedule internal method / function call immediately

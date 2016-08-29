@@ -99,7 +99,7 @@ let Gen  = {
 
   clear() {
     for( let ugen of Gen.connected ) {
-      Gibber.Communication.send( `${ugen.track} ungen ${ugen.paramID}` )
+      Gibber.Communication.send( `${Gibber.Live.id} ungen ${ugen.paramID}` )
     }
 
     Gen.connected.length = 0
