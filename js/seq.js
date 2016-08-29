@@ -101,20 +101,20 @@ let seqclosure = function( Gibber ) {
     },
 
     externalMessages: {
-      note( number, beat, beatOffset, trackID ) {
+      note( number, beat,  trackID ) {
         // let msgstring = "add " + beat + " " + t + " " + n + " " + v + " " + d
 
-        return `${trackID} add ${beat} ${beatOffset} note ${number}` 
+        return `${trackID} add ${beat} note ${number}` 
       },
       midinote( number, beat, beatOffset, trackID ) {
-        return `${trackID} add ${beat} ${beatOffset} note ${number}` 
+        return `${trackID} add ${beat} note ${number}` 
       },
       duration( value, beat, beatOffset, trackID ) {
-        return `${trackID} add ${beat} ${beatOffset} duration ${value}` 
+        return `${trackID} add ${beat} duration ${value}` 
       },
 
       velocity( value, beat, beatOffset, trackID ) {
-        return `${trackID} add ${beat} ${beatOffset} velocity ${value}` 
+        return `${trackID} add ${beat} velocity ${value}` 
       },
 
       chord( chord, beat, beatOffset, trackID ) {
@@ -122,13 +122,13 @@ let seqclosure = function( Gibber ) {
         let msg = []
 
         for( let i = 0; i < chord.length; i++ ) {
-          msg.push( `${trackID} add ${beat} ${beatOffset} note ${chord[i]}` )
+          msg.push( `${trackID} add ${beat} note ${chord[i]}` )
         }
 
         return msg
       },
       cc( number, value, beat, beatOffset ) {
-        return `add ${beat} ${beatOffset} cc ${number} ${value}`
+        return `add ${beat} cc ${number} ${value}`
       },
     },
 
@@ -189,7 +189,7 @@ let seqclosure = function( Gibber ) {
           // delay messages  
           if( this.externalMessages[ this.key ] !== undefined ) {
 
-            let msg = this.externalMessages[ this.key ]( value, beat, _beatOffset,  this.trackID )
+            let msg = this.externalMessages[ this.key ]( value, beat + _beatOffset,  this.trackID )
             scheduler.msgs.push( msg, this.priority )
 
           } else { // schedule internal method / function call immediately
