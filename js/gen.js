@@ -56,8 +56,8 @@ let Gen  = {
         }else{
           value = v
           if( obj.active ) {
-            console.log( `${obj.track} genp ${obj.paramID} ${obj[ key ].uid} ${v}` )
-            Gibber.Communication.send( `${obj.track} genp ${obj.paramID} ${obj[ key ].uid} ${v}` ) 
+            //console.log( `${obj.track} genp ${obj.paramID} ${obj[ key ].uid} ${v}` )
+            Gibber.Communication.send( `${Gibber.Live.id} genp ${obj.paramID} ${obj[ key ].uid} ${v}` ) 
           }
         }
       }
@@ -118,7 +118,8 @@ let Gen  = {
     sqrt2 :   Math.SQRT2,
     sqrt1_2:  Math.SQRT1_2,
     twopi :   Math.PI * 2,
-    time  :   'time'
+    time  :   'time',
+    samplerate: 'samplerate'
   },
 
   functions: {
@@ -230,10 +231,24 @@ let Gen  = {
       return _add
     },
 
-    fade( time = 441000, from = 1, to = 0 ) {
-      let fade = gtp( sub( 1, accum( 1 / time, 0 ) ), 0 )
+    fade( time = 1, from = 1, to = 0 ) {
+      let fade, amt, beatsInSeconds = time * ( 60 / Gibber.Live.LOM.bpm )
+     
+      if( from > to ) {
+        amt = from - to
 
-      fade.shouldKill = time
+        fade = gtp( sub( from, accum( div( amt, mul(beatsInSeconds, samplerate ) ), 0 ) ), to )
+      }else{
+        amt = to - from
+        fade = add( from, ltp( accum( div( amt, mul( beatsInSeconds, samplerate ) ), 0 ), to ) )
+      }
+      
+      // XXX should this be available in ms? msToBeats()?
+      let numbeats = time / 4
+      fade.shouldKill = {
+        after: numbeats, 
+        final: to
+      }
       
       return fade
     },

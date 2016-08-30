@@ -2563,8 +2563,8 @@ module.exports = function (Gibber) {
             } else {
               value = v;
               if (obj.active) {
-                console.log(obj.track + ' genp ' + obj.paramID + ' ' + obj[key].uid + ' ' + v);
-                Gibber.Communication.send(obj.track + ' genp ' + obj.paramID + ' ' + obj[key].uid + ' ' + v);
+                //console.log( `${obj.track} genp ${obj.paramID} ${obj[ key ].uid} ${v}` )
+                Gibber.Communication.send(Gibber.Live.id + ' genp ' + obj.paramID + ' ' + obj[key].uid + ' ' + v);
               }
             }
           };
@@ -2707,7 +2707,8 @@ module.exports = function (Gibber) {
       sqrt2: Math.SQRT2,
       sqrt1_2: Math.SQRT1_2,
       twopi: Math.PI * 2,
-      time: 'time'
+      time: 'time',
+      samplerate: 'samplerate'
     },
 
     functions: {
@@ -2822,6 +2823,7 @@ module.exports = function (Gibber) {
             _cycle[0](v);
           }
         };
+
         _add.amp = function (v) {
           if (v === undefined) {
             return _mul[1]();
@@ -2829,6 +2831,7 @@ module.exports = function (Gibber) {
             _mul[1](v);
           }
         };
+
         _add.center = function (v) {
           if (v === undefined) {
             return _add[0]();
@@ -2842,6 +2845,33 @@ module.exports = function (Gibber) {
         Gibber.addSequencingToMethod(_add, 'center');
 
         return _add;
+      },
+      fade: function fade() {
+        var time = arguments.length <= 0 || arguments[0] === undefined ? 1 : arguments[0];
+        var from = arguments.length <= 1 || arguments[1] === undefined ? 1 : arguments[1];
+        var to = arguments.length <= 2 || arguments[2] === undefined ? 0 : arguments[2];
+
+        var fade = void 0,
+            amt = void 0,
+            beatsInSeconds = time * (60 / Gibber.Live.LOM.bpm);
+
+        if (from > to) {
+          amt = from - to;
+
+          fade = gtp(sub(from, accum(div(amt, mul(beatsInSeconds, samplerate)), 0)), to);
+        } else {
+          amt = to - from;
+          fade = add(from, ltp(accum(div(amt, mul(beatsInSeconds, samplerate)), 0), to));
+        }
+
+        // XXX should this be available in ms? msToBeats()?
+        var numbeats = time / 4;
+        fade.shouldKill = {
+          after: numbeats,
+          final: to
+        };
+
+        return fade;
       },
       beat: function beat(num) {
         return rate('in1', num);
@@ -3089,8 +3119,18 @@ var Gibber = {
       if (_v !== undefined) {
         if ((typeof _v === 'undefined' ? 'undefined' : _typeof(_v)) === 'object' && _v.isGen) {
           _v.assignTrackAndParamID(trackID, parameter.id);
+
           Gibber.Gen.connected.push(_v);
           Gibber.Communication.send(Gibber.Live.id + ' gen ' + parameter.id + ' "' + _v.out() + '"');
+
+          console.log('should kill?:', _v.shouldKill);
+          if (_typeof(_v.shouldKill) === 'object') {
+            Gibber.Utility.future(function () {
+              console.log('DISCONNECT GEN');
+              Gibber.Communication.send(Gibber.Live.id + ' ungen ' + parameter.id);
+              Gibber.Communication.send(Gibber.Live.id + ' set ' + parameter.id + ' ' + _v.shouldKill.final);
+            }, _v.shouldKill.after);
+          }
         } else {
           v = _v;
           Gibber.Communication.send(Gibber.Live.id + ' set ' + parameter.id + ' ' + v);
