@@ -213,7 +213,7 @@ let Gibber = {
           if( typeof _v.shouldKill === 'object' ) {
             Gibber.Utility.future( ()=> {
               Gibber.Communication.send( `ungen ${parameter.id}` )
-              Gibber.Communication.send( `et ${parameter.id} ${_v.shouldKill.final}` )
+              Gibber.Communication.send( `set ${parameter.id} ${_v.shouldKill.final}` )
             }, _v.shouldKill.after )
           }
         }else{

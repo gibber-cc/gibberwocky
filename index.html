@@ -2673,7 +2673,7 @@ module.exports = function (Gibber) {
         for (var _iterator4 = Gen.connected[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
           var ugen = _step4.value;
 
-          Gibber.Communication.send(Gibber.Live.id + ' ungen ' + ugen.paramID);
+          Gibber.Communication.send('ungen ' + ugen.paramID);
         }
       } catch (err) {
         _didIteratorError4 = true;
@@ -3110,7 +3110,7 @@ var Gibber = {
     if (methodName === null) methodName = parameter.name;
 
     Gibber.Seq.proto.externalMessages[seqKey] = function (value, beat) {
-      var msg = Gibber.Live.id + ' add ' + beat + ' set ' + parameter.id + ' ' + value;
+      var msg = 'add ' + beat + ' set ' + parameter.id + ' ' + value;
       return msg;
     };
 
@@ -3121,19 +3121,18 @@ var Gibber = {
           _v.assignTrackAndParamID(trackID, parameter.id);
 
           Gibber.Gen.connected.push(_v);
-          Gibber.Communication.send(Gibber.Live.id + ' gen ' + parameter.id + ' "' + _v.out() + '"');
+          Gibber.Communication.send('gen ' + parameter.id + ' "' + _v.out() + '"');
 
-          console.log('should kill?:', _v.shouldKill);
+          // disconnects for fades etc.
           if (_typeof(_v.shouldKill) === 'object') {
             Gibber.Utility.future(function () {
-              console.log('DISCONNECT GEN');
-              Gibber.Communication.send(Gibber.Live.id + ' ungen ' + parameter.id);
-              Gibber.Communication.send(Gibber.Live.id + ' set ' + parameter.id + ' ' + _v.shouldKill.final);
+              Gibber.Communication.send('ungen ' + parameter.id);
+              Gibber.Communication.send('set ' + parameter.id + ' ' + _v.shouldKill.final);
             }, _v.shouldKill.after);
           }
         } else {
           v = _v;
-          Gibber.Communication.send(Gibber.Live.id + ' set ' + parameter.id + ' ' + v);
+          Gibber.Communication.send('set ' + parameter.id + ' ' + v);
         }
       } else {
         return v;
