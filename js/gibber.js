@@ -196,7 +196,7 @@ let Gibber = {
     if( methodName === null ) methodName = parameter.name
 
     Gibber.Seq.proto.externalMessages[ seqKey ] = ( value, beat ) => {
-      let msg = `${Gibber.Live.id} add ${beat} set ${parameter.id} ${value}` 
+      let msg = `add ${beat} set ${parameter.id} ${value}` 
       return msg
     }
     
@@ -207,18 +207,18 @@ let Gibber = {
           _v.assignTrackAndParamID( trackID, parameter.id )
 
           Gibber.Gen.connected.push( _v )
-          Gibber.Communication.send( `${Gibber.Live.id} gen ${parameter.id} "${_v.out()}"` )
+          Gibber.Communication.send( `gen ${parameter.id} "${_v.out()}"` )
           
           // disconnects for fades etc.
           if( typeof _v.shouldKill === 'object' ) {
             Gibber.Utility.future( ()=> {
-              Gibber.Communication.send( `${Gibber.Live.id} ungen ${parameter.id}` )
-              Gibber.Communication.send( `${Gibber.Live.id} set ${parameter.id} ${_v.shouldKill.final}` )
+              Gibber.Communication.send( `ungen ${parameter.id}` )
+              Gibber.Communication.send( `et ${parameter.id} ${_v.shouldKill.final}` )
             }, _v.shouldKill.after )
           }
         }else{
           v = _v
-          Gibber.Communication.send( `${Gibber.Live.id} set ${parameter.id} ${v}` )
+          Gibber.Communication.send( `set ${parameter.id} ${v}` )
         }
       }else{
         return v

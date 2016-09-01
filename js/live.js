@@ -20,7 +20,7 @@ let Live = {
 
   processLOM() {
     Live.tracks = Live.LOM.tracks.map( Live.processTrack )
-    Gibber.currentTrack = Live.tracks.find( (element)=> { return element.id = Live.id } )
+    Gibber.currentTrack = Live.tracks.find( element => { return element.id = Live.id } )
     
     Live.returns = Live.LOM.returns.map( Live.processTrack )
 
