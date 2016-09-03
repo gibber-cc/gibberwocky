@@ -1,11 +1,10 @@
 module.exports = function( Gibber ) {
 
 let Track = {
-  create( id, spec ) {
-    let track = Object.create( this )
-    
-    Object.assign( track, {    
-      id,
+  create( spec ) {
+
+    let track = {    
+      id: spec.id,
       spec,
 		  sequences:{},
       sends:[],
@@ -53,7 +52,7 @@ let Track = {
 
         Gibber.Communication.send( msg )
       },
-    })
+    }
 
     Gibber.Environment.codeMarkup.prepareObject( track ) 
     Gibber.addSequencingToMethod( track, 'note' )

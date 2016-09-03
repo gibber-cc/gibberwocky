@@ -2506,12 +2506,12 @@ module.exports = function (Gibber) {
     processLOM: function processLOM() {
       Live.tracks = Live.LOM.tracks.map(Live.processTrack);
       Gibber.currentTrack = Live.tracks.find(function (element) {
-        return element.id = Live.id;
+        return element.id === Live.id;
       });
 
       Live.returns = Live.LOM.returns.map(Live.processTrack);
 
-      Gibber.Live.master = Live.processTrack(Live.LOM.master); //Gibber.Track( Live.id, Live.LOM.master )
+      Gibber.Live.master = Live.processTrack(Live.LOM.master);
 
       var _iteratorNormalCompletion = true;
       var _didIteratorError = false;
@@ -2544,8 +2544,8 @@ module.exports = function (Gibber) {
 
       Gibber.Environment.lomView.init(Gibber);
     },
-    processTrack: function processTrack(spec, idx) {
-      var track = Gibber.Track(idx, spec);
+    processTrack: function processTrack(spec) {
+      var track = Gibber.Track(spec);
       track.devices = [];
 
       spec.devices.forEach(Live.processDevice, track);
@@ -3927,7 +3927,7 @@ var seqclosure = function seqclosure(Gibber) {
           // delay messages  
           if (this.externalMessages[this.key] !== undefined) {
 
-            var msg = this.externalMessages[this.key](value, beat + _beatOffset, Gibber.Live.id);
+            var msg = this.externalMessages[this.key](value, beat + _beatOffset, this.trackID);
             scheduler.msgs.push(msg, this.priority);
           } else {
             // schedule internal method / function call immediately
@@ -4494,11 +4494,10 @@ module.exports = {
 module.exports = function (Gibber) {
 
   var Track = {
-    create: function create(id, spec) {
-      var track = Object.create(this);
+    create: function create(spec) {
 
-      Object.assign(track, {
-        id: id,
+      var track = {
+        id: spec.id,
         spec: spec,
         sequences: {},
         sends: [],
@@ -4558,7 +4557,7 @@ module.exports = function (Gibber) {
 
           Gibber.Communication.send(msg);
         }
-      });
+      };
 
       Gibber.Environment.codeMarkup.prepareObject(track);
       Gibber.addSequencingToMethod(track, 'note');

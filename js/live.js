@@ -20,11 +20,11 @@ let Live = {
 
   processLOM() {
     Live.tracks = Live.LOM.tracks.map( Live.processTrack )
-    Gibber.currentTrack = Live.tracks.find( element => { return element.id = Live.id } )
+    Gibber.currentTrack = Live.tracks.find( element => { return element.id === Live.id } )
     
     Live.returns = Live.LOM.returns.map( Live.processTrack )
 
-    Gibber.Live.master = Live.processTrack( Live.LOM.master ) //Gibber.Track( Live.id, Live.LOM.master )
+    Gibber.Live.master = Live.processTrack( Live.LOM.master )
 
     for( let track of Live.tracks ) {
       Live.tracks[ track.spec.name ] = track
@@ -37,14 +37,15 @@ let Live = {
     Gibber.Environment.lomView.init( Gibber )
   },
 
-  processTrack( spec, idx ) {
-    let track = Gibber.Track( idx, spec )
+  processTrack( spec ) {
+    let track = Gibber.Track( spec )
     track.devices = []
 
     spec.devices.forEach( Live.processDevice, track )
     for( let device of track.devices ) {
       track.devices[ device.name ] = device
     }
+
     return track
   },
 
