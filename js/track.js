@@ -33,6 +33,16 @@ let Track = {
         Gibber.Communication.send( msg )
       },
 
+      mute( value ) {
+        let msg =  `${track.id} mute ${value}`
+        Gibber.Communication.send( msg )
+      },
+
+      solo( value ) {
+        let msg =  `${track.id} solo ${value}`
+        Gibber.Communication.send( msg )
+      },
+
       chord( chord, velocity='', duration='' ) {
         let msg = []
         
@@ -61,6 +71,8 @@ let Track = {
     Gibber.addSequencingToMethod( track, 'velocity' )
     Gibber.addSequencingToMethod( track, 'duration' )
     Gibber.addSequencingToMethod( track, 'midinote' )
+    Gibber.addSequencingToMethod( track, 'mute' )
+    Gibber.addSequencingToMethod( track, 'solo' )
 
     Gibber.addMethod( track, 'pan', spec.panning )
     Gibber.addMethod( track, 'volume', spec.volume )

@@ -4529,6 +4529,14 @@ module.exports = function (Gibber) {
           var msg = track.id + ' cc ' + ccnum + ' ' + value;
           Gibber.Communication.send(msg);
         },
+        mute: function mute(value) {
+          var msg = track.id + ' mute ' + value;
+          Gibber.Communication.send(msg);
+        },
+        solo: function solo(value) {
+          var msg = track.id + ' solo ' + value;
+          Gibber.Communication.send(msg);
+        },
         chord: function chord(_chord) {
           var velocity = arguments.length <= 1 || arguments[1] === undefined ? '' : arguments[1];
           var duration = arguments.length <= 2 || arguments[2] === undefined ? '' : arguments[2];
@@ -4566,6 +4574,8 @@ module.exports = function (Gibber) {
       Gibber.addSequencingToMethod(track, 'velocity');
       Gibber.addSequencingToMethod(track, 'duration');
       Gibber.addSequencingToMethod(track, 'midinote');
+      Gibber.addSequencingToMethod(track, 'mute');
+      Gibber.addSequencingToMethod(track, 'solo');
 
       Gibber.addMethod(track, 'pan', spec.panning);
       Gibber.addMethod(track, 'volume', spec.volume);
