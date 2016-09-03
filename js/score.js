@@ -20,10 +20,11 @@ module.exports = function( Gibber ) {
 let Score = {
   wait: -987654321,
 
-  create( data ) {
+  create( data, track = Gibber.currentTrack ) {
     let score = Object.create( this )
     
     Object.assign( score, {
+      track: track,
       timeline:   [],
       schedule:   [],
       shouldLoop: false,
