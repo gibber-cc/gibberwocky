@@ -256,7 +256,7 @@ module.exports = function (Gibber) {
             try {
               func();
             } catch (e) {
-              console.log('error with user submitted code:', e);
+              console.error('error with user submitted code:', e);
             }
           }
         } catch (err) {
@@ -389,7 +389,7 @@ var Marker = {
         case 'SCORE':
           //console.log( 'score no assignment?', components, expressionNode.expression )
           if (Marker.functions[expressionNode.expression.callee.name]) {
-            Marker.functions[expressionNode.expression.callee.name](expressionNode.expression, codemirror, track, expressionNode.verticalOffset);
+            Marker.functions[expressionNode.expression.callee.name](expressionNode.expression, codemirror, _track2, expressionNode.verticalOffset);
           }
           break;
 
@@ -401,19 +401,24 @@ var Marker = {
         case 'THIS.METHOD.SEQ':
           if (expressionNode.expression.callee.object.object.type !== 'ThisExpression') {
             var objName = expressionNode.expression.callee.object.object.name;
-            track = window[objName];
-            if (!track.markup) {
-              Marker.prepareObject(track);
-            }
+            _track2 = window[objName];
+
             components.unshift(objName);
+          } else {
+            _track2 = Gibber.currentTrack;
           }
-          valuesPattern = track[components[1]][index].values, timingsPattern = track[components[1]][index].timings, valuesNode = args[0], timingsNode = args[1];
+
+          if (!_track2.markup) {
+            Marker.prepareObject(_track2);
+          }
+
+          valuesPattern = _track2[components[1]][index].values, timingsPattern = _track2[components[1]][index].timings, valuesNode = args[0], timingsNode = args[1];
 
           valuesPattern.codemirror = timingsPattern.codemirror = codemirror;
 
-          Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern);
+          Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, _track2, index, 'values', valuesPattern);
           if (timingsNode) {
-            Marker._markPattern[timingsNode.type](timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern);
+            Marker._markPattern[timingsNode.type](timingsNode, expressionNode, components, codemirror, _track2, index, 'timings', timingsPattern);
           }
 
           break;
@@ -423,30 +428,47 @@ var Marker = {
           var isTrack = trackNames.includes(components[0]),
               target = null;
 
-          track = window[components[0]][components[1].slice(1, -1)];
+          _track2 = window[components[0]][components[1].slice(1, -1)];
 
           if (!isTrack) {
             // not a track! XXX please, please get a better parsing method / rules...
-            target = track;
-            track = Gibber.currentTrack;
+            target = _track2;
+            _track2 = Gibber.currentTrack;
           }
 
-          valuesPattern = target === null ? track[components[2]][index].values : target[components[2]].values;
-          timingsPattern = target === null ? track[components[2]][index].timings : target[components[2]].timings; //track[ components[2] ][ index ].timings
+          valuesPattern = target === null ? _track2[components[2]][index].values : target[components[2]].values;
+          timingsPattern = target === null ? _track2[components[2]][index].timings : target[components[2]].timings; //track[ components[2] ][ index ].timings
           valuesNode = args[0];
           timingsNode = args[1];
 
           valuesPattern.codemirror = timingsPattern.codemirror = codemirror;
 
-          Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern);
+          Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, _track2, index, 'values', valuesPattern);
           if (timingsNode) {
-            Marker._markPattern[timingsNode.type](timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern);
+            Marker._markPattern[timingsNode.type](timingsNode, expressionNode, components, codemirror, _track2, index, 'timings', timingsPattern);
           }
 
           break;
 
         case 'THIS.METHOD.VALUES.REVERSE.SEQ':
-          console.log('or here?');
+          var usesThis = components.includes('this');
+
+          var _track2 = usesThis ? Gibber.currentTrack : window[components[0]],
+              targetPattern = _track2[components[1]][components[2]],
+              method = targetPattern[components[3]];
+
+          valuesPattern = method.values;
+          timingsPattern = method.timings;
+          valuesNode = args[0];
+          timingsNode = args[1];
+
+          valuesPattern.codemirror = timingsPattern.codemirror = codemirror;
+
+          Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, _track2, index, 'values', valuesPattern);
+          if (timingsNode) {
+            Marker._markPattern[timingsNode.type](timingsNode, expressionNode, components, codemirror, _track2, index, 'timings', timingsPattern);
+          }
+
           break;
 
         case 'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ':
@@ -460,21 +482,24 @@ var Marker = {
             }
 
             var objName = obj.name; //  expressionNode.expression.callee.object.object.name
-            track = window[objName];
-            if (!track.markup) {
-              Marker.prepareObject(track);
+            console.log('obj name:', objName, obj);
+
+            _track2 = window[objName];
+            if (!_track2.markup) {
+              Marker.prepareObject(_track2);
             }
             components.unshift(objName);
           }
-          valuesPattern = track[components[1]][index][components[3]][components[4]].values, timingsPattern = track[components[1]][index][components[3]][components[4]].timings, valuesNode = args[0], timingsNode = args[1];
+
+          valuesPattern = _track2[components[1]][index][components[3]][components[4]].values, timingsPattern = _track2[components[1]][index][components[3]][components[4]].timings, valuesNode = args[0], timingsNode = args[1];
 
           valuesPattern.codemirror = timingsPattern.codemirror = codemirror;
 
           components.splice(2, 1);
 
-          Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern);
+          Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, _track2, index, 'values', valuesPattern);
           if (timingsNode) {
-            Marker._markPattern[timingsNode.type](timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern);
+            Marker._markPattern[timingsNode.type](timingsNode, expressionNode, components, codemirror, _track2, index, 'timings', timingsPattern);
           }
           break;
 
@@ -1392,6 +1417,22 @@ var Environment = {
     Environment.consoleDiv = document.querySelector('#console');
 
     Environment.consoleDiv.appendChild(list);
+
+    Environment.overrideError();
+  },
+  overrideError: function overrideError() {
+    console.__error = console.error;
+    console.error = function () {
+      for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
+        args[_key] = arguments[_key];
+      }
+
+      Gibber.Environment.error.apply(null, args);
+      console.__error.apply(console, args);
+    };
+  },
+  replaceError: function replaceError() {
+    console.error = console.__error;
   },
   createDemoList: function createDemoList() {
     var container = document.querySelector('#demos'),
@@ -1418,8 +1459,8 @@ var Environment = {
     container.appendChild(list);
   },
   log: function log() {
-    for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
-      args[_key] = arguments[_key];
+    for (var _len2 = arguments.length, args = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
+      args[_key2] = arguments[_key2];
     }
 
     var consoleItem = Environment.createConsoleItem(args);
@@ -1429,8 +1470,8 @@ var Environment = {
     return consoleItem;
   },
   error: function error() {
-    for (var _len2 = arguments.length, args = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
-      args[_key2] = arguments[_key2];
+    for (var _len3 = arguments.length, args = Array(_len3), _key3 = 0; _key3 < _len3; _key3++) {
+      args[_key3] = arguments[_key3];
     }
 
     var consoleItem = Environment.createConsoleItem(args);

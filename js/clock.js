@@ -90,7 +90,7 @@ let Scheduler = {
         try {
           func()
         } catch( e ) {
-          console.log( 'error with user submitted code:', e )
+          console.error( 'error with user submitted code:', e )
         }
       }
       Scheduler.functionsToExecute.length = 0

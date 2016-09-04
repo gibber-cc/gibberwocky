@@ -94,9 +94,14 @@ let Marker = {
            if( expressionNode.expression.callee.object.object.type !== 'ThisExpression' ) {
              var objName = expressionNode.expression.callee.object.object.name
              track = window[ objName ]
-             if( !track.markup ) { Marker.prepareObject( track ) }
+             
              components.unshift( objName )
-           }
+           }else{
+             track = Gibber.currentTrack
+           }  
+
+           if( !track.markup ) { Marker.prepareObject( track ) }
+
            valuesPattern =  track[ components[ 1 ] ][ index ].values,
            timingsPattern = track[ components[ 1 ] ][ index ].timings,
            valuesNode = args[ 0 ],
@@ -137,7 +142,24 @@ let Marker = {
            break;
 
          case 'THIS.METHOD.VALUES.REVERSE.SEQ':
-           console.log( 'or here?' )   
+           let usesThis = components.includes( 'this' )
+
+           let track = usesThis ? Gibber.currentTrack : window[ components[0] ],
+               targetPattern = track[ components[1] ][ components[2] ],
+               method = targetPattern[ components[3] ]
+
+           valuesPattern = method.values
+           timingsPattern = method.timings
+           valuesNode = args[0]
+           timingsNode = args[1]
+
+           valuesPattern.codemirror = timingsPattern.codemirror = codemirror
+
+           Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
+           if( timingsNode ) {
+             Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern )  
+           }
+
            break;
 
          case 'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ': // most useful?
@@ -150,10 +172,13 @@ let Marker = {
              }
              
              var objName = obj.name //  expressionNode.expression.callee.object.object.name
+             console.log( 'obj name:', objName, obj )
+
              track = window[ objName ]
              if( !track.markup ) { Marker.prepareObject( track ) }
              components.unshift( objName )
            }
+
            valuesPattern =  track[ components[ 1 ] ][ index ][ components[3] ][ components[4] ].values,
            timingsPattern = track[ components[ 1 ] ][ index ][ components[3] ][ components[4] ].timings,
            valuesNode = args[ 0 ],

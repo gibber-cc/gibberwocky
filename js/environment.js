@@ -89,6 +89,20 @@ let Environment = {
     Environment.consoleDiv = document.querySelector( '#console' )
 
     Environment.consoleDiv.appendChild( list )
+
+    Environment.overrideError()
+  },
+
+  overrideError() {
+    console.__error = console.error
+    console.error = function(...args) {
+      Gibber.Environment.error.apply( null, args )
+      console.__error.apply( console, args )
+    }
+  },
+
+  replaceError() {
+    console.error = console.__error
   },
 
   createDemoList() {
