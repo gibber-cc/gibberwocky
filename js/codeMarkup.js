@@ -29,6 +29,10 @@ let Marker = {
   },
 
   process( code, position, codemirror, track ) {
+    let shouldParse = code.includes( '.seq' ) || code.includes( 'Steps(' ) || code.includes( 'Score(' )
+
+    if( !shouldParse ) return
+
     let tree = acorn.parse( code, { locations:true, ecmaVersion:6 } ).body
     
     for( let node of tree ) {
@@ -71,7 +75,7 @@ let Marker = {
       // if index is passed as argument to .seq call...
       if( args.length > 2 ) { index = args[ 2 ].value }
       
-      console.log( "depth of call", depthOfCall, components, index )
+      //console.log( "depth of call", depthOfCall, components, index )
       let valuesPattern, timingsPattern, valuesNode, timingsNode
 
       switch( callDepths[ depthOfCall ] ) {

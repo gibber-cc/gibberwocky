@@ -309,6 +309,10 @@ var Marker = {
     };
   },
   process: function process(code, position, codemirror, track) {
+    var shouldParse = code.includes('.seq') || code.includes('Steps(') || code.includes('Score(');
+
+    if (!shouldParse) return;
+
     var tree = acorn.parse(code, { locations: true, ecmaVersion: 6 }).body;
 
     var _iteratorNormalCompletion = true;
@@ -375,7 +379,7 @@ var Marker = {
         index = args[2].value;
       }
 
-      console.log("depth of call", depthOfCall, components, index);
+      //console.log( "depth of call", depthOfCall, components, index )
       var valuesPattern = void 0,
           timingsPattern = void 0,
           valuesNode = void 0,
