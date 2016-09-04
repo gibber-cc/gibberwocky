@@ -49,7 +49,6 @@ let Marker = {
 
     AssignmentExpression: function( expressionNode, codemirror, track ) {
       if( expressionNode.expression.right.type !== 'Literal' && Marker.functions[ expressionNode.expression.right.callee.name ] ) {
-        console.log( 'assignment', track, expressionNode )
 
         Marker.functions[ expressionNode.expression.right.callee.name ]( 
           expressionNode.expression.right, 
@@ -121,11 +120,13 @@ let Marker = {
 
            break;
 
-         case 'THIS.METHOD.VALUES.REVERSE.SEQ':            
+         case 'THIS.METHOD.VALUES.REVERSE.SEQ':
+           console.log( 'or here?' )   
            break;
 
          case 'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ': // most useful?
            // in a.seqs[71].values.reverse.seq() a is not properly identified; the current track is used instead
+           console.log( 'here?' )
            if( expressionNode.expression.callee.object.object.type !== 'ThisExpression' ) {
              let obj = expressionNode.expression.callee.object
 
