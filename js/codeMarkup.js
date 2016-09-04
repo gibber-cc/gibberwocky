@@ -7,6 +7,7 @@ const callDepths = [
   'THIS.METHOD[ 0 ].SEQ',
   'THIS.METHOD.VALUES.REVERSE.SEQ',
   'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ',
+  'TRACKS[0].METHOD[ 0 ].VALUES.REVERSE.SEQ',  
   'TRACKS[0].METHOD.SEQ',
   'TRACKS[0].METHOD[0].SEQ',
   'TRACKS[0].METHOD.VALUES.REVERSE.SEQ',
@@ -91,14 +92,16 @@ let Marker = {
            break;
 
          case 'THIS.METHOD.SEQ':
-           if( expressionNode.expression.callee.object.object.type !== 'ThisExpression' ) {
+           if( components.includes( 'tracks' ) ) { //expressionNode.expression.callee.object.object.type !== 'ThisExpression' ) {
              var objName = expressionNode.expression.callee.object.object.name
              track = window[ objName ]
              
              components.unshift( objName )
-           }else{
+           }else if( components.includes( 'this' ) ){
              track = Gibber.currentTrack
-           }  
+           }else{
+             track = window[ components[0] ]
+           }
 
            if( !track.markup ) { Marker.prepareObject( track ) }
 
@@ -163,30 +166,35 @@ let Marker = {
            break;
 
          case 'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ': // most useful?
-           // in a.seqs[71].values.reverse.seq() a is not properly identified; the current track is used instead
-           if( expressionNode.expression.callee.object.object.type !== 'ThisExpression' ) {
-             let obj = expressionNode.expression.callee.object
-
-             while( obj.object ) {
-               obj = obj.object
-             }
-             
-             var objName = obj.name //  expressionNode.expression.callee.object.object.name
-             console.log( 'obj name:', objName, obj )
-
-             track = window[ objName ]
-             if( !track.markup ) { Marker.prepareObject( track ) }
-             components.unshift( objName )
+           if( components.includes( 'this' ) ) {
+             track = Gibber.currentTrack
            }
 
-           valuesPattern =  track[ components[ 1 ] ][ index ][ components[3] ][ components[4] ].values,
-           timingsPattern = track[ components[ 1 ] ][ index ][ components[3] ][ components[4] ].timings,
-           valuesNode = args[ 0 ],
+           valuesPattern =  track[ components[ 1 ] ][ index ][ components[3] ][ components[4] ].values
+           timingsPattern = track[ components[ 1 ] ][ index ][ components[3] ][ components[4] ].timings
+           valuesNode = args[ 0 ]
            timingsNode= args[ 1 ]
           
            valuesPattern.codemirror = timingsPattern.codemirror = codemirror
 
-           components.splice( 2,1 )
+           components.splice( 2,index )
+
+           Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
+           if( timingsNode ) {
+             Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern )  
+           }
+           break;
+         case 'TRACKS[0].METHOD[ 0 ].VALUES.REVERSE.SEQ': // most useful?
+           track = window[ 'tracks' ][ components[ 1 ].slice(1,-1) ]
+
+           components[3] = components[3].slice(1,-1)
+
+           valuesPattern =  track[ components[ 2 ] ][ components[3] ][ components[4] ][ components[5] ].values
+           timingsPattern = track[ components[ 2 ] ][ components[3] ][ components[4] ][ components[5] ].timings
+           valuesNode = args[ 0 ]
+           timingsNode= args[ 1 ]
+          
+           valuesPattern.codemirror = timingsPattern.codemirror = codemirror
 
            Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
            if( timingsNode ) {
@@ -273,8 +281,6 @@ let Marker = {
              inclusiveRight: true
            })
        
-       console.log( 'literal name:', className, track )
-
        track.markup.textMarkers[ className ] = marker
        
        if( track.markup.cssClasses[ className ] === undefined ) track.markup.cssClasses[ className ] = []

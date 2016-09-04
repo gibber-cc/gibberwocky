@@ -979,7 +979,7 @@ var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = [
 
 var acorn = require('acorn');
 
-var callDepths = ['SCORE', 'THIS.METHOD', 'THIS.METHOD.SEQ', 'THIS.METHOD[ 0 ].SEQ', 'THIS.METHOD.VALUES.REVERSE.SEQ', 'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ', 'TRACKS[0].METHOD.SEQ', 'TRACKS[0].METHOD[0].SEQ', 'TRACKS[0].METHOD.VALUES.REVERSE.SEQ', 'TRACKS[0].METHOD[0].VALUES.REVERSE.SEQ'];
+var callDepths = ['SCORE', 'THIS.METHOD', 'THIS.METHOD.SEQ', 'THIS.METHOD[ 0 ].SEQ', 'THIS.METHOD.VALUES.REVERSE.SEQ', 'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ', 'TRACKS[0].METHOD[ 0 ].VALUES.REVERSE.SEQ', 'TRACKS[0].METHOD.SEQ', 'TRACKS[0].METHOD[0].SEQ', 'TRACKS[0].METHOD.VALUES.REVERSE.SEQ', 'TRACKS[0].METHOD[0].VALUES.REVERSE.SEQ'];
 
 var trackNames = ['this', 'tracks', 'master', 'returns'];
 
@@ -1086,13 +1086,16 @@ var Marker = {
           break;
 
         case 'THIS.METHOD.SEQ':
-          if (expressionNode.expression.callee.object.object.type !== 'ThisExpression') {
+          if (components.includes('tracks')) {
+            //expressionNode.expression.callee.object.object.type !== 'ThisExpression' ) {
             var objName = expressionNode.expression.callee.object.object.name;
             _track2 = window[objName];
 
             components.unshift(objName);
-          } else {
+          } else if (components.includes('this')) {
             _track2 = Gibber.currentTrack;
+          } else {
+            _track2 = window[components[0]];
           }
 
           if (!_track2.markup) {
@@ -1160,29 +1163,36 @@ var Marker = {
 
         case 'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ':
           // most useful?
-          // in a.seqs[71].values.reverse.seq() a is not properly identified; the current track is used instead
-          if (expressionNode.expression.callee.object.object.type !== 'ThisExpression') {
-            var obj = expressionNode.expression.callee.object;
-
-            while (obj.object) {
-              obj = obj.object;
-            }
-
-            var objName = obj.name; //  expressionNode.expression.callee.object.object.name
-            console.log('obj name:', objName, obj);
-
-            _track2 = window[objName];
-            if (!_track2.markup) {
-              Marker.prepareObject(_track2);
-            }
-            components.unshift(objName);
+          if (components.includes('this')) {
+            _track2 = Gibber.currentTrack;
           }
 
-          valuesPattern = _track2[components[1]][index][components[3]][components[4]].values, timingsPattern = _track2[components[1]][index][components[3]][components[4]].timings, valuesNode = args[0], timingsNode = args[1];
+          valuesPattern = _track2[components[1]][index][components[3]][components[4]].values;
+          timingsPattern = _track2[components[1]][index][components[3]][components[4]].timings;
+          valuesNode = args[0];
+          timingsNode = args[1];
 
           valuesPattern.codemirror = timingsPattern.codemirror = codemirror;
 
-          components.splice(2, 1);
+          components.splice(2, index);
+
+          Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, _track2, index, 'values', valuesPattern);
+          if (timingsNode) {
+            Marker._markPattern[timingsNode.type](timingsNode, expressionNode, components, codemirror, _track2, index, 'timings', timingsPattern);
+          }
+          break;
+        case 'TRACKS[0].METHOD[ 0 ].VALUES.REVERSE.SEQ':
+          // most useful?
+          _track2 = window['tracks'][components[1].slice(1, -1)];
+
+          components[3] = components[3].slice(1, -1);
+
+          valuesPattern = _track2[components[2]][components[3]][components[4]][components[5]].values;
+          timingsPattern = _track2[components[2]][components[3]][components[4]][components[5]].timings;
+          valuesNode = args[0];
+          timingsNode = args[1];
+
+          valuesPattern.codemirror = timingsPattern.codemirror = codemirror;
 
           Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, _track2, index, 'values', valuesPattern);
           if (timingsNode) {
@@ -1278,8 +1288,6 @@ var Marker = {
         inclusiveLeft: true,
         inclusiveRight: true
       });
-
-      console.log('literal name:', className, track);
 
       track.markup.textMarkers[className] = marker;
 
