@@ -116,6 +116,8 @@ let Environment = {
     let consoleItem = Environment.createConsoleItem( args )
     Environment.consoleList.appendChild( consoleItem )
     consoleItem.scrollIntoView()
+
+    return consoleItem
   },
 
   error( ...args ) {

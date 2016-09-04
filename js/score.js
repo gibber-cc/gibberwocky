@@ -20,11 +20,10 @@ module.exports = function( Gibber ) {
 let Score = {
   wait: -987654321,
 
-  create( data, track = Gibber.currentTrack ) {
+  create( data ) {
     let score = Object.create( this )
     
     Object.assign( score, {
-      track: track,
       timeline:   [],
       schedule:   [],
       shouldLoop: false,
@@ -150,7 +149,7 @@ let Score = {
               //fnc()
             }
           }else{
-            fnc.call( Gibber.currentTrack )
+            fnc.call( this.track )
           }
           
           let marker      = Gibber.currentTrack.markup.textMarkers[ 'score' ][ this.index - 1 ],

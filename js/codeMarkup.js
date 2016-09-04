@@ -49,6 +49,8 @@ let Marker = {
 
     AssignmentExpression: function( expressionNode, codemirror, track ) {
       if( expressionNode.expression.right.type !== 'Literal' && Marker.functions[ expressionNode.expression.right.callee.name ] ) {
+        console.log( 'assignment', track, expressionNode )
+
         Marker.functions[ expressionNode.expression.right.callee.name ]( 
           expressionNode.expression.right, 
           codemirror,
@@ -528,7 +530,7 @@ let Marker = {
 
   functions:{
     Score( node, cm, track, objectName, vOffset=0 ) {
-      //console.log( "SCORE", node )
+      console.log( "SCORE", track )
       let timelineNodes = node.arguments[ 0 ].elements
       //console.log( timelineNodes )
       track.markup.textMarkers[ 'score' ] = []

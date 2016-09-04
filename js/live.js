@@ -26,6 +26,10 @@ let Live = {
 
     Gibber.Live.master = Live.processTrack( Live.LOM.master )
 
+    if( Gibber.currentTrack === undefined ) {
+      Gibber.currentTrack = Gibber.Live.master
+    }
+
     for( let track of Live.tracks ) {
       Live.tracks[ track.spec.name ] = track
     }

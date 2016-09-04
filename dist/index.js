@@ -354,6 +354,8 @@ var Marker = {
 
     AssignmentExpression: function AssignmentExpression(expressionNode, codemirror, track) {
       if (expressionNode.expression.right.type !== 'Literal' && Marker.functions[expressionNode.expression.right.callee.name]) {
+        console.log('assignment', track, expressionNode);
+
         Marker.functions[expressionNode.expression.right.callee.name](expressionNode.expression.right, codemirror, track, expressionNode.expression.left.name, expressionNode.verticalOffset, expressionNode.horizontalOffset);
       }
     },
@@ -917,7 +919,7 @@ var Marker = {
     Score: function Score(node, cm, track, objectName) {
       var vOffset = arguments.length <= 4 || arguments[4] === undefined ? 0 : arguments[4];
 
-      //console.log( "SCORE", node )
+      console.log("SCORE", track);
       var timelineNodes = node.arguments[0].elements;
       //console.log( timelineNodes )
       track.markup.textMarkers['score'] = [];
@@ -1127,6 +1129,7 @@ var Gibber = null;
 var Communication = {
   webSocketPort: 8081, // default?
   socketInitialized: false,
+  connectMsg: null,
   debug: {
     input: false,
     output: false
@@ -1145,7 +1148,12 @@ var Communication = {
     if ('WebSocket' in window) {
       (function () {
         //Gibber.log( 'Connecting' , this.querystring.host, this.querystring.port )
-        Gibber.log('initializing...');
+        if (_this.connectMsg === null) {
+          _this.connectMsg = Gibber.log('connecting');
+        } else {
+          _this.connectMsg.innerText += '.';
+        }
+
         var host = _this.querystring.host || '127.0.0.1',
             port = _this.querystring.port || '8081',
             address = "ws://" + host + ":" + port;
@@ -1167,8 +1175,11 @@ var Communication = {
         }.bind(Communication);
 
         _this.wsocket.onclose = function (ev) {
-          Gibber.log('disconnected from ' + address);
-          this.connected = false;
+          if (this.connected) {
+            Gibber.log('disconnected from ' + address);
+            this.connectMsg = null;
+            this.connected = false;
+          }
 
           // set up an auto-reconnect task:
           this.connectTask = setTimeout(this.createWebSocket.bind(Communication), 1000);
@@ -1402,6 +1413,8 @@ var Environment = {
     var consoleItem = Environment.createConsoleItem(args);
     Environment.consoleList.appendChild(consoleItem);
     consoleItem.scrollIntoView();
+
+    return consoleItem;
   },
   error: function error() {
     for (var _len2 = arguments.length, args = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
@@ -2513,6 +2526,10 @@ module.exports = function (Gibber) {
 
       Gibber.Live.master = Live.processTrack(Live.LOM.master);
 
+      if (Gibber.currentTrack === undefined) {
+        Gibber.currentTrack = Gibber.Live.master;
+      }
+
       var _iteratorNormalCompletion = true;
       var _didIteratorError = false;
       var _iteratorError = undefined;
@@ -3498,7 +3515,7 @@ module.exports = function (Gibber) {
                 //fnc()
               }
             } else {
-              fnc.call(Gibber.currentTrack);
+              fnc.call(this.track);
             }
 
             var marker = Gibber.currentTrack.markup.textMarkers['score'][this.index - 1],

@@ -3,6 +3,7 @@ let Gibber = null
 let Communication = {
   webSocketPort: 8081, // default?
   socketInitialized: false,
+  connectMsg: null,
   debug: {
     input:false,
     output:false
@@ -19,7 +20,12 @@ let Communication = {
 
     if ( 'WebSocket' in window ) {
       //Gibber.log( 'Connecting' , this.querystring.host, this.querystring.port )
-      Gibber.log( 'initializing...' )
+      if( this.connectMsg === null ) { 
+        this.connectMsg = Gibber.log( 'connecting' )
+      }else{
+        this.connectMsg.innerText += '.'
+      }
+
       let host = this.querystring.host || '127.0.0.1',
           port = this.querystring.port || '8081',
           address = "ws://" + host + ":" + port
@@ -41,8 +47,11 @@ let Communication = {
       }.bind( Communication )
 
       this.wsocket.onclose = function(ev) {
-        Gibber.log( 'disconnected from ' + address )
-        this.connected = false
+        if( this.connected ) {
+          Gibber.log( 'disconnected from ' + address )
+          this.connectMsg = null
+          this.connected = false
+        }
 
         // set up an auto-reconnect task:
         this.connectTask = setTimeout( this.createWebSocket.bind( Communication ) , 1000 )
