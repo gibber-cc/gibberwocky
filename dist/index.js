@@ -368,6 +368,8 @@ var Marker = {
       var index = _Marker$_getCallExpre2[2];
       var args = expressionNode.expression.arguments;
       // if index is passed as argument to .seq call...
+      console.log(args[2], args.length);
+
       if (args.length > 2) {
         index = args[2].value;
       }
@@ -413,7 +415,9 @@ var Marker = {
 
         case 'THIS.METHOD[ 0 ].SEQ':
           // will this ever happen??? I guess after it has been sequenced once?
+          console.log('components:', components, 'index:', index);
           track = window[components[0]][components[1].slice(1, -1)];
+          console.log('note?', track[components[2]], track[components[2]][index]);
           valuesPattern = track[components[2]][index].values;
           timingsPattern = track[components[2]][index].timings;
           valuesNode = args[0];
@@ -683,17 +687,9 @@ var Marker = {
       patternObject.patternName = patternName;
 
       patternObject.update = function () {
-        // if( !patternObject.update.shouldUpdate ) return 
-        // console.log( 'array update', patternObject.phase )
-        var className = '.' + components[1] + '_' + index + '_' + patternType + '_';
+        var className = '.' + patternName;
 
-        if (components.length === 5) {
-          // this.note[ 0 ].values.reverse.seq( [], [] ) 
-          className += components[3] + '_' + patternType + '_';
-          className += patternObject.update.currentIndex;
-        } else {
-          className += patternObject.update.currentIndex;
-        }
+        className += '_' + patternObject.update.currentIndex;
 
         if (highlighted !== className) {
           if (highlighted) {
@@ -705,8 +701,6 @@ var Marker = {
         } else {
           cycle();
         }
-
-        // patternObject.update.shouldUpdate = false
       };
 
       patternObject.clear = function () {
@@ -1103,7 +1097,9 @@ var Marker = {
       } else if (obj.property && obj.property.type === 'Literal') {
         // array index
         pushValue = '[' + obj.property.value + ']';
-        index = obj.property.value;
+
+        // don't fall for tracks[0] etc.
+        if (depth > 1) index = obj.property.value;
       } else if (obj.type === 'Identifier') {
         pushValue = obj.name;
       }
@@ -3389,9 +3385,12 @@ module.exports = function (Gibber) {
     wait: -987654321,
 
     create: function create(data) {
+      var track = arguments.length <= 1 || arguments[1] === undefined ? Gibber.currentTrack : arguments[1];
+
       var score = Object.create(this);
 
       Object.assign(score, {
+        track: track,
         timeline: [],
         schedule: [],
         shouldLoop: false,

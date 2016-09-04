@@ -66,6 +66,8 @@ let Marker = {
       let [ components, depthOfCall, index ] = Marker._getCallExpressionHierarchy( expressionNode.expression ),
           args = expressionNode.expression.arguments
       // if index is passed as argument to .seq call...
+      console.log( args[ 2 ], args.length )   
+      
       if( args.length > 2 ) { index = args[ 2 ].value }
       
       //console.log( "depth of call", depthOfCall, components, index )
@@ -105,7 +107,9 @@ let Marker = {
            break;
 
          case 'THIS.METHOD[ 0 ].SEQ': // will this ever happen??? I guess after it has been sequenced once?
+           console.log( 'components:', components, 'index:', index )
            track = window[ components[0] ][ components[1].slice(1,-1) ]
+           console.log( 'note?', track[ components[2] ], track[ components[2] ][ index ] )
            valuesPattern =  track[ components[2] ][ index ].values
            timingsPattern = track[ components[2] ][ index ].timings
            valuesNode = args[0]
@@ -278,6 +282,7 @@ let Marker = {
           marker, 
           count = 0
 
+
       for( let element of patternNode.elements ) {
         let cssClassName = patternName + '_' + count,
             elementStart = Object.assign( {}, start ),
@@ -319,16 +324,9 @@ let Marker = {
       patternObject.patternName = patternName
 
       patternObject.update = () => {
-        // if( !patternObject.update.shouldUpdate ) return 
-        // console.log( 'array update', patternObject.phase )
-        let className = `.${ components[ 1 ] }_${ index }_${ patternType }_` 
-
-        if( components.length === 5 ) { // this.note[ 0 ].values.reverse.seq( [], [] ) 
-          className += components[ 3 ] + '_' + patternType + '_'
-          className += patternObject.update.currentIndex
-        }else{
-          className += patternObject.update.currentIndex
-        }
+        let className = '.' + patternName
+        
+        className += '_' + patternObject.update.currentIndex 
 
         if( highlighted !== className ) {
           if( highlighted ) { $( highlighted ).remove( 'annotation-border' ) }
@@ -338,8 +336,6 @@ let Marker = {
         }else{
           cycle()
         }
-
-        // patternObject.update.shouldUpdate = false
       }
 
       patternObject.clear = () => {
@@ -701,7 +697,9 @@ let Marker = {
         pushValue = obj.property.name
       }else if( obj.property && obj.property.type === 'Literal' ){ // array index
         pushValue = '[' + obj.property.value + ']'
-        index = obj.property.value
+
+        // don't fall for tracks[0] etc.
+        if( depth > 1 ) index = obj.property.value
       }else if( obj.type === 'Identifier' ) {
         pushValue = obj.name
       }
