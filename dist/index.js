@@ -3936,12 +3936,12 @@ var seqclosure = function seqclosure(Gibber) {
 
         var value = this.values();
         if (typeof value === 'function') value = value();
-        if (value !== this) {
-          // WTF??? XXX
+        if (value !== null) {
           // delay messages  
           if (this.externalMessages[this.key] !== undefined) {
 
             var msg = this.externalMessages[this.key](value, beat + _beatOffset, this.trackID);
+
             scheduler.msgs.push(msg, this.priority);
           } else {
             // schedule internal method / function call immediately
@@ -4004,7 +4004,7 @@ module.exports = function (Gibber) {
           // TODO: is there a better way to get access to beat, beatOffset and scheduler?
           if (velocity !== 0) {
             var msg = seq.externalMessages['velocity'](velocity, seq.values.beat, seq.values.beatOffset);
-            seq.values.scheduler.msgs.push(msg, 1);
+            seq.values.scheduler.msgs.push(msg);
           }
 
           args[0] = sym === '.' ? Gibber.Seq.DO_NOT_OUTPUT : key;

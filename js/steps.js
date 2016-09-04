@@ -25,7 +25,7 @@ let Steps = {
         // TODO: is there a better way to get access to beat, beatOffset and scheduler?
         if( velocity !== 0 ) {
           let msg = seq.externalMessages[ 'velocity' ]( velocity, seq.values.beat, seq.values.beatOffset )
-          seq.values.scheduler.msgs.push( msg, 1 ) 
+          seq.values.scheduler.msgs.push( msg ) 
         }
 
         args[ 0 ] = sym === '.' ? Gibber.Seq.DO_NOT_OUTPUT : key
