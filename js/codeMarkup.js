@@ -65,9 +65,8 @@ let Marker = {
     CallExpression( expressionNode, codemirror, track ) {
       let [ components, depthOfCall, index ] = Marker._getCallExpressionHierarchy( expressionNode.expression ),
           args = expressionNode.expression.arguments
+
       // if index is passed as argument to .seq call...
-      console.log( args[ 2 ], args.length )   
-      
       if( args.length > 2 ) { index = args[ 2 ].value }
       
       //console.log( "depth of call", depthOfCall, components, index )
@@ -107,9 +106,7 @@ let Marker = {
            break;
 
          case 'THIS.METHOD[ 0 ].SEQ': // will this ever happen??? I guess after it has been sequenced once?
-           console.log( 'components:', components, 'index:', index )
            track = window[ components[0] ][ components[1].slice(1,-1) ]
-           console.log( 'note?', track[ components[2] ], track[ components[2] ][ index ] )
            valuesPattern =  track[ components[2] ][ index ].values
            timingsPattern = track[ components[2] ][ index ].timings
            valuesNode = args[0]
@@ -526,7 +523,6 @@ let Marker = {
 
   functions:{
     Score( node, cm, track, objectName, vOffset=0 ) {
-      console.log( "SCORE", track )
       let timelineNodes = node.arguments[ 0 ].elements
       //console.log( timelineNodes )
       track.markup.textMarkers[ 'score' ] = []

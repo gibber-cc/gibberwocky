@@ -367,9 +367,8 @@ var Marker = {
       var depthOfCall = _Marker$_getCallExpre2[1];
       var index = _Marker$_getCallExpre2[2];
       var args = expressionNode.expression.arguments;
-      // if index is passed as argument to .seq call...
-      console.log(args[2], args.length);
 
+      // if index is passed as argument to .seq call...
       if (args.length > 2) {
         index = args[2].value;
       }
@@ -415,9 +414,7 @@ var Marker = {
 
         case 'THIS.METHOD[ 0 ].SEQ':
           // will this ever happen??? I guess after it has been sequenced once?
-          console.log('components:', components, 'index:', index);
           track = window[components[0]][components[1].slice(1, -1)];
-          console.log('note?', track[components[2]], track[components[2]][index]);
           valuesPattern = track[components[2]][index].values;
           timingsPattern = track[components[2]][index].timings;
           valuesNode = args[0];
@@ -912,7 +909,6 @@ var Marker = {
     Score: function Score(node, cm, track, objectName) {
       var vOffset = arguments.length <= 4 || arguments[4] === undefined ? 0 : arguments[4];
 
-      console.log("SCORE", track);
       var timelineNodes = node.arguments[0].elements;
       //console.log( timelineNodes )
       track.markup.textMarkers['score'] = [];
