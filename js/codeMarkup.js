@@ -13,6 +13,8 @@ const callDepths = [
   'TRACKS[0].METHOD[0].VALUES.REVERSE.SEQ'
 ]
 
+const trackNames = [ 'this', 'tracks', 'master', 'returns' ]
+
 const Utility = require( './utility.js' )
 const $ = Utility.create
 
@@ -69,7 +71,7 @@ let Marker = {
       // if index is passed as argument to .seq call...
       if( args.length > 2 ) { index = args[ 2 ].value }
       
-      //console.log( "depth of call", depthOfCall, components, index )
+      console.log( "depth of call", depthOfCall, components, index )
       let valuesPattern, timingsPattern, valuesNode, timingsNode
 
       switch( callDepths[ depthOfCall ] ) {
@@ -106,9 +108,18 @@ let Marker = {
            break;
 
          case 'THIS.METHOD[ 0 ].SEQ': // will this ever happen??? I guess after it has been sequenced once?
+           let isTrack  = trackNames.includes( components[0] ),
+               target = null
+
            track = window[ components[0] ][ components[1].slice(1,-1) ]
-           valuesPattern =  track[ components[2] ][ index ].values
-           timingsPattern = track[ components[2] ][ index ].timings
+           
+           if( !isTrack ) { // not a track! XXX please, please get a better parsing method / rules...
+             target = track
+             track = Gibber.currentTrack
+           }
+
+           valuesPattern =  target === null ? track[ components[2] ][ index ].values : target[ components[2] ].values
+           timingsPattern = target === null ? track[ components[2] ][ index ].timings : target[ components[2] ].timings //track[ components[2] ][ index ].timings
            valuesNode = args[0]
            timingsNode = args[1]
 
@@ -233,6 +244,8 @@ let Marker = {
              inclusiveRight: true
            })
        
+       console.log( 'literal name:', className, track )
+
        track.markup.textMarkers[ className ] = marker
        
        if( track.markup.cssClasses[ className ] === undefined ) track.markup.cssClasses[ className ] = []

@@ -1,6 +1,7 @@
 module.exports = function( Gibber ) {
   
 let Steps = {
+  type:'Steps',
   create( _steps, track = Gibber.currentTrack ) {
     let stepseq = Object.create( Steps )
     

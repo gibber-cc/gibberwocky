@@ -294,6 +294,8 @@ var acorn = require('acorn');
 
 var callDepths = ['SCORE', 'THIS.METHOD', 'THIS.METHOD.SEQ', 'THIS.METHOD[ 0 ].SEQ', 'THIS.METHOD.VALUES.REVERSE.SEQ', 'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ', 'TRACKS[0].METHOD.SEQ', 'TRACKS[0].METHOD[0].SEQ', 'TRACKS[0].METHOD.VALUES.REVERSE.SEQ', 'TRACKS[0].METHOD[0].VALUES.REVERSE.SEQ'];
 
+var trackNames = ['this', 'tracks', 'master', 'returns'];
+
 var Utility = require('./utility.js');
 var $ = Utility.create;
 
@@ -373,7 +375,7 @@ var Marker = {
         index = args[2].value;
       }
 
-      //console.log( "depth of call", depthOfCall, components, index )
+      console.log("depth of call", depthOfCall, components, index);
       var valuesPattern = void 0,
           timingsPattern = void 0,
           valuesNode = void 0,
@@ -414,9 +416,19 @@ var Marker = {
 
         case 'THIS.METHOD[ 0 ].SEQ':
           // will this ever happen??? I guess after it has been sequenced once?
+          var isTrack = trackNames.includes(components[0]),
+              target = null;
+
           track = window[components[0]][components[1].slice(1, -1)];
-          valuesPattern = track[components[2]][index].values;
-          timingsPattern = track[components[2]][index].timings;
+
+          if (!isTrack) {
+            // not a track! XXX please, please get a better parsing method / rules...
+            target = track;
+            track = Gibber.currentTrack;
+          }
+
+          valuesPattern = target === null ? track[components[2]][index].values : target[components[2]].values;
+          timingsPattern = target === null ? track[components[2]][index].timings : target[components[2]].timings; //track[ components[2] ][ index ].timings
           valuesNode = args[0];
           timingsNode = args[1];
 
@@ -550,6 +562,8 @@ var Marker = {
         inclusiveLeft: true,
         inclusiveRight: true
       });
+
+      console.log('literal name:', className, track);
 
       track.markup.textMarkers[className] = marker;
 
@@ -3977,6 +3991,7 @@ module.exports = seqclosure;
 module.exports = function (Gibber) {
 
   var Steps = {
+    type: 'Steps',
     create: function create(_steps) {
       var track = arguments.length <= 1 || arguments[1] === undefined ? Gibber.currentTrack : arguments[1];
 
