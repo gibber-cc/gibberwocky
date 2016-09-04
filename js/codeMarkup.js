@@ -71,7 +71,8 @@ let Marker = {
 
     CallExpression( expressionNode, codemirror, track ) {
       let [ components, depthOfCall, index ] = Marker._getCallExpressionHierarchy( expressionNode.expression ),
-          args = expressionNode.expression.arguments
+        args = expressionNode.expression.arguments,
+        usesThis, targetPattern, isTrack, method, target
 
       // if index is passed as argument to .seq call...
       if( args.length > 2 ) { index = args[ 2 ].value }
@@ -93,7 +94,7 @@ let Marker = {
 
          case 'THIS.METHOD.SEQ':
            if( components.includes( 'tracks' ) ) { //expressionNode.expression.callee.object.object.type !== 'ThisExpression' ) {
-             var objName = expressionNode.expression.callee.object.object.name
+             let objName = expressionNode.expression.callee.object.object.name
              track = window[ objName ]
              
              components.unshift( objName )
@@ -120,10 +121,10 @@ let Marker = {
            break;
 
          case 'THIS.METHOD[ 0 ].SEQ': // will this ever happen??? I guess after it has been sequenced once?
-           let isTrack  = trackNames.includes( components[0] ),
-               target = null
+           isTrack  = trackNames.includes( components[0] )
+           target = null
 
-           track = window[ components[0] ][ components[1].slice(1,-1) ]
+           track = window[ components[0] ][ components[1] ]
            
            if( !isTrack ) { // not a track! XXX please, please get a better parsing method / rules...
              target = track
@@ -145,12 +146,21 @@ let Marker = {
            break;
 
          case 'THIS.METHOD.VALUES.REVERSE.SEQ':
-           let usesThis = components.includes( 'this' )
+           usesThis = components.includes( 'this' )
+           isTrack  = components.includes( 'tracks' )
 
-           let track = usesThis ? Gibber.currentTrack : window[ components[0] ],
-               targetPattern = track[ components[1] ][ components[2] ],
-               method = targetPattern[ components[3] ]
+           if( isTrack ) { // XXX this won't ever get called here, right?
+             track = window[ components[0] ][ components[1] ] 
+             targetPattern = track[ components[2] ][ components[3] ]
+             method = targetPattern[ components[4] ]
 
+           }else{
+             track = usesThis ? Gibber.currentTrack : window[ components[0] ],
+             targetPattern = track[ components[1] ][ components[2] ],
+             method = targetPattern[ components[3] ]
+           }
+        
+            
            valuesPattern = method.values
            timingsPattern = method.timings
            valuesNode = args[0]
@@ -166,29 +176,39 @@ let Marker = {
            break;
 
          case 'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ': // most useful?
-           if( components.includes( 'this' ) ) {
-             track = Gibber.currentTrack
+           usesThis = components.includes( 'this' )
+           isTrack  = components.includes( 'tracks' )
+           // tracks['1-Impulse 606'].devices['Impulse']['Global Time']
+           
+           if( isTrack ) {
+             track = window[ components[0] ][ components[1] ] 
+             targetPattern = track[ components[2] ][ components[3] ]
+             method = targetPattern[ components[4] ]
+
+           }else{
+             track = usesThis ? Gibber.currentTrack : window[ components[0] ],
+             targetPattern = track[ components[1] ][ index ][ components[3] ],
+             method = targetPattern[ components[4] ]
            }
 
-           valuesPattern =  track[ components[ 1 ] ][ index ][ components[3] ][ components[4] ].values
-           timingsPattern = track[ components[ 1 ] ][ index ][ components[3] ][ components[4] ].timings
+           valuesPattern =  method.values
+           timingsPattern = method.timings
            valuesNode = args[ 0 ]
            timingsNode= args[ 1 ]
           
            valuesPattern.codemirror = timingsPattern.codemirror = codemirror
 
-           components.splice( 2,index )
+           if( !isTrack ) components.splice( 2,index )
 
            Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
            if( timingsNode ) {
              Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern )  
            }
            break;
-         case 'TRACKS[0].METHOD[ 0 ].VALUES.REVERSE.SEQ': // most useful?
-           track = window[ 'tracks' ][ components[ 1 ].slice(1,-1) ]
+         case 'TRACKS[0].METHOD[ 0 ].VALUES.REVERSE.SEQ':
+           track = window[ 'tracks' ][ components[ 1 ] ]
 
-           components[3] = components[3].slice(1,-1)
-
+           components[3] = components[3]
            valuesPattern =  track[ components[ 2 ] ][ components[3] ][ components[4] ][ components[5] ].values
            timingsPattern = track[ components[ 2 ] ][ components[3] ][ components[4] ][ components[5] ].timings
            valuesNode = args[ 0 ]
@@ -705,8 +725,8 @@ let Marker = {
         cssName   = null,
         marker
 
-     if( components[1][0] === '[' ) {
-       className = [ 'tracks', components[1].slice(1,-1) ].concat( components.slice( 2, components.length - 1 ) )
+     if( components.includes( 'tracks' ) ) {
+       className = [ 'tracks', components[1] ].concat( components.slice( 2, components.length - 1 ) )
        if( index !== 0 ) {
          className.splice( 3, 0, index )
        }
@@ -716,6 +736,15 @@ let Marker = {
 
      className.push( patternType )
      className = className.join( '_' )
+
+     let expr = /\[\]/gi
+     className = className.replace( expr, '' )
+
+     expr = /\-/gi
+     className = className.replace( expr, '_' )
+
+     expr = /\ /gi
+     className = className.replace( expr, '_' )
 
      start.line += containerNode.verticalOffset - 1
      end.line   += containerNode.verticalOffset - 1
@@ -740,14 +769,13 @@ let Marker = {
       }else if( obj.property && obj.property.name ){
         pushValue = obj.property.name
       }else if( obj.property && obj.property.type === 'Literal' ){ // array index
-        pushValue = '[' + obj.property.value + ']'
+        pushValue = obj.property.value
 
         // don't fall for tracks[0] etc.
         if( depth > 1 ) index = obj.property.value
       }else if( obj.type === 'Identifier' ) {
         pushValue = obj.name
       }
-
       
       if( pushValue !== null ) components.push( pushValue ) 
 
