@@ -89,26 +89,29 @@ let Marker = {
            break;
 
          case 'THIS.METHOD': // also for calls to Score([]).start() 
-           // console.log( 'simple method call, no sequencing so no markup' )
            break;
 
          case 'THIS.METHOD.SEQ':
            if( components.includes( 'tracks' ) ) { //expressionNode.expression.callee.object.object.type !== 'ThisExpression' ) {
              let objName = expressionNode.expression.callee.object.object.name
+
              track = window[ objName ]
-             
-             components.unshift( objName )
+             method = track[ components[ 1 ] ][ index ]
            }else if( components.includes( 'this' ) ){
              track = Gibber.currentTrack
+             method = track[ components[ 1 ] ][ index ]
            }else{
+             let objName = expressionNode.expression.callee.object.object.name
+
              track = window[ components[0] ]
+             method = track[ components[ 1 ] ] 
            }
 
            if( !track.markup ) { Marker.prepareObject( track ) }
 
-           valuesPattern =  track[ components[ 1 ] ][ index ].values,
-           timingsPattern = track[ components[ 1 ] ][ index ].timings,
-           valuesNode = args[ 0 ],
+           valuesPattern =  method.values
+           timingsPattern = method.timings
+           valuesNode = args[ 0 ]
            timingsNode= args[ 1 ]
 
            valuesPattern.codemirror = timingsPattern.codemirror = codemirror 
@@ -719,19 +722,24 @@ let Marker = {
   },
 
   _getNamesAndPosition( patternNode, containerNode, components, index=0, patternType ) {
-    let start = patternNode.loc.start,
-        end   = patternNode.loc.end,
-        className = components.slice( 1, components.length - 1 ), // .join('.'),
-        cssName   = null,
-        marker
+    let start   = patternNode.loc.start,
+        end     = patternNode.loc.end,
+        cssName = null,
+        marker, className
+
+     if( components.includes( 'this' ) ) components.shift()
+
+     className = components
 
      if( components.includes( 'tracks' ) ) {
-       className = [ 'tracks', components[1] ].concat( components.slice( 2, components.length - 1 ) )
+       //className = [ 'tracks', components[1] ].concat( components.slice( 2, components.length - 1 ) )
        if( index !== 0 ) {
          className.splice( 3, 0, index )
        }
      }else{
-       className.splice( 1, 0, index ) // insert index into array
+       if( index !== 0 ) {
+         className.splice( 1, 0, index ) // insert index into array
+       }
      }
 
      className.push( patternType )
@@ -750,6 +758,8 @@ let Marker = {
      end.line   += containerNode.verticalOffset - 1
      start.ch   = start.column + containerNode.horizontalOffset
      end.ch     = end.column + containerNode.horizontalOffset
+
+     //console.log( start, end )
 
      return [ className, start, end ]
   },

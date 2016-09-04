@@ -14,7 +14,7 @@ this.note( 'c4' ) // ... or d4, fb2, e#5 etc.
 this.note( 0 )
 
 // Change master scale root
-Scale.master.root( 'eb2' )
+Scale.master.root( 'eb4' )
 this.note( 0 )
 
 // sequence calls to the note method every 1/16 note
@@ -29,7 +29,7 @@ this.note.seq( [0,1,2,3,4,5,6,7], 1/16 )
 this.velocity.seq( Rndi( 10,127 ), 1/16 )
 
 // sequence duration of notes in milliseconds
-this.duration.seq( [50, 250, 500, 1000].rnd(), 1/16 )
+this.duration.seq( [ 50, 250, 500 ].rnd(), 1/16 )
 
 // sequence the master scale to change root every measure
 Scale.root.seq( ['c4','d4','f4','g4'], 1 )
@@ -46,6 +46,7 @@ Scale.root[ 0 ].stop()
 
 // set scale mode
 Scale.mode( 'Lydian' )
+Scale.root( 'c3' )
 
 // Create an arpegctor by passing notes of a chord, 
 // number of octaves to play, and style. Possible styles 
@@ -64,7 +65,7 @@ a.transpose.seq( 1,1 )
 
 // reset the arpeggiator every 8 measures 
 // (removes transposition)
-a.reset.seq( null, 8 )
+a.reset.seq( 1, 8 )
 
 // stop sequence
 this.note[ 0 ].stop()
@@ -88,13 +89,7 @@ this.note[ 2 ].values.transpose.seq( [1,2,3,-6], 1 )
 this.note[ 1 ].stop()
 
 // start this.note[0]
-this.note[ 1 ].start()
-
-// longhand reference to sequencer 
-this.sequences.note[ 2 ].stop()
-
-// sugar
-this.note[ 2 ].start()`,
+this.note[ 1 ].start()`,
 
 ['sequencing parameter changes']: `/* Almost every parameter in Ableton can be sequenced and controlled
 using gibberwocky. Because there are hundreds (and often thousands) of paramters exposed
@@ -207,8 +202,10 @@ generic way to sequence any aspect of a gen~ ugen by using the index operator ( 
 cycle() contains a single inlet that controls its frequency, to sequence it we would use: */
 
 mycycle = cycle( .25 )
+
 mycycle[ 0 ].seq( [ .25, 1, 2 ], 1 )
-tracks['2-Impulse 606'].devices['Impulse']['Global Time']( add( .5, div( mycycle, 2 ) ) )
+
+tracks['1-Impulse 606'].devices['Impulse']['Global Time']( add( .5, div( mycycle, 2 ) ) )
 
 /*For other ugens that have more than one argument (see the gen~ random tutorial for an example) we
 simply indicate the appropriate index... for example, mysah[ 1 ] etc.*/`,
@@ -224,33 +221,50 @@ simply indicate the appropriate index... for example, mysah[ 1 ] etc.*/`,
 
 s = Score([ 
   0, function() { 
-    this.note.seq( 0, 1/4 )
+    tracks[1].note.seq( 0, 1/4 )
   },
   1, function() { 
-    this.note.seq( [0,1], Euclid(3,4), 1 )
+     tracks[1].note.seq( [0,1], Euclid(3,4), 1 )
   },
   2, function() { 
-    this.note.seq( [7,14,13,8].rnd(), [1/4,1/8].rnd(), 2 )
+    tracks[1].note.seq( [7,14,13,8].rnd(), [1/4,1/8].rnd(), 2 )
   },  
-])`,
+])
 
+s.stop()
 
-[ 'example score w/ arrow functions' ]: `// scores become much terser using arrow functions
-// (note: Safari does not currently support arrow functions)
+// scores become much terser using arrow functions
+// (note: Safari does not currently support arrow functions, except in betas)
 
 s = Score([
-  0, ()=> this.note.seq( [0,1,2,3], 1/4 ),
-  1, ()=> this.note.seq( [0,1], Euclid(2,4), 1 ),
-  1, ()=> this.note.seq( [3,4], [1/4,1/8], 2 )
+  0, ()=> tracks[1].note.seq( [0,1,2,3], 1/4 ),
+  1, ()=> tracks[1].note.seq( [0,1], Euclid(2,4), 1 ),
+  1, ()=> tracks[1].note.seq( [3,4], [1/4,1/8], 2 )
 ])`,
 
-
-
-['using the Steps() object (step-sequencer)'] : `/*
-alt-enter to execute block
-ctrl-enter to execute line or selection
-ctrl-. to stop all running sequencers
-*/
+['using the Steps() object (step-sequencer)'] : `/* Steps() creates a group of sequencer objects. Each
+ * sequencer is responsible for playing a single note,
+ * where the velocity of each note is determined by
+ * a hexadecimal value (0-f), where f is the loudest note.
+ * A value of '.' means that no MIDI note message is sent
+ * with for that particular pattern element.
+ *
+ * The lengths of the patterns found in a Steps object can
+ * differ. By default, the amount of time for each step in
+ * a pattern equals 1 divided by the number of steps in the
+ * pattern. In the example below, each pattern has sixteen
+ * steps, so each step represents a sixteenth note.
+ *
+ * The individual patterns can be accessed using the note
+ * numbers they are assigned to. So, given an instance with
+ * the name 'a' (as below), the pattern for note 60 can be
+ * accessed at a[60]. Note that you have to access with brackets
+ * as a.60 is not valid JavaScript.
+ *
+ * The second argument to Steps is the track to target. If no
+ * second argument is given, Steps will target the track associated
+ * with the editor it is instantiated in.
+ */ 
 
 a = Steps({
   [60]: '3.3f..4..8.5...f',
@@ -260,17 +274,14 @@ a = Steps({
   [67]: '.f..3.........f.',  
   [71]: 'e.a.e.a.e.a.a...',  
   [72]: '..............e.',
-})
+}, tracks[0] )
 
 // rotate one pattern in step sequencer
 // every measure
 a[71].rotate.seq( 1,1 )
 
 // reverse all steps each measure
-a.reverse.seq( null, 2 )
-`,
-
-rndExample : `this.note.seq( Rndi(50,60), 1/4 )`
+a.reverse.seq( 1, 2 )`,
 
 }
 

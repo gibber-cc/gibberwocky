@@ -57,7 +57,7 @@ let Gen  = {
           value = v
           if( obj.active ) {
             //console.log( `${obj.track} genp ${obj.paramID} ${obj[ key ].uid} ${v}` )
-            Gibber.Communication.send( `${Gibber.Live.id} genp ${obj.paramID} ${obj[ key ].uid} ${v}` ) 
+            Gibber.Communication.send( `genp ${obj.paramID} ${obj[ key ].uid} ${v}` ) 
           }
         }
       }
