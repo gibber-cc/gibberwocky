@@ -181,138 +181,138 @@ module.exports = function (Gibber) {
 },{}],3:[function(require,module,exports){
 'use strict';
 
-!function () {
+var Queue = require('./priorityqueue.js');
+var Big = require('big.js');
 
-  var Queue = require('./priorityqueue.js');
-  var Big = require('big.js');
+var Scheduler = {
+  phase: 0,
+  msgs: [],
+  delayed: [],
+  bpm: 120,
+  functionsToExecute: [],
+  mockBeat: 0,
+  mockInterval: null,
+  currentBeat: 1,
 
-  var Scheduler = {
-    phase: 0,
-    msgs: [],
-    delayed: [],
-    bpm: 120,
-    functionsToExecute: [],
-    queue: new Queue(function (a, b) {
-      if (a.time.eq(b.time)) {
-        return b.priority - a.priority;
-      } else {
-        return a.time.minus(b.time);
-      }
-    }),
-    mockBeat: 0,
-    mockInterval: null,
-    currentBeat: 1,
-
-    mockRun: function mockRun() {
-      var _this = this;
-
-      var seqFunc = function seqFunc() {
-        _this.seq(_this.mockBeat++ % 8);
-      };
-      this.mockInterval = setInterval(seqFunc, 500);
-    },
-
-
-    // all ticks take the form of { time:timeInSamples, seq:obj }
-    advance: function advance(advanceAmount, beat) {
-      var end = this.phase + advanceAmount,
-          nextTick = this.queue.peek(),
-          shouldEnd = false,
-          beatOffset = void 0;
-
-      this.currentBeat = beat;
-
-      if (this.queue.length && parseFloat(nextTick.time.toFixed(6)) < end) {
-        beatOffset = nextTick.time.minus(this.phase).div(advanceAmount);
-
-        // remove tick
-        this.queue.pop();
-
-        this.currentTime = nextTick.time;
-
-        // execute callback function for tick passing schedule, time and beatOffset
-        // console.log( 'next tick', nextTick.shouldExecute )
-        nextTick.seq.tick(this, beat, beatOffset, nextTick.shouldExecute);
-
-        // recursively call advance
-        this.advance(advanceAmount, beat);
-      } else {
-        if (this.msgs.length) {
-          // if output messages have been created
-          this.outputMessages(); // output them
-          this.msgs.length = 0; // and reset the contents of the output messages array
-        }
-
-        this.phase += advanceAmount; // increment phase
-        this.currentTime = this.phase;
-      }
-    },
-    addMessage: function addMessage(seq, time) {
-      var shouldExecute = arguments.length <= 2 || arguments[2] === undefined ? true : arguments[2];
-
-      if (typeof time === 'number') time = Big(time);
-      // TODO: should 4 be a function of the time signature?
-      time = time.times(4).plus(this.currentTime);
-
-      this.queue.push({ seq: seq, time: time, shouldExecute: shouldExecute });
-    },
-    outputMessages: function outputMessages() {
-      this.msgs.forEach(function (msg) {
-        if (Array.isArray(msg)) {
-          // for chords etc.
-          msg.forEach(Gibber.Communication.send);
-        } else {
-          if (msg !== 0) {
-            // XXX
-            Gibber.Communication.send(msg);
-          }
-        }
-      });
-    },
-    seq: function seq(beat) {
-      beat = parseInt(beat);
-
-      if (beat === 1) {
-        var _iteratorNormalCompletion = true;
-        var _didIteratorError = false;
-        var _iteratorError = undefined;
-
-        try {
-          for (var _iterator = Scheduler.functionsToExecute[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-            var func = _step.value;
-
-            try {
-              func();
-            } catch (e) {
-              console.error('error with user submitted code:', e);
-            }
-          }
-        } catch (err) {
-          _didIteratorError = true;
-          _iteratorError = err;
-        } finally {
-          try {
-            if (!_iteratorNormalCompletion && _iterator.return) {
-              _iterator.return();
-            }
-          } finally {
-            if (_didIteratorError) {
-              throw _iteratorError;
-            }
-          }
-        }
-
-        Scheduler.functionsToExecute.length = 0;
-      }
-
-      Scheduler.advance(1, beat);
-
-      Scheduler.outputMessages();
+  queue: new Queue(function (a, b) {
+    if (a.time.eq(b.time)) {
+      console.log('priority', b.priority, a.priority);
+      return b.priority - a.priority;
+    } else {
+      return a.time.minus(b.time);
     }
-  };
+  }),
 
-  module.exports = Scheduler;
-}();
+  mockRun: function mockRun() {
+    var _this = this;
+
+    var seqFunc = function seqFunc() {
+      _this.seq(_this.mockBeat++ % 8);
+    };
+    this.mockInterval = setInterval(seqFunc, 500);
+  },
+
+
+  // all ticks take the form of { time:timeInSamples, seq:obj }
+  advance: function advance(advanceAmount, beat) {
+    var end = this.phase + advanceAmount,
+        nextTick = this.queue.peek(),
+        shouldEnd = false,
+        beatOffset = void 0;
+
+    this.currentBeat = beat;
+
+    if (this.queue.length && parseFloat(nextTick.time.toFixed(6)) < end) {
+      beatOffset = nextTick.time.minus(this.phase).div(advanceAmount);
+
+      // remove tick
+      this.queue.pop();
+
+      this.currentTime = nextTick.time;
+
+      // execute callback function for tick passing schedule, time and beatOffset
+      // console.log( 'next tick', nextTick.shouldExecute )
+      nextTick.seq.tick(this, beat, beatOffset, nextTick.shouldExecute);
+
+      // recursively call advance
+      this.advance(advanceAmount, beat);
+    } else {
+      if (this.msgs.length) {
+        // if output messages have been created
+        this.outputMessages(); // output them
+        this.msgs.length = 0; // and reset the contents of the output messages array
+      }
+
+      this.phase += advanceAmount; // increment phase
+      this.currentTime = this.phase;
+    }
+  },
+  addMessage: function addMessage(seq, time) {
+    var shouldExecute = arguments.length <= 2 || arguments[2] === undefined ? true : arguments[2];
+    var priority = arguments.length <= 3 || arguments[3] === undefined ? 0 : arguments[3];
+
+    if (typeof time === 'number') time = Big(time);
+    // TODO: should 4 be a function of the time signature?
+    time = time.times(4).plus(this.currentTime);
+
+    this.queue.push({ seq: seq, time: time, shouldExecute: shouldExecute, priority: priority });
+  },
+  outputMessages: function outputMessages() {
+    this.msgs.forEach(function (msg) {
+      if (Array.isArray(msg)) {
+        // for chords etc.
+        msg.forEach(Gibber.Communication.send);
+      } else {
+        if (msg !== 0) {
+          // XXX
+          Gibber.Communication.send(msg);
+        }
+      }
+    });
+  },
+  seq: function seq(beat) {
+    beat = parseInt(beat);
+
+    if (beat === 1) {
+      var _iteratorNormalCompletion = true;
+      var _didIteratorError = false;
+      var _iteratorError = undefined;
+
+      try {
+        for (var _iterator = Scheduler.functionsToExecute[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+          var func = _step.value;
+
+          try {
+            func();
+          } catch (e) {
+            console.error('error with user submitted code:', e);
+          }
+        }
+      } catch (err) {
+        _didIteratorError = true;
+        _iteratorError = err;
+      } finally {
+        try {
+          if (!_iteratorNormalCompletion && _iterator.return) {
+            _iterator.return();
+          }
+        } finally {
+          if (_didIteratorError) {
+            throw _iteratorError;
+          }
+        }
+      }
+
+      Scheduler.functionsToExecute.length = 0;
+    }
+
+    Scheduler.advance(1, beat);
+
+    Scheduler.outputMessages();
+  }
+};
+
+module.exports = Scheduler;
 },{"./priorityqueue.js":15,"big.js":26}],4:[function(require,module,exports){
 'use strict';
 
@@ -4053,7 +4053,9 @@ var seqclosure = function seqclosure(Gibber) {
         shouldExecute = true;
       }
 
-      scheduler.addMessage(this, Big(nextTime), true);
+      var bigTime = Big(nextTime);
+
+      scheduler.addMessage(this, bigTime, true, this.priority);
 
       var _beatOffset = parseFloat(beatOffset.toFixed(6));
 

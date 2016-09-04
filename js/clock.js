@@ -1,5 +1,3 @@
-!function() {
-
 const Queue = require( './priorityqueue.js' )
 const Big   = require( 'big.js' )
 
@@ -9,16 +7,17 @@ let Scheduler = {
   delayed: [],
   bpm: 120,
   functionsToExecute: [],
+  mockBeat: 0,
+  mockInterval: null,
+  currentBeat: 1,
+
   queue: new Queue( ( a, b ) => {
     if( a.time.eq( b.time ) ) {
       return b.priority - a.priority
     }else{
-     return a.time.minus( b.time )
+      return a.time.minus( b.time )
     }
-  } ),
-  mockBeat: 0,
-  mockInterval: null,
-  currentBeat: 1,
+  }),
 
   mockRun() {
     let seqFunc = () => {
@@ -62,12 +61,12 @@ let Scheduler = {
     }
   },
 
-  addMessage( seq, time, shouldExecute=true ) {
+  addMessage( seq, time, shouldExecute=true, priority=0 ) {
     if( typeof time === 'number' ) time = Big( time )
     // TODO: should 4 be a function of the time signature?
     time = time.times( 4 ).plus( this.currentTime )
 
-    this.queue.push({ seq, time, shouldExecute })
+    this.queue.push({ seq, time, shouldExecute, priority })
   },
 
   outputMessages() {
@@ -104,5 +103,3 @@ let Scheduler = {
 }
 
 module.exports = Scheduler
-
-}()

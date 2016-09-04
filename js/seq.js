@@ -172,7 +172,9 @@ let seqclosure = function( Gibber ) {
         shouldExecute = true
       }
 
-      scheduler.addMessage( this, Big( nextTime ), true )
+      let bigTime = Big( nextTime )
+
+      scheduler.addMessage( this, bigTime, true, this.priority )
 
       let _beatOffset = parseFloat( beatOffset.toFixed( 6 ) )
 
