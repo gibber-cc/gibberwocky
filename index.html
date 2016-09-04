@@ -792,16 +792,44 @@ module.exports = function (Gibber) {
       var octaveMod = void 0,
           note = _arp.notes();
 
-      note = Gibber.Theory.Note.convertToMIDI(note);
+      //note = Gibber.Theory.Note.convertToMIDI( note )
 
       for (var i = 1; i < _arp.octave; i++) {
-        note += 12;
+        note += 7;
       }
 
-      _arp.transpose = notes.transpose.bind(notes);
-      _arp.reset = notes.reset.bind(notes);
-      _arp.reverse = notes.reverse.bind(notes);
-      _arp.rotate = notes.rotate.bind(notes);
+      var methodNames = ['rotate', 'switch', 'invert', 'reset', 'flip', 'transpose', 'reverse', 'shuffle', 'scale', 'store', 'range', 'set'];
+
+      var _iteratorNormalCompletion = true;
+      var _didIteratorError = false;
+      var _iteratorError = undefined;
+
+      try {
+        for (var _iterator = methodNames[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+          var key = _step.value;
+
+          _arp[key] = notes[key].bind(notes);
+          Gibber.addSequencingToMethod(_arp, key);
+        }
+
+        //arp.transpose = notes.transpose.bind( notes )
+        //arp.reset = notes.reset.bind( notes )
+        //arp.reverse = notes.reverse.bind( notes )
+        //arp.rotate  = notes.rotate.bind( notes )
+      } catch (err) {
+        _didIteratorError = true;
+        _iteratorError = err;
+      } finally {
+        try {
+          if (!_iteratorNormalCompletion && _iterator.return) {
+            _iterator.return();
+          }
+        } finally {
+          if (_didIteratorError) {
+            throw _iteratorError;
+          }
+        }
+      }
 
       return note;
     };

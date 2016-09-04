@@ -51,16 +51,27 @@ let Arp = function( chord = [0,2,4,6], octaves = 1, pattern = 'updown2' ) {
     let octaveMod,
         note = arp.notes()
     
-    note = Gibber.Theory.Note.convertToMIDI( note )
+    //note = Gibber.Theory.Note.convertToMIDI( note )
     
     for( let i = 1; i < arp.octave; i++ ) {
-      note += 12
+      note += 7
     }
 
-    arp.transpose = notes.transpose.bind( notes )
-    arp.reset = notes.reset.bind( notes )
-    arp.reverse = notes.reverse.bind( notes )
-    arp.rotate  = notes.rotate.bind( notes )
+    let methodNames =  [
+      'rotate','switch','invert','reset', 'flip',
+      'transpose','reverse','shuffle','scale',
+      'store', 'range', 'set'
+    ]
+
+    for( let key of methodNames ) {
+      arp[ key ] = notes[ key ].bind( notes )
+      Gibber.addSequencingToMethod( arp, key ) 
+    }
+
+    //arp.transpose = notes.transpose.bind( notes )
+    //arp.reset = notes.reset.bind( notes )
+    //arp.reverse = notes.reverse.bind( notes )
+    //arp.rotate  = notes.rotate.bind( notes )
 
     return note
   }
