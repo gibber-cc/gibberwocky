@@ -253,7 +253,6 @@ module.exports = function (Gibber) {
           for (var _iterator = Scheduler.functionsToExecute[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
             var func = _step.value;
 
-            console.log('GO');
             try {
               func();
             } catch (e) {
@@ -354,7 +353,6 @@ var Marker = {
 
     AssignmentExpression: function AssignmentExpression(expressionNode, codemirror, track) {
       if (expressionNode.expression.right.type !== 'Literal' && Marker.functions[expressionNode.expression.right.callee.name]) {
-        console.log('assignment', track, expressionNode);
 
         Marker.functions[expressionNode.expression.right.callee.name](expressionNode.expression.right, codemirror, track, expressionNode.expression.left.name, expressionNode.verticalOffset, expressionNode.horizontalOffset);
       }
@@ -374,7 +372,7 @@ var Marker = {
         index = args[2].value;
       }
 
-      //console.log( "depth of call", depthOfCall, components )
+      //console.log( "depth of call", depthOfCall, components, index )
       var valuesPattern = void 0,
           timingsPattern = void 0,
           valuesNode = void 0,
@@ -416,21 +414,22 @@ var Marker = {
         case 'THIS.METHOD[ 0 ].SEQ':
           // will this ever happen??? I guess after it has been sequenced once?
           track = window[components[0]][components[1].slice(1, -1)];
-          valuesPattern = track[components[2]][0].values;
-          timingsPattern = track[components[2]][0].timings;
+          valuesPattern = track[components[2]][index].values;
+          timingsPattern = track[components[2]][index].timings;
           valuesNode = args[0];
           timingsNode = args[1];
 
-          valuesPattern.codemirro = timingsPattern.codemirror = codemirror;
+          valuesPattern.codemirror = timingsPattern.codemirror = codemirror;
 
-          Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, 0, 'values', valuesPattern);
+          Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern);
           if (timingsNode) {
-            Marker._markPattern[timingsNode.type](timingsNode, expressionNode, components, codemirror, track, 0, 'timings', timingsPattern);
+            Marker._markPattern[timingsNode.type](timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern);
           }
 
           break;
 
         case 'THIS.METHOD.VALUES.REVERSE.SEQ':
+          console.log('or here?');
           break;
 
         case 'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ':
@@ -1070,6 +1069,9 @@ var Marker = {
 
     if (components[1][0] === '[') {
       className = ['tracks', components[1].slice(1, -1)].concat(components.slice(2, components.length - 1));
+      if (index !== 0) {
+        className.splice(3, 0, index);
+      }
     } else {
       className.splice(1, 0, index); // insert index into array
     }

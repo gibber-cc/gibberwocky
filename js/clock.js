@@ -87,7 +87,6 @@ let Scheduler = {
 
     if( beat === 1 ) {
       for( let func of Scheduler.functionsToExecute ) {
-        console.log( 'GO' )
         try {
           func()
         } catch( e ) {

@@ -68,7 +68,7 @@ let Marker = {
       // if index is passed as argument to .seq call...
       if( args.length > 2 ) { index = args[ 2 ].value }
       
-      //console.log( "depth of call", depthOfCall, components )
+      //console.log( "depth of call", depthOfCall, components, index )
       let valuesPattern, timingsPattern, valuesNode, timingsNode
 
       switch( callDepths[ depthOfCall ] ) {
@@ -106,16 +106,16 @@ let Marker = {
 
          case 'THIS.METHOD[ 0 ].SEQ': // will this ever happen??? I guess after it has been sequenced once?
            track = window[ components[0] ][ components[1].slice(1,-1) ]
-           valuesPattern =  track[ components[2] ][ 0 ].values
-           timingsPattern = track[ components[2] ][ 0 ].timings
+           valuesPattern =  track[ components[2] ][ index ].values
+           timingsPattern = track[ components[2] ][ index ].timings
            valuesNode = args[0]
            timingsNode = args[1]
 
-           valuesPattern.codemirro = timingsPattern.codemirror = codemirror
+           valuesPattern.codemirror = timingsPattern.codemirror = codemirror
 
-           Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, 0, 'values', valuesPattern ) 
+           Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
            if( timingsNode ) {
-             Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, 0, 'timings', timingsPattern )  
+             Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern )  
            }
 
            break;
@@ -126,7 +126,6 @@ let Marker = {
 
          case 'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ': // most useful?
            // in a.seqs[71].values.reverse.seq() a is not properly identified; the current track is used instead
-           console.log( 'here?' )
            if( expressionNode.expression.callee.object.object.type !== 'ThisExpression' ) {
              let obj = expressionNode.expression.callee.object
 
@@ -668,6 +667,9 @@ let Marker = {
 
      if( components[1][0] === '[' ) {
        className = [ 'tracks', components[1].slice(1,-1) ].concat( components.slice( 2, components.length - 1 ) )
+       if( index !== 0 ) {
+         className.splice( 3, 0, index )
+       }
      }else{
        className.splice( 1, 0, index ) // insert index into array
      }
