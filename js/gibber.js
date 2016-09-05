@@ -108,6 +108,7 @@ let Gibber = {
     }, 500 )
 
     Gibber.Gen.clear()
+    Gibber.Environment.codeMarkup.clear()
   },
 
   addSequencingToMethod( obj, methodName, priority, overrideName ) {

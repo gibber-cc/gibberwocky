@@ -28,6 +28,10 @@ let Scheduler = {
       // call recursively
       this.run( timestamp )
     }
+
+    if( Gibber.Environment.codeMarkup.genWidgets.dirty === true ) {
+      Gibber.Environment.codeMarkup.drawWidgets()
+    }
   },
 
   onAnimationFrame( timestamp ) {

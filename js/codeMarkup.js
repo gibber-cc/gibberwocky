@@ -20,7 +20,7 @@ const Utility = require( './utility.js' )
 const $ = Utility.create
 
 let Marker = {
-  genWidgets: [],
+  genWidgets: { dirty:false },
   _patternTypes: [ 'values', 'timings', 'index' ],
 
   prepareObject( obj ) {
@@ -40,7 +40,6 @@ let Marker = {
           shouldParse = true
           isGen = true
 
-          console.log( 'GEN found', ugen )
           break;
         } 
       }
@@ -77,23 +76,69 @@ let Marker = {
     widget.style.display = 'inline-block'
     widget.style.verticalAlign = 'middle'
     widget.style.height = '1.1em'
-    widget.style.width = '30px'
-    widget.style.backgroundColor = 'black'
+    widget.style.width = '60px'
+    widget.style.backgroundColor = '#444'
+    widget.setAttribute( 'width', 60 )
+    widget.setAttribute( 'height', 13 )
     widget.gen = Gibber.Gen.connected[ Gibber.Gen.connected.length - 1 ]
+    widget.values = []
 
-    let stored = Marker.genWidgets.find( e => e.paramID === widget.gen.paramID )
+    let oldWidget = Marker.genWidgets[ widget.gen.paramID ] 
 
-    if( stored === undefined ) {
-      Marker.genWidgets.push( widget )
-    }else{
-      Marker.genWidgets.splice( stored, 1, widget )
-    }
+    if( oldWidget !== undefined ) {
+      oldWidget.parentNode.removeChild( oldWidget )
+    } 
+    //let stored = Marker.genWidgets.find( e => e.paramID === widget.gen.paramID )
+
+    //if( stored === undefined ) {
+    //  Marker.genWidgets.push( widget )
+    //}else{
+    //  Marker.genWidgets.splice( stored, 1, widget )
+    //}
     
+    Marker.genWidgets[ widget.gen.paramID ] = widget
     cm.markText({ line, ch }, { line:end }, { replacedWith:widget })
+  },
 
-    console.log( 'gen', widget.gen )
-    //doc.markText(from: {line, ch}, to: {line, ch}, ?options: object)
-    //cm.replaceRange( ')...', { line: 3, ch:49 }, { line: 3, ch:50 } )
+  updateWidget( id, value ) {
+    let widget = Marker.genWidgets[ id ]
+    if( widget === undefined ) return 
+
+    widget.values.push( parseFloat( value ) )
+
+    while( widget.values.length > 60 ) widget.values.shift()
+    Marker.genWidgets.dirty = true
+  },
+
+  drawWidgets() {
+    
+    Marker.genWidgets.dirty = false
+
+    for( let key in Marker.genWidgets ) {
+      let widget = Marker.genWidgets[ key ]
+      if( typeof widget === 'object' && widget.ctx !== undefined ) {
+        widget.ctx.fillStyle = '#444'
+        widget.ctx.fillRect( 0,0, widget.width, widget.height )
+        widget.ctx.beginPath()
+        widget.ctx.moveTo( 0,  widget.height / 2 )
+        for( let i = 0; i < widget.values.length; i++ ) {
+          widget.ctx.lineTo( i, widget.values[ i ] * widget.height )
+        }
+        widget.ctx.strokeStyle = '#fff'
+        widget.ctx.stroke()
+      }
+    }
+  },
+
+  clear() {
+    for( let key in Marker.genWidgets ) {
+      let widget = Marker.genWidgets[ key ]
+      if( typeof widget === 'object' ) {
+        widget.parentNode.removeChild( widget )
+      }
+    }
+
+    Marker.genWidgets = { dirty:false }
   },
 
   _process: {

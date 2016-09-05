@@ -31,6 +31,10 @@ var Scheduler = {
       // call recursively
       this.run(timestamp);
     }
+
+    if (Gibber.Environment.codeMarkup.genWidgets.dirty === true) {
+      Gibber.Environment.codeMarkup.drawWidgets();
+    }
   },
   onAnimationFrame: function onAnimationFrame(timestamp) {
     this.currentTime = timestamp;
@@ -317,6 +321,8 @@ module.exports = Scheduler;
 
 var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
 
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj; };
+
 var acorn = require('acorn');
 
 var callDepths = ['SCORE', 'THIS.METHOD', 'THIS.METHOD.SEQ', 'THIS.METHOD[ 0 ].SEQ', 'THIS.METHOD.VALUES.REVERSE.SEQ', 'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ', 'TRACKS[0].METHOD[ 0 ].VALUES.REVERSE.SEQ', 'TRACKS[0].METHOD.SEQ', 'TRACKS[0].METHOD[0].SEQ', 'TRACKS[0].METHOD.VALUES.REVERSE.SEQ', 'TRACKS[0].METHOD[0].VALUES.REVERSE.SEQ'];
@@ -327,7 +333,7 @@ var Utility = require('./utility.js');
 var $ = Utility.create;
 
 var Marker = {
-  genWidgets: [],
+  genWidgets: { dirty: false },
   _patternTypes: ['values', 'timings', 'index'],
 
   prepareObject: function prepareObject(obj) {
@@ -347,7 +353,6 @@ var Marker = {
           shouldParse = true;
           isGen = true;
 
-          console.log('GEN found', ugen);
           break;
         }
       }
@@ -408,25 +413,67 @@ var Marker = {
     widget.style.display = 'inline-block';
     widget.style.verticalAlign = 'middle';
     widget.style.height = '1.1em';
-    widget.style.width = '30px';
-    widget.style.backgroundColor = 'black';
+    widget.style.width = '60px';
+    widget.style.backgroundColor = '#444';
+    widget.setAttribute('width', 60);
+    widget.setAttribute('height', 13);
     widget.gen = Gibber.Gen.connected[Gibber.Gen.connected.length - 1];
+    widget.values = [];
 
-    var stored = Marker.genWidgets.find(function (e) {
-      return e.paramID === widget.gen.paramID;
-    });
+    var oldWidget = Marker.genWidgets[widget.gen.paramID];
 
-    if (stored === undefined) {
-      Marker.genWidgets.push(widget);
-    } else {
-      Marker.genWidgets.splice(stored, 1, widget);
+    if (oldWidget !== undefined) {
+      oldWidget.parentNode.removeChild(oldWidget);
+    }
+    //let stored = Marker.genWidgets.find( e => e.paramID === widget.gen.paramID )
+
+    //if( stored === undefined ) {
+    //  Marker.genWidgets.push( widget )
+    //}else{
+    //  Marker.genWidgets.splice( stored, 1, widget )
+    //}
+
+    Marker.genWidgets[widget.gen.paramID] = widget;
+    cm.markText({ line: line, ch: ch }, { line: end }, { replacedWith: widget });
+  },
+  updateWidget: function updateWidget(id, value) {
+    var widget = Marker.genWidgets[id];
+    if (widget === undefined) return;
+
+    widget.values.push(parseFloat(value));
+
+    while (widget.values.length > 60) {
+      widget.values.shift();
+    }Marker.genWidgets.dirty = true;
+  },
+  drawWidgets: function drawWidgets() {
+
+    Marker.genWidgets.dirty = false;
+
+    for (var key in Marker.genWidgets) {
+      var widget = Marker.genWidgets[key];
+      if ((typeof widget === 'undefined' ? 'undefined' : _typeof(widget)) === 'object' && widget.ctx !== undefined) {
+        widget.ctx.fillStyle = '#444';
+        widget.ctx.fillRect(0, 0, widget.width, widget.height);
+        widget.ctx.beginPath();
+        widget.ctx.moveTo(0, widget.height / 2);
+        for (var i = 0; i < widget.values.length; i++) {
+          widget.ctx.lineTo(i, widget.values[i] * widget.height);
+        }
+        widget.ctx.strokeStyle = '#fff';
+        widget.ctx.stroke();
+      }
+    }
+  },
+  clear: function clear() {
+    for (var key in Marker.genWidgets) {
+      var widget = Marker.genWidgets[key];
+      if ((typeof widget === 'undefined' ? 'undefined' : _typeof(widget)) === 'object') {
+        widget.parentNode.removeChild(widget);
+      }
     }
 
-    cm.markText({ line: line, ch: ch }, { line: end }, { replacedWith: widget });
-
-    console.log('gen', widget.gen);
-    //doc.markText(from: {line, ch}, to: {line, ch}, ?options: object)
-    //cm.replaceRange( ')...', { line: 3, ch:49 }, { line: 3, ch:50 } )
+    Marker.genWidgets = { dirty: false };
   },
 
 
@@ -1374,6 +1421,22 @@ var Communication = {
       data = _msg.data;
       isObject = true;
       key = null;
+    } else if (_msg.data.includes('snapshot')) {
+      data = _msg.data.substr(9).split(' ');
+      for (var i = 0; i < data.length; i += 2) {
+        var param_id = data[i];
+        var param_value = data[i + 1];
+
+        if (param_value < 0) {
+          param_value = 0;
+        } else if (param_value > 1) {
+          param_value = 1;
+        }
+
+        Gibber.Environment.codeMarkup.updateWidget(param_id, 1 - param_value);
+      }
+
+      return;
     } else {
       msg = _msg.data.split(' ');
       id = msg[0];
@@ -2533,6 +2596,7 @@ var Gibber = {
     }, 500);
 
     Gibber.Gen.clear();
+    Gibber.Environment.codeMarkup.clear();
   },
   addSequencingToMethod: function addSequencingToMethod(obj, methodName, priority, overrideName) {
 

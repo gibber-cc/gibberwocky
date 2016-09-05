@@ -84,6 +84,22 @@ let Communication = {
       data = _msg.data
       isObject = true
       key = null
+    }else if( _msg.data.includes( 'snapshot' ) ) {
+      data = _msg.data.substr( 9 ).split(' ')
+      for ( let i = 0; i < data.length; i += 2 ) {
+        let param_id = data[ i ]
+        let param_value = data[ i+1 ] 
+
+        if( param_value < 0 ) {
+          param_value = 0
+        }else if( param_value > 1 ) {
+          param_value = 1
+        }
+          
+        Gibber.Environment.codeMarkup.updateWidget( param_id, 1 - param_value )
+      }
+
+      return
     }else{
       msg = _msg.data.split( ' ' )
       id = msg[ 0 ]
