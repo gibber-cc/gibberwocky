@@ -35,7 +35,7 @@ this.duration.seq( [ 50, 250, 500 ].rnd(), 1/16 )
 Scale.root.seq( ['c4','d4','f4','g4'], 1 )
 
 // sequence the master scale to change mode every measure
-Scale.mode.seq( ['Aeolian','Lydian', 'WholeHalf'], 1 )
+Scale.mode.seq( ['aeolian','lydian', 'wholeHalf'], 1 )
 
 // stop the sequence with id# 0 from running
 this.note[ 0 ].stop()

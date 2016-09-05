@@ -126,7 +126,6 @@ let Marker = {
          case 'THIS.METHOD[ 0 ].SEQ': // will this ever happen??? I guess after it has been sequenced once?
            isTrack  = trackNames.includes( components[0] )
            target = null
-
            track = window[ components[0] ][ components[1] ]
            
            if( !isTrack ) { // not a track! XXX please, please get a better parsing method / rules...
@@ -140,8 +139,9 @@ let Marker = {
            timingsNode = args[1]
 
            valuesPattern.codemirror = timingsPattern.codemirror = codemirror
-
+           
            Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
+           
            if( timingsNode ) {
              Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern )  
            }
@@ -278,7 +278,7 @@ let Marker = {
 
   _addPatternFilter( patternObject ) {
     patternObject.filters.push( ( args ) => {
-      const wait = Utility.beatsToMs( patternObject.nextTime + 1,  Gibber.Scheduler.bpm ) // TODO: should .25 be a variable representing advance amount?
+      const wait = Utility.beatsToMs( patternObject.nextTime,  Gibber.Scheduler.bpm ) // TODO: should .25 be a variable representing advance amount?
 
       let idx = args[ 2 ],
           shouldUpdate = patternObject.update.shouldUpdate
@@ -350,7 +350,6 @@ let Marker = {
           marker, 
           count = 0
 
-
       for( let element of patternNode.elements ) {
         let cssClassName = patternName + '_' + count,
             elementStart = Object.assign( {}, start ),
@@ -395,6 +394,10 @@ let Marker = {
         let className = '.' + patternName
         
         className += '_' + patternObject.update.currentIndex 
+
+        if( patternType === 'timings' ) {
+          //console.log( className, highlighted )
+        }
 
         if( highlighted !== className ) {
           if( highlighted ) { $( highlighted ).remove( 'annotation-border' ) }
@@ -724,14 +727,13 @@ let Marker = {
   _getNamesAndPosition( patternNode, containerNode, components, index=0, patternType ) {
     let start   = patternNode.loc.start,
         end     = patternNode.loc.end,
-        cssName = null,
-        marker, className
+        className = components.slice( 0 ),
+        cssName   = null,
+        marker
 
-     if( components.includes( 'this' ) ) components.shift()
+     if( className.includes( 'this' ) ) className.shift()
 
-     className = components
-
-     if( components.includes( 'tracks' ) ) {
+     if( className.includes( 'tracks' ) ) {
        //className = [ 'tracks', components[1] ].concat( components.slice( 2, components.length - 1 ) )
        if( index !== 0 ) {
          className.splice( 3, 0, index )
@@ -758,8 +760,6 @@ let Marker = {
      end.line   += containerNode.verticalOffset - 1
      start.ch   = start.column + containerNode.horizontalOffset
      end.ch     = end.column + containerNode.horizontalOffset
-
-     //console.log( start, end )
 
      return [ className, start, end ]
   },

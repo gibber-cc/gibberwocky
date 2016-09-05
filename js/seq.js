@@ -148,7 +148,7 @@ let seqclosure = function( Gibber ) {
     clear() {
       this.stop()
       if( typeof this.timings.clear === 'function' ) this.timings.clear()
-      if( typeof this.values.clear === 'function' )  this.values.clear()
+      if( typeof this.values.clear  === 'function' ) this.values.clear()
     },
     
     delay( v ) { 
@@ -180,6 +180,7 @@ let seqclosure = function( Gibber ) {
 
       if( shouldExecute ) {
         let shouldDelay = false
+
         this.values.nextTime = _beatOffset
         this.values.beat = beat
         this.values.beatOffset = _beatOffset
