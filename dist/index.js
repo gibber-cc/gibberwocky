@@ -327,6 +327,7 @@ var Utility = require('./utility.js');
 var $ = Utility.create;
 
 var Marker = {
+  genWidgets: [],
   _patternTypes: ['values', 'timings', 'index'],
 
   prepareObject: function prepareObject(obj) {
@@ -336,7 +337,21 @@ var Marker = {
     };
   },
   process: function process(code, position, codemirror, track) {
-    var shouldParse = code.includes('.seq') || code.includes('Steps(') || code.includes('Score(');
+    var shouldParse = code.includes('.seq') || code.includes('Steps(') || code.includes('Score('),
+        isGen = false;
+
+    if (!shouldParse) {
+      // check for gen~ assignment
+      for (var ugen in Gibber.Gen.names) {
+        if (code.includes(ugen)) {
+          shouldParse = true;
+          isGen = true;
+
+          console.log('GEN found', ugen);
+          break;
+        }
+      }
+    }
 
     if (!shouldParse) return;
 
@@ -355,7 +370,11 @@ var Marker = {
           node.verticalOffset = position.start.line;
           node.horizontalOffset = position.horizontalOffset === undefined ? 0 : position.horizontalOffset;
           try {
-            this._process[node.type](node, codemirror, track);
+            if (isGen) {
+              this.processGen(node, codemirror, track);
+            } else {
+              this._process[node.type](node, codemirror, track);
+            }
           } catch (error) {
             console.log('error processing annotation for', node.expression.type, error);
           }
@@ -375,6 +394,39 @@ var Marker = {
         }
       }
     }
+  },
+  processGen: function processGen(node, cm, track) {
+    var ch = node.end,
+        line = node.verticalOffset,
+        start = ch - 1,
+        end = ch + 1;
+
+    cm.replaceRange(') ', { line: line, ch: start }, { line: line, ch: ch });
+
+    var widget = document.createElement('canvas');
+    widget.ctx = widget.getContext('2d');
+    widget.style.display = 'inline-block';
+    widget.style.verticalAlign = 'middle';
+    widget.style.height = '1.1em';
+    widget.style.width = '30px';
+    widget.style.backgroundColor = 'black';
+    widget.gen = Gibber.Gen.connected[Gibber.Gen.connected.length - 1];
+
+    var stored = Marker.genWidgets.find(function (e) {
+      return e.paramID === widget.gen.paramID;
+    });
+
+    if (stored === undefined) {
+      Marker.genWidgets.push(widget);
+    } else {
+      Marker.genWidgets.splice(stored, 1, widget);
+    }
+
+    cm.markText({ line: line, ch: ch }, { line: end }, { replacedWith: widget });
+
+    console.log('gen', widget.gen);
+    //doc.markText(from: {line, ch}, to: {line, ch}, ?options: object)
+    //cm.replaceRange( ')...', { line: 3, ch:49 }, { line: 3, ch:50 } )
   },
 
 
@@ -1955,20 +2007,31 @@ module.exports = Examples; //stepsExample2//simpleExample//genExample//exampleSc
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj; };
 
+function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
+
 module.exports = function (Gibber) {
 
   var binops = ['min', 'max', 'add', 'sub', 'mul', 'div', 'rdiv', 'mod', 'rsub', 'rmod', 'absdiff', 'and', 'or', 'gt', 'eq', 'eqp', 'gte', 'gtep', 'gtp', 'lt', 'lte', 'ltep', 'ltp', 'neq', 'sah', 'step', 'rate'];
 
-  var monops = ['abs', 'acos', 'acosh', 'asin', 'asinh', 'atan', 'atan2', 'atanh', 'cos', 'cosh', 'degrees', 'fastcos', 'fastsin', 'fasttan', 'hypot', 'radians', 'sin', 'sinh', 'tan', 'tanh'];
+  var monops = ['abs', 'acos', 'acosh', 'asin', 'asinh', 'atan', 'atan2', 'atanh', 'cos', 'cosh', 'degrees', 'fastcos', 'fastsin', 'fasttan', 'hypot', 'radians', 'sin', 'sinh', 'tan', 'tanh', 'floor', 'ceil', 'sign', 'trunc', 'fract'];
 
   var noops = ['noise'];
 
   var Gen = {
     init: function init() {
+      var _Gen$names, _Gen$names2, _Gen$names3, _Gen$names4;
+
       Gen.createBinopFunctions();
       Gen.createMonopFunctions();
+
+      (_Gen$names = Gen.names).push.apply(_Gen$names, binops);
+      (_Gen$names2 = Gen.names).push.apply(_Gen$names2, monops);
+      (_Gen$names3 = Gen.names).push.apply(_Gen$names3, _toConsumableArray(Object.keys(Gen.constants)));
+      (_Gen$names4 = Gen.names).push.apply(_Gen$names4, _toConsumableArray(Object.keys(Gen.functions)));
     },
 
+
+    names: [],
 
     connected: [],
 
@@ -2165,7 +2228,8 @@ module.exports = function (Gibber) {
       cycle: { properties: ['0'], str: 'cycle' },
       rate: { properties: ['0', '1'], str: 'rate' },
       noise: { properties: [], str: 'noise' },
-      accum: { properties: ['0', '1'], str: 'accum' }
+      accum: { properties: ['0', '1'], str: 'accum' },
+      scale: { properties: ['0', '1', '2', '3'], str: 'scale' }
     },
 
     _count: 0,
@@ -2569,7 +2633,11 @@ var Gibber = {
         if ((typeof _v === 'undefined' ? 'undefined' : _typeof(_v)) === 'object' && _v.isGen) {
           _v.assignTrackAndParamID(trackID, parameter.id);
 
-          Gibber.Gen.connected.push(_v);
+          // if a gen is not already connected to this parameter, push
+          if (Gibber.Gen.connected.find(function (e) {
+            return e.paramID === parameter.id;
+          }) === undefined) Gibber.Gen.connected.push(_v);
+
           Gibber.Communication.send('gen ' + parameter.id + ' "' + _v.out() + '"');
 
           // disconnects for fades etc.

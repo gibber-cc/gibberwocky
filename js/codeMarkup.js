@@ -20,6 +20,7 @@ const Utility = require( './utility.js' )
 const $ = Utility.create
 
 let Marker = {
+  genWidgets: [],
   _patternTypes: [ 'values', 'timings', 'index' ],
 
   prepareObject( obj ) {
@@ -30,7 +31,20 @@ let Marker = {
   },
 
   process( code, position, codemirror, track ) {
-    let shouldParse = code.includes( '.seq' ) || code.includes( 'Steps(' ) || code.includes( 'Score(' )
+    let shouldParse = code.includes( '.seq' ) || code.includes( 'Steps(' ) || code.includes( 'Score(' ),
+        isGen = false
+
+    if( !shouldParse ) { // check for gen~ assignment
+      for( let ugen in Gibber.Gen.names ) {
+        if( code.includes( ugen ) ) {
+          shouldParse = true
+          isGen = true
+
+          console.log( 'GEN found', ugen )
+          break;
+        } 
+      }
+    }
 
     if( !shouldParse ) return
 
@@ -41,12 +55,45 @@ let Marker = {
         node.verticalOffset  = position.start.line
         node.horizontalOffset = position.horizontalOffset === undefined ? 0 : position.horizontalOffset
         try {
-          this._process[ node.type ]( node, codemirror, track )
+          if( isGen ) {
+            this.processGen( node, codemirror, track )
+          }else{ 
+            this._process[ node.type ]( node, codemirror, track )
+          }
         } catch( error ) {
           console.log( 'error processing annotation for', node.expression.type, error )
         }
       }
     }
+  },
+  
+  processGen( node, cm, track ) {
+    let ch = node.end, line = node.verticalOffset, start = ch - 1, end = ch + 1
+    
+    cm.replaceRange( ') ', { line, ch:start }, { line, ch } )
+
+    let widget = document.createElement( 'canvas' )
+    widget.ctx = widget.getContext('2d')
+    widget.style.display = 'inline-block'
+    widget.style.verticalAlign = 'middle'
+    widget.style.height = '1.1em'
+    widget.style.width = '30px'
+    widget.style.backgroundColor = 'black'
+    widget.gen = Gibber.Gen.connected[ Gibber.Gen.connected.length - 1 ]
+
+    let stored = Marker.genWidgets.find( e => e.paramID === widget.gen.paramID )
+
+    if( stored === undefined ) {
+      Marker.genWidgets.push( widget )
+    }else{
+      Marker.genWidgets.splice( stored, 1, widget )
+    }
+    
+    cm.markText({ line, ch }, { line:end }, { replacedWith:widget })
+
+    console.log( 'gen', widget.gen )
+    //doc.markText(from: {line, ch}, to: {line, ch}, ?options: object)
+    //cm.replaceRange( ')...', { line: 3, ch:49 }, { line: 3, ch:50 } )
   },
 
   _process: {
@@ -69,7 +116,7 @@ let Marker = {
 
     },
 
-    CallExpression( expressionNode, codemirror, track ) {
+    CallExpression( expressionNode, codemirror, track  ) {
       let [ components, depthOfCall, index ] = Marker._getCallExpressionHierarchy( expressionNode.expression ),
         args = expressionNode.expression.arguments,
         usesThis, targetPattern, isTrack, method, target

@@ -206,7 +206,9 @@ let Gibber = {
         if( typeof _v === 'object' && _v.isGen ) {
           _v.assignTrackAndParamID( trackID, parameter.id )
 
-          Gibber.Gen.connected.push( _v )
+          // if a gen is not already connected to this parameter, push
+          if( Gibber.Gen.connected.find( e => e.paramID === parameter.id ) === undefined ) Gibber.Gen.connected.push( _v )
+          
           Gibber.Communication.send( `gen ${parameter.id} "${_v.out()}"` )
           
           // disconnects for fades etc.

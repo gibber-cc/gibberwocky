@@ -8,7 +8,8 @@ const binops = [
 
 const monops = [
   'abs','acos','acosh','asin','asinh','atan','atan2','atanh','cos','cosh','degrees',
-  'fastcos','fastsin','fasttan','hypot','radians','sin','sinh','tan','tanh'
+  'fastcos','fastsin','fasttan','hypot','radians','sin','sinh','tan','tanh', 'floor',
+  'ceil', 'sign', 'trunc', 'fract'
 ]
 
 const noops = [
@@ -19,7 +20,14 @@ let Gen  = {
   init() {
     Gen.createBinopFunctions()
     Gen.createMonopFunctions()
+
+    Gen.names.push( ...binops )
+    Gen.names.push( ...monops )
+    Gen.names.push( ...Object.keys( Gen.constants ) )
+    Gen.names.push( ...Object.keys( Gen.functions ) )
   },
+
+  names:[],
   
   connected: [],
 
@@ -127,7 +135,8 @@ let Gen  = {
     cycle:  { properties:[ '0' ],  str:'cycle' },
     rate:   { properties:[ '0','1' ], str:'rate' },
     noise:  { properties:[], str:'noise' },
-    accum:  { properties:[ '0','1' ], str:'accum' }
+    accum:  { properties:[ '0','1' ], str:'accum' },
+    scale:  { properties: ['0', '1', '2', '3'], str:'scale' }
   },
 
   _count: 0,
