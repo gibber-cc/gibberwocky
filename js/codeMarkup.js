@@ -35,7 +35,7 @@ let Marker = {
         isGen = false
 
     if( !shouldParse ) { // check for gen~ assignment
-      for( let ugen in Gibber.Gen.names ) {
+      for( let ugen of Gibber.Gen.names ) {
         if( code.includes( ugen ) ) {
           shouldParse = true
           isGen = true
@@ -77,9 +77,15 @@ let Marker = {
     widget.style.verticalAlign = 'middle'
     widget.style.height = '1.1em'
     widget.style.width = '60px'
-    widget.style.backgroundColor = '#444'
+    widget.style.backgroundColor = '#bbb'
+    widget.style.marginLeft = '.5em'
+    widget.style.borderLeft = '1px solid #666'
+    widget.style.borderRight = '1px solid #666'
     widget.setAttribute( 'width', 60 )
     widget.setAttribute( 'height', 13 )
+    widget.ctx.fillStyle = '#bbb'
+    widget.ctx.strokeStyle = '#333'
+    widget.ctx.lineWidth = .5
     widget.gen = Gibber.Gen.connected[ Gibber.Gen.connected.length - 1 ]
     widget.values = []
 
@@ -111,14 +117,12 @@ let Marker = {
     for( let key in Marker.genWidgets ) {
       let widget = Marker.genWidgets[ key ]
       if( typeof widget === 'object' && widget.ctx !== undefined ) {
-        widget.ctx.fillStyle = '#444'
         widget.ctx.fillRect( 0,0, widget.width, widget.height )
         widget.ctx.beginPath()
         widget.ctx.moveTo( 0,  widget.height / 2 )
         for( let i = 0; i < widget.values.length; i++ ) {
           widget.ctx.lineTo( i, widget.values[ i ] * widget.height )
         }
-        widget.ctx.strokeStyle = '#fff'
         widget.ctx.stroke()
       }
     }

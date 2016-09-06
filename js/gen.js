@@ -25,6 +25,7 @@ let Gen  = {
     Gen.names.push( ...monops )
     Gen.names.push( ...Object.keys( Gen.constants ) )
     Gen.names.push( ...Object.keys( Gen.functions ) )
+    Gen.names.push( ...Object.keys( Gen.composites ) )
   },
 
   names:[],
@@ -44,19 +45,7 @@ let Gen  = {
     obj.active = false
     
     for( let key of Gen.functions[ name ].properties ) { 
-      //let prop = { 
-      //  value: params[ count++ ], 
-      //  valueOf: ()=> { return prop.value },
-      //  uid: Gen.getUID()
-      //}
 
-      //obj[ key ] = prop //params[ count++ ]
-
-      //Object.defineProperty( obj, key, {
-      //  get: ()=> prop,
-      //  set: (v)=> prop.value = v
-      //})
-      //
       let value = params[ count++ ]
       obj[ key ] = ( v ) => {
         if( v === undefined ) {
@@ -262,7 +251,7 @@ let Gen  = {
       return fade
     },
     
-    beat( num ) {
+    beats( num ) {
       return rate( 'in1', num )
       // beat( n ) => rate(in1, n)
       // final string should be rate( in1, num )

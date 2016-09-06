@@ -1035,12 +1035,33 @@ var Marker = {
 
     if (!shouldParse) {
       // check for gen~ assignment
-      for (var ugen in Gibber.Gen.names) {
-        if (code.includes(ugen)) {
-          shouldParse = true;
-          isGen = true;
+      var _iteratorNormalCompletion = true;
+      var _didIteratorError = false;
+      var _iteratorError = undefined;
 
-          break;
+      try {
+        for (var _iterator = Gibber.Gen.names[Symbol.iterator](), _step2; !(_iteratorNormalCompletion = (_step2 = _iterator.next()).done); _iteratorNormalCompletion = true) {
+          var ugen = _step2.value;
+
+          if (code.includes(ugen)) {
+            shouldParse = true;
+            isGen = true;
+
+            break;
+          }
+        }
+      } catch (err) {
+        _didIteratorError = true;
+        _iteratorError = err;
+      } finally {
+        try {
+          if (!_iteratorNormalCompletion && _iterator.return) {
+            _iterator.return();
+          }
+        } finally {
+          if (_didIteratorError) {
+            throw _iteratorError;
+          }
         }
       }
     }
@@ -1049,13 +1070,13 @@ var Marker = {
 
     var tree = acorn.parse(code, { locations: true, ecmaVersion: 6 }).body;
 
-    var _iteratorNormalCompletion = true;
-    var _didIteratorError = false;
-    var _iteratorError = undefined;
+    var _iteratorNormalCompletion2 = true;
+    var _didIteratorError2 = false;
+    var _iteratorError2 = undefined;
 
     try {
-      for (var _iterator = tree[Symbol.iterator](), _step2; !(_iteratorNormalCompletion = (_step2 = _iterator.next()).done); _iteratorNormalCompletion = true) {
-        var node = _step2.value;
+      for (var _iterator2 = tree[Symbol.iterator](), _step3; !(_iteratorNormalCompletion2 = (_step3 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+        var node = _step3.value;
 
         if (node.type === 'ExpressionStatement') {
           // not control flow
@@ -1073,16 +1094,16 @@ var Marker = {
         }
       }
     } catch (err) {
-      _didIteratorError = true;
-      _iteratorError = err;
+      _didIteratorError2 = true;
+      _iteratorError2 = err;
     } finally {
       try {
-        if (!_iteratorNormalCompletion && _iterator.return) {
-          _iterator.return();
+        if (!_iteratorNormalCompletion2 && _iterator2.return) {
+          _iterator2.return();
         }
       } finally {
-        if (_didIteratorError) {
-          throw _iteratorError;
+        if (_didIteratorError2) {
+          throw _iteratorError2;
         }
       }
     }
@@ -1101,9 +1122,15 @@ var Marker = {
     widget.style.verticalAlign = 'middle';
     widget.style.height = '1.1em';
     widget.style.width = '60px';
-    widget.style.backgroundColor = '#444';
+    widget.style.backgroundColor = '#bbb';
+    widget.style.marginLeft = '.5em';
+    widget.style.borderLeft = '1px solid #666';
+    widget.style.borderRight = '1px solid #666';
     widget.setAttribute('width', 60);
     widget.setAttribute('height', 13);
+    widget.ctx.fillStyle = '#bbb';
+    widget.ctx.strokeStyle = '#333';
+    widget.ctx.lineWidth = .5;
     widget.gen = Gibber.Gen.connected[Gibber.Gen.connected.length - 1];
     widget.values = [];
 
@@ -1134,14 +1161,12 @@ var Marker = {
     for (var key in Marker.genWidgets) {
       var widget = Marker.genWidgets[key];
       if ((typeof widget === 'undefined' ? 'undefined' : _typeof(widget)) === 'object' && widget.ctx !== undefined) {
-        widget.ctx.fillStyle = '#444';
         widget.ctx.fillRect(0, 0, widget.width, widget.height);
         widget.ctx.beginPath();
         widget.ctx.moveTo(0, widget.height / 2);
         for (var i = 0; i < widget.values.length; i++) {
           widget.ctx.lineTo(i, widget.values[i] * widget.height);
         }
-        widget.ctx.strokeStyle = '#fff';
         widget.ctx.stroke();
       }
     }
@@ -1494,13 +1519,13 @@ var Marker = {
       var marker = void 0;
       var count = 0;
 
-      var _iteratorNormalCompletion2 = true;
-      var _didIteratorError2 = false;
-      var _iteratorError2 = undefined;
+      var _iteratorNormalCompletion3 = true;
+      var _didIteratorError3 = false;
+      var _iteratorError3 = undefined;
 
       try {
         var _loop = function _loop() {
-          var element = _step3.value;
+          var element = _step4.value;
 
           var cssClassName = patternName + '_' + count,
               elementStart = Object.assign({}, start),
@@ -1537,20 +1562,20 @@ var Marker = {
           count++;
         };
 
-        for (var _iterator2 = patternNode.elements[Symbol.iterator](), _step3; !(_iteratorNormalCompletion2 = (_step3 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+        for (var _iterator3 = patternNode.elements[Symbol.iterator](), _step4; !(_iteratorNormalCompletion3 = (_step4 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
           _loop();
         }
       } catch (err) {
-        _didIteratorError2 = true;
-        _iteratorError2 = err;
+        _didIteratorError3 = true;
+        _iteratorError3 = err;
       } finally {
         try {
-          if (!_iteratorNormalCompletion2 && _iterator2.return) {
-            _iterator2.return();
+          if (!_iteratorNormalCompletion3 && _iterator3.return) {
+            _iterator3.return();
           }
         } finally {
-          if (_didIteratorError2) {
-            throw _iteratorError2;
+          if (_didIteratorError3) {
+            throw _iteratorError3;
           }
         }
       }
@@ -2764,7 +2789,7 @@ module.exports = function (Gibber) {
 
   var Gen = {
     init: function init() {
-      var _Gen$names, _Gen$names2, _Gen$names3, _Gen$names4;
+      var _Gen$names, _Gen$names2, _Gen$names3, _Gen$names4, _Gen$names5;
 
       Gen.createBinopFunctions();
       Gen.createMonopFunctions();
@@ -2773,6 +2798,7 @@ module.exports = function (Gibber) {
       (_Gen$names2 = Gen.names).push.apply(_Gen$names2, monops);
       (_Gen$names3 = Gen.names).push.apply(_Gen$names3, _toConsumableArray(Object.keys(Gen.constants)));
       (_Gen$names4 = Gen.names).push.apply(_Gen$names4, _toConsumableArray(Object.keys(Gen.functions)));
+      (_Gen$names5 = Gen.names).push.apply(_Gen$names5, _toConsumableArray(Object.keys(Gen.composites)));
     },
 
 
@@ -2800,19 +2826,7 @@ module.exports = function (Gibber) {
         var _loop = function _loop() {
           var key = _step.value;
 
-          //let prop = { 
-          //  value: params[ count++ ], 
-          //  valueOf: ()=> { return prop.value },
-          //  uid: Gen.getUID()
-          //}
 
-          //obj[ key ] = prop //params[ count++ ]
-
-          //Object.defineProperty( obj, key, {
-          //  get: ()=> prop,
-          //  set: (v)=> prop.value = v
-          //})
-          //
           var value = params[count++];
           obj[key] = function (v) {
             if (v === undefined) {
@@ -3131,7 +3145,7 @@ module.exports = function (Gibber) {
 
         return fade;
       },
-      beat: function beat(num) {
+      beats: function beats(num) {
         return rate('in1', num);
         // beat( n ) => rate(in1, n)
         // final string should be rate( in1, num )
@@ -3375,11 +3389,12 @@ var Gibber = {
 
     obj[methodName] = _p = function p(_v) {
       if (_p.properties.quantized === 1) _v = Math.round(_v);
+
       if (_v !== undefined) {
         if ((typeof _v === 'undefined' ? 'undefined' : _typeof(_v)) === 'object' && _v.isGen) {
           _v.assignTrackAndParamID(trackID, parameter.id);
 
-          console.log('GEN');
+          //console.log( 'GEN' )
           // if a gen is not already connected to this parameter, push
           if (Gibber.Gen.connected.find(function (e) {
             return e.paramID === parameter.id;
