@@ -86,7 +86,7 @@ let Marker = {
     widget.ctx.fillStyle = '#bbb'
     widget.ctx.strokeStyle = '#333'
     widget.ctx.lineWidth = .5
-    widget.gen = Gibber.Gen.connected[ Gibber.Gen.connected.length - 1 ]
+    widget.gen = Gibber.Gen.lastConnected
     widget.values = []
 
     let oldWidget = Marker.genWidgets[ widget.gen.paramID ] 
@@ -458,7 +458,20 @@ let Marker = {
              inclusiveLeft:true, inclusiveRight:true
           })
 
-          setTimeout( () => { $( '.' + cssClassName )[ 1 ].classList.add( 'annotation-no-horizontal-border' ) }, 250 )
+          let count = 0
+          let classAdder = () => {
+            let element = $( '.' + cssClassName )[1]
+            if( element !== undefined ) {
+              element.classList.add( 'annotation-no-horizontal-border' ) 
+            } else {
+              if( count++ < 4 ) {
+                setTimeout( classAdder, 250 )
+              }
+            }
+          }
+
+          setTimeout( classAdder, 250 )
+
         }else{
           marker = cm.markText( elementStart, elementEnd, { 
             'className': cssClassName + ' annotation',

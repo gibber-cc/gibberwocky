@@ -210,8 +210,11 @@ let Gibber = {
           
           //console.log( 'GEN' )
           // if a gen is not already connected to this parameter, push
-          if( Gibber.Gen.connected.find( e => e.paramID === parameter.id ) === undefined ) Gibber.Gen.connected.push( _v )
-          
+          if( Gibber.Gen.connected.find( e => e.paramID === parameter.id ) === undefined ) {
+            Gibber.Gen.connected.push( _v )
+          }
+
+          Gibber.Gen.lastConnected = _v
           Gibber.Communication.send( `gen ${parameter.id} "${_v.out()}"` )
           
           // disconnects for fades etc.

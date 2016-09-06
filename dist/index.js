@@ -444,7 +444,7 @@ var Marker = {
     widget.ctx.fillStyle = '#bbb';
     widget.ctx.strokeStyle = '#333';
     widget.ctx.lineWidth = .5;
-    widget.gen = Gibber.Gen.connected[Gibber.Gen.connected.length - 1];
+    widget.gen = Gibber.Gen.lastConnected;
     widget.values = [];
 
     var oldWidget = Marker.genWidgets[widget.gen.paramID];
@@ -849,16 +849,28 @@ var Marker = {
           elementEnd.ch = element.end + containerNode.horizontalOffset;
 
           if (element.type === 'BinaryExpression') {
-            marker = cm.markText(elementStart, elementEnd, {
-              'className': cssClassName + ' annotation',
-              startStyle: 'annotation-no-right-border',
-              endStyle: 'annotation-no-left-border',
-              inclusiveLeft: true, inclusiveRight: true
-            });
+            (function () {
+              marker = cm.markText(elementStart, elementEnd, {
+                'className': cssClassName + ' annotation',
+                startStyle: 'annotation-no-right-border',
+                endStyle: 'annotation-no-left-border',
+                inclusiveLeft: true, inclusiveRight: true
+              });
 
-            setTimeout(function () {
-              $('.' + cssClassName)[1].classList.add('annotation-no-horizontal-border');
-            }, 250);
+              var count = 0;
+              var classAdder = function classAdder() {
+                var element = $('.' + cssClassName)[1];
+                if (element !== undefined) {
+                  element.classList.add('annotation-no-horizontal-border');
+                } else {
+                  if (count++ < 4) {
+                    setTimeout(classAdder, 250);
+                  }
+                }
+              };
+
+              setTimeout(classAdder, 250);
+            })();
           } else {
             marker = cm.markText(elementStart, elementEnd, {
               'className': cssClassName + ' annotation',
@@ -2711,8 +2723,11 @@ var Gibber = {
           // if a gen is not already connected to this parameter, push
           if (Gibber.Gen.connected.find(function (e) {
             return e.paramID === parameter.id;
-          }) === undefined) Gibber.Gen.connected.push(_v);
+          }) === undefined) {
+            Gibber.Gen.connected.push(_v);
+          }
 
+          Gibber.Gen.lastConnected = _v;
           Gibber.Communication.send('gen ' + parameter.id + ' "' + _v.out() + '"');
 
           // disconnects for fades etc.
