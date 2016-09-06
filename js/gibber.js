@@ -203,10 +203,12 @@ let Gibber = {
     
     obj[ methodName ] = p = ( _v ) => {
       if( p.properties.quantized === 1 ) _v = Math.round( _v )
+
       if( _v !== undefined ) {
         if( typeof _v === 'object' && _v.isGen ) {
           _v.assignTrackAndParamID( trackID, parameter.id )
-
+          
+          //console.log( 'GEN' )
           // if a gen is not already connected to this parameter, push
           if( Gibber.Gen.connected.find( e => e.paramID === parameter.id ) === undefined ) Gibber.Gen.connected.push( _v )
           

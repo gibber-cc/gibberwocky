@@ -67,7 +67,7 @@ let Marker = {
   },
   
   processGen( node, cm, track ) {
-    let ch = node.end, line = node.verticalOffset, start = ch - 1, end = ch + 1
+    let ch = node.end, line = node.verticalOffset, start = ch - 1, end = node.end 
     
     cm.replaceRange( ') ', { line, ch:start }, { line, ch } )
 
@@ -88,16 +88,10 @@ let Marker = {
     if( oldWidget !== undefined ) {
       oldWidget.parentNode.removeChild( oldWidget )
     } 
-    //let stored = Marker.genWidgets.find( e => e.paramID === widget.gen.paramID )
-
-    //if( stored === undefined ) {
-    //  Marker.genWidgets.push( widget )
-    //}else{
-    //  Marker.genWidgets.splice( stored, 1, widget )
-    //}
     
     Marker.genWidgets[ widget.gen.paramID ] = widget
-    cm.markText({ line, ch }, { line:end }, { replacedWith:widget })
+
+    widget.mark = cm.markText({ line, ch }, { line, ch:end+1 }, { replacedWith:widget })
   },
 
   updateWidget( id, value ) {
@@ -134,7 +128,8 @@ let Marker = {
     for( let key in Marker.genWidgets ) {
       let widget = Marker.genWidgets[ key ]
       if( typeof widget === 'object' ) {
-        widget.parentNode.removeChild( widget )
+        widget.mark.clear()
+        //widget.parentNode.removeChild( widget )
       }
     }
 
