@@ -2719,7 +2719,6 @@ var Gibber = {
         if ((typeof _v === 'undefined' ? 'undefined' : _typeof(_v)) === 'object' && _v.isGen) {
           _v.assignTrackAndParamID(trackID, parameter.id);
 
-          //console.log( 'GEN' )
           // if a gen is not already connected to this parameter, push
           if (Gibber.Gen.connected.find(function (e) {
             return e.paramID === parameter.id;
@@ -2746,6 +2745,9 @@ var Gibber = {
         } else {
           if (v.isGen) {
             Gibber.Communication.send('ungen ' + parameter.id);
+            var widget = Gibber.Environment.codeMarkup.genWidgets[parameter.id];
+            widget.mark.clear();
+            delete Gibber.Environment.codeMarkup.genWidgets[parameter.id];
           }
 
           v = _v;
