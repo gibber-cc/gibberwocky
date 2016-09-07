@@ -222,6 +222,10 @@ let Gibber = {
             Gibber.Utility.future( ()=> {
               Gibber.Communication.send( `ungen ${parameter.id}` )
               Gibber.Communication.send( `set ${parameter.id} ${_v.shouldKill.final}` )
+
+              let widget = Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
+              widget.mark.clear()
+              delete Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
             }, _v.shouldKill.after )
           }
           
