@@ -224,7 +224,13 @@ let Gibber = {
               Gibber.Communication.send( `set ${parameter.id} ${_v.shouldKill.final}` )
             }, _v.shouldKill.after )
           }
+          
+          v = _v
         }else{
+          if( v.isGen ) {
+            Gibber.Communication.send( `ungen ${parameter.id}` )
+          }
+
           v = _v
           Gibber.Communication.send( `set ${parameter.id} ${v}` )
         }
