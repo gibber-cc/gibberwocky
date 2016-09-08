@@ -46,10 +46,12 @@ let Live = {
     track.devices = []
 
     spec.devices.forEach( Live.processDevice, track )
-    for( let device of track.devices ) {
-      track.devices[ device.name ] = device
-    }
 
+    if( track.devices[0].title.includes('gibberwocky') ) {
+      track.length = track.devices.length
+      track.devices.shift()
+      Array.prototype.shift.call( track )
+    }
     return track
   },
 
