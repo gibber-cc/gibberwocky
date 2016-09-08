@@ -147,3 +147,10 @@ body { margin:0; padding:0 }
 .console_error {
   color:red;
 }
+
+.microlib_tabs_nav_item {
+  height:16px;
+  font-size:10px;
+  padding:3px 5px;
+  line-height:16px;
+}

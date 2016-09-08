@@ -62,6 +62,26 @@ let Track = {
 
         Gibber.Communication.send( msg )
       },
+
+      stop() {
+        for( let key in this.sequences ) {
+          for( let seq of this.sequences[ key ] ) {
+            if( seq !== undefined ) {
+              seq.stop()
+            }
+          }
+        }
+      },
+
+      start() {
+        for( let key in this.sequences ) {
+          for( let seq of this.sequences[ key ] ) {
+            if( seq !== undefined ) {
+              seq.start()
+            }
+          }
+        }
+      },
     }
 
     Gibber.Environment.codeMarkup.prepareObject( track ) 

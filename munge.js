@@ -4,11 +4,11 @@ var filename = "index.html";
 
 var css_sources = [
 	"./css/codemirror.css",
-    "./css/show-hint.css",
-    "./css/gibber.css",
-    "./css/vanillatree.css",
-    "./css/tabs.microlib.css"
-];
+  "./css/show-hint.css",
+  "./css/vanillatree.css",
+  "./css/tabs.microlib.css",
+  "./css/gibber.css"
+]
 
 var js_sources = [
 	"./dist/index.js",
