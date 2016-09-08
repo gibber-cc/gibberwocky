@@ -190,9 +190,9 @@ let Scale = {
 }
 
 
-Scale.modes.Major = Scale.modes.Ionian
-Scale.modes.Minor = Scale.modes.Aeolian
-Scale.modes.Blues = Scale.modes.Mixolydian
+Scale.modes.major = Scale.modes.ionian
+Scale.modes.minor = Scale.modes.aeolian
+Scale.modes.blues = Scale.modes.mixolydian
 
 module.exports = {
   Note, 

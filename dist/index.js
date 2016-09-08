@@ -26,7 +26,11 @@ var Scheduler = {
       // remove event
       this.queue.pop();
 
-      nextEvent.func();
+      try {
+        nextEvent.func();
+      } catch (e) {
+        Gibber.Environment.error('annotation error:', e.toString());
+      }
 
       // call recursively
       this.run(timestamp);
@@ -4789,9 +4793,9 @@ var Scale = {
   }
 };
 
-Scale.modes.Major = Scale.modes.Ionian;
-Scale.modes.Minor = Scale.modes.Aeolian;
-Scale.modes.Blues = Scale.modes.Mixolydian;
+Scale.modes.major = Scale.modes.ionian;
+Scale.modes.minor = Scale.modes.aeolian;
+Scale.modes.blues = Scale.modes.mixolydian;
 
 module.exports = {
   Note: Note,

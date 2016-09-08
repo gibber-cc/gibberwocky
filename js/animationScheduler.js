@@ -22,8 +22,12 @@ let Scheduler = {
 
       // remove event
       this.queue.pop()
-
-      nextEvent.func()
+      
+      try{
+        nextEvent.func()
+      }catch( e ) {
+        Gibber.Environment.error( 'annotation error:', e.toString() )
+      }
       
       // call recursively
       this.run( timestamp )
