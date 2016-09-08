@@ -1578,8 +1578,11 @@ var Environment = {
     this.createCodeMirror();
     this.createSidePanel();
     this.setupSplit();
+    this.sidebar = document.querySelector('#sidebar');
+    this.sidebar.isVisible = 1;
     //this.lomView.init( Gibber )
     this.animationScheduler.init();
+    this.editorWidth = document.querySelector('#editor').style.width;
   },
   createSidePanel: function createSidePanel() {
     this.tabs = new ML.Tabs('#tabs');
@@ -1773,6 +1776,18 @@ var Environment = {
     'Ctrl-.': function Ctrl(cm) {
       Gibber.clear();
       Gibber.log('All sequencers stopped.');
+    },
+    'Shift-Ctrl-C': function ShiftCtrlC(cm) {
+      Environment.sidebar.isVisible = !Environment.sidebar.isVisible;
+      var editor = document.querySelector('#editor');
+      if (!Environment.sidebar.isVisible) {
+        Environment.editorWidth = editor.style.width;
+        editor.style.width = '100%';
+      } else {
+        editor.style.width = Environment.editorWidth;
+      }
+
+      Environment.sidebar.style.display = Environment.sidebar.isVisible ? 'block' : 'none';
     }
   },
 
@@ -2892,7 +2907,7 @@ module.exports = function (Gibber) {
     },
     processDevice: function processDevice(device, idx) {
       var currentTrack = this,
-          d = currentTrack.devices[device.title] = currentTrack.devices[idx] = { idx: idx },
+          d = currentTrack.devices[device.title] = currentTrack.devices[idx] = currentTrack[idx] = { idx: idx },
           parameterCount = 0;
 
       //console.log( 'device', device ) 

@@ -25,8 +25,11 @@ let Environment = {
     this.createCodeMirror()   
     this.createSidePanel()
     this.setupSplit()
+    this.sidebar = document.querySelector( '#sidebar' )
+    this.sidebar.isVisible = 1
     //this.lomView.init( Gibber )
     this.animationScheduler.init()
+    this.editorWidth = document.querySelector( '#editor' ).style.width
   },
 
   createSidePanel() {
@@ -59,6 +62,7 @@ let Environment = {
       window.addEventListener( 'mousemove', mousemove )
       window.addEventListener( 'mouseup', mouseup )
     })
+
   },
 
   createCodeMirror() {
@@ -89,7 +93,7 @@ let Environment = {
     Environment.consoleDiv = document.querySelector( '#console' )
 
     Environment.consoleDiv.appendChild( list )
-
+    
     Environment.overrideError()
   },
 
@@ -221,6 +225,18 @@ let Environment = {
       Gibber.clear()
       Gibber.log( 'All sequencers stopped.' )
     },
+    'Shift-Ctrl-C'( cm ) {
+      Environment.sidebar.isVisible = !Environment.sidebar.isVisible
+      let editor = document.querySelector( '#editor' )
+      if( !Environment.sidebar.isVisible ) {
+        Environment.editorWidth = editor.style.width
+        editor.style.width = '100%'
+      }else{
+        editor.style.width = Environment.editorWidth
+      }
+
+      Environment.sidebar.style.display = Environment.sidebar.isVisible ? 'block' : 'none'
+    }
   },
 
  	getSelectionCodeColumn( cm, findBlock ) {

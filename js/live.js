@@ -55,7 +55,7 @@ let Live = {
 
   processDevice( device, idx ) {
     let currentTrack = this,
-        d = currentTrack.devices[ device.title ] = currentTrack.devices[ idx ] = { idx },
+        d = currentTrack.devices[ device.title ] = currentTrack.devices[ idx ] = currentTrack[ idx ] = { idx },
         parameterCount = 0
     
     //console.log( 'device', device ) 
