@@ -383,7 +383,7 @@ let Pattern = function( ...args ) {
     'store', 'range', 'set'
   ]
    
-  for( let key of methodNames ) { Gibber.addSequencingToMethod( fnc, key ) }
+  for( let key of methodNames ) { Gibber.addSequencingToMethod( fnc, key, 1 ) }
   
   fnc.listeners = {}
   fnc.sequences = {}

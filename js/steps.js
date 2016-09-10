@@ -25,7 +25,7 @@ let Steps = {
 
         // TODO: is there a better way to get access to beat, beatOffset and scheduler?
         if( velocity !== 0 ) {
-          let msg = seq.externalMessages[ 'velocity' ]( velocity, seq.values.beat, seq.values.beatOffset )
+          let msg = seq.externalMessages[ 'velocity' ]( velocity, seq.values.beat + seq.values.beatOffset, seq.trackID )
           seq.values.scheduler.msgs.push( msg ) 
         }
 

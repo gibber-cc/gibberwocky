@@ -158,7 +158,9 @@ let seqclosure = function( Gibber ) {
 
     tick( scheduler, beat, beatOffset ) {
       if( !this.running ) return
+      let _beatOffset = parseFloat( beatOffset.toFixed( 6 ) )
 
+      this.timings.nextTime = _beatOffset
       // pick a new timing and schedule tick
       let nextTime = this.timings(),
           shouldExecute
@@ -176,11 +178,7 @@ let seqclosure = function( Gibber ) {
 
       scheduler.addMessage( this, bigTime, true, this.priority )
 
-      let _beatOffset = parseFloat( beatOffset.toFixed( 6 ) )
-
       if( shouldExecute ) {
-        let shouldDelay = false
-
         this.values.nextTime = _beatOffset
         this.values.beat = beat
         this.values.beatOffset = _beatOffset
@@ -197,22 +195,19 @@ let seqclosure = function( Gibber ) {
             scheduler.msgs.push( msg, this.priority )
 
           } else { // schedule internal method / function call immediately
-
             if( this.object && this.key ) {
-              
               if( typeof this.object[ this.key ] === 'function' ) {
                 this.object[ this.key ]( value )
               }else{
                 this.object[ this.key ] = value
               }
-
             }
-            
           }
         }
-      }
- 
-      this.timings.nextTime = _beatOffset // for scheduling pattern updates
+      } 
+
+      //console.log( 'beat', beat )
+      //this.timings.nextTime = _beatOffset // for scheduling pattern updates
     },
     
   }

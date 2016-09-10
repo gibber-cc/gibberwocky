@@ -136,7 +136,7 @@ let Communication = {
         break;
 
       case 'bpm' :
-        Gibber.Scheduler.bpm = data
+        Gibber.Scheduler.bpm = parseFloat( data )
         break;
 
       case 'err':

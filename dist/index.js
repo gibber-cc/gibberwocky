@@ -713,6 +713,8 @@ var Marker = {
 
       lastBorder = border;
       lastClassName = className;
+
+      //console.log( 'cycle idx:', patternObject.idx )
     };
 
     cycle.clear = function () {
@@ -734,18 +736,16 @@ var Marker = {
   },
   _addPatternFilter: function _addPatternFilter(patternObject) {
     patternObject.filters.push(function (args) {
-      var wait = Utility.beatsToMs(patternObject.nextTime, Gibber.Scheduler.bpm); // TODO: should .25 be a variable representing advance amount?
+      var wait = Utility.beatsToMs(patternObject.nextTime + .5, Gibber.Scheduler.bpm); // TODO: should .25 be a variable representing advance amount?
 
       var idx = args[2],
           shouldUpdate = patternObject.update.shouldUpdate;
 
-      //if( shouldUpdate ) {
       Gibber.Environment.animationScheduler.add(function () {
-        //patternObject.update.shouldUpdate = shouldUpdate
         patternObject.update.currentIndex = idx;
         patternObject.update();
-      }, wait, idx);
-      //}
+      }, wait);
+
       return args;
     });
   },
@@ -1509,7 +1509,7 @@ var Communication = {
         break;
 
       case 'bpm':
-        Gibber.Scheduler.bpm = data;
+        Gibber.Scheduler.bpm = parseFloat(data);
         break;
 
       case 'err':
@@ -3466,7 +3466,7 @@ module.exports = function (Gibber) {
     try {
       for (var _iterator2 = methodNames[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
         var key = _step2.value;
-        Gibber.addSequencingToMethod(fnc, key);
+        Gibber.addSequencingToMethod(fnc, key, 1);
       }
     } catch (err) {
       _didIteratorError2 = true;
@@ -4208,7 +4208,9 @@ var seqclosure = function seqclosure(Gibber) {
     },
     tick: function tick(scheduler, beat, beatOffset) {
       if (!this.running) return;
+      var _beatOffset = parseFloat(beatOffset.toFixed(6));
 
+      this.timings.nextTime = _beatOffset;
       // pick a new timing and schedule tick
       var nextTime = this.timings(),
           shouldExecute = void 0;
@@ -4226,11 +4228,7 @@ var seqclosure = function seqclosure(Gibber) {
 
       scheduler.addMessage(this, bigTime, true, this.priority);
 
-      var _beatOffset = parseFloat(beatOffset.toFixed(6));
-
       if (shouldExecute) {
-        var shouldDelay = false;
-
         this.values.nextTime = _beatOffset;
         this.values.beat = beat;
         this.values.beatOffset = _beatOffset;
@@ -4247,9 +4245,7 @@ var seqclosure = function seqclosure(Gibber) {
             scheduler.msgs.push(msg, this.priority);
           } else {
             // schedule internal method / function call immediately
-
             if (this.object && this.key) {
-
               if (typeof this.object[this.key] === 'function') {
                 this.object[this.key](value);
               } else {
@@ -4260,7 +4256,8 @@ var seqclosure = function seqclosure(Gibber) {
         }
       }
 
-      this.timings.nextTime = _beatOffset; // for scheduling pattern updates
+      //console.log( 'beat', beat )
+      //this.timings.nextTime = _beatOffset // for scheduling pattern updates
     }
   };
 
@@ -4306,7 +4303,7 @@ module.exports = function (Gibber) {
 
           // TODO: is there a better way to get access to beat, beatOffset and scheduler?
           if (velocity !== 0) {
-            var msg = seq.externalMessages['velocity'](velocity, seq.values.beat, seq.values.beatOffset);
+            var msg = seq.externalMessages['velocity'](velocity, seq.values.beat + seq.values.beatOffset, seq.trackID);
             seq.values.scheduler.msgs.push(msg);
           }
 
@@ -4625,14 +4622,7 @@ var Note = {
     if (typeof value === 'string') {
       midiValue = this.convertStringToMIDI(value);
     } else {
-      if (value < 0) {
-        var octaveOffset = Math.floor(value / Scale.master.modeNumbers.length),
-            val = Scale.master.modeNumbers.length + value; //+ octaveOffset * Scale.master.modeNumbers.length
-
-        midiValue = Scale.master.rootNumber + octaveOffset * 12 + Scale.master.modeNumbers[val];
-      } else {
-        midiValue = Scale.master.getMIDINumber(value);
-      }
+      midiValue = Scale.master.getMIDINumber(value);
     }
 
     return midiValue;
@@ -4769,8 +4759,11 @@ var Scale = {
   },
   getMIDINumber: function getMIDINumber(scaleDegree) {
     var mode = this.modeNumbers,
+        isNegative = scaleDegree < 0,
         octave = Math.floor(scaleDegree / mode.length),
         degree = mode[scaleDegree % mode.length];
+
+    if (isNegative) octave != -1;
 
     return this.rootNumber + octave * 12 + degree;
   },
@@ -4921,9 +4914,11 @@ module.exports = function (Gibber) {
 
             try {
               for (var _iterator2 = this.sequences[key][Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-                var idx = _step2.value;
+                var seq = _step2.value;
 
-                if (idx !== undefined) this.sequences[key][idx].start();
+                if (seq !== undefined) {
+                  seq.start();
+                }
               }
             } catch (err) {
               _didIteratorError2 = true;

@@ -45,14 +45,7 @@ let Note = {
     if( typeof value === 'string' ) { 
       midiValue = this.convertStringToMIDI( value )
     } else {
-      if( value < 0 ) {
-        let octaveOffset = Math.floor( value / Scale.master.modeNumbers.length ),
-            val = Scale.master.modeNumbers.length + value //+ octaveOffset * Scale.master.modeNumbers.length
-
-        midiValue = Scale.master.rootNumber + ( octaveOffset * 12 ) + Scale.master.modeNumbers[ val ]
-      }else{
-        midiValue = Scale.master.getMIDINumber( value )
-      }
+      midiValue = Scale.master.getMIDINumber( value )
     }
     
     return midiValue
@@ -170,9 +163,12 @@ let Scale = {
 
   getMIDINumber( scaleDegree ) {
     let mode   = this.modeNumbers,
+        isNegative = scaleDegree < 0,
         octave = Math.floor( scaleDegree / mode.length ),
         degree = mode[ scaleDegree % mode.length ]
-    
+
+    if( isNegative ) octave != -1
+
     return this.rootNumber + (octave * 12) + degree
   },
 

@@ -345,6 +345,8 @@ let Marker = {
       
       lastBorder = border
       lastClassName = className
+
+      //console.log( 'cycle idx:', patternObject.idx )
     }
 
     cycle.clear = function() {
@@ -369,18 +371,16 @@ let Marker = {
 
   _addPatternFilter( patternObject ) {
     patternObject.filters.push( ( args ) => {
-      const wait = Utility.beatsToMs( patternObject.nextTime,  Gibber.Scheduler.bpm ) // TODO: should .25 be a variable representing advance amount?
+      const wait = Utility.beatsToMs( patternObject.nextTime + .5,  Gibber.Scheduler.bpm ) // TODO: should .25 be a variable representing advance amount?
 
       let idx = args[ 2 ],
           shouldUpdate = patternObject.update.shouldUpdate
         
-      //if( shouldUpdate ) {
-        Gibber.Environment.animationScheduler.add( () => {
-          //patternObject.update.shouldUpdate = shouldUpdate
-          patternObject.update.currentIndex = idx
-          patternObject.update()
-        }, wait, idx ) 
-      //}
+      Gibber.Environment.animationScheduler.add( () => {
+        patternObject.update.currentIndex = idx
+        patternObject.update()
+      }, wait ) 
+
       return args
     }) 
   },
