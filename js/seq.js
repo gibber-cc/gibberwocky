@@ -191,8 +191,9 @@ let seqclosure = function( Gibber ) {
           if( this.externalMessages[ this.key ] !== undefined ) {
 
             let msg = this.externalMessages[ this.key ]( value, beat + _beatOffset, this.trackID )
-
             scheduler.msgs.push( msg, this.priority )
+
+            //Gibber.Communication.send( msg )
 
           } else { // schedule internal method / function call immediately
             if( this.object && this.key ) {

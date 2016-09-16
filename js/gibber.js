@@ -137,7 +137,9 @@ let Gibber = {
 
       seq.delay( delay )
       seq.start()
- 
+
+      Gibber.Communication.send( `select_track ${obj.id}` )
+
       return seq
     }
     
