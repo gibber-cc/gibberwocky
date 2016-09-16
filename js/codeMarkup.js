@@ -36,12 +36,16 @@ let Marker = {
 
     if( !shouldParse ) { // check for gen~ assignment
       for( let ugen of Gibber.Gen.names ) {
-        if( code.includes( ugen ) ) {
-          shouldParse = true
-          isGen = true
 
-          break;
-        } 
+        for( let ugen of Gibber.Gen.names ) {
+          let idx = code.indexOf( ugen )
+          if( idx !== -1 && code.charAt( idx + ugen.length ) === '('  ) {
+            shouldParse = true
+            isGen = true
+
+            break;
+          }
+        }
       }
     }
 
@@ -206,8 +210,10 @@ let Marker = {
            timingsNode= args[ 1 ]
 
            valuesPattern.codemirror = timingsPattern.codemirror = codemirror 
-
-           Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
+          
+           if( valuesNode ) {
+             Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
+           }  
            if( timingsNode ) {
              Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern )  
            }
@@ -230,9 +236,10 @@ let Marker = {
            timingsNode = args[1]
 
            valuesPattern.codemirror = timingsPattern.codemirror = codemirror
-           
-           Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
-           
+
+           if( valuesNode ) { 
+             Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
+           }
            if( timingsNode ) {
              Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern )  
            }
@@ -261,8 +268,10 @@ let Marker = {
            timingsNode = args[1]
 
            valuesPattern.codemirror = timingsPattern.codemirror = codemirror
-
-           Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
+           
+           if( valuesNode ) {
+             Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
+           }  
            if( timingsNode ) {
              Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern )  
            }
@@ -293,8 +302,10 @@ let Marker = {
            valuesPattern.codemirror = timingsPattern.codemirror = codemirror
 
            if( !isTrack ) components.splice( 2,index )
-
-           Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
+          
+           if( valuesNode ) {
+             Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
+           }
            if( timingsNode ) {
              Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern )  
            }
@@ -310,7 +321,9 @@ let Marker = {
           
            valuesPattern.codemirror = timingsPattern.codemirror = codemirror
 
-           Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
+           if( valuesNode ) {
+             Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
+           }  
            if( timingsNode ) {
              Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern )  
            }
@@ -585,17 +598,9 @@ let Marker = {
 
       pos.to.ch -= 1
       cm.replaceRange( val, pos.from, pos.to )
-      //let element = document.createElement('span')
-      //element.innerText = val
-      //element.style = 'background-color:rgba(255,0,0,.1) !important; display:inline; color:inherit'
-      //element.setAttribute( 'class', 'ELEMENT_TEST' )
 
       patternObject.commentMarker = cm.markText( pos.from, end, { className, atomic:true }) //replacedWith:element })
 
-
-      //setTimeout( ()=>{
-      //  $( '.'+className )[0].addEventListener( 'click', ()=>{ console.log('ARGH' ) } )
-      //}, 500 )
       track.markup.textMarkers[ className ] = {}
       
       let mark = () => {
@@ -616,6 +621,7 @@ let Marker = {
       
       mark()
 
+      // XXX: there's a bug when you sequence pattern transformations, and then insert newlines ABOVE the annotation
       let count = 0, span, update, activeSpans = []
 
       update = () => {
@@ -661,7 +667,9 @@ let Marker = {
           let commentPos = patternObject.commentMarker.find()
           cm.replaceRange( '', commentPos.from, commentPos.to )
           patternObject.commentMarker.clear()
-        } catch( e ) {} // yes, I just did that XXX 
+        } catch( e ) {
+          console.log( 'euclid annotation error:', e )
+        } // yes, I just did that XXX 
       }
 
       return update 

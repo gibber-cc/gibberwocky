@@ -223,7 +223,9 @@ let Gibber = {
               Gibber.Communication.send( `set ${parameter.id} ${_v.shouldKill.final}` )
 
               let widget = Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
-              widget.mark.clear()
+              if( widget !== undefined && widget.mark !== undefined ) {
+                widget.mark.clear()
+              }
               delete Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
             }, _v.shouldKill.after )
           }
@@ -233,7 +235,9 @@ let Gibber = {
           if( v.isGen ) {
             Gibber.Communication.send( `ungen ${parameter.id}` )
             let widget = Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
-            widget.mark.clear()
+            if( widget !== undefined && widget.mark !== undefined ) {
+              widget.mark.clear()
+            }
             delete Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
           }
 

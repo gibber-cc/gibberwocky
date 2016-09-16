@@ -1053,12 +1053,36 @@ var Marker = {
       try {
         for (var _iterator = Gibber.Gen.names[Symbol.iterator](), _step2; !(_iteratorNormalCompletion = (_step2 = _iterator.next()).done); _iteratorNormalCompletion = true) {
           var ugen = _step2.value;
+          var _iteratorNormalCompletion2 = true;
+          var _didIteratorError2 = false;
+          var _iteratorError2 = undefined;
 
-          if (code.includes(ugen)) {
-            shouldParse = true;
-            isGen = true;
+          try {
 
-            break;
+            for (var _iterator2 = Gibber.Gen.names[Symbol.iterator](), _step3; !(_iteratorNormalCompletion2 = (_step3 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+              var _ugen = _step3.value;
+
+              var idx = code.indexOf(_ugen);
+              if (idx !== -1 && code.charAt(idx + _ugen.length) === '(') {
+                shouldParse = true;
+                isGen = true;
+
+                break;
+              }
+            }
+          } catch (err) {
+            _didIteratorError2 = true;
+            _iteratorError2 = err;
+          } finally {
+            try {
+              if (!_iteratorNormalCompletion2 && _iterator2.return) {
+                _iterator2.return();
+              }
+            } finally {
+              if (_didIteratorError2) {
+                throw _iteratorError2;
+              }
+            }
           }
         }
       } catch (err) {
@@ -1081,13 +1105,13 @@ var Marker = {
 
     var tree = acorn.parse(code, { locations: true, ecmaVersion: 6 }).body;
 
-    var _iteratorNormalCompletion2 = true;
-    var _didIteratorError2 = false;
-    var _iteratorError2 = undefined;
+    var _iteratorNormalCompletion3 = true;
+    var _didIteratorError3 = false;
+    var _iteratorError3 = undefined;
 
     try {
-      for (var _iterator2 = tree[Symbol.iterator](), _step3; !(_iteratorNormalCompletion2 = (_step3 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-        var node = _step3.value;
+      for (var _iterator3 = tree[Symbol.iterator](), _step4; !(_iteratorNormalCompletion3 = (_step4 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+        var node = _step4.value;
 
         if (node.type === 'ExpressionStatement') {
           // not control flow
@@ -1105,16 +1129,16 @@ var Marker = {
         }
       }
     } catch (err) {
-      _didIteratorError2 = true;
-      _iteratorError2 = err;
+      _didIteratorError3 = true;
+      _iteratorError3 = err;
     } finally {
       try {
-        if (!_iteratorNormalCompletion2 && _iterator2.return) {
-          _iterator2.return();
+        if (!_iteratorNormalCompletion3 && _iterator3.return) {
+          _iterator3.return();
         }
       } finally {
-        if (_didIteratorError2) {
-          throw _iteratorError2;
+        if (_didIteratorError3) {
+          throw _iteratorError3;
         }
       }
     }
@@ -1270,7 +1294,9 @@ var Marker = {
 
           valuesPattern.codemirror = timingsPattern.codemirror = codemirror;
 
-          Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern);
+          if (valuesNode) {
+            Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern);
+          }
           if (timingsNode) {
             Marker._markPattern[timingsNode.type](timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern);
           }
@@ -1296,8 +1322,9 @@ var Marker = {
 
           valuesPattern.codemirror = timingsPattern.codemirror = codemirror;
 
-          Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern);
-
+          if (valuesNode) {
+            Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern);
+          }
           if (timingsNode) {
             Marker._markPattern[timingsNode.type](timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern);
           }
@@ -1324,7 +1351,9 @@ var Marker = {
 
           valuesPattern.codemirror = timingsPattern.codemirror = codemirror;
 
-          Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern);
+          if (valuesNode) {
+            Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern);
+          }
           if (timingsNode) {
             Marker._markPattern[timingsNode.type](timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern);
           }
@@ -1354,7 +1383,9 @@ var Marker = {
 
           if (!isTrack) components.splice(2, index);
 
-          Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern);
+          if (valuesNode) {
+            Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern);
+          }
           if (timingsNode) {
             Marker._markPattern[timingsNode.type](timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern);
           }
@@ -1370,7 +1401,9 @@ var Marker = {
 
           valuesPattern.codemirror = timingsPattern.codemirror = codemirror;
 
-          Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern);
+          if (valuesNode) {
+            Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern);
+          }
           if (timingsNode) {
             Marker._markPattern[timingsNode.type](timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern);
           }
@@ -1530,13 +1563,13 @@ var Marker = {
       var marker = void 0;
       var count = 0;
 
-      var _iteratorNormalCompletion3 = true;
-      var _didIteratorError3 = false;
-      var _iteratorError3 = undefined;
+      var _iteratorNormalCompletion4 = true;
+      var _didIteratorError4 = false;
+      var _iteratorError4 = undefined;
 
       try {
         var _loop = function _loop() {
-          var element = _step4.value;
+          var element = _step5.value;
 
           var cssClassName = patternName + '_' + count,
               elementStart = Object.assign({}, start),
@@ -1585,20 +1618,20 @@ var Marker = {
           count++;
         };
 
-        for (var _iterator3 = patternNode.elements[Symbol.iterator](), _step4; !(_iteratorNormalCompletion3 = (_step4 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+        for (var _iterator4 = patternNode.elements[Symbol.iterator](), _step5; !(_iteratorNormalCompletion4 = (_step5 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
           _loop();
         }
       } catch (err) {
-        _didIteratorError3 = true;
-        _iteratorError3 = err;
+        _didIteratorError4 = true;
+        _iteratorError4 = err;
       } finally {
         try {
-          if (!_iteratorNormalCompletion3 && _iterator3.return) {
-            _iterator3.return();
+          if (!_iteratorNormalCompletion4 && _iterator4.return) {
+            _iterator4.return();
           }
         } finally {
-          if (_didIteratorError3) {
-            throw _iteratorError3;
+          if (_didIteratorError4) {
+            throw _iteratorError4;
           }
         }
       }
@@ -1721,17 +1754,9 @@ var Marker = {
 
       pos.to.ch -= 1;
       cm.replaceRange(val, pos.from, pos.to);
-      //let element = document.createElement('span')
-      //element.innerText = val
-      //element.style = 'background-color:rgba(255,0,0,.1) !important; display:inline; color:inherit'
-      //element.setAttribute( 'class', 'ELEMENT_TEST' )
 
       patternObject.commentMarker = cm.markText(pos.from, end, { className: className, atomic: true }); //replacedWith:element })
 
-
-      //setTimeout( ()=>{
-      //  $( '.'+className )[0].addEventListener( 'click', ()=>{ console.log('ARGH' ) } )
-      //}, 500 )
       track.markup.textMarkers[className] = {};
 
       var mark = function mark() {
@@ -1748,6 +1773,7 @@ var Marker = {
 
       mark();
 
+      // XXX: there's a bug when you sequence pattern transformations, and then insert newlines ABOVE the annotation
       var count = 0,
           span = void 0,
           update = void 0,
@@ -1798,7 +1824,9 @@ var Marker = {
           var commentPos = patternObject.commentMarker.find();
           cm.replaceRange('', commentPos.from, commentPos.to);
           patternObject.commentMarker.clear();
-        } catch (e) {} // yes, I just did that XXX 
+        } catch (e) {
+          console.log('euclid annotation error:', e);
+        } // yes, I just did that XXX 
       };
 
       return update;
@@ -3449,7 +3477,9 @@ var Gibber = {
               Gibber.Communication.send('set ' + parameter.id + ' ' + _v.shouldKill.final);
 
               var widget = Gibber.Environment.codeMarkup.genWidgets[parameter.id];
-              widget.mark.clear();
+              if (widget !== undefined && widget.mark !== undefined) {
+                widget.mark.clear();
+              }
               delete Gibber.Environment.codeMarkup.genWidgets[parameter.id];
             }, _v.shouldKill.after);
           }
@@ -3459,7 +3489,9 @@ var Gibber = {
           if (v.isGen) {
             Gibber.Communication.send('ungen ' + parameter.id);
             var widget = Gibber.Environment.codeMarkup.genWidgets[parameter.id];
-            widget.mark.clear();
+            if (widget !== undefined && widget.mark !== undefined) {
+              widget.mark.clear();
+            }
             delete Gibber.Environment.codeMarkup.genWidgets[parameter.id];
           }
 
@@ -3573,10 +3605,12 @@ module.exports = function (Gibber) {
 
       spec.devices.forEach(Live.processDevice, track);
 
-      if (track.devices[0].title.includes('gibberwocky')) {
-        track.length = track.devices.length;
-        track.devices.shift();
-        Array.prototype.shift.call(track);
+      if (track.devices[0] !== undefined) {
+        if (track.devices[0].title.includes('gibberwocky')) {
+          track.length = track.devices.length;
+          track.devices.shift();
+          Array.prototype.shift.call(track);
+        }
       }
       return track;
     },

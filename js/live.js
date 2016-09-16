@@ -46,11 +46,13 @@ let Live = {
     track.devices = []
 
     spec.devices.forEach( Live.processDevice, track )
-
-    if( track.devices[0].title.includes('gibberwocky') ) {
-      track.length = track.devices.length
-      track.devices.shift()
-      Array.prototype.shift.call( track )
+    
+    if( track.devices[0] !== undefined ) {
+      if( track.devices[0].title.includes('gibberwocky') ) {
+        track.length = track.devices.length
+        track.devices.shift()
+        Array.prototype.shift.call( track )
+      }
     }
     return track
   },
