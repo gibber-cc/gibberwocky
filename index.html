@@ -5663,6 +5663,9 @@ module.exports = function (Gibber) {
               }
             }
           }
+        },
+        select: function select() {
+          Gibber.Communication.send('select_track ' + track.id);
         }
       };
 

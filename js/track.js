@@ -82,6 +82,9 @@ let Track = {
           }
         }
       },
+      select() {
+        Gibber.Communication.send( `select_track ${track.id}` )
+      }
     }
 
     Gibber.Environment.codeMarkup.prepareObject( track ) 
