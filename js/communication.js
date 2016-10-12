@@ -112,7 +112,7 @@ let Communication = {
       }
     }
     
-    if( id !== undefined && id !== Gibber.Live.id ) return
+    if( id !== undefined ) return
 
     if( Communication.debug.input ) {
       if( id !== undefined ) { 

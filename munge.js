@@ -1,4 +1,13 @@
-var fs = require("fs");
+var fs = require("fs"),
+    marked = require( 'marked' )
+
+marked.setOptions({ 
+  renderer: new marked.Renderer(), 
+  gfm:true
+})
+
+var markdown = fs.readFileSync( './reference.md', 'utf-8' )
+var referenceHTML = marked( markdown )
 
 var filename = "index.html";
 
@@ -18,7 +27,8 @@ var css_start_str = "<!-- css_insert_start -->";
 var css_end_str   = "<!-- css_insert_end -->";
 var  js_start_str = "<!-- js_insert_start -->";
 var  js_end_str   = "<!-- js_insert_end -->";
-
+var ref_start_str = "<!-- ref_insert_start -->";
+var ref_end_str   = "<!-- ref_insert_end -->";
 
 var result = fs.readFileSync(filename, "utf-8");
 
@@ -41,23 +51,17 @@ var css_start = result.indexOf(css_start_str);
 var css_end   = result.indexOf(css_end_str) + css_end_str.length;
 var  js_start = result.indexOf( js_start_str);
 var  js_end   = result.indexOf( js_end_str) + js_end_str.length;
-
-//if (css_start >= 0 && css_end >= 0) {
-
-//  var a = result.slice(0, css_start);
-//  var b = result.slice(css_end, -1);
-
-//  var result = a + css + b;
-//  fs.writeFileSync(filename, result);
-//}
+var ref_start = result.indexOf( ref_start_str);
+var ref_end   = result.indexOf( ref_end_str) + referenceHTML.length; 
 
 if (css_start >= 0 && css_end >= 0 && js_start >= 0 && js_end >= 0) {
 
 	var a = result.slice(0, css_start);
-	var b = result.slice(css_end, js_start);
-	var c = result.slice(js_end);
+	var b = result.slice(css_end, ref_start);
+  var c = result.slice(ref_end, js_start);
+  var d = result.slice(js_end);
 
-	var result = a + css + b + js + c;
+	var result = a + css + b + referenceHTML + c + js + d;
 
 	//console.log(result);
 

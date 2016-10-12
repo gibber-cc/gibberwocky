@@ -1,21 +1,24 @@
-
 const Examples = {
   default : `// ctrl+enter to execute line or selection
 // make sure the transport in Ableton is running before 
 // attemptingto execute any code.
 
+// pick a track to target with an instrument on it
+// subsitute another number for 0 as needed
+track = tracks[0]
+
 // play a note identified by name
-this.note( 'c4' ) // ... or d4, fb2, e#5 etc.
+track.note( 'c4' ) // ... or d4, fb2, e#5 etc.
 
 // play a note identified by number. The number represents a
 // position in the master scale object. By default the master
 // scale is set to c4 Aeolian
 
-this.note( 0 )
+track.note( 0 )
 
 // Change master scale root
 Scale.master.root( 'eb4' )
-this.note( 0 )
+track.note( 0 )
 
 // sequence calls to the note method every 1/16 note
 // traveling up the current master scale. An optional
@@ -23,13 +26,13 @@ this.note( 0 )
 // default this id is set to 0 if no argument is passed.
 // Assigning sequences to different id numbers allows them
 // to run in parallel.
-this.note.seq( [0,1,2,3,4,5,6,7], 1/16 )
+track.note.seq( [0,1,2,3,4,5,6,7], 1/16 )
 
 // sequence velocity to use random values between 10-127 (midi range)
-this.velocity.seq( Rndi( 10,127 ), 1/16 )
+track.velocity.seq( Rndi( 10,127 ), 1/16 )
 
 // sequence duration of notes in milliseconds
-this.duration.seq( [ 50, 250, 500 ].rnd(), 1/16 )
+track.duration.seq( [ 50, 250, 500 ].rnd(), 1/16 )
 
 // sequence the master scale to change root every measure
 Scale.root.seq( ['c4','d4','f4','g4'], 1 )
@@ -38,7 +41,7 @@ Scale.root.seq( ['c4','d4','f4','g4'], 1 )
 Scale.mode.seq( ['aeolian','lydian', 'wholeHalf'], 1 )
 
 // stop the sequence with id# 0 from running
-this.note[ 0 ].stop()
+track.note[ 0 ].stop()
 
 // stop scale sequencing
 Scale.mode[ 0 ].stop()
@@ -55,7 +58,7 @@ Scale.root( 'c3' )
 a = Arp( [0,2,3,5], 4, 'updown2' )
 
 // create sequencer using arpeggiator and 1/16 notes
-this.note.seq( a, 1/16 )
+track.note.seq( a, 1/16 )
 
 // transpose the notes in our arpeggio by one scale degree
 a.transpose( 1 )
@@ -68,14 +71,14 @@ a.transpose.seq( 1,1 )
 a.reset.seq( 1, 8 )
 
 // stop sequence
-this.note[ 0 ].stop()
+track.note[ 0 ].stop()
 
 // creates sequencer at this.note[1] (0 is default)
-this.note.seq( [0,1,2,3], [1/4,1/8], 1 )
+track.note.seq( [0,1,2,3], [1/4,1/8], 1 )
 
 // parallel sequence at this.note[2] with 
 // random note selection  (2 is last arg)
-this.note.seq( [5,6,7,8].rnd(), 1/4, 2 )
+track.note.seq( [5,6,7,8].rnd(), 1/4, 2 )
 
 // Every sequence contains two Pattern functions. 
 // The first, 'values',determines the output of the 
@@ -83,13 +86,13 @@ this.note.seq( [5,6,7,8].rnd(), 1/4, 2 )
 // sequencer fires.
 
 // sequence transposition of this.note[2]
-this.note[ 2 ].values.transpose.seq( [1,2,3,-6], 1 )
+track.note[ 2 ].values.transpose.seq( [1,2,3,-6], 1 )
 
 // stop this.note[1]
-this.note[ 1 ].stop()
+track.note[ 1 ].stop()
 
 // start this.note[0]
-this.note[ 1 ].start()`,
+track.note[ 1 ].start()`,
 
 ['sequencing parameter changes']: `/* Almost every parameter in Ableton can be sequenced and controlled
 using gibberwocky. Because there are hundreds (and often thousands) of paramters exposed
@@ -261,9 +264,7 @@ s = Score([
  * accessed at a[60]. Note that you have to access with brackets
  * as a.60 is not valid JavaScript.
  *
- * The second argument to Steps is the track to target. If no
- * second argument is given, Steps will target the track associated
- * with the editor it is instantiated in.
+ * The second argument to Steps is the track to target.  
  */ 
 
 a = Steps({
