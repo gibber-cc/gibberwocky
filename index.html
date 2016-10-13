@@ -3610,8 +3610,10 @@ module.exports = function (Gibber) {
       var track = Gibber.Track(spec);
       track.devices = [];
 
-      spec.devices.forEach(Live.processDevice, track);
-
+//      spec.devices.forEach(Live.processDevice, track);
+    spec.devices.forEach( function( val, idx ) {
+      Live.processDevice( val, idx, track ) 
+    })
       if (track.devices[0] !== undefined) {
         if (track.devices[0].title.includes('gibberwocky')) {
           track.length = track.devices.length;
@@ -3621,9 +3623,8 @@ module.exports = function (Gibber) {
       }
       return track;
     },
-    processDevice: function processDevice(device, idx) {
-      var currentTrack = this,
-          d = currentTrack.devices[device.title] = currentTrack.devices[idx] = currentTrack[idx] = { idx: idx },
+    processDevice: function processDevice(device, idx, currentTrack) {
+      var d = currentTrack.devices[device.name] = currentTrack.devices[idx] = currentTrack[idx] = { idx: idx },
           parameterCount = 0;
 
       //console.log( 'device', device ) 

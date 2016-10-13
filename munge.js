@@ -57,12 +57,10 @@ var ref_end   = result.indexOf( ref_end_str) + referenceHTML.length;
 if (css_start >= 0 && css_end >= 0 && js_start >= 0 && js_end >= 0) {
 
 	var a = result.slice(0, css_start);
-	var b = result.slice(css_end, ref_start);
-  var c = result.slice(ref_end, js_start);
-  var d = result.slice(js_end);
+	var b = result.slice(css_end, js_start);
+  var c = result.slice(js_end);
 
-	var result = a + css + b + referenceHTML + c + js + d;
-
+	var result = a + css + b + js + c
 	//console.log(result);
 
 	fs.writeFileSync(filename, result);

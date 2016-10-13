@@ -45,7 +45,9 @@ let Live = {
     let track = Gibber.Track( spec )
     track.devices = []
 
-    spec.devices.forEach( Live.processDevice, track )
+    spec.devices.forEach( (val, idx ) => {
+      Live.processDevice( val, idx, track ) 
+    })
     
     if( track.devices[0] !== undefined ) {
       if( track.devices[0].title.includes('gibberwocky') ) {
@@ -57,9 +59,8 @@ let Live = {
     return track
   },
 
-  processDevice( device, idx ) {
-    let currentTrack = this,
-        d = currentTrack.devices[ device.title ] = currentTrack.devices[ idx ] = currentTrack[ idx ] = { idx },
+  processDevice( device, idx, currentTrack ) {
+    let d = currentTrack.devices[ device.name ] = currentTrack.devices[ idx ] = currentTrack[ idx ] = { idx },
         parameterCount = 0
     
     //console.log( 'device', device ) 
