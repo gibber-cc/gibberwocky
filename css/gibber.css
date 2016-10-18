@@ -6,21 +6,23 @@ body {
 }
 
 #editor {
-  width:70%;
+  width:63%;
   height:100%;
   display:inline-block;
 }
 
 /* TODO: fix in max and change width to 30% before publishing. */
-#console {
+#sidebar {
   display:inline-block;
-  width:29.25%;
-  background:#eee;
+  width:35%;
   float:right;
   height:100%;
   border-left:1px black solid;
   box-sizing:border-box;
   overflow:scroll;
+  font-family:sans-serif;
+  font-weight:lighter;
+  font-size:.8em
 }
 
 body { margin:0; padding:0 }
@@ -82,3 +84,73 @@ body { margin:0; padding:0 }
   text-decoration:underline;
 }
 
+.vtree-leaf-label { 	
+  -webkit-touch-callout: none; /* iOS Safari */
+  -webkit-user-select: none;   /* Chrome/Safari/Opera */
+  -khtml-user-select: none;    /* Konqueror */
+  -moz-user-select: none;      /* Firefox */
+  -ms-user-select: none;       /* Internet Explorer/Edge */
+  user-select: none;           /* Non-prefixed version, currently
+                                  not supported by any browser */
+} 
+.vtree {
+  font-family:sans-serif;
+  font-size:.8em;
+}
+
+#console { 
+  width:100%;
+  overflow:scroll;
+  height: calc( 100% - 3.5em )
+}
+
+#lomView ul { padding: 0 }
+
+#demos ul { padding: 0; padding-left:10px; list-style:none; cursor:pointer }
+
+#demos ul li { margin-bottom: 5px }
+
+#splitbar {
+  display:inline-block;
+  top:0;
+  position:absolute;
+  height:100%;
+  width:5px;
+  background:#666;
+  cursor: ew-resize
+}
+
+#tabs {
+  display:inline-block;
+  top:0;
+  position:relative;
+  left:5px;
+  font-size: .8em
+}
+
+#console_list {
+  width: 100%;
+  height:100%;
+  margin:0;
+  display: block;
+  font-family: 'Source Code Pro', monospace;
+  list-style: none;
+  padding:0;
+  padding-left:5px;
+}
+
+#console_list li {
+  font-size: .8em;
+  font-weight: 500
+}
+
+.console_error {
+  color:red;
+}
+
+.microlib_tabs_nav_item {
+  height:16px;
+  font-size:10px;
+  padding:3px 5px;
+  line-height:16px;
+}
