@@ -70,7 +70,7 @@ let Live = {
       let idx = Gibber.Utility.rndi( 0, device.parameters.length - 1 ),
           param = device.parameters[ idx ]
        
-      while( param.name === 'Device On' ) {
+      while( param.name === 'Device On' || param.name.indexOf( 'Volume' ) !== -1 ) {
         idx = Gibber.Utility.rndi( 0, device.parameters.length - 1 ),
         param = device.parameters[ idx ]
       }

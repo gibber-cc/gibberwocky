@@ -678,7 +678,11 @@ let Marker = {
       patternObject.commentMarker = marker
       let update = () => {
         if( !patternObject.commentMarker ) return
-        let val ='/* ' + patternObject.update.value.pop() + ' */,',
+        let patternValue = '' + patternObject.update.value.pop()
+        
+        if( patternValue.length > 8 ) patternValue = patternValue.slice(0,8) 
+
+        let val ='/* ' + patternValue + ' */,',
             pos = patternObject.commentMarker.find(),
             end = Object.assign( {}, pos.to )
          

@@ -1141,7 +1141,11 @@ var Marker = {
       patternObject.commentMarker = marker;
       var update = function update() {
         if (!patternObject.commentMarker) return;
-        var val = '/* ' + patternObject.update.value.pop() + ' */,',
+        var patternValue = '' + patternObject.update.value.pop();
+
+        if (patternValue.length > 8) patternValue = patternValue.slice(0, 8);
+
+        var val = '/* ' + patternValue + ' */,',
             pos = patternObject.commentMarker.find(),
             end = Object.assign({}, pos.to);
 
@@ -2936,7 +2940,7 @@ module.exports = function (Gibber) {
         var idx = Gibber.Utility.rndi(0, device.parameters.length - 1),
             param = device.parameters[idx];
 
-        while (param.name === 'Device On') {
+        while (param.name === 'Device On' || param.name.indexOf('Volume') !== -1) {
           idx = Gibber.Utility.rndi(0, device.parameters.length - 1), param = device.parameters[idx];
         }
 
