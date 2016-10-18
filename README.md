@@ -2,8 +2,8 @@
 
 This repo is for a plugin to live code Ableton Live using browser-based editor. It is implemented using Max4Live, Max/MSP/Jitter, and JavaScript, and draws significantly from the Gibber browser-based live coding platform.
 
-[More recent (10/2016) demo performance](https://vimeo.com/187702511).
-[A screen capture / demo of an early version](https://vimeo.com/162157104).
+[More recent (10/2016) demo performance](https://vimeo.com/187702511).  
+[A screen capture / demo of an early version](https://vimeo.com/162157104).  
 
 ## Installing
 
