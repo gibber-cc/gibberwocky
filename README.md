@@ -8,7 +8,8 @@ This repo is for a plugin to live code Ableton Live using browser-based editor. 
 ## Installing
 
 1. Follow the instructions for installing the Max Worldmaking Package: https://github.com/worldmaking/Max_Worldmaking_Package. This will install a websocket external for Max that the code editor will use to communicate with Max4Live and Max/MSP.
-2. In Ableton Live, place the `gibberwocky_master.amxd` M4L object on the Master track in your Live set. For each MIDI instrument track, place an instance of the `gibberwocky_midi.amxd` on the track and add an instrument/fx of your choice.
+2. Download [the most recent release of the plugin](https://github.com/charlieroberts/gibberwocky/releases)
+3. In Ableton Live, place the `gibberwocky_master.amxd` M4L object on the Master track in your Live set. For each MIDI instrument track, place an instance of the `gibberwocky_midi.amxd` on the track and add an instrument/fx of your choice.
 
 ## Using
 1. In the master instance, click the `Edit` button to open the browser-based code editor. You can send note/duration/velocity messages to all instrument tracks with an instance of the `gibberwocky_midi.amxd` plugin. If an instrument track does not have a plugin, you won't be able to send it these messages. You can also target all fx parameters, volume controls, track sends, mute and solo functions from this single editor.
