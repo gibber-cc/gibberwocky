@@ -140,6 +140,9 @@ function bang() {
 	
 	// get entire API...
 	var api = new LiveAPI("live_set");
+	if (api.path == undefined) {
+		post("not in M4L\n");
+	}
 	
 	var tree = {};
 	for (var k in state) {
