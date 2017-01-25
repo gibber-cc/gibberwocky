@@ -7,6 +7,8 @@ This repo is for a plugin to live code Ableton Live using browser-based editor. 
 
 This project is jointly developed by [Graham Wakefield](http://grahamwakefield.net) and [Charlie Roberts](http://charlie-roberts.com).
 
+If you're interested in creating your own front-end using a different language (gibberwocky uses JavaScript), please see the [communication spec](https://gist.github.com/charlieroberts/a0a4234646f4ab06b5a07dbe969b6b6a) which outlines how to send messages to the max4live plugin using websockets. Theoretically you should be able to use a language of your choice (as long as it has a websocket library...)
+
 ## Installing
 
 1. Follow the instructions for installing the Max Worldmaking Package: https://github.com/worldmaking/Max_Worldmaking_Package. This will install a websocket external for Max that the code editor will use to communicate with Max4Live and Max/MSP.
