@@ -2,18 +2,24 @@
 
 This repo is for a plugin to live code Ableton Live using browser-based editor. It is implemented using Max4Live, Max/MSP/Jitter, and JavaScript, and draws significantly from the Gibber browser-based live coding platform.
 
-[A screen capture of an early version](https://vimeo.com/162157104).
+[More recent (10/2016) demo performance](https://vimeo.com/187702511).  
+[A screen capture / demo of an early version](https://vimeo.com/162157104).  
+
+This project is jointly developed by [Graham Wakefield](http://grahamwakefield.net) and [Charlie Roberts](http://charlie-roberts.com).
+
+If you're interested in creating your own front-end using a different language (gibberwocky uses JavaScript), please see the [communication spec](https://gist.github.com/charlieroberts/a0a4234646f4ab06b5a07dbe969b6b6a) which outlines how to send messages to the max4live plugin using websockets. Theoretically you should be able to use a language of your choice (as long as it has a websocket library...)
 
 ## Installing
 
 1. Follow the instructions for installing the Max Worldmaking Package: https://github.com/worldmaking/Max_Worldmaking_Package. This will install a websocket external for Max that the code editor will use to communicate with Max4Live and Max/MSP.
-2. In Ableton Live, place the `jibberwocky.amxd` M4L object on a MIDI track. Add an instrument of your choice to this track.
+2. Download [the most recent release of the plugin](https://github.com/charlieroberts/gibberwocky/releases)
+3. In Ableton Live, place the `gibberwocky_master.amxd` M4L object on the Master track in your Live set. For each MIDI instrument track, place an instance of the `gibberwocky_midi.amxd` on the track and add an instrument/fx of your choice.
 
 ## Using
-1. Follow the instructions inside the code editor of the M4L device. Click the `open in browser` button to launch the editor in a larger browser window (with normal debugging capabilities) as opposed to the small editor featured in the plugin.
-2. There's some extra example code to look at located in js/example/js.
-3. This is alpha-release software; there will probably be a lot of work on it during the summer of 2016 but we don't have a timeline for documentation etc. Thanks for your patience.
-
+1. In the master instance, click the `Edit` button to open the browser-based code editor. You can send note/duration/velocity messages to all instrument tracks with an instance of the `gibberwocky_midi.amxd` plugin. If an instrument track does not have a plugin, you won't be able to send it these messages. You can also target all fx parameters, volume controls, track sends, mute and solo functions from this single editor.
+2. Execute code by selecting it and hitting Ctrl+Enter. Alt+Enter will select and execute an entire block of code (blocks are delimited by empty lines)
+3. Read through the example code. Click on the "demos" button in the right sidebar to view other examples / explanations.
+4. This is beta software... there is no documentation outside of the (heavily commented) demos. We're working on it!
 
 ## Development
 
@@ -32,5 +38,5 @@ cd client
 npm install
 ```
 
-After making changes to any javascript, use `gulp build` from within root directory to rebuild the primary `index.js` file. You can also simply use `gulp` to launch a watcher that will recompile the main .js file whenever you make changes to any of the JavaScript files.
+After making changes to any javascript, use `gulp build` from within root directory to rebuild the primary `index.js` file. After the build is complete, run `node munge.js` (we'll streamline this in the future). You can also simply use `gulp` to launch a watcher that will recompile the main .js file whenever you make changes to any of the JavaScript files.
 
