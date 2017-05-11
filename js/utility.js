@@ -153,12 +153,17 @@ let Utility = {
     Gibber.Scheduler.addMessage( msg, time )
   },
 
+  select( trackNumber ) {
+    Gibber.Communication.send( `select_track ${ trackNumber }` )
+  },
+
   export( destination ) {
     destination.rndf = Utility.rndf
     destination.rndi = Utility.rndi
     destination.Rndf = Utility.Rndf
     destination.Rndi = Utility.Rndi
     destination.future = Utility.future
+    destination.select = Utility.select
 
     Array.prototype.random = Array.prototype.rnd = Utility.random
   }

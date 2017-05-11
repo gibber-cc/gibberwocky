@@ -201,6 +201,7 @@ var Scheduler = {
   mockBeat: 0,
   mockInterval: null,
   currentBeat: 1,
+  currentTime: Big(0),
 
   queue: new Queue(function (a, b) {
     if (a.time.eq(b.time)) {
@@ -1432,7 +1433,6 @@ var Communication = {
             port = _this.querystring.port || '8081',
             address = "ws://" + host + ":" + port;
 
-        //Gibber.log( "ADDRESS", address )
         _this.wsocket = new WebSocket(address);
 
         _this.wsocket.onopen = function (ev) {
@@ -1479,16 +1479,17 @@ var Communication = {
   count: 0,
 
   handleMessage: function handleMessage(_msg) {
-    var isObject = false,
-        id = void 0,
+    var id = void 0,
         key = void 0,
         data = void 0,
         msg = void 0;
 
     if (_msg.data.charAt(0) === '{') {
       data = _msg.data;
-      isObject = true;
       key = null;
+      if (Communication.callbacks.scene) {
+        Communication.callbacks.scene(JSON.parse(data));
+      }
     } else if (_msg.data.includes('snapshot')) {
       data = _msg.data.substr(9).split(' ');
       for (var i = 0; i < data.length; i += 2) {
@@ -1517,7 +1518,7 @@ var Communication = {
       }
     }
 
-    if (id !== undefined) return;
+    if (id === undefined) return;
 
     if (Communication.debug.input) {
       if (id !== undefined) {
@@ -1549,11 +1550,6 @@ var Communication = {
         break;
 
       default:
-        if (isObject) {
-          if (Communication.callbacks.scene) {
-            Communication.callbacks.scene(JSON.parse(data));
-          }
-        }
         break;
     }
   },
@@ -4804,11 +4800,14 @@ var Scale = {
     var mode = this.modeNumbers,
         isNegative = scaleDegree < 0,
         octave = Math.floor(scaleDegree / mode.length),
-        degree = mode[scaleDegree % mode.length];
+        degree = isNegative ? mode[Math.abs(mode.length + scaleDegree % mode.length)] : mode[scaleDegree % mode.length],
+        out = void 0;
 
-    if (isNegative) octave != -1;
+    if (degree === undefined) degree = 0;
 
-    return this.rootNumber + octave * 12 + degree;
+    out = isNegative ? this.rootNumber + octave * 12 + degree : this.rootNumber + octave * 12 + degree;
+
+    return out;
   },
 
 
@@ -4821,7 +4820,8 @@ var Scale = {
     aeolian: [0, 2, 3, 5, 7, 8, 10],
     locrian: [0, 1, 3, 5, 6, 8, 10],
     wholeHalf: [0, 2, 3, 5, 6, 8, 9, 11],
-    halfWhole: [0, 1, 3, 4, 6, 7, 9, 10]
+    halfWhole: [0, 1, 3, 4, 6, 7, 9, 10],
+    chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
   }
 };
 
@@ -5236,12 +5236,16 @@ var Utility = {
 
     Gibber.Scheduler.addMessage(msg, time);
   },
+  select: function select(trackNumber) {
+    Gibber.Communication.send('select_track ' + trackNumber);
+  },
   export: function _export(destination) {
     destination.rndf = Utility.rndf;
     destination.rndi = Utility.rndi;
     destination.Rndf = Utility.Rndf;
     destination.Rndi = Utility.Rndi;
     destination.future = Utility.future;
+    destination.select = Utility.select;
 
     Array.prototype.random = Array.prototype.rnd = Utility.random;
   }

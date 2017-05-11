@@ -9,7 +9,8 @@ marked.setOptions({
 var markdown = fs.readFileSync( './reference.md', 'utf-8' )
 var referenceHTML = marked( markdown )
 
-var filename = "index.html";
+var readfilename  = 'index_template.html'
+var writefilename = "index.html";
 
 var css_sources = [
 	"./css/codemirror.css",
@@ -30,7 +31,7 @@ var  js_end_str   = "<!-- js_insert_end -->";
 var ref_start_str = "<!-- ref_insert_start -->";
 var ref_end_str   = "<!-- ref_insert_end -->";
 
-var result = fs.readFileSync(filename, "utf-8");
+var result = fs.readFileSync(readfilename, "utf-8");
 
 var css = css_start_str + "\n<style>\n";
 for (var f of css_sources) {
@@ -63,5 +64,5 @@ if (css_start >= 0 && css_end >= 0 && js_start >= 0 && js_end >= 0) {
 	var result = a + css + b + js + c
 	//console.log(result);
 
-	fs.writeFileSync(filename, result);
+	fs.writeFileSync(writefilename, result);
 }

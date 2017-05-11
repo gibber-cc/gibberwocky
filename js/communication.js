@@ -30,7 +30,6 @@ let Communication = {
           port = this.querystring.port || '8081',
           address = "ws://" + host + ":" + port
       
-      Gibber.log( "ADDRESS", address )
       this.wsocket = new WebSocket( address )
       
       this.wsocket.onopen = function(ev) {        
@@ -83,8 +82,8 @@ let Communication = {
       data = _msg.data
       key = null
       if( Communication.callbacks.scene ) {
-		Communication.callbacks.scene( JSON.parse( data ) )
-	  }
+        Communication.callbacks.scene( JSON.parse( data ) )
+      }
     }else if( _msg.data.includes( 'snapshot' ) ) {
       data = _msg.data.substr( 9 ).split(' ')
       for ( let i = 0; i < data.length; i += 2 ) {
@@ -113,7 +112,7 @@ let Communication = {
       }
     }
     
-    if( id !== undefined ) return
+    if( id === undefined ) return
 
     if( Communication.debug.input ) {
       if( id !== undefined ) { 

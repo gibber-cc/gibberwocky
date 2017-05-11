@@ -10,6 +10,7 @@ let Scheduler = {
   mockBeat: 0,
   mockInterval: null,
   currentBeat: 1,
+  currentTime: Big(0),
 
   queue: new Queue( ( a, b ) => {
     if( a.time.eq( b.time ) ) {
