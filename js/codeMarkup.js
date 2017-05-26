@@ -81,14 +81,13 @@ let Marker = {
     widget.style.verticalAlign = 'middle'
     widget.style.height = '1.1em'
     widget.style.width = '60px'
-    widget.style.backgroundColor = '#bbb'
-    widget.style.marginLeft = '.5em'
+    widget.style.backgroundColor = 'transparent'
     widget.style.borderLeft = '1px solid #666'
     widget.style.borderRight = '1px solid #666'
     widget.setAttribute( 'width', 60 )
     widget.setAttribute( 'height', 13 )
-    widget.ctx.fillStyle = '#bbb'
-    widget.ctx.strokeStyle = '#333'
+    widget.ctx.fillStyle = 'rgba(46,50,53,1)'
+    widget.ctx.strokeStyle = '#eee'
     widget.ctx.lineWidth = .5
     widget.gen = Gibber.Gen.lastConnected
     widget.values = []
@@ -118,14 +117,15 @@ let Marker = {
     
     Marker.genWidgets.dirty = false
 
+
     for( let key in Marker.genWidgets ) {
       let widget = Marker.genWidgets[ key ]
       if( typeof widget === 'object' && widget.ctx !== undefined ) {
         widget.ctx.fillRect( 0,0, widget.width, widget.height )
         widget.ctx.beginPath()
-        widget.ctx.moveTo( 0,  widget.height / 2 )
+        widget.ctx.moveTo( 0,  widget.height / 2 + 1 )
         for( let i = 0; i < widget.values.length; i++ ) {
-          widget.ctx.lineTo( i, widget.values[ i ] * widget.height )
+          widget.ctx.lineTo( i, widget.values[ i ] * widget.height * .7 + 1 )
         }
         widget.ctx.stroke()
       }
@@ -351,10 +351,14 @@ let Marker = {
         case 3: border = 'left'; break;
       }
 
-      $( className ).add( 'annotation-' + border + '-border' )
+
+      $( className ).remove( 'annotation-' + border + '-border' )
+      $( className ).add( 'annotation-' + border + '-border-cycle' )
       
-      if( lastBorder )
-        $( className ).remove( 'annotation-' + lastBorder + '-border' )
+      if( lastBorder !== null ) {
+        $( className ).remove( 'annotation-' + lastBorder + '-border-cycle' )
+        $( className ).add( 'annotation-' + lastBorder + '-border' )
+      }
       
       lastBorder = border
       lastClassName = className
@@ -364,9 +368,18 @@ let Marker = {
 
     cycle.clear = function() {
       modCount = 1
-      if( lastBorder && lastClassName )
-        $( lastClassName ).remove( 'annotation-' + lastBorder + '-border' )
       
+      if( lastClassName !== null ) {
+        $( lastClassName ).remove( 'annotation-left-border' )
+        $( lastClassName ).remove( 'annotation-left-border-cycle' )
+        $( lastClassName ).remove( 'annotation-right-border' )
+        $( lastClassName ).remove( 'annotation-right-border-cycle' )
+        $( lastClassName ).remove( 'annotation-top-border' )
+        $( lastClassName ).remove( 'annotation-top-border-cycle' )
+        $( lastClassName ).remove( 'annotation-bottom-border' )
+        $( lastClassName ).remove( 'annotation-bottom-border-cycle' )
+      }
+
       lastBorder = null
     }
 
@@ -421,6 +434,42 @@ let Marker = {
        patternObject._onchange = () => { Marker._updatePatternContents( patternObject, className, track ) }
     },
 
+    UnaryExpression( patternNode, containerNode, components, cm, channel, index=0, patternType, patternObject ) { // -1 etc.
+      let [ className, start, end ] = Marker._getNamesAndPosition( patternNode, containerNode, components, index, patternType ),
+          cssName = className + '_0',
+          marker = cm.markText( start, end, { 
+            'className': cssName + ' annotation', 
+            inclusiveLeft: true,
+            inclusiveRight: true
+          })
+
+        channel.markup.textMarkers[ className ] = marker
+
+        if( channel.markup.cssClasses[ className ] === undefined ) channel.markup.cssClasses[ className ] = []
+
+        channel.markup.cssClasses[ className ][ index ] = cssName    
+
+        let start2 = Object.assign( {}, start )
+        start2.ch += 1
+        let marker2 = cm.markText( start, start2, { 
+          'className': cssName + ' annotation-no-right-border', 
+          inclusiveLeft: true,
+          inclusiveRight: true
+        })
+
+        let marker3 = cm.markText( start2, end, { 
+          'className': cssName + ' annotation-no-left-border', 
+          inclusiveLeft: true,
+          inclusiveRight: true
+        })
+
+        Marker._addPatternUpdates( patternObject, className )
+        Marker._addPatternFilter( patternObject )
+
+        patternObject.patternName = className
+        patternObject._onchange = () => { Marker._updatePatternContents( patternObject, className, channel ) }
+    },
+
     BinaryExpression( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) { // TODO: same as literal, refactor?
        let [ className, start, end ] = Marker._getNamesAndPosition( patternNode, containerNode, components, index, patternType ),
            cssName = className + '_0',
@@ -428,7 +477,7 @@ let Marker = {
              start, 
              end,
              { 
-               'className': cssName + ' annotation-border' ,
+               'className': cssName + ' annotation annotation-border' ,
                startStyle: 'annotation-no-right-border',
                endStyle: 'annotation-no-left-border',
                inclusiveLeft:true,
@@ -437,11 +486,19 @@ let Marker = {
            ) 
        
        track.markup.textMarkers[ className ] = marker
-       
+
+       const divStart = Object.assign( {}, start )
+       const divEnd   = Object.assign( {}, end )
+
+       divStart.ch += 1
+       divEnd.ch -= 1
+
+       const marker2 = cm.markText( divStart, divEnd, { className:'annotation-binop-border' })     
+
        if( track.markup.cssClasses[ className ] === undefined ) track.markup.cssClasses[ className ] = []
        track.markup.cssClasses[ className ][ index ] = cssName
 
-       setTimeout( () => { $( '.' + cssName )[ 1 ].classList.add( 'annotation-no-horizontal-border' ) }, 250 )
+       //setTimeout( () => { $( '.' + cssName )[ 1 ].classList.add( 'annotation-no-horizontal-border' ) }, 250 )
        
        patternObject.patternName = className
 
@@ -449,10 +506,16 @@ let Marker = {
        Marker._addPatternFilter( patternObject )
     },
 
-    ArrayExpression( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) {
-      let [ patternName, start, end ] = Marker._getNamesAndPosition( patternNode, containerNode, components, index, patternType ),
-          marker, 
-          count = 0
+    ArrayExpression( patternNode, containerNode, components, cm, channel, index=0, patternType, patternObject ) {
+      let [ patternName, start, end ] = Marker._getNamesAndPosition( 
+        patternNode, 
+        containerNode, 
+        components, 
+        index, 
+        patternType 
+      )
+      
+      let count = 0
 
       for( let element of patternNode.elements ) {
         let cssClassName = patternName + '_' + count,
@@ -471,37 +534,73 @@ let Marker = {
              inclusiveLeft:true, inclusiveRight:true
           })
 
-          let count = 0
-          let classAdder = () => {
-            let element = $( '.' + cssClassName )[1]
-            if( element !== undefined ) {
-              element.classList.add( 'annotation-no-horizontal-border' ) 
-            } else {
-              if( count++ < 4 ) {
-                setTimeout( classAdder, 250 )
-              }
-            }
-          }
+          // create specific border for operator: top, bottom, no sides
+          const divStart = Object.assign( {}, elementStart )
+          const divEnd   = Object.assign( {}, elementEnd )
 
-          setTimeout( classAdder, 250 )
+          divStart.ch += 1
+          divEnd.ch -= 1
+
+          const marker2 = cm.markText( divStart, divEnd, { className:cssClassName + '_binop annotation-binop' })
+
+
+        }else if (element.type === 'UnaryExpression' ) {
+          marker = cm.markText( elementStart, elementEnd, { 
+            'className': cssClassName + ' annotation', 
+            inclusiveLeft: true,
+            inclusiveRight: true
+          })
+
+          let start2 = Object.assign( {}, elementStart )
+          start2.ch += 1
+          let marker2 = cm.markText( elementStart, start2, { 
+            'className': cssClassName + ' annotation-no-right-border', 
+            inclusiveLeft: true,
+            inclusiveRight: true
+          })
+
+          let marker3 = cm.markText( start2, elementEnd, { 
+            'className': cssClassName + ' annotation-no-left-border', 
+            inclusiveLeft: true,
+            inclusiveRight: true
+          })
+        }else if( element.type === 'ArrayExpression' ) {
+           marker = cm.markText( elementStart, elementEnd, { 
+            'className': cssClassName + ' annotation',
+            inclusiveLeft:true, inclusiveRight:true,
+            startStyle:'annotation-left-border-start',
+            endStyle: 'annotation-right-border-end',
+           })
+
+           // mark opening array bracket
+           const arrayStart_start = Object.assign( {}, elementStart )
+           const arrayStart_end  = Object.assign( {}, elementStart )
+           arrayStart_end.ch += 1
+           cm.markText( arrayStart_start, arrayStart_end, { className:cssClassName + '_start' })
+
+           // mark closing array bracket
+           const arrayEnd_start = Object.assign( {}, elementEnd )
+           const arrayEnd_end   = Object.assign( {}, elementEnd )
+           arrayEnd_start.ch -=1
+           cm.markText( arrayEnd_start, arrayEnd_end, { className:cssClassName + '_end' })
 
         }else{
           marker = cm.markText( elementStart, elementEnd, { 
             'className': cssClassName + ' annotation',
             inclusiveLeft:true, inclusiveRight:true
-          } )
+          })
         }
 
-        if( track.markup.textMarkers[ patternName  ] === undefined ) track.markup.textMarkers[ patternName ] = []
-        track.markup.textMarkers[ patternName ][ count ] = marker
+        if( channel.markup.textMarkers[ patternName  ] === undefined ) channel.markup.textMarkers[ patternName ] = []
+        channel.markup.textMarkers[ patternName ][ count ] = marker
        
-        if( track.markup.cssClasses[ patternName ] === undefined ) track.markup.cssClasses[ patternName ] = []
-        track.markup.cssClasses[ patternName ][ count ] = cssClassName 
+        if( channel.markup.cssClasses[ patternName ] === undefined ) channel.markup.cssClasses[ patternName ] = []
+        channel.markup.cssClasses[ patternName ][ count ] = cssClassName 
         
         count++
       }
       
-      let highlighted = null,
+      let highlighted = { className:null, isArray:false },
           cycle = Marker._createBorderCycleFunction( patternName, patternObject )
       
       patternObject.patternType = patternType 
@@ -512,14 +611,41 @@ let Marker = {
         
         className += '_' + patternObject.update.currentIndex 
 
-        if( patternType === 'timings' ) {
-          //console.log( className, highlighted )
-        }
+        if( highlighted.className !== className ) {
 
-        if( highlighted !== className ) {
-          if( highlighted ) { $( highlighted ).remove( 'annotation-border' ) }
-          $( className ).add( 'annotation-border' )
-          highlighted = className
+          // remove any previous annotations for this pattern
+          if( highlighted.className !== null ) {
+            if( highlighted.isArray === false && highlighted.className ) { 
+              $( highlighted.className ).remove( 'annotation-border' ) 
+            }else{
+              $( highlighted.className ).remove( 'annotation-array' )
+              $( highlighted.className + '_start' ).remove( 'annotation-border-left' )
+              $( highlighted.className + '_end' ).remove( 'annotation-border-right' )
+
+              if( $( highlighted.className + '_binop' ).length > 0 ) {
+                $( highlighted.className + '_binop' ).remove( 'annotation-binop-border' )
+              }
+
+            }
+          }
+
+          // add annotation for current pattern element
+          if( Array.isArray( patternObject.values[ patternObject.update.currentIndex ] ) ) {
+            $( className ).add( 'annotation-array' )
+            $( className + '_start' ).add( 'annotation-border-left' )
+            $( className + '_end' ).add( 'annotation-border-right' )
+            highlighted.isArray = true
+          }else{
+            $( className ).add( 'annotation-border' )
+
+            if( $( className + '_binop' ).length > 0 ) {
+              $( className + '_binop' ).add( 'annotation-binop-border' )
+            }
+            highlighted.isArray = false
+          }
+
+          highlighted.className = className
+
           cycle.clear()
         }else{
           cycle()
@@ -527,12 +653,12 @@ let Marker = {
       }
 
       patternObject.clear = () => {
-        if( highlighted ) { $( highlighted ).remove( 'annotation-border' ) }
+        if( highlighted.className !== null ) { $( highlighted.className ).remove( 'annotation-border' ) }
         cycle.clear()
       }
 
       Marker._addPatternFilter( patternObject )
-      patternObject._onchange = () => { Marker._updatePatternContents( patternObject, patternName, track ) }
+      patternObject._onchange = () => { Marker._updatePatternContents( patternObject, patternName, channel ) }
     },
 
     // CallExpression denotes an array (or other object) that calls a method, like .rnd()
@@ -784,6 +910,7 @@ let Marker = {
             
             if( span !== undefined ) {
               span.remove( 'euclid0' )
+              span.remove( 'euclid1' )
             }
             
             let spanName = `.step_${key}_${currentIdx}`,
@@ -792,8 +919,8 @@ let Marker = {
             span = $( spanName )
 
             if( currentValue !== Gibber.Seq.DO_NOT_OUTPUT ) {
-              span.add( 'euclid1' )
-              setTimeout( ()=> { span.remove( 'euclid1' ) }, 50 )
+              //span.add( 'euclid1' )
+              //setTimeout( ()=> { span.remove( 'euclid1' ) }, 50 )
             }
             
             span.add( 'euclid0' )

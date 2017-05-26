@@ -464,14 +464,13 @@ var Marker = {
     widget.style.verticalAlign = 'middle';
     widget.style.height = '1.1em';
     widget.style.width = '60px';
-    widget.style.backgroundColor = '#bbb';
-    widget.style.marginLeft = '.5em';
+    widget.style.backgroundColor = 'transparent';
     widget.style.borderLeft = '1px solid #666';
     widget.style.borderRight = '1px solid #666';
     widget.setAttribute('width', 60);
     widget.setAttribute('height', 13);
-    widget.ctx.fillStyle = '#bbb';
-    widget.ctx.strokeStyle = '#333';
+    widget.ctx.fillStyle = 'rgba(46,50,53,1)';
+    widget.ctx.strokeStyle = '#eee';
     widget.ctx.lineWidth = .5;
     widget.gen = Gibber.Gen.lastConnected;
     widget.values = [];
@@ -505,9 +504,9 @@ var Marker = {
       if ((typeof widget === 'undefined' ? 'undefined' : _typeof(widget)) === 'object' && widget.ctx !== undefined) {
         widget.ctx.fillRect(0, 0, widget.width, widget.height);
         widget.ctx.beginPath();
-        widget.ctx.moveTo(0, widget.height / 2);
+        widget.ctx.moveTo(0, widget.height / 2 + 1);
         for (var i = 0; i < widget.values.length; i++) {
-          widget.ctx.lineTo(i, widget.values[i] * widget.height);
+          widget.ctx.lineTo(i, widget.values[i] * widget.height * .7 + 1);
         }
         widget.ctx.stroke();
       }
@@ -741,9 +740,13 @@ var Marker = {
           border = 'left';break;
       }
 
-      $(className).add('annotation-' + border + '-border');
+      $(className).remove('annotation-' + border + '-border');
+      $(className).add('annotation-' + border + '-border-cycle');
 
-      if (lastBorder) $(className).remove('annotation-' + lastBorder + '-border');
+      if (lastBorder !== null) {
+        $(className).remove('annotation-' + lastBorder + '-border-cycle');
+        $(className).add('annotation-' + lastBorder + '-border');
+      }
 
       lastBorder = border;
       lastClassName = className;
@@ -753,7 +756,17 @@ var Marker = {
 
     cycle.clear = function () {
       modCount = 1;
-      if (lastBorder && lastClassName) $(lastClassName).remove('annotation-' + lastBorder + '-border');
+
+      if (lastClassName !== null) {
+        $(lastClassName).remove('annotation-left-border');
+        $(lastClassName).remove('annotation-left-border-cycle');
+        $(lastClassName).remove('annotation-right-border');
+        $(lastClassName).remove('annotation-right-border-cycle');
+        $(lastClassName).remove('annotation-top-border');
+        $(lastClassName).remove('annotation-top-border-cycle');
+        $(lastClassName).remove('annotation-bottom-border');
+        $(lastClassName).remove('annotation-bottom-border-cycle');
+      }
 
       lastBorder = null;
     };
@@ -819,12 +832,12 @@ var Marker = {
         Marker._updatePatternContents(patternObject, className, track);
       };
     },
-    BinaryExpression: function BinaryExpression(patternNode, containerNode, components, cm, track) {
+    UnaryExpression: function UnaryExpression(patternNode, containerNode, components, cm, channel) {
       var index = arguments.length <= 5 || arguments[5] === undefined ? 0 : arguments[5];
       var patternType = arguments[6];
       var patternObject = arguments[7];
 
-      // TODO: same as literal, refactor?
+      // -1 etc.
       var _Marker$_getNamesAndP3 = Marker._getNamesAndPosition(patternNode, containerNode, components, index, patternType);
 
       var _Marker$_getNamesAndP4 = _slicedToArray(_Marker$_getNamesAndP3, 3);
@@ -834,7 +847,55 @@ var Marker = {
       var end = _Marker$_getNamesAndP4[2];
       var cssName = className + '_0';
       var marker = cm.markText(start, end, {
-        'className': cssName + ' annotation-border',
+        'className': cssName + ' annotation',
+        inclusiveLeft: true,
+        inclusiveRight: true
+      });
+
+      channel.markup.textMarkers[className] = marker;
+
+      if (channel.markup.cssClasses[className] === undefined) channel.markup.cssClasses[className] = [];
+
+      channel.markup.cssClasses[className][index] = cssName;
+
+      var start2 = Object.assign({}, start);
+      start2.ch += 1;
+      var marker2 = cm.markText(start, start2, {
+        'className': cssName + ' annotation-no-right-border',
+        inclusiveLeft: true,
+        inclusiveRight: true
+      });
+
+      var marker3 = cm.markText(start2, end, {
+        'className': cssName + ' annotation-no-left-border',
+        inclusiveLeft: true,
+        inclusiveRight: true
+      });
+
+      Marker._addPatternUpdates(patternObject, className);
+      Marker._addPatternFilter(patternObject);
+
+      patternObject.patternName = className;
+      patternObject._onchange = function () {
+        Marker._updatePatternContents(patternObject, className, channel);
+      };
+    },
+    BinaryExpression: function BinaryExpression(patternNode, containerNode, components, cm, track) {
+      var index = arguments.length <= 5 || arguments[5] === undefined ? 0 : arguments[5];
+      var patternType = arguments[6];
+      var patternObject = arguments[7];
+
+      // TODO: same as literal, refactor?
+      var _Marker$_getNamesAndP5 = Marker._getNamesAndPosition(patternNode, containerNode, components, index, patternType);
+
+      var _Marker$_getNamesAndP6 = _slicedToArray(_Marker$_getNamesAndP5, 3);
+
+      var className = _Marker$_getNamesAndP6[0];
+      var start = _Marker$_getNamesAndP6[1];
+      var end = _Marker$_getNamesAndP6[2];
+      var cssName = className + '_0';
+      var marker = cm.markText(start, end, {
+        'className': cssName + ' annotation annotation-border',
         startStyle: 'annotation-no-right-border',
         endStyle: 'annotation-no-left-border',
         inclusiveLeft: true,
@@ -843,31 +904,38 @@ var Marker = {
 
       track.markup.textMarkers[className] = marker;
 
+      var divStart = Object.assign({}, start);
+      var divEnd = Object.assign({}, end);
+
+      divStart.ch += 1;
+      divEnd.ch -= 1;
+
+      var marker2 = cm.markText(divStart, divEnd, { className: 'annotation-binop-border' });
+
       if (track.markup.cssClasses[className] === undefined) track.markup.cssClasses[className] = [];
       track.markup.cssClasses[className][index] = cssName;
 
-      setTimeout(function () {
-        $('.' + cssName)[1].classList.add('annotation-no-horizontal-border');
-      }, 250);
+      //setTimeout( () => { $( '.' + cssName )[ 1 ].classList.add( 'annotation-no-horizontal-border' ) }, 250 )
 
       patternObject.patternName = className;
 
       Marker._addPatternUpdates(patternObject, className);
       Marker._addPatternFilter(patternObject);
     },
-    ArrayExpression: function ArrayExpression(patternNode, containerNode, components, cm, track) {
+    ArrayExpression: function ArrayExpression(patternNode, containerNode, components, cm, channel) {
       var index = arguments.length <= 5 || arguments[5] === undefined ? 0 : arguments[5];
       var patternType = arguments[6];
       var patternObject = arguments[7];
 
-      var _Marker$_getNamesAndP5 = Marker._getNamesAndPosition(patternNode, containerNode, components, index, patternType);
+      var _Marker$_getNamesAndP7 = Marker._getNamesAndPosition(patternNode, containerNode, components, index, patternType);
 
-      var _Marker$_getNamesAndP6 = _slicedToArray(_Marker$_getNamesAndP5, 3);
+      var _Marker$_getNamesAndP8 = _slicedToArray(_Marker$_getNamesAndP7, 3);
 
-      var patternName = _Marker$_getNamesAndP6[0];
-      var start = _Marker$_getNamesAndP6[1];
-      var end = _Marker$_getNamesAndP6[2];
-      var marker = void 0;
+      var patternName = _Marker$_getNamesAndP8[0];
+      var start = _Marker$_getNamesAndP8[1];
+      var end = _Marker$_getNamesAndP8[2];
+
+
       var count = 0;
 
       var _iteratorNormalCompletion4 = true;
@@ -875,7 +943,7 @@ var Marker = {
       var _iteratorError4 = undefined;
 
       try {
-        var _loop = function _loop() {
+        for (var _iterator4 = patternNode.elements[Symbol.iterator](), _step5; !(_iteratorNormalCompletion4 = (_step5 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
           var element = _step5.value;
 
           var cssClassName = patternName + '_' + count,
@@ -887,28 +955,60 @@ var Marker = {
           elementEnd.ch = element.end + containerNode.horizontalOffset;
 
           if (element.type === 'BinaryExpression') {
-            (function () {
-              marker = cm.markText(elementStart, elementEnd, {
-                'className': cssClassName + ' annotation',
-                startStyle: 'annotation-no-right-border',
-                endStyle: 'annotation-no-left-border',
-                inclusiveLeft: true, inclusiveRight: true
-              });
+            marker = cm.markText(elementStart, elementEnd, {
+              'className': cssClassName + ' annotation',
+              startStyle: 'annotation-no-right-border',
+              endStyle: 'annotation-no-left-border',
+              inclusiveLeft: true, inclusiveRight: true
+            });
 
-              var count = 0;
-              var classAdder = function classAdder() {
-                var element = $('.' + cssClassName)[1];
-                if (element !== undefined) {
-                  element.classList.add('annotation-no-horizontal-border');
-                } else {
-                  if (count++ < 4) {
-                    setTimeout(classAdder, 250);
-                  }
-                }
-              };
+            // create specific border for operator: top, bottom, no sides
+            var divStart = Object.assign({}, elementStart);
+            var divEnd = Object.assign({}, elementEnd);
 
-              setTimeout(classAdder, 250);
-            })();
+            divStart.ch += 1;
+            divEnd.ch -= 1;
+
+            var marker2 = cm.markText(divStart, divEnd, { className: cssClassName + '_binop annotation-binop' });
+          } else if (element.type === 'UnaryExpression') {
+            marker = cm.markText(elementStart, elementEnd, {
+              'className': cssClassName + ' annotation',
+              inclusiveLeft: true,
+              inclusiveRight: true
+            });
+
+            var start2 = Object.assign({}, elementStart);
+            start2.ch += 1;
+            var _marker = cm.markText(elementStart, start2, {
+              'className': cssClassName + ' annotation-no-right-border',
+              inclusiveLeft: true,
+              inclusiveRight: true
+            });
+
+            var marker3 = cm.markText(start2, elementEnd, {
+              'className': cssClassName + ' annotation-no-left-border',
+              inclusiveLeft: true,
+              inclusiveRight: true
+            });
+          } else if (element.type === 'ArrayExpression') {
+            marker = cm.markText(elementStart, elementEnd, {
+              'className': cssClassName + ' annotation',
+              inclusiveLeft: true, inclusiveRight: true,
+              startStyle: 'annotation-left-border-start',
+              endStyle: 'annotation-right-border-end'
+            });
+
+            // mark opening array bracket
+            var arrayStart_start = Object.assign({}, elementStart);
+            var arrayStart_end = Object.assign({}, elementStart);
+            arrayStart_end.ch += 1;
+            cm.markText(arrayStart_start, arrayStart_end, { className: cssClassName + '_start' });
+
+            // mark closing array bracket
+            var arrayEnd_start = Object.assign({}, elementEnd);
+            var arrayEnd_end = Object.assign({}, elementEnd);
+            arrayEnd_start.ch -= 1;
+            cm.markText(arrayEnd_start, arrayEnd_end, { className: cssClassName + '_end' });
           } else {
             marker = cm.markText(elementStart, elementEnd, {
               'className': cssClassName + ' annotation',
@@ -916,17 +1016,13 @@ var Marker = {
             });
           }
 
-          if (track.markup.textMarkers[patternName] === undefined) track.markup.textMarkers[patternName] = [];
-          track.markup.textMarkers[patternName][count] = marker;
+          if (channel.markup.textMarkers[patternName] === undefined) channel.markup.textMarkers[patternName] = [];
+          channel.markup.textMarkers[patternName][count] = marker;
 
-          if (track.markup.cssClasses[patternName] === undefined) track.markup.cssClasses[patternName] = [];
-          track.markup.cssClasses[patternName][count] = cssClassName;
+          if (channel.markup.cssClasses[patternName] === undefined) channel.markup.cssClasses[patternName] = [];
+          channel.markup.cssClasses[patternName][count] = cssClassName;
 
           count++;
-        };
-
-        for (var _iterator4 = patternNode.elements[Symbol.iterator](), _step5; !(_iteratorNormalCompletion4 = (_step5 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
-          _loop();
         }
       } catch (err) {
         _didIteratorError4 = true;
@@ -943,7 +1039,7 @@ var Marker = {
         }
       }
 
-      var highlighted = null,
+      var highlighted = { className: null, isArray: false },
           cycle = Marker._createBorderCycleFunction(patternName, patternObject);
 
       patternObject.patternType = patternType;
@@ -954,16 +1050,40 @@ var Marker = {
 
         className += '_' + patternObject.update.currentIndex;
 
-        if (patternType === 'timings') {
-          //console.log( className, highlighted )
-        }
+        if (highlighted.className !== className) {
 
-        if (highlighted !== className) {
-          if (highlighted) {
-            $(highlighted).remove('annotation-border');
+          // remove any previous annotations for this pattern
+          if (highlighted.className !== null) {
+            if (highlighted.isArray === false && highlighted.className) {
+              $(highlighted.className).remove('annotation-border');
+            } else {
+              $(highlighted.className).remove('annotation-array');
+              $(highlighted.className + '_start').remove('annotation-border-left');
+              $(highlighted.className + '_end').remove('annotation-border-right');
+
+              if ($(highlighted.className + '_binop').length > 0) {
+                $(highlighted.className + '_binop').remove('annotation-binop-border');
+              }
+            }
           }
-          $(className).add('annotation-border');
-          highlighted = className;
+
+          // add annotation for current pattern element
+          if (Array.isArray(patternObject.values[patternObject.update.currentIndex])) {
+            $(className).add('annotation-array');
+            $(className + '_start').add('annotation-border-left');
+            $(className + '_end').add('annotation-border-right');
+            highlighted.isArray = true;
+          } else {
+            $(className).add('annotation-border');
+
+            if ($(className + '_binop').length > 0) {
+              $(className + '_binop').add('annotation-binop-border');
+            }
+            highlighted.isArray = false;
+          }
+
+          highlighted.className = className;
+
           cycle.clear();
         } else {
           cycle();
@@ -971,15 +1091,15 @@ var Marker = {
       };
 
       patternObject.clear = function () {
-        if (highlighted) {
-          $(highlighted).remove('annotation-border');
+        if (highlighted.className !== null) {
+          $(highlighted.className).remove('annotation-border');
         }
         cycle.clear();
       };
 
       Marker._addPatternFilter(patternObject);
       patternObject._onchange = function () {
-        Marker._updatePatternContents(patternObject, patternName, track);
+        Marker._updatePatternContents(patternObject, patternName, channel);
       };
     },
 
@@ -1009,13 +1129,13 @@ var Marker = {
       var patternObject = arguments[7];
 
       // mark up anonymous functions with comments here... 
-      var _Marker$_getNamesAndP7 = Marker._getNamesAndPosition(patternNode, containerNode, components, index, patternType);
+      var _Marker$_getNamesAndP9 = Marker._getNamesAndPosition(patternNode, containerNode, components, index, patternType);
 
-      var _Marker$_getNamesAndP8 = _slicedToArray(_Marker$_getNamesAndP7, 3);
+      var _Marker$_getNamesAndP10 = _slicedToArray(_Marker$_getNamesAndP9, 3);
 
-      var className = _Marker$_getNamesAndP8[0];
-      var start = _Marker$_getNamesAndP8[1];
-      var end = _Marker$_getNamesAndP8[2];
+      var className = _Marker$_getNamesAndP10[0];
+      var start = _Marker$_getNamesAndP10[1];
+      var end = _Marker$_getNamesAndP10[2];
       var commentStart = end;
       var commentEnd = {};
       var marker = null;
@@ -1224,7 +1344,7 @@ var Marker = {
         }
       };
 
-      var _loop2 = function _loop2(key) {
+      var _loop = function _loop(key) {
         var step = steps[key].value;
 
         if (step && step.value) {
@@ -1253,6 +1373,7 @@ var Marker = {
 
               if (span !== undefined) {
                 span.remove('euclid0');
+                span.remove('euclid1');
               }
 
               var spanName = '.step_' + key + '_' + currentIdx,
@@ -1261,10 +1382,8 @@ var Marker = {
               span = $(spanName);
 
               if (currentValue !== Gibber.Seq.DO_NOT_OUTPUT) {
-                span.add('euclid1');
-                setTimeout(function () {
-                  span.remove('euclid1');
-                }, 50);
+                //span.add( 'euclid1' )
+                //setTimeout( ()=> { span.remove( 'euclid1' ) }, 50 )
               }
 
               span.add('euclid0');
@@ -1287,7 +1406,7 @@ var Marker = {
       };
 
       for (var key in steps) {
-        _loop2(key);
+        _loop(key);
       }
     }
   },
@@ -2659,9 +2778,15 @@ var Gibber = {
       for (var key in Gibber.currentTrack.markup.textMarkers) {
         var marker = Gibber.currentTrack.markup.textMarkers[key];
 
-        if (marker.clear) marker.clear();
+        if (Array.isArray(marker)) {
+          marker.forEach(function (m) {
+            return m.clear();
+          });
+        } else {
+          if (marker.clear) marker.clear();
+        }
       }
-    }, 500);
+    }, 250);
 
     Gibber.Gen.clear();
     Gibber.Environment.codeMarkup.clear();
@@ -3804,7 +3929,7 @@ module.exports = function (Gibber) {
     },
     tick: function tick(scheduler, beat, beatOffset) {
       if (!this.isPaused) {
-        if (this.phase >= this.nextTime && this.index < this.timeline.length) {
+        if (this.index < this.timeline.length) {
 
           var fnc = this.timeline[this.index],
               shouldExecute = true;

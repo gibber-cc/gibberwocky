@@ -106,7 +106,7 @@ let Score = {
 
   tick( scheduler, beat, beatOffset ) {
     if( !this.isPaused ) {
-      if( this.phase >= this.nextTime && this.index < this.timeline.length ) {
+      if( this.index < this.timeline.length ) {
         
         let fnc = this.timeline[ this.index ],
             shouldExecute = true

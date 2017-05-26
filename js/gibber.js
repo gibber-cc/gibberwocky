@@ -100,12 +100,16 @@ let Gibber = {
     }
     
     setTimeout( () => {
-    for( let key in Gibber.currentTrack.markup.textMarkers ) {
-      let marker = Gibber.currentTrack.markup.textMarkers[ key ]
+      for( let key in Gibber.currentTrack.markup.textMarkers ) {
+        let marker = Gibber.currentTrack.markup.textMarkers[ key ]
 
-      if( marker.clear ) marker.clear() 
-    }
-    }, 500 )
+        if( Array.isArray( marker ) ) {
+          marker.forEach( m => m.clear() )
+        }else{
+          if( marker.clear ) marker.clear() 
+        }
+        }
+    }, 250 )
 
     Gibber.Gen.clear()
     Gibber.Environment.codeMarkup.clear()
