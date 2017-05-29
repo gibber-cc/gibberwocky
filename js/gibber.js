@@ -142,7 +142,8 @@ let Gibber = {
       seq.delay( delay )
       seq.start()
 
-      Gibber.Communication.send( `select_track ${obj.id}` )
+      // avoid this for gibber objects that don't communicate with Live such as Scale
+      if( obj.id !== undefined ) Gibber.Communication.send( `select_track ${obj.id}` )
 
       return seq
     }
