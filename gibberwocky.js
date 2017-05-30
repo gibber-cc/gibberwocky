@@ -18,6 +18,10 @@ var state = {
 	ply: 0,
 };
 
+function set_timing(k, v) {
+	state[k] = v;
+}
+
 function get_param_api(path) {
 	var api = new LiveAPI(path);
 	
