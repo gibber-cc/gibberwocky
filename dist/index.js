@@ -783,9 +783,8 @@ var Marker = {
   },
   _addPatternFilter: function _addPatternFilter(patternObject) {
     patternObject.filters.push(function (args) {
-      var wait = Utility.beatsToMs(patternObject.nextTime + .5, Gibber.Scheduler.bpm); // TODO: should .25 be a variable representing advance amount?
-
-      var idx = args[2],
+      var wait = Utility.beatsToMs(patternObject.nextTime + .5, Gibber.Scheduler.bpm),
+          idx = args[2],
           shouldUpdate = patternObject.update.shouldUpdate;
 
       Gibber.Environment.animationScheduler.add(function () {
@@ -1382,8 +1381,10 @@ var Marker = {
               span = $(spanName);
 
               if (currentValue !== Gibber.Seq.DO_NOT_OUTPUT) {
-                //span.add( 'euclid1' )
-                //setTimeout( ()=> { span.remove( 'euclid1' ) }, 50 )
+                span.add('euclid1');
+                setTimeout(function () {
+                  span.remove('euclid1');
+                }, 50);
               }
 
               span.add('euclid0');
@@ -2986,6 +2987,7 @@ module.exports = function (Gibber) {
       Live.id = Communication.querystring.track;
 
       Live.LOM = msg;
+      console.log(msg);
 
       Live.processLOM();
     },

@@ -14,6 +14,7 @@ let Live = {
     Live.id = Communication.querystring.track
 
     Live.LOM = msg
+    console.log( msg )
 
     Live.processLOM()
   },
