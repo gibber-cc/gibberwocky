@@ -18,6 +18,10 @@ var state = {
 	ply: 0,
 };
 
+function set_timing(k, v) {
+	state[k] = v;
+}
+
 function get_param_api(path) {
 	var api = new LiveAPI(path);
 	
@@ -140,6 +144,9 @@ function bang() {
 	
 	// get entire API...
 	var api = new LiveAPI("live_set");
+	if (api.path == undefined) {
+		post("not in M4L\n");
+	}
 	
 	var tree = {};
 	for (var k in state) {
