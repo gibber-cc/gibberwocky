@@ -39,6 +39,8 @@ let Live = {
     window.master  = Live.master
     window.returns = Live.returns
 
+    Gibber.Scheduler.bpm = Live.LOM.bpm
+
     Gibber.Environment.lomView.init( Gibber )
   },
 

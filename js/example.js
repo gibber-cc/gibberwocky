@@ -1,205 +1,362 @@
 const Examples = {
-  default : `// ctrl+enter to execute line or selection
-// make sure the transport in Ableton is running before 
-// attemptingto execute any code.
+  introduction:`/* gibberwocky.live - introduction
+ * 
+ * This introduction assumes that you have the gibberwocky.demo.als
+ * project open and running in Live. If not, it's easy to make your own
+ * version; just place an instance of the gibberwocky_master plugin on 
+ * Live's master track, and an instance of the gibberwocky_midi plugin
+ * on any track you'd like to control with gibberwokcy.
+ *
+ * To execute any line of code, hit Ctrl+Enter. 
+ * To stop all running sequences, hit Ctrl+. (period), or execute clear() 
+ * (Ctrl+. doesn't work on some non-US keyboards).
+ *
+ * Make sure Live's transport is running (hit play). When you've played
+ * around with this demo, start working your way through the tutorials
+ * listed in the 'demos' tab in the sidebar.
+ */
 
-// pick a track to target with an instrument on it
-// subsitute another number for 0 as needed
-track = tracks[0]
+// start kick drum using impulse (preset 606) on tracks[0]
+tracks[0].midinote.seq( 60, Euclid(5,8) )
 
-// play a note identified by name
-track.note( 'c4' ) // ... or d4, fb2, e#5 etc.
+// randomly pick between open and closed hi-hats
+// and eighth notes vs. 1/16th notes. If 1/16th
+// notes are played, always play two back to back.
+tracks[0].midinote.seq( [64,65].rnd(), [1/8,1/16].rnd(1/16,2), 1 )
 
-// play a note identified by number. The number represents a
-// position in the master scale object. By default the master
-// scale is set to c4 Aeolian
+// play a scintillating bass line
+tracks[1].note.seq( [-14,-12,-9,-8], 1/8 )
 
-track.note( 0 )
+// play chords with piano sound
+tracks[2].chord.seq( Rndi(0,8,3), 2 )
 
-// Change master scale root
-Scale.master.root( 'eb4' )
-track.note( 0 )
+// control bass filter cutoff
+tracks[1].devices[0]['Filter Freq']( mul( beats(2), .75 ) )   
 
-// sequence calls to the note method every 1/16 note
-// traveling up the current master scale. An optional
-// third argument assigns an id# to the sequencer; by
-// default this id is set to 0 if no argument is passed.
-// Assigning sequences to different id numbers allows them
-// to run in parallel.
-track.note.seq( [0,1,2,3,4,5,6,7], 1/16 )
+// control panning of piano
+tracks[2].pan( lfo( .15 ) ) 
 
-// sequence velocity to use random values between 10-127 (midi range)
-track.velocity.seq( Rndi( 10,127 ), 1/16 )
+// control time parameter of impulse
+tracks[0].devices[0]['Global Time']( beats(8.33) ) 
 
-// sequence duration of notes in milliseconds
-track.duration.seq( [ 50, 250, 500 ].rnd(), 1/16 )
+// control transpostion of impulse with an lfo
+// increasing in frequency over 8.66 beats
+tracks[0].devices[0]['Global Transpose']( lfo( beats(8.66) ) )    
+`,
 
-// sequence the master scale to change root every measure
-Scale.root.seq( ['c4','d4','f4','g4'], 1 )
+['tutorial 1: basic messaging']:
 
-// sequence the master scale to change mode every measure
-Scale.mode.seq( ['aeolian','lydian', 'wholeHalf'], 1 )
+`/*
+ * gibberwocky.max - tutorial #1: basic messaging
+ *
+ * This first intro will explain how to execute code, send
+ * MIDI note messages, sequence arbitrary messages, and 
+ * control UI objects.
+ *
+ * To start, makesure you open the gibberwocky object help patch
+ * in Max and ahve the Max console open as well.
+*/
 
-// stop the sequence with id# 0 from running
-track.note[ 0 ].stop()
+// Messaging in gibberwocky.max can be done in two ways. First, 
+// we can send messages out the first outlet of the gibberwocky.max
+// object. To do this, we specify 'namespaces' where each
+// namespace represents the first part of messages that are sent. Thus,
+// you could create namespaces for individual instruments, or Max objects,
+// or any other routing scheme you can come up with.
 
-// stop scale sequencing
-Scale.mode[ 0 ].stop()
-Scale.root[ 0 ].stop()
+// Let's start by sending the following message 'synth1 1'. Connect the left
+// most outlet of the gibberwocky object in Max to a print object, and then
+// run the following three lines code and look at the console in Max:
+synth1 = namespace('synth1') 
+synth1( 1 )
+synth1( 'test' )
 
-// set scale mode
-Scale.mode( 'Lydian' )
-Scale.root( 'c3' )
+// You can add an extra prefix to your message by appending a property:
+synth1.gollygee( 'willickers?' )
 
-// Create an arpegctor by passing notes of a chord, 
-// number of octaves to play, and style. Possible styles 
-// include 'up', 'down', 'updown' (repeat top and bottom 
-// notes) and 'updown2'
-a = Arp( [0,2,3,5], 4, 'updown2' )
+// You can define arbitrary paths this way:
+synth1.a.b.c.d.e.f.g.h( 'i?' )
 
-// create sequencer using arpeggiator and 1/16 notes
-track.note.seq( a, 1/16 )
+// If you use [route], [routepass], or [sel] objects in Max/MSP you can easily direct 
+// messages to a variety of destinations in this fashion. These namespaces will appear
+// in the 'scene' tab of the browser reference; click on anyone to automatically insert
+// the appropriate path into the code editor at the current cursor position. For example,
+// using the gibberwocky help patcher both 'squelch' and 'bell' appear as targets as
+// they are connected to a [sel] that is in turn connected to the leftmost gibberwocky
+// outlet.
 
-// transpose the notes in our arpeggio by one scale degree
-a.transpose( 1 )
+// gibberwocky can also easily target Max for Live devices embedded in Max
+// patches. In the patcher for this tutorial there's an included Laverne
+// instrument. If you click on the 'scene' tab of the gibberwocky sidebar, 
+// you'll see a tree browser with a 'devices' branch. Open that branch to see all 
+// Max for Live devices available in your patch. Now click on the branch for the device
+// you want to send a midinote message to. The associated object path is automatically 
+// inserted into your code editor at the current cursor position. Add a call to midinote to the end of this
+// code snippet; it should look similar to the following:
 
-// sequence transposition of one scale degree every measure
-a.transpose.seq( 1,1 )
+devices['bass'].midinote( 60 ) // send middle C
 
-// reset the arpeggiator every 8 measures 
-// (removes transposition)
-a.reset.seq( 1, 8 )
+// Now uncollapse the branch for your device in the scene browser. This lists
+// all the parameters exposed for control on the Max for Live device. Click on any
+// leaf to insert the full path to the control into your code editor. Here's the 
+// 'res' parameter controlling the resonance of the filter on the bassline instrument.
 
-// stop sequence
-track.note[ 0 ].stop()
+devices['bass']['res']
 
-// creates sequencer at this.note[1] (0 is default)
-track.note.seq( [0,1,2,3], [1/4,1/8], 1 )
+// This points to a function; we can pass this function a value to manipulate the
+// control.
 
-// parallel sequence at this.note[2] with 
-// random note selection  (2 is last arg)
-track.note.seq( [5,6,7,8].rnd(), 1/4, 2 )
+devices['bass']['res']( 100 )
 
-// Every sequence contains two Pattern functions. 
-// The first, 'values',determines the output of the 
-// sequencer. The second, 'timings', determines when the 
-// sequencer fires.
+devices['bass'].note( 'eb4' )
 
-// sequence transposition of this.note[2]
-track.note[ 2 ].values.transpose.seq( [1,2,3,-6], 1 )
+// If you've used gibberwocky.live before, it's important to note that these controls
+// do not default to a range of {0,1}. Many of the controls on bassline default to the 
+// standard MIDI range of {0,127}.
 
-// stop this.note[1]
-track.note[ 1 ].stop()
+// OK, that's some basics out of the way. Try the sequencing tutorial next!`,
 
-// start this.note[0]
-track.note[ 1 ].start()`,
+[ 'tutorial 2: basic sequencing' ]: `/* gibberwocky.max - tutorial #2: basic sequencing
+ *
+ * This tutorial will provide an introdution to sequencing messages in gibberwocky. In
+ * order for sequencing in gibberwocky.max to work, you must start the Global Transport
+ * running in Max/MSP. In the gibberwocky help patcher there's
+ * a link to open the Global Transport. Make sure you've opened this patcher to complete
+ * this tutorial, as we'll be using the included Bassline instrument.
+ */
 
-['sequencing parameter changes']: `/* Almost every parameter in Ableton can be sequenced and controlled
-using gibberwocky. Because there are hundreds (and often thousands) of paramters exposed
-for control in any given Live set, gibberwocky provides a more organized way to search
-them. In the gibberwocky interface, go to the sidebar and click on the 'lom' tab. 
-LOM is short for 'Live Object Model', and this tab will show you a tree graph 
-representation of all the tracks / devices / parameters that are exposed
-for control in Live. Click on any of the small triangles next to the tracks / devices to
-expand or collapse the view for a particular node in the treeview graph.
+// In tutorial #1, we saw how we could send MIDI messages to specific MIDI
+// channel objects. We can easily sequence any of these methods by adding
+// a call to .seq(). For example:
 
-Explore the tree graph a little bit. When you find a parameter that you'd like to control, click on
-it in the treeview and then drag it into gibberwocky's code editor. This will copy and paste the
-path to the particular parameter you selected for control into the editor, making it easy to start
-sequencing. Unfortunately, it's tricky to enter these paths without usign the treeview (at least at
-first), but this is because a typical Ableton session has hundreds and hundreds (if not thousands) of
-parameters exposed for control.
+// send noteon message with a first value of 36
+devices['bass'].midinote( 36 )
 
-Let's say you had an Impulse using the 606 preset on Track 1, and you dragged the 'Global Time'
-parameter into the window. You should see something like the following:*/
+// send same value every quarter note
+devices['bass'].midinote.seq( 36, 1/4 )
 
-tracks['1-Impulse 606'].devices['Impulse']['Global Time']
+// You can stop all sequences in gibberwocky with the Ctrl+. keyboard shortcut
+// (Ctrl + period). You can also stop all sequences on a specific channel:
 
-/*That string of code actually points to a function. If we pass it a value between 0-1, we can 
-change the value of the time parameter in our Impulse:*/
+devices['bass'].stop()
 
-tracks['1-Impulse 606'].devices['Impulse']['Global Time']( .15 ) // low value
-tracks['1-Impulse 606'].devices['Impulse']['Global Time']( .95 ) // high value
+// Most sequences in gibberwocky contain values (60) and timings (1/4). To
+// sequence multiple values we simply pass an array:
 
-/* After running either of the above two lines of code (by placing your cursor on it and hitting
-ctrl+enter) you should see the time value change in your Impulse. Great! Now we can control it
-with sequencing as well, using syntax almost identical to what you have previously
-explored to sequence note, velocity, and duration messages (at least what you've hopefully
-explored... if not, check out the corresponding demos). Below is a line of code that
-incremenets the time parameter by .25 every 1/2 note... it loops back to 0 after reaching 1.*/
+devices['bass'].midinote.seq( [60,72,48], 1/4 )
 
-tracks['1-Impulse 606'].devices['Impulse']['Global Time'].seq( [0, .25, .5, .75, 1], 1/2 )
+// ... and we can do the same thing with multiple timings:
 
-// We can do the same pattern transforms on our values that we can do with note/veloctiy/duration 
-// sequences. We can also sequence randomly:
+devices['bass'].midinote.seq( [60,72,48], [1/4,1/8] )
 
-tracks['1-Impulse 606'].devices['Impulse']['Global Time'].seq( Rndf(), 1/16 )
+// We can also sequence our note velocities and durations.
+devices['bass'].midinote.seq( 60, 1/2 )
+devices['bass'].velocity.seq( [16, 64, 127], 1/2 )
+devices['bass'].duration.seq( [10, 100,500], 1/2 )
 
-/* Equally as powerful as sequencing is modulating these parameters using gen~ expressions. See
-the corresponding tutorial for more details about this.*/ `,
+// If you experimented with running multiple variations of the midinote 
+// sequences you might have noticed that only one runs at a time. For example,
+// if you run these two lines:
 
-['modulating with gen~'] : `/* gen~ is an extension for Max4Live for synthesizing audio/video signals.
-In gibberwocky, we can use gen~ to create complex modulation systems that run at audio rate
-and with a much higher resolution than MIDI; there are 4294967296 possible values for gen~
-signals vs 127 for MIDI. This is a huge improvement, especially for controlling frequencies and
-other parameters that provide large sweeps of range. In the context of gibberwocky, think of
-gen~ graphs as analog(ish) modular patchbays that you can use to control almost any parameter in Live.
+devices['bass'].midinote.seq( 72, 1/4 )
+devices['bass'].midinote.seq( 48, 1/4 )
 
-As we saw in the paramter sequencing tutorial (look at that now if you haven't yet, or you'll be a
-bit lost here), most ugens from gen~ are available for scripting in gibberwocky. In the gibberwocky interface,
-go to the sidebar, click on the 'lom' tab, and drag a parameter into the editor that you'd like to
-modulate. For purposes of this tutorial, we'll assume we're modulating the same parameter from the
-parameter sequencing tutorial: the Global Time of an Impulse device on the first track in the Live set.
+// ...you'll notice only the second one actually triggers. By default, gibberwocky
+// will replace an existing sequence with a new one. To stop this, you can pass an ID number 
+// as a third argument to calls to .seq(). In the examples of sequencing we've seen so far,
+// no ID has been given, which means gibberwocky is assuming a default ID of 0 for each
+// sequence. When you launch a sequence on a channel that has the same ID as another running 
+// sequence, the older sequence is stopped. If the sequences have different IDs they run 
+// concurrently. Note this makes it really easy to create polyrhythms.
 
-Perhaps the most basic modulation is a simple ramp. Remember that all Live parameters accepts values
-between {0,1}; this happens to be what the phasor() ugen outputs at a argument frequency. For example,
-to fade our Global Time parameter from its minimum to its maximum value once every second we would use:*/
+devices['bass'].midinote.seq( 48, 1 ) // assumes ID of 0
+devices['bass'].midinote.seq( 60, 1/2, 1 ) 
+devices['bass'].midinote.seq( 72, 1/3, 2 ) 
+devices['bass'].midinote.seq( 84, 1/7, 3 ) 
 
-tracks['1-Impulse 606'].devices['Impulse']['Global Time']( phasor( 1 ) )
+// We can also sequence calls to midichord. You might remember from the first tutorial
+// that we pass midichord an array of values, where each value represents one note. This
+// means we need to pass an array of arrays in order to move between different chords.
 
-/* Execute the above line to see it in action. A related ugen is beat(), which creates a ramp over an
-argument number of beats, making it easy to create tempo-synced modulation graphs. If we wanted to scale 
-our phasor() from {.25,.75} we would use slightly more complex graph:*/
+devices['bass'].midichord.seq( [[60,64,68], [62,66,72]], 1/2 )
 
-tracks['1-Impulse 606'].devices['Impulse']['Global Time']( 
-  add( 
-    .25,
-    div( phasor( 1 ), 2 )
-  )
-)
+// Even we're only sequencing a single chord, we still need to pass a 2D array. Of course,
+// specifying arrays of MIDI values is not necessarily an optimal representation for chords.
+// Move on to tutorial #3 to learn more about how to leverage music theory in gibberwocky.`,
 
-/* The above graph divides our phasor in half, giving us a signal between {0,.5}, and then adds .25 to
-this to give us our final signal. Another common ugen used for modulation is the sine oscillator; in
-gen~ this is the cycle() ugen. The cycle() accepts one parameter, the frequency that it operates at.
-So we can do the following:*/
+['tutorial 3: harmony'] :`/* gibberwocky.max - tutorial #3: Harmony
+ *
+ * This tutorial covers the basics of using harmony in gibberwocky.midi. It assumes you
+ * know the basics of sequencing (tutorial #2) and have an appropriate MIDI output setup.
+ * It also assumes you have the gibberwocky help patch open and the transport running.
+ *
+ * In the previous tutorials we looked at using raw MIDI values to send messages. However,
+ * using MIDI note numbers is not an ideal representation. gibberwocky includes knoweldge of
+ * scales, chords, and note names to make musical sequencing easier and more flexible. In this
+ * tutorial, instead of using channel.midinote() and channel.midichord() we'll be using 
+ * channel.note() and channel.chord(). These methods use gibberwocky's theory objects to
+ * determine what MIDI notes are eventually outputted.
+ */
 
-tracks['1-Impulse 606'].devices['Impulse']['Global Time']( cycle( .5 ) )
+// In our previous tutorial, we sent out C in the fourth octave by using MIDI number 60:
+devices['bass'].midinote( 60 )
 
-/* However, you'll notice that there's a problem if you run the above line of code: the parameter
-spends half of each oscillation at its minimum value. This is because cycle() returns a value between
-{-1,1} instead of {0,1}, and whenever a value travels below 0 it is clamped. So, in order to use
-cycle() we need to scale and offset its output the same way we did with our phasor() example:*/
+// We can also specify notes with calls to the note() method by passing a name and octave.
+devices['bass'].note( 'c4' )
+devices['bass'].note( 'fb3' )
 
-tracks['1-Impulse 606'].devices['Impulse']['Global Time'](  
-  add(
-    .5,  
-    div( cycle( .5 ), 2 )
-  )
-)
+devices['bass'].note.seq( ['c4','e4','g4'], 1/8 )
 
-/* The above example will oscillate between {0,1} with .5 being the center point. Creating these
-scalars and offsets is tedious enough that gibberwocky provides a lfo() ugen to take care of this
-for you; this ugen is not found in the standard gen~ library (although, as we've seen above, it's
-simple enough to make). lfo() accepts three parameters: frequency, amplitude, and center. For example,
-to create a lfo that moves between {.6, .8} at 2Hz we would use:*/
+// remember, Ctrl+. stops all running sequences.
 
-mylfo = lfo( 2, .1, .7 )
+// In gibberwocky, the default scale employed is C minor, starting in the fourth octave. 
+// This means that if we pass 0 as a value to note(), C4 will also be played.
+devices['bass'].note( 0 )
 
-// We can also easily sequence parameters of our LFO:
+// sequence C minor scale, starting in the fourth octave:
+devices['bass'].note.seq( [0,1,2,3,4,5,6,7], 1/8 )
+
+// negative scale indices also work:
+devices['bass'].note.seq( [-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7], 1/8 )
+
+// there is a global Scale object we can use to change the root and mode
+// for all scales. Run the lines below individually  with the previous note sequence running.
+Scale.root( 'd4' )
+Scale.mode( 'lydian' )
+
+Scale.root( 'c4' )
+Scale.mode( 'phrygian' )
+
+// We can also sequence changes to the root / mode:
+Scale.root.seq( ['c2','d2','f2','g2'], 2 )
+Scale.mode.seq( ['lydian', 'ionian', 'locrian'], 2 )
+
+// stop the scale sequencing
+Scale.root[0].stop()
+Scale.mode[0].stop()
+Scale.root( 'c4' )
+
+// We can also define our own scales using chromatic scale indices. Unfortunately, 
+// microtuning with MIDI is very diffcult, so only the standard eleven notes of 
+// Western harmony are supported. Scales can have arbtrary numbers of notes.
+Scale.modes[ 'my mode' ] = [ 0,1,2,3,5,6,10 ]
+Scale.mode( 'my mode' )
+
+Scale.modes[ 'another mode' ] = [0,1]
+Scale.mode( 'another mode' )
+
+Scale.mode.seq( ['my mode', 'another mode'], 4 )
+
+/******** chords **********/
+// Last but not least there are a few different ways to specify chords in gibberwocky.
+// First, clear the current scene using Ctrl+.
+
+// change the release time, scale mode, and root
+devices['bass'].release( 75 )
+
+// We can use note names:
+devices['bass'].chord( ['c4','eb4','gb4','a4'] )
+
+// Or we can use scale indices:
+devices['bass'].chord( [0,2,4,5] )
+
+// sequence in two-dimensional array
+devices['bass'].chord.seq( [[0,2,4,5], [1,3,4,6]], 1 )
+
+// We can also use strings that identify common chord names.
+devices['bass'].chord( 'c4maj7' )
+devices['bass'].chord( 'c#4sus7b9' )
+
+
+devices['bass'].chord.seq( ['c4dim7', 'bb3maj7', 'fb3aug7'], 1 )
+
+// OK, that's harmony in a nutshell. Next learn a bit about patterns and
+// pattern manipulation in gibberwocky in tutorial #4.`,
+
+['tutorial 4: patterns and pattern transformations']:`/* gibberwocky.max - tutorial #4: Patterns and Transformations
+ *
+ * This tutorial covers the basics of using patterns in gibberwocky.max. It assumes you
+ * know the basics of sequencing (tutorial #2), have the the gibberwocky help patch
+ * loaded, and the Global Transport running.
+ *
+ * In tutorial #2 we briefly mentioned that sequences consist of values and timings. These
+ * are both stored in Pattern objects in gibberwocky, and these patterns can be controlled
+ * and manipulated in a variety of ways over time.
+ */
+   
+// Make sure the console is open in your sidebar to see the calls to Gibber.log()
+// Create a Pattern with some initial values.
+myvalues = Pattern( 60,62,64,65 )
+
+Gibber.log( myvalues() ) // 60
+Gibber.log( myvalues() ) // 62
+Gibber.log( myvalues() ) // 64
+Gibber.log( myvalues() ) // 65
+Gibber.log( myvalues() ) // back to 60...
+
+// sequence using this pattern:
+devices['bass'].midinote.seq( myvalues, 1/8 )
+
+// Everytime we pass values and timings to .seq(), it converts these into Pattern objects
+// (unless we're already passing a Pattern object(s)). Remember from tutorial #2 that
+// all of our sequences have an ID number, which defaults to 0. We can access these patterns
+// as follows:
+
+devices['bass'].midinote.seq( [62,74,38,50], [1/2,1/4] )
+Gibber.log( devices['bass'].midinote[0].values.toString() ) 
+Gibber.log( devices['bass'].midinote[0].timings.toString() ) 
+
+// Now that we can access them, we can apply transformations:
+
+devices['bass'].midinote[0].values.reverse()
+devices['bass'].midinote[0].values.transpose( 1 ) // add 1 to each value
+devices['bass'].midinote[0].values.scale( 1.5 )    // scale each value by .5
+devices['bass'].midinote[0].values.rotate( 1 )    // shift values to the right
+devices['bass'].midinote[0].values.rotate( -1 )   // shift values to the left
+devices['bass'].midinote[0].values.reset()        // reset to initial values
+
+// We can sequence these transformations:
+devices['bass'].midinote[0].values.rotate.seq( 1,1 )
+devices['bass'].midinote[0].values.reverse.seq( 1, 2 )
+devices['bass'].midinote[0].values.transpose.seq( 1, 2 )
+devices['bass'].midinote[0].values.reset.seq( 1, 8 )
+
+// This enables us to quickly create variation over time. One more tutorial to go!
+// Learn more about creating synthesis graphs for modulation in tutorial #5.`,
+ 
+['tutorial 5: modulating with gen~'] :
+ `/* Gen is an extension for Max for Live for synthesizing audio/video signals.
+LFOs, ramps, stochastic signals... Gen can create a wide variety of modulation sources for
+exploration.
+
+We've seen that the first outlet of gibberwocky is used for messaging. The remaining outlets
+are used for signals created by Gen objects. You can determine the number of outlets
+using the @signals property; for example, [gibberwocky @signals 4], as seen in the gibberwocky
+help patch, has four outputs for audio signals in addtion to its messaging output (for a total
+of 5).
+*/
+
+// Let's experiment! Create a [gibberwocky @signals 1] object and connect the rightmost outlet
+// to a [scope~]. We can send a simple ramp as follows:
+signals[0]( phasor(1) )
+
+// This creates a sawtooth wave with a range of {0,1}. We can also do sine waves:
+signals[0]( cycle(1) )
+
+// Note that the cycle ugen generates a full bandwidth audio signal with a range of {-1,1}
+// Often times we want to specify a center point (bias) for our sine oscillator, in addition to 
+// a specific amplitude and frequency. The lfo() function provides a simpler syntax for doing this:
+
+// frequency, amplitude, bias
+mylfo = lfo( 2, .2, .7 )
+
+signals[0]( mylfo )
+
+// We can also easily sequence parameters of our LFO XXX CURRENTLY BROKEN:
 
 mylfo.frequency.seq( [ .5,1,2,4 ], 2 )
 
-/* ... as well as sequence any other parameter in Live controlled by a gen~ graph. Although the lfo()
+/* ... as well as sequence any other parameter in Live controlled by a genish.js graph. Although the lfo()
 ugen provides named properties for controlling frequency, amplitude, and centroid, there is a more
 generic way to sequence any aspect of a gen~ ugen by using the index operator ( [] ). For example,
 cycle() contains a single inlet that controls its frequency, to sequence it we would use: */
@@ -208,42 +365,267 @@ mycycle = cycle( .25 )
 
 mycycle[ 0 ].seq( [ .25, 1, 2 ], 1 )
 
-tracks['1-Impulse 606'].devices['Impulse']['Global Time']( add( .5, div( mycycle, 2 ) ) )
+signals[0]( add( .5, div( mycycle, 2 ) ) )
 
-/*For other ugens that have more than one argument (see the gen~ random tutorial for an example) we
-simply indicate the appropriate index... for example, mysah[ 1 ] etc.*/`,
+/*For other ugens that have more than one argument (see the genish.js random tutorial for an example) we
+simply indicate the appropriate index... for example, mysah[ 1 ] etc. For documentation on the types of
+ugens that are available, see the gen~ reference: https://docs.cycling74.com/max7/vignettes/gen~_operators*/`, 
 
-[ 'using the Score() object' ]  : `// Scores are lists of functions with associated
+['tutorial 6: randomness']:
+`/* gibberwocky.max - tutorial #6: Randomness
+ *
+ * This tutorial covers the basics of using randomness in gibberwocky.max. 
+ * It assumes you've done all the other tutorials (#4 might be OK to have skipped),
+ * have the gibberwocky help patch loaded, DSP turned on in Max and the global
+ * transport rnning.
+ *
+ * Randomness in gibberwocky can be used to both create random values for sequencing 
+ * as well as stochastic signals for modulation purposes.
+ */
+   
+// rndf() and rndi() are used to generate a single random float or integer
+// make sure you have the console tab in the gibberwocky sidebar
+log( rndf() ) // outputs floats between 0-1
+log( rndi() ) // outputs either 0 or 1
+
+// although 0 and 1 are the default min/max values, we can pass
+// arbitrary bounds:
+
+log( rndf(-1,1) )
+log( rndi(0,127) )
+
+// if we pass a third value, we can create multiple random numbers at once,
+// returned as an array.
+
+log( rndf( 0,1,4 ) )
+log( rndi( 0,127,3 ) )
+
+// so, if we wanted to sequence a random midinote to the 'bass' device
+// in the gibberwocky help patcher, we could sequence a function as follows:
+
+devices['bass'].midinote.seq( ()=> rndi(0,127), 1/8 )
+
+// Whenever gibberwocky sees a function in a sequence, it calls that function
+// to generate a value or a timing. In practice this is common enough with
+// random numbers that gibberwocky has a shortcut for creating functions
+// that return a random value(s) in a particular range.
+// Simply capitalize the call to rndi or rndf (to Rndi / Rndf ).
+
+clear() // clear previous sequence
+devices['bass'].note.seq( Rndi(-14,-7), 1/8 )
+
+// And chords:
+clear()
+devices['bass'].chord.seq( Rndi(14,21,3), 1/8 )
+
+// In addition to creating functions outputting random numbers, we can
+// also randomly pick from the arrays used to initialize patterns.
+
+// randomly play open or closed hi-hat every 1/16th note
+devices['drums'].midinote.seq( [42,46].rnd(), 1/16 )
+
+// For timings, it's often important to ensure that patterns eventually align
+// themselves with a beat grid. For example, if we randomly choose a single 1/16th 
+// note timing, then every subsequent note played will be offset from a 1/8th note
+// grid until a second 1/16th note is chosen. We can ensure that particular values
+// are repeated whenever they are selected to help with this problem.
+
+// play constant kick drum to hear how bass aligns with 1/4 grid
+devices['drums'].midinote.seq( 36, 1/4 )
+
+// whenever a 1/16th timing is used, use it twice in a row
+devices['bass'].note.seq( -14, [1/8,1/16].rnd( 1/16,2 ) )
+
+// whenever a 1/16th timing is used, use it twice in a row and
+// whenever a 1/12th timing is used, use it three times in a row
+devices['bass'].note.seq( -14, [1/8,1/16,1/12].rnd( 1/16,2,1/12,3 ) )
+
+// OK, that's the basics of using randomness in patterns. But we can also use
+// noise to create randomness in modulations.
+
+// here's noise() going out the second outlet of gibberwocky
+signals[0]( noise() ) 
+
+// we can scale the noise
+signals[0]( mul( noise(), .5 ) ) 
+
+// we can also use sample and hold (sah) to selectively sample a noise signal.
+// below, we sample noise whenever a separate noise signal crosses
+// a threshold of .99995
+signals[0]( sah( noise(), noise(), .99995 ) )      
+
+// alternatively, randomly sample a sine wave
+signals[0]( sah( cycle(2), noise(), .999 ) )
+
+// OK, that's it for randomness... use it wisely!`,
+
+[ 'using the Score() object' ]  : 
+`// Scores are lists of functions with associated
 // relative time values. In the score below, the first function has
 // a time value of 0, which means it begins playing immediately. The
 // second has a value of 1, which means it beings playing one measure
-// after the previously executed function. The last function has a
-// timestamp of two, which means it begins playing two measures after
+// after the previously executed function. The other funcions have
+// timestamps of two, which means they begins playing two measures after
 // the previously executed function. Scores have start(), stop(),
 // loop(), pause() and rewind() methods.
 
-s = Score([ 
-  0, function() { 
-    tracks[1].note.seq( 0, 1/4 )
+s = Score([
+  0, ()=> devices['bass'].note.seq( -14, 1/4 ),
+ 
+  1, ()=> devices['bass'].note.seq( 0, Euclid(5,8) ),
+ 
+  2, ()=> {
+    arp = Arp( [0,1,3,5], 3, 'updown2' )
+    devices['bass'].note.seq( arp, 1/32 )
   },
-  1, function() { 
-     tracks[1].note.seq( [0,1], Euclid(3,4), 1 )
-  },
-  2, function() { 
-    tracks[1].note.seq( [7,14,13,8].rnd(), [1/4,1/8].rnd(), 2 )
-  },  
+ 
+  2, ()=> arp.transpose( 1 ),
+ 
+  2, ()=> arp.shuffle()
 ])
 
-s.stop()
+// Scores can also be stopped automatically to await manual retriggering.
 
-// scores become much terser using arrow functions
-// (note: Safari does not currently support arrow functions, except in betas)
+s2 = Score([
+  0,   ()=> devices['bass'].note( 0 ),
 
-s = Score([
-  0, ()=> tracks[1].note.seq( [0,1,2,3], 1/4 ),
-  1, ()=> tracks[1].note.seq( [0,1], Euclid(2,4), 1 ),
-  1, ()=> tracks[1].note.seq( [3,4], [1/4,1/8], 2 )
-])`,
+  1/2, ()=> devices['bass'].note( 1 ),
+
+  Score.wait, null,
+
+  0,   ()=> devices['bass'].note( 2 )
+])
+
+// restart playback
+s2.next()
+
+// CURRENTLY BROKEN
+/* The loop() method tells a score to... loop. An optional argument specifies
+ * an amount of time to wait between the end of one loop and the start of the next.*/
+
+s3 = Score([
+  0, ()=> devices['bass'].note.seq( 0, 1/4 ),
+  1, ()=> devices['bass'].note.seq( [0,7], 1/8 ),
+  1, ()=> devices['bass'].note.seq( [0, 7, 14], 1/12 )
+])
+
+s3.loop( 1 )
+
+`,
+
+['using the Arp() object (arpeggiator)']:
+`/*
+  * This tutorial assumes familiarity with the material
+  * covered in tutorials 2–4.
+  *
+  * The Arp() object creates wrapped Pattern objects (see tutorial
+  * #4) that are simply functions playing arpeggios. However,
+  * the pattern transformations available in gibberwocky open
+  * up a great deal of flexiblity in manipulating these arpeggios.
+  */
+
+// Make an arp: chord, number of octaves, mode.
+myarp = Arp( [0,2,4,5], 4, 'updown' )
+
+// other modes include 'up' and 'down'. XXX updown2 is broken :( 
+
+// play arpeggiator with 1/16 notes
+devices['bass'].note.seq( myarp, 1/16 )
+
+// change root of Scale (see tutorial #3)
+Scale.root( 'c2' )
+
+// randomize arpeggiator
+myarp.shuffle()
+
+// transpose arpeggiator over time
+myarp.transpose.seq( 1,1 )
+
+// reset arpeggiator
+myarp.reset()
+
+// stop arpeggiator
+devices['bass'].stop()
+
+// The Arp() object can also be used with MIDI note values instead of
+// gibberwocky's system of harmony. However, arp objects are designed
+// to work with calls to note() by default, accordingly, they tranpose
+// patterns by seven per octave (there are seven notes in a scale of one
+// octave). For MIDI notes, there are 12 values... we can specify this
+// as a fourth parameter to the Arp() constructor.
+
+midiArp = Arp( [60,62,64,67,71], 4, 'down', 12 )
+
+devices['bass'].midinote.seq( midiArp, 1/32 )
+
+// bring everything down an octace
+midiArp.transpose( -12 )
+
+// change number of octaves
+midiArp.octaves = 2
+`,
+
+['using the Euclid() object (euclidean rhythms)'] :
+`/*
+  * This tutorial assumes familiarty with the material
+  * covered in tutorial #2. It will cover the basics of
+  * working with Euclidean rhythms in gibberwocky.
+  *
+  * Euclidean rhythms are specifcations of rhythm using
+  * a number of pulses allocated over a number of beats.
+  * The algorithm attempts to distribute the pulses as
+  * evenly as possible over all beats while maintaining
+  * a grid. You can read a paper describing this here:
+  *
+  * http://archive.bridgesmathart.org/2005/bridges2005-47.pdf
+  *
+  * For example, consider the rhythm '5,8' where there
+  * are 5 pulses over the span of eight notes while
+  * maintaining a temporal grid. The algorithm distributes 
+  * these as follows: "x.xx.xx." where 'x' represents a pulse
+  * and '.' represents a rest. Below are a few other examples:
+  *
+  * 1,4 : x...
+  * 2,3 : x.x
+  * 2,5 : x.x..
+  * 3,5 : x.x.x
+  * 3,8 : x..x..x.
+  * 4,9 : x.x.x.x..
+  * 5,9 : x.x.x.x.x
+  *
+  * In gibberwocky, by default the number of beats chosen
+  * also determines the time used by each beat; selecting
+  * '5,8' means 5 pulses spread across 8 1/8 notes. However,
+  * you can also specify a different temporal resolution for
+  * the resulting pattern: '5,8,1/16' means 5 pulses spread
+  * across 8 beats where each beat is a 1/16th note.
+  *
+  * You can specify Euclidean rhyhtms using the Euclid()
+  * function, which returns a pattern (see tutorial #4);
+  * in the example below I've assigned this to the variable E.
+  */
+
+// store for faster reference
+E = Euclid
+
+devices['bass'].duration( 10 )
+
+// 5 pulses spread over 8 eighth notes
+devices['bass'].midinote.seq( 60, E(5,8) )
+
+// 3 pulses spread over 8 sixteenth notes
+devices['bass'].midinote.seq( 48, E( 3, 8, 1/16 ), 1  )
+
+// a quick way of notating x.x.
+devices['bass'].midinote.seq( 36, E(2,4), 2 ) 
+
+// because Euclid() generates Pattern objects (see tutorial #3)
+// we can transform the patterns it generates:
+
+devices['bass'].midinote[1].timings.rotate.seq( 1,1 )
+
+`,
+
 
 ['using the Steps() object (step-sequencer)'] : `/* Steps() creates a group of sequencer objects. Each
  * sequencer is responsible for playing a single note,
@@ -255,8 +637,10 @@ s = Score([
  * The lengths of the patterns found in a Steps object can
  * differ. By default, the amount of time for each step in
  * a pattern equals 1 divided by the number of steps in the
- * pattern. In the example below, each pattern has sixteen
- * steps, so each step represents a sixteenth note.
+ * pattern. In the example below, most patterns have sixteen
+ * steps, so each step represents a sixteenth note. However,
+ * the first two patterns (60 and 62) only have four steps, so
+ * each is a quarter note. 
  *
  * The individual patterns can be accessed using the note
  * numbers they are assigned to. So, given an instance with
@@ -264,26 +648,29 @@ s = Score([
  * accessed at a[60]. Note that you have to access with brackets
  * as a.60 is not valid JavaScript.
  *
- * The second argument to Steps is the track to target.  
- */ 
+ * The second argument to Steps is the instrument to target. Note
+ * that while the example below is designed to work with the
+ * Analogue Drums device found in the gibberwocky help file,
+ * that instrument is actually NOT velocity sensitive. 
+ */
 
-a = Steps({
-  [60]: '3.3f..4..8.5...f',
-  [62]: '7.9.f4.....6f...',
-  [64]: '........7.9.c..d',
-  [65]: '..6..78..b......',
-  [67]: '.f..3.........f.',  
-  [71]: 'e.a.e.a.e.a.a...',  
-  [72]: '..............e.',
-}, tracks[0] )
+steps = Steps({
+  [36]: 'ffff', 
+  [38]: '.a.a',
+  [41]: '........7.9.c..d',
+  [43]: '..6..78..b......',
+  [45]: '..c.f....f..f..3',  
+  [42]: '.e.a.a...e.a.e.a',  
+  [46]: '..............e.',
+}, devices['drums'] )
 
-// rotate one pattern in step sequencer
-// every measure
-a[71].rotate.seq( 1,1 )
+// rotate one pattern (assigned to midinote 71)
+// in step sequencer  every measure
+steps[42].rotate.seq( 1,1 )
 
 // reverse all steps each measure
-a.reverse.seq( 1, 2 )`,
+steps.reverse.seq( 1, 2 )`,
 
 }
 
-module.exports = Examples//stepsExample2//simpleExample//genExample//exampleScore4//exampleScore4 //'this.note.seq( [0,1], Euclid(5,8) );' //exampleCode
+module.exports = Examples
