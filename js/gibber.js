@@ -29,6 +29,7 @@ let Gibber = {
     window.Arp           = this.Arp
     window.Communication = this.Communication
     window.log           = this.log
+    window.clear         = this.clear
     window.Theory        = this.Theory
     window.Scale         = this.Theory.Scale.master
     

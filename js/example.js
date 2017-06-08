@@ -142,6 +142,7 @@ tracks[1].midinote.seq( [36,48,60], 1/4 )
 tracks[1].midinote.seq( [36,48,60], [1/4,1/8] )
 
 // We can also sequence our note velocities and durations.
+clear()
 tracks[1].midinote.seq( 48, 1/2 )
 tracks[1].velocity.seq( [16, 64, 127], 1/2 )
 tracks[1].duration.seq( [10, 100,500], 1/2 )
@@ -150,6 +151,7 @@ tracks[1].duration.seq( [10, 100,500], 1/2 )
 // sequences you might have noticed that only one runs at a time. For example,
 // if you run these two lines:
 
+clear()
 tracks[1].midinote.seq( 72, 1/4 )
 tracks[1].midinote.seq( 48, 1/4 )
 
@@ -161,6 +163,7 @@ tracks[1].midinote.seq( 48, 1/4 )
 // sequence, the older sequence is stopped. If the sequences have different IDs they run 
 // concurrently. Note this makes it really easy to create polyrhythms.
 
+clear()
 tracks[1].midinote.seq( 48, 1 ) // assumes ID of 0
 tracks[1].midinote.seq( 60, 1/2, 1 ) 
 tracks[1].midinote.seq( 72, 1/3, 2 ) 
@@ -177,40 +180,40 @@ tracks[2].midichord.seq( [[60,64,68], [62,66,72]], 1/2 )
 // specifying arrays of MIDI values is not necessarily an optimal representation for chords.
 // Move on to tutorial #3 to learn more about how to leverage music theory in gibberwocky.`,
 
-['tutorial 3: harmony'] :`/* gibberwocky.max - tutorial #3: Harmony
+['tutorial 3: harmony'] :`/* gibberwocky.live - tutorial #3: Harmony
  *
- * This tutorial covers the basics of using harmony in gibberwocky.midi. It assumes you
- * know the basics of sequencing (tutorial #2) and have an appropriate MIDI output setup.
- * It also assumes you have the gibberwocky help patch open and the transport running.
+ * This tutorial covers the basics of using harmony in gibberwocky.live. It assumes you
+ * know the basics of sequencing (tutorial #2) and are using the gibberwocky.demo project. 
  *
  * In the previous tutorials we looked at using raw MIDI values to send messages. However,
  * using MIDI note numbers is not an ideal representation. gibberwocky includes knoweldge of
  * scales, chords, and note names to make musical sequencing easier and more flexible. In this
- * tutorial, instead of using channel.midinote() and channel.midichord() we'll be using 
+ * tutorial, instead of using track.midinote() and track.midichord() we'll be using 
  * channel.note() and channel.chord(). These methods use gibberwocky's theory objects to
  * determine what MIDI notes are eventually outputted.
  */
 
 // In our previous tutorial, we sent out C in the fourth octave by using MIDI number 60:
-devices['bass'].midinote( 60 )
+bass = tracks[1]
+bass.midinote( 60 )
 
 // We can also specify notes with calls to the note() method by passing a name and octave.
-devices['bass'].note( 'c4' )
-devices['bass'].note( 'fb3' )
+bass.note( 'c4' )
+bass.note( 'fb3' )
 
-devices['bass'].note.seq( ['c4','e4','g4'], 1/8 )
+bass.note.seq( ['c2','e2','g2'], 1/8 )
 
-// remember, Ctrl+. stops all running sequences.
+// remember, Ctrl+. (or clear()) stops all running sequences.
 
 // In gibberwocky, the default scale employed is C minor, starting in the fourth octave. 
 // This means that if we pass 0 as a value to note(), C4 will also be played.
-devices['bass'].note( 0 )
+bass.note( 0 )
 
 // sequence C minor scale, starting in the fourth octave:
-devices['bass'].note.seq( [0,1,2,3,4,5,6,7], 1/8 )
+bass.note.seq( [0,1,2,3,4,5,6,7], 1/8 )
 
 // negative scale indices also work:
-devices['bass'].note.seq( [-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7], 1/8 )
+bass.note.seq( [-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7], 1/8 )
 
 // there is a global Scale object we can use to change the root and mode
 // for all scales. Run the lines below individually  with the previous note sequence running.
@@ -244,24 +247,23 @@ Scale.mode.seq( ['my mode', 'another mode'], 4 )
 // Last but not least there are a few different ways to specify chords in gibberwocky.
 // First, clear the current scene using Ctrl+.
 
-// change the release time, scale mode, and root
-devices['bass'].release( 75 )
+pad = tracks[2]
 
 // We can use note names:
-devices['bass'].chord( ['c4','eb4','gb4','a4'] )
+pad.chord( ['c4','eb4','gb4','a4'] )
 
 // Or we can use scale indices:
-devices['bass'].chord( [0,2,4,5] )
+pad.chord( [0,2,4,5] )
 
 // sequence in two-dimensional array
-devices['bass'].chord.seq( [[0,2,4,5], [1,3,4,6]], 1 )
+pad.chord.seq( [[0,2,4,5], [1,3,4,6]], 1 )
 
 // We can also use strings that identify common chord names.
-devices['bass'].chord( 'c4maj7' )
-devices['bass'].chord( 'c#4sus7b9' )
+pad.chord( 'c4maj7' )
+pad.chord( 'c#4sus7b9' )
 
 
-devices['bass'].chord.seq( ['c4dim7', 'bb3maj7', 'fb3aug7'], 1 )
+pad.chord.seq( ['c4dim7', 'bb3maj7', 'fb3aug7'], 2 )
 
 // OK, that's harmony in a nutshell. Next learn a bit about patterns and
 // pattern manipulation in gibberwocky in tutorial #4.`,
