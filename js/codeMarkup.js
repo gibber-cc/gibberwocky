@@ -676,6 +676,16 @@ let Marker = {
       }
     },
 
+    FunctionExpression( patternNode, containerNode, components, cm, channel, index=0, patternType, patternObject ) {
+      const args = Array.prototype.slice.call( arguments, 0 )
+      Marker._markPattern.Identifier( ...args )
+    },
+
+    ArrowFunctionExpression( patternNode, containerNode, components, cm, channel, index=0, patternType, patternObject ) {
+      const args = Array.prototype.slice.call( arguments, 0 )
+      Marker._markPattern.Identifier( ...args )
+    },
+
     Identifier( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) {
       // mark up anonymous functions with comments here... 
       let [ className, start, end ] = Marker._getNamesAndPosition( patternNode, containerNode, components, index, patternType ),

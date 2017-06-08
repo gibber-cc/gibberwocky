@@ -3,7 +3,7 @@ module.exports = function( Gibber ) {
 const binops = [ 
   'min','max','add','sub','mul','div','rdiv','mod','rsub','rmod','absdiff',
   'and','or','gt','eq','eqp','gte','gtep','gtp','lt','lte','ltep','ltp','neq',
-  'sah', 'step', 'rate'
+  'step', 'rate'
 ]
 
 const monops = [
@@ -125,7 +125,8 @@ let Gen  = {
     rate:   { properties:[ '0','1' ], str:'rate' },
     noise:  { properties:[], str:'noise' },
     accum:  { properties:[ '0','1' ], str:'accum' },
-    scale:  { properties: ['0', '1', '2', '3'], str:'scale' }
+    scale:  { properties: ['0', '1', '2', '3'], str:'scale' },
+    sah:    { properties: ['0', '1', '2'], str:'sah' }
   },
 
   _count: 0,
