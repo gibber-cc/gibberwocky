@@ -47,119 +47,111 @@ tracks[0].devices[0]['Global Transpose']( lfo( beats(8.66) ) )
 ['tutorial 1: basic messaging']:
 
 `/*
- * gibberwocky.max - tutorial #1: basic messaging
+ * gibberwocky.live - tutorial #1: basic messaging
  *
- * This first intro will explain how to execute code, send
- * MIDI note messages, sequence arbitrary messages, and 
- * control UI objects.
+ * This first intro will explain how to send
+ * MIDI note messages and control device and track parameters.
  *
- * To start, makesure you open the gibberwocky object help patch
- * in Max and ahve the Max console open as well.
+ * To start, makesure you open the gibberwocky.demo project and
+ * have Live's transport running.
 */
 
-// Messaging in gibberwocky.max can be done in two ways. First, 
-// we can send messages out the first outlet of the gibberwocky.max
-// object. To do this, we specify 'namespaces' where each
-// namespace represents the first part of messages that are sent. Thus,
-// you could create namespaces for individual instruments, or Max objects,
-// or any other routing scheme you can come up with.
+// The demo gibberwocky project has three tracks: drums, bass, and ambient
+// piano. Let's start playing notes with the bass. The bass is located on the 
+// second track, zero-indexed (start counting from zero).
+bass = tracks[1]
+bass.midinote( 60 ) // send middle C
 
-// Let's start by sending the following message 'synth1 1'. Connect the left
-// most outlet of the gibberwocky object in Max to a print object, and then
-// run the following three lines code and look at the console in Max:
-synth1 = namespace('synth1') 
-synth1( 1 )
-synth1( 'test' )
+// Click on the 'lom' tab (Live Object Model) in the sidebar on the right side
+// of the gibberwocky client. This lists all the parameters exposed for control
+// to gibberwocky. The bass track is listed under '2-Muugy' (Muggy is the name
+// of the bass preset). If you uncollapse this branch, you see that the track
+// contains a single Simpler device (all gibberwocky objects are ignored). Open
+// up that Simpler branch, and you see all the parameters that can be controlled.
+// If you drag and drop the 'Filter Freq' parameter into the code editor, it
+// will insert the full path for that control into the editor. It should look
+// something like this:
 
-// You can add an extra prefix to your message by appending a property:
-synth1.gollygee( 'willickers?' )
+tracks['2-Muugy'].devices['Simpler']['Filter Freq']
 
-// You can define arbitrary paths this way:
-synth1.a.b.c.d.e.f.g.h( 'i?' )
+// This is the path to a function we can call to change the filter cutoff frequency,
+// like so:
 
-// If you use [route], [routepass], or [sel] objects in Max/MSP you can easily direct 
-// messages to a variety of destinations in this fashion. These namespaces will appear
-// in the 'scene' tab of the browser reference; click on anyone to automatically insert
-// the appropriate path into the code editor at the current cursor position. For example,
-// using the gibberwocky help patcher both 'squelch' and 'bell' appear as targets as
-// they are connected to a [sel] that is in turn connected to the leftmost gibberwocky
-// outlet.
 
-// gibberwocky can also easily target Max for Live devices embedded in Max
-// patches. In the patcher for this tutorial there's an included Laverne
-// instrument. If you click on the 'scene' tab of the gibberwocky sidebar, 
-// you'll see a tree browser with a 'devices' branch. Open that branch to see all 
-// Max for Live devices available in your patch. Now click on the branch for the device
-// you want to send a midinote message to. The associated object path is automatically 
-// inserted into your code editor at the current cursor position. Add a call to midinote to the end of this
-// code snippet; it should look similar to the following:
+tracks['2-Muugy'].devices['Simpler']['Filter Freq'](.75)
+tracks['2-Muugy'].midinote( 36 )
 
-devices['bass'].midinote( 60 ) // send middle C
+tracks['2-Muugy'].devices['Simpler']['Filter Freq'](.25)
+tracks['2-Muugy'].midinote( 36 )
 
-// Now uncollapse the branch for your device in the scene browser. This lists
-// all the parameters exposed for control on the Max for Live device. Click on any
-// leaf to insert the full path to the control into your code editor. Here's the 
-// 'res' parameter controlling the resonance of the filter on the bassline instrument.
+// Note that we can shorten this in a number of ways. First, we can always refer
+// to tracks and devices by their array position. In this case, the track index is
+// 1 and the device index is 0 (remember, gibberwocky devices are ignored).
 
-devices['bass']['res']
+tracks[1].devices[0]['Filter Freq']( .5 ) // same effect!
 
-// This points to a function; we can pass this function a value to manipulate the
-// control.
+// we can also use the shortcut we created earlier
+bass.devices[0]['Filter Freq']( .35 )
 
-devices['bass']['res']( 100 )
+// or...
+simpler = tracks[1].devices[0]
+simpler['Filter Freq']( 1 )
 
-devices['bass'].note( 'eb4' )
+// Conveniently (well, in most cases) all parameters are measured from 0-1, so
+// you don't really have to worry about ranges.
 
-// If you've used gibberwocky.live before, it's important to note that these controls
-// do not default to a range of {0,1}. Many of the controls on bassline default to the 
-// standard MIDI range of {0,127}.
+// In addition to controlling devices, we can also control parameters of each
+// track in Live, such as volume, panning, mute and solo. This includes
+// the return tracks and the master track as well.
+
+tracks[0].volume( 0 )   // effectively mute our drums track 
+returns[0].volume( 1 )  // increase our reverb volume
+tracks[0].sends[0]( 1 ) // send our drum track full-blast to our reverb
+master.volume( .5 )     // set the master volume
 
 // OK, that's some basics out of the way. Try the sequencing tutorial next!`,
 
-[ 'tutorial 2: basic sequencing' ]: `/* gibberwocky.max - tutorial #2: basic sequencing
+[ 'tutorial 2: basic sequencing' ]: `/* gibberwocky.live - tutorial #2: basic sequencing
  *
  * This tutorial will provide an introdution to sequencing messages in gibberwocky. In
- * order for sequencing in gibberwocky.max to work, you must start the Global Transport
- * running in Max/MSP. In the gibberwocky help patcher there's
- * a link to open the Global Transport. Make sure you've opened this patcher to complete
- * this tutorial, as we'll be using the included Bassline instrument.
+ * order for sequencing in gibberwocky.live to work, you must start the Global Transport
+ * running in Live. We're also assuming you're running the gibberwocky.demo project for
+ * this tutorial.
  */
 
-// In tutorial #1, we saw how we could send MIDI messages to specific MIDI
-// channel objects. We can easily sequence any of these methods by adding
+// In tutorial #1, we saw how we could send MIDI messages to specific tracks
+// in Live.  We can easily sequence any of these methods by adding
 // a call to .seq(). For example:
 
 // send noteon message with a first value of 36
-devices['bass'].midinote( 36 )
+tracks[1].midinote( 36 )
 
 // send same value every quarter note
-devices['bass'].midinote.seq( 36, 1/4 )
+tracks[1].midinote.seq( 36, 1/4 )
 
 // You can stop all sequences in gibberwocky with the Ctrl+. keyboard shortcut
-// (Ctrl + period). You can also stop all sequences on a specific channel:
+// (Ctrl + period) or by executing the command clear(). 
+// You can also stop all sequences on a specific track:
+tracks[1].stop()
 
-devices['bass'].stop()
-
-// Most sequences in gibberwocky contain values (60) and timings (1/4). To
+// Most sequences in gibberwocky contain values (36) and timings (1/4). To
 // sequence multiple values we simply pass an array:
-
-devices['bass'].midinote.seq( [60,72,48], 1/4 )
+tracks[1].midinote.seq( [36,48,60], 1/4 )
 
 // ... and we can do the same thing with multiple timings:
-
-devices['bass'].midinote.seq( [60,72,48], [1/4,1/8] )
+tracks[1].midinote.seq( [36,48,60], [1/4,1/8] )
 
 // We can also sequence our note velocities and durations.
-devices['bass'].midinote.seq( 60, 1/2 )
-devices['bass'].velocity.seq( [16, 64, 127], 1/2 )
-devices['bass'].duration.seq( [10, 100,500], 1/2 )
+tracks[1].midinote.seq( 48, 1/2 )
+tracks[1].velocity.seq( [16, 64, 127], 1/2 )
+tracks[1].duration.seq( [10, 100,500], 1/2 )
 
 // If you experimented with running multiple variations of the midinote 
 // sequences you might have noticed that only one runs at a time. For example,
 // if you run these two lines:
 
-devices['bass'].midinote.seq( 72, 1/4 )
-devices['bass'].midinote.seq( 48, 1/4 )
+tracks[1].midinote.seq( 72, 1/4 )
+tracks[1].midinote.seq( 48, 1/4 )
 
 // ...you'll notice only the second one actually triggers. By default, gibberwocky
 // will replace an existing sequence with a new one. To stop this, you can pass an ID number 
@@ -169,16 +161,17 @@ devices['bass'].midinote.seq( 48, 1/4 )
 // sequence, the older sequence is stopped. If the sequences have different IDs they run 
 // concurrently. Note this makes it really easy to create polyrhythms.
 
-devices['bass'].midinote.seq( 48, 1 ) // assumes ID of 0
-devices['bass'].midinote.seq( 60, 1/2, 1 ) 
-devices['bass'].midinote.seq( 72, 1/3, 2 ) 
-devices['bass'].midinote.seq( 84, 1/7, 3 ) 
+tracks[1].midinote.seq( 48, 1 ) // assumes ID of 0
+tracks[1].midinote.seq( 60, 1/2, 1 ) 
+tracks[1].midinote.seq( 72, 1/3, 2 ) 
+tracks[1].midinote.seq( 84, 1/7, 3 ) 
 
 // We can also sequence calls to midichord. You might remember from the first tutorial
 // that we pass midichord an array of values, where each value represents one note. This
 // means we need to pass an array of arrays in order to move between different chords.
 
-devices['bass'].midichord.seq( [[60,64,68], [62,66,72]], 1/2 )
+clear()
+tracks[2].midichord.seq( [[60,64,68], [62,66,72]], 1/2 )
 
 // Even we're only sequencing a single chord, we still need to pass a 2D array. Of course,
 // specifying arrays of MIDI values is not necessarily an optimal representation for chords.

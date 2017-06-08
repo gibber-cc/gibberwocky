@@ -127,6 +127,16 @@ let seqclosure = function( Gibber ) {
 
         return msg
       },
+      midichord( chord, beat, trackID ) {
+        //console.log( chord )
+        let msg = []
+
+        for( let i = 0; i < chord.length; i++ ) {
+          msg.push( `${trackID} add ${beat} note ${chord[i]}` )
+        }
+
+        return msg
+      },
       cc( number, value, beat ) {
         return `${trackID} add ${beat} cc ${number} ${value}`
       },

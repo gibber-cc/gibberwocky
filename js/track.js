@@ -57,10 +57,11 @@ let Track = {
       midichord( chord, velocity='', duration='' ) {
         let msg = []
         for( let i = 0; i < chord.length; i++ ) {
-          msg.push( `${track.id} note ${chord[i]} ${velocity} ${duration}`.trimRight() )
+          track.midinote( chord[i] )
+          //msg.push( `${track.id} note ${chord[i]} ${velocity} ${duration}`.trimRight() )
         }
 
-        Gibber.Communication.send( msg )
+        //Gibber.Communication.send( msg )
       },
 
       stop() {
@@ -94,6 +95,7 @@ let Track = {
     Gibber.addSequencingToMethod( track, 'velocity', 1 )
     Gibber.addSequencingToMethod( track, 'duration', 1 )
     Gibber.addSequencingToMethod( track, 'midinote' )
+    Gibber.addSequencingToMethod( track, 'midichord' )
     Gibber.addSequencingToMethod( track, 'mute' )
     Gibber.addSequencingToMethod( track, 'solo' )
 
