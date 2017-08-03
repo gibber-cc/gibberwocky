@@ -8,6 +8,7 @@ let Track = {
       spec,
 		  sequences:{},
       sends:[],
+      octave:0,
       note( ...args ) {
         args[0] = Gibber.Theory.Note.convertToMIDI( args[0] )
         
@@ -106,7 +107,32 @@ let Track = {
       Gibber.addMethod( track.sends, idx, element )
     })
 
-    return track
+
+    const proxy = new Proxy( track, {
+      // whenever a property on the namespace is accessed
+      get( target, prop, receiver ) {
+        let hasProp = true, device = null
+        // if the property is undefined...
+        if( target[ prop ] === undefined && prop !== 'markup' && prop !== 'seq' && prop !== 'sequences' ) {
+          //target[ prop ] = Max.namespace( prop, target )
+          //target[ prop ].address = addr + ' ' + prop
+          for( let __device of target.devices ) {
+            if( typeof __device !== 'object' ) continue
+
+            if( __device[ prop ] !== undefined ) {
+              device = __device
+              break
+            }
+          }
+
+          hasProp = false
+        }
+
+        return hasProp ? target[ prop ] : device[ prop ]
+      }
+    })
+
+    return proxy
   },
 }
 

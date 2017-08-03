@@ -125,6 +125,7 @@ let Gen  = {
     rate:   { properties:[ '0','1' ], str:'rate' },
     noise:  { properties:[], str:'noise' },
     accum:  { properties:[ '0','1' ], str:'accum' },
+    counter:{ properties:[ '0','1' ], str:'counter' },
     scale:  { properties: ['0', '1', '2', '3'], str:'scale' },
     sah:    { properties: ['0', '1', '2'], str:'sah' }
   },

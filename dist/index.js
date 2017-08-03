@@ -2504,6 +2504,7 @@ module.exports = function (Gibber) {
       rate: { properties: ['0', '1'], str: 'rate' },
       noise: { properties: [], str: 'noise' },
       accum: { properties: ['0', '1'], str: 'accum' },
+      counter: { properties: ['0', '1'], str: 'counter' },
       scale: { properties: ['0', '1', '2', '3'], str: 'scale' },
       sah: { properties: ['0', '1', '2'], str: 'sah' }
     },
@@ -4270,7 +4271,8 @@ var seqclosure = function seqclosure(Gibber) {
         object: object,
         key: key,
         priority: priority,
-        trackID: -1
+        trackID: -1,
+        octave: 0
       });
 
       seq.init();
@@ -4280,6 +4282,8 @@ var seqclosure = function seqclosure(Gibber) {
       return seq;
     },
     init: function init() {
+      var _this = this;
+
       var valuesPattern = void 0,
           timingsPattern = void 0;
 
@@ -4300,9 +4304,14 @@ var seqclosure = function seqclosure(Gibber) {
         this.values = valuesPattern;
       }
 
+      var seq = this;
       if (this.key === 'note') {
         this.values.filters.push(function (args) {
           args[0] = Theory.Note.convertToMIDI(args[0]);
+          if (seq.octave !== 0 || seq.object.octave !== 0) {
+            if (seq.octave !== 0) args[0] += seq.octave * 12;else args[0] += seq.object.octave * 12;
+          }
+
           return args;
         });
       } else if (this.key === 'chord') {
@@ -4318,6 +4327,13 @@ var seqclosure = function seqclosure(Gibber) {
           } else {
             if (typeof chord === 'function') chord = chord();
             out = chord.map(Gibber.Theory.Note.convertToMIDI);
+            if (_this.octave !== 0 || _this.object.octave !== 0) {
+              out = _this.octave !== 0 ? out.map(function (v) {
+                return v + _this.octave * 12;
+              }) : out.map(function (v) {
+                return v + _this.object.octave * 12;
+              });
+            }
           }
 
           args[0] = out;
@@ -5011,6 +5027,8 @@ module.exports = {
 },{}],21:[function(require,module,exports){
 'use strict';
 
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj; };
+
 module.exports = function (Gibber) {
 
   var Track = {
@@ -5021,6 +5039,7 @@ module.exports = function (Gibber) {
         spec: spec,
         sequences: {},
         sends: [],
+        octave: 0,
         note: function note() {
           for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
             args[_key] = arguments[_key];
@@ -5169,7 +5188,53 @@ module.exports = function (Gibber) {
         Gibber.addMethod(track.sends, idx, element);
       });
 
-      return track;
+      var proxy = new Proxy(track, {
+        // whenever a property on the namespace is accessed
+        get: function get(target, prop, receiver) {
+          var hasProp = true,
+              device = null;
+          // if the property is undefined...
+          if (target[prop] === undefined && prop !== 'markup' && prop !== 'seq' && prop !== 'sequences') {
+            //target[ prop ] = Max.namespace( prop, target )
+            //target[ prop ].address = addr + ' ' + prop
+            var _iteratorNormalCompletion3 = true;
+            var _didIteratorError3 = false;
+            var _iteratorError3 = undefined;
+
+            try {
+              for (var _iterator3 = target.devices[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+                var __device = _step3.value;
+
+                if ((typeof __device === 'undefined' ? 'undefined' : _typeof(__device)) !== 'object') continue;
+
+                if (__device[prop] !== undefined) {
+                  device = __device;
+                  break;
+                }
+              }
+            } catch (err) {
+              _didIteratorError3 = true;
+              _iteratorError3 = err;
+            } finally {
+              try {
+                if (!_iteratorNormalCompletion3 && _iterator3.return) {
+                  _iterator3.return();
+                }
+              } finally {
+                if (_didIteratorError3) {
+                  throw _iteratorError3;
+                }
+              }
+            }
+
+            hasProp = false;
+          }
+
+          return hasProp ? target[prop] : device[prop];
+        }
+      });
+
+      return proxy;
     }
   };
 
