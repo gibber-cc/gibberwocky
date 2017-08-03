@@ -588,7 +588,7 @@ var Marker = {
             var _objName = expressionNode.expression.callee.object.object.name;
 
             track = window[components[0]];
-            method = track[components[1]];
+            method = track[components[1]][index];
           }
 
           if (!track.markup) {
