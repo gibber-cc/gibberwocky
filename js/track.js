@@ -111,9 +111,13 @@ let Track = {
     const proxy = new Proxy( track, {
       // whenever a property on the namespace is accessed
       get( target, prop, receiver ) {
-        let hasProp = true, device = null
+        let hasProp = true, 
+          device = null, 
+          upper = prop[0].toUpperCase() + prop.slice( 1 ), // convert lowercase to camelcase
+          useUpper = false
+
         // if the property is undefined...
-        if( target[ prop ] === undefined && prop !== 'markup' && prop !== 'seq' && prop !== 'sequences' ) {
+        if( target[ prop ] === undefined && target[ upper ] === undefined && prop !== 'markup' && prop !== 'seq' && prop !== 'sequences' ) {
           //target[ prop ] = Max.namespace( prop, target )
           //target[ prop ].address = addr + ' ' + prop
           for( let __device of target.devices ) {
@@ -122,13 +126,19 @@ let Track = {
             if( __device[ prop ] !== undefined ) {
               device = __device
               break
+            }else if( __device[ upper ] !== undefined ) {
+              device = __device
+              useUpper = true
+              break
             }
           }
 
           hasProp = false
         }
 
-        return hasProp ? target[ prop ] : device[ prop ]
+
+        let propName = useUpper ? upper : prop
+        return hasProp ? target[ prop ] : device[ propName ]
       }
     })
 

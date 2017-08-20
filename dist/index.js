@@ -5192,9 +5192,13 @@ module.exports = function (Gibber) {
         // whenever a property on the namespace is accessed
         get: function get(target, prop, receiver) {
           var hasProp = true,
-              device = null;
+              device = null,
+              upper = prop[0].toUpperCase() + prop.slice(1),
+              // convert lowercase to camelcase
+          useUpper = false;
+
           // if the property is undefined...
-          if (target[prop] === undefined && prop !== 'markup' && prop !== 'seq' && prop !== 'sequences') {
+          if (target[prop] === undefined && target[upper] === undefined && prop !== 'markup' && prop !== 'seq' && prop !== 'sequences') {
             //target[ prop ] = Max.namespace( prop, target )
             //target[ prop ].address = addr + ' ' + prop
             var _iteratorNormalCompletion3 = true;
@@ -5209,6 +5213,10 @@ module.exports = function (Gibber) {
 
                 if (__device[prop] !== undefined) {
                   device = __device;
+                  break;
+                } else if (__device[upper] !== undefined) {
+                  device = __device;
+                  useUpper = true;
                   break;
                 }
               }
@@ -5230,7 +5238,8 @@ module.exports = function (Gibber) {
             hasProp = false;
           }
 
-          return hasProp ? target[prop] : device[prop];
+          var propName = useUpper ? upper : prop;
+          return hasProp ? target[prop] : device[propName];
         }
       });
 
