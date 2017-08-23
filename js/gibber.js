@@ -32,8 +32,10 @@ let Gibber = {
     window.clear         = this.clear
     window.Theory        = this.Theory
     window.Scale         = this.Theory.Scale.master
-    
-    Gibber.Gen.export( window )
+    window.WavePattern   = this.WavePattern
+
+    Gibber.__gen.export( window ) 
+    //Gibber.Gen.export( window )
 
     this.Utility.export( window )
   },
@@ -55,6 +57,8 @@ let Gibber = {
     //this.currentTrack = this.Track( this, 1 ) // TODO: how to determine actual "id" from Max?
     
     this.initSingletons( window )
+
+    this.__gen.init( this )
 
     this.export()
   },
@@ -269,9 +273,11 @@ Gibber.Seq     = require( './seq.js' )( Gibber )
 Gibber.Score   = require( './score.js' )( Gibber )
 Gibber.Arp     = require( './arp.js' )( Gibber )
 Gibber.Euclid  = require( './euclidean.js')( Gibber )
-Gibber.Gen     = require( './gen.js' )( Gibber )
+//Gibber.Gen     = require( './gen.js' )( Gibber )
 Gibber.Steps   = require( './steps.js' )( Gibber )
 Gibber.Live    = require( './live.js' )( Gibber )
 Gibber.Track   = require( './track.js')( Gibber )
+Gibber.__gen   = require( './gen_abstraction.js' )( Gibber )
+Gibber.WavePattern = require( './wavePattern.js' )( Gibber )
 
 module.exports = Gibber

@@ -55,6 +55,7 @@ let seqclosure = function( Gibber ) {
 
       let seq = this
       if( this.key === 'note' ) {
+        console.log( 'adding note filter' )
         this.values.filters.push( args => {
           args[ 0 ] = Theory.Note.convertToMIDI( args[ 0 ] )
           if( seq.octave !== 0 || seq.object.octave !== 0 ) {

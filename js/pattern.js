@@ -49,7 +49,10 @@ let Pattern = function( ...args ) {
    *  return Gibber.construct( Pattern, args )
    *}
    */
+
   let isFunction = args.length === 1 && typeof args[0] === 'function'
+
+  console.log('isFunction:', isFunction, args )
 
   let fnc = function() {
     let len = fnc.getLength(),

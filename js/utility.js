@@ -140,7 +140,7 @@ let Utility = {
   beatsToMs( beats, bpm=120 ) {
     const beatsPerSecond = bpm / 60
 
-    return (beats / beatsPerSecond ) * 1000
+    return ( beats / beatsPerSecond ) * 1000
   },
 
   future( func, time ) {
@@ -157,6 +157,24 @@ let Utility = {
     Gibber.Communication.send( `select_track ${ trackNumber }` )
   },
 
+  range( min=0,max=100 ) {
+    const arr = []
+    for( let i = min; i<=max; i++ ) arr.push( i )
+
+    return arr
+  },
+
+  beatsToFrequency( beats ) {
+    /*window.btof = function( b ) {
+      Gibber.Audio.context.sampleRate / (b *(60/Clock.bpm) * Gibber.Audio.context.sampleRate)
+    }*/
+
+    const bpm = Gibber.Scheduler.bpm
+    const sr  = 1000
+
+   return sr / ( beats * ( 60 / bpm ) * sr )
+  },
+
   export( destination ) {
     destination.rndf = Utility.rndf
     destination.rndi = Utility.rndi
@@ -164,6 +182,8 @@ let Utility = {
     destination.Rndi = Utility.Rndi
     destination.future = Utility.future
     destination.select = Utility.select
+    destination.btof = Utility.beatsToFrequency
+    destination.range = Utility.range
 
     Array.prototype.random = Array.prototype.rnd = Utility.random
   }
