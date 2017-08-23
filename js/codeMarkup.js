@@ -35,9 +35,9 @@ let Marker = {
         isGen = false
 
     if( !shouldParse ) { // check for gen~ assignment
-      for( let ugen of Gibber.Gen.names ) {
+      for( let ugen of Gibber.__gen.gen.names ) {
 
-        for( let ugen of Gibber.Gen.names ) {
+        for( let ugen of Gibber.__gen.gen.names ) {
           let idx = code.indexOf( ugen )
           if( idx !== -1 && code.charAt( idx + ugen.length ) === '('  ) {
             shouldParse = true
@@ -89,7 +89,7 @@ let Marker = {
     widget.ctx.fillStyle = 'rgba(46,50,53,1)'
     widget.ctx.strokeStyle = '#eee'
     widget.ctx.lineWidth = .5
-    widget.gen = Gibber.Gen.lastConnected
+    widget.gen = Gibber.__gen.gen.lastConnected
     widget.values = []
 
     let oldWidget = Marker.genWidgets[ widget.gen.paramID ] 
