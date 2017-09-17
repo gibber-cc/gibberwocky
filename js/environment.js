@@ -18,6 +18,7 @@ let Environment = {
   lomView: require( './lomView.js' ),
   consoleDiv:null,
   consoleList:null,
+  annotations:true,
 
   init( gibber ) {
     Gibber = gibber
@@ -180,11 +181,13 @@ let Environment = {
         markupFunction.origin  = func
 
         if( !Environment.debug ) {
-          Gibber.Scheduler.functionsToExecute.push( func );
-          Gibber.Scheduler.functionsToExecute.push( markupFunction  )
+          Gibber.Scheduler.functionsToExecute.push( func )
+          if( Environment.annotations === true )
+            Gibber.Scheduler.functionsToExecute.push( markupFunction  )
         }else{
           func()
-          markupFunction()
+          if( Environment.annotations === true )
+            markupFunction()
         }
       } catch (e) {
         console.log( e )
@@ -211,10 +214,14 @@ let Environment = {
 
         if( !Environment.debug ) {
           Gibber.Scheduler.functionsToExecute.push( func );
-          Gibber.Scheduler.functionsToExecute.push( markupFunction  )
+
+          if( Environment.annotations === true )
+            Gibber.Scheduler.functionsToExecute.push( markupFunction  )
         }else{
           func()
-          markupFunction()
+
+          if( Environment.annotations === true )
+            markupFunction()
         }
       } catch (e) {
         console.log( e )

@@ -138,7 +138,10 @@ module.exports = ( incr, reset=0, properties ) => {
   if( ugen.initialValue === undefined ) ugen.initialValue = ugen.min
 
   Object.defineProperty( ugen, 'value', {
-    get()  { return gen.memory.heap[ this.memory.value.idx ] },
+    get()  { 
+      //console.log( 'gen:', gen, gen.memory )
+      return gen.memory.heap[ this.memory.value.idx ] 
+    },
     set(v) { gen.memory.heap[ this.memory.value.idx ] = v }
   })
 
@@ -2816,7 +2819,8 @@ module.exports = ( input_data, index=0, properties ) => {
 let gen   = require( './gen.js' ),
     accum = require( './accum.js' ),
     mul   = require( './mul.js' ),
-    proto = { basename:'phasor' }
+    proto = { basename:'phasor' },
+    div   = require( './div.js' )
 
 const defaults = { min: -1, max: 1 }
 
@@ -2827,14 +2831,20 @@ module.exports = ( frequency = 1, reset = 0, _props ) => {
 
   const ugen = typeof frequency === 'number' 
     ? accum( (frequency * range) / gen.samplerate, reset, props ) 
-    : accum( mul( frequency, 1 / gen.samplerate / ( 1 / range ) ), reset, props )
+    : accum( 
+        div( 
+          mul( frequency, range ),
+          gen.samplerate
+        ), 
+        reset, props 
+    )
 
   ugen.name = proto.basename + gen.getUID()
 
   return ugen
 }
 
-},{"./accum.js":2,"./gen.js":30,"./mul.js":48}],56:[function(require,module,exports){
+},{"./accum.js":2,"./div.js":23,"./gen.js":30,"./mul.js":48}],56:[function(require,module,exports){
 'use strict'
 
 let gen  = require('./gen.js'),
@@ -4066,7 +4076,7 @@ var Marker = {
       var _iteratorError = undefined;
 
       try {
-        for (var _iterator = Gibber.Gen.names[Symbol.iterator](), _step2; !(_iteratorNormalCompletion = (_step2 = _iterator.next()).done); _iteratorNormalCompletion = true) {
+        for (var _iterator = Gibber.__gen.gen.names[Symbol.iterator](), _step2; !(_iteratorNormalCompletion = (_step2 = _iterator.next()).done); _iteratorNormalCompletion = true) {
           var ugen = _step2.value;
           var _iteratorNormalCompletion2 = true;
           var _didIteratorError2 = false;
@@ -4074,7 +4084,7 @@ var Marker = {
 
           try {
 
-            for (var _iterator2 = Gibber.Gen.names[Symbol.iterator](), _step3; !(_iteratorNormalCompletion2 = (_step3 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+            for (var _iterator2 = Gibber.__gen.gen.names[Symbol.iterator](), _step3; !(_iteratorNormalCompletion2 = (_step3 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
               var _ugen = _step3.value;
 
               var idx = code.indexOf(_ugen);
@@ -4180,7 +4190,7 @@ var Marker = {
     widget.ctx.fillStyle = 'rgba(46,50,53,1)';
     widget.ctx.strokeStyle = '#eee';
     widget.ctx.lineWidth = .5;
-    widget.gen = Gibber.Gen.lastConnected;
+    widget.gen = Gibber.__gen.gen.lastConnected;
     widget.values = [];
 
     var oldWidget = Marker.genWidgets[widget.gen.paramID];
@@ -5449,6 +5459,7 @@ var Environment = {
   lomView: require('./lomView.js'),
   consoleDiv: null,
   consoleList: null,
+  annotations: true,
 
   init: function init(gibber) {
     Gibber = gibber;
@@ -5613,10 +5624,10 @@ var Environment = {
 
           if (!Environment.debug) {
             Gibber.Scheduler.functionsToExecute.push(func);
-            Gibber.Scheduler.functionsToExecute.push(markupFunction);
+            if (Environment.annotations === true) Gibber.Scheduler.functionsToExecute.push(markupFunction);
           } else {
             func();
-            markupFunction();
+            if (Environment.annotations === true) markupFunction();
           }
         })();
       } catch (e) {
@@ -5640,10 +5651,12 @@ var Environment = {
 
           if (!Environment.debug) {
             Gibber.Scheduler.functionsToExecute.push(func);
-            Gibber.Scheduler.functionsToExecute.push(markupFunction);
+
+            if (Environment.annotations === true) Gibber.Scheduler.functionsToExecute.push(markupFunction);
           } else {
             func();
-            markupFunction();
+
+            if (Environment.annotations === true) markupFunction();
           }
         })();
       } catch (e) {
@@ -6308,9 +6321,11 @@ module.exports = function (Gibber) {
         var amp = arguments.length <= 1 || arguments[1] === undefined ? .5 : arguments[1];
         var center = arguments.length <= 2 || arguments[2] === undefined ? .5 : arguments[2];
 
-        var _cycle = cycle(frequency),
-            _mul = mul(_cycle, amp),
-            _add = add(center, _mul);
+        var g = Gen.ugens;
+
+        var _cycle = g.cycle(frequency),
+            _mul = g.mul(_cycle, amp),
+            _add = g.add(center, _mul);
 
         _add.frequency = function (v) {
           if (v === undefined) {
@@ -6347,6 +6362,7 @@ module.exports = function (Gibber) {
         var from = arguments.length <= 1 || arguments[1] === undefined ? 1 : arguments[1];
         var to = arguments.length <= 2 || arguments[2] === undefined ? 0 : arguments[2];
 
+        var g = Gen.ugens;
         var fade = void 0,
             amt = void 0,
             beatsInSeconds = time * (60 / Gibber.Live.LOM.bpm);
@@ -6354,10 +6370,10 @@ module.exports = function (Gibber) {
         if (from > to) {
           amt = from - to;
 
-          fade = gtp(sub(from, accum(div(amt, mul(beatsInSeconds, samplerate)), 0)), to);
+          fade = g.gtp(g.sub(from, g.accum(g.div(amt, g.mul(beatsInSeconds, g.samplerate)), 0)), to);
         } else {
           amt = to - from;
-          fade = add(from, ltp(accum(div(amt, mul(beatsInSeconds, samplerate)), 0), to));
+          fade = g.add(from, g.ltp(g.accum(g.div(amt, g.mul(beatsInSeconds, g.samplerate)), 0), to));
         }
 
         // XXX should this be available in ms? msToBeats()?
@@ -6370,19 +6386,23 @@ module.exports = function (Gibber) {
         return fade;
       },
       beats: function beats(num) {
-        return rate('in1', num);
+        return Gen.ugens.rate('in1', num);
         // beat( n ) => rate(in1, n)
         // final string should be rate( in1, num )
       }
     },
 
+    ugens: {},
+
     export: function _export(obj) {
       for (var _key3 in Gen.functions) {
-        obj[_key3] = Gen.create.bind(Gen, _key3);
+        this.ugens[_key3] = Gen.create.bind(Gen, _key3);
       }
 
-      Object.assign(obj, Gen.constants);
-      Object.assign(obj, Gen.composites);
+      Object.assign(this.ugens, Gen.constants);
+      Object.assign(this.ugens, Gen.composites);
+
+      Object.assign(obj, this.ugens);
     }
   };
 
@@ -6429,56 +6449,154 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
 var genish = require('genish.js');
 var genreq = require('./gen.js');
 
+/*  
+assignInputProperties( genishGraph, abstractGraph ) {
+  for( let input in abstractGraph.inputs ) {
+    if( typeof abstractGraph.inputs[ input ] === 'number' ) {
+      let __param = genishGraph.inputs[ input ] = genish.param( abstractGraph.inputs[ input ] )
+      abstractGraph[ input ] = v => {
+        __param.value = v
+      }
+    }
+  }
+},
+*/
+
+var defineMethod = function defineMethod(obj, methodName, param) {
+  var priority = arguments.length <= 3 || arguments[3] === undefined ? 0 : arguments[3];
+
+  obj[methodName] = function (v) {
+    if (v === undefined) return param.value;
+
+    // else, set the value
+    param.value = v;
+  };
+
+  if (!obj.sequences) obj.sequences = {};
+
+  obj[methodName].seq = function (values, timings) {
+    var id = arguments.length <= 2 || arguments[2] === undefined ? 0 : arguments[2];
+    var delay = arguments.length <= 3 || arguments[3] === undefined ? 0 : arguments[3];
+
+    if (obj.sequences[methodName] === undefined) obj.sequences[methodName] = [];
+
+    if (obj.sequences[methodName][id] !== undefined) obj.sequences[methodName][id].clear();
+
+    var seq = Gibber.Seq(values, timings, methodName, obj, priority);
+    obj.sequences[methodName][id] = seq;
+
+    seq.__tick = seq.tick;
+    seq.tick = function () {
+      param.value = 0;
+      obj.pattern.adjust(obj.graph, Gibber.Scheduler.currentTimeInMs - obj.pattern.phase);
+
+      for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
+        args[_key] = arguments[_key];
+      }
+
+      seq.__tick.apply(seq, args);
+    };
+
+    seq.trackID = obj.id;
+
+    if (id === 0) {
+      obj[methodName].values = obj.sequences[methodName][0].values;
+      obj[methodName].timings = obj.sequences[methodName][0].timings;
+    }
+
+    obj[methodName][id] = seq;
+
+    seq.delay(delay);
+    seq.start();
+
+    // avoid this for gibber objects that don't communicate with Live such as Scale
+    if (obj.id !== undefined) Gibber.Communication.send('select_track ' + obj.id);
+
+    return seq;
+  };
+
+  obj[methodName].seq.delay = function (v) {
+    return obj[methodName][lastId].delay(v);
+  };
+
+  obj[methodName].seq.stop = function () {
+    obj.sequences[methodName][0].stop();
+    return obj;
+  };
+
+  obj[methodName].seq.start = function () {
+    obj.sequences[methodName][0].start();
+    return obj;
+  };
+};
+
 module.exports = function (Gibber) {
   var gen = genreq(Gibber);
+  var genfunctions = {};
+
+  gen.export(genfunctions);
 
   var __ugenproto__ = {
     render: function render(mode) {
-      if (mode === 'gen') {} else if (mode === 'genish') {
-        var inputs = [];
+      var inputs = [],
+          inputNum = 0;
 
-        var _iteratorNormalCompletion = true;
-        var _didIteratorError = false;
-        var _iteratorError = undefined;
+      var _iteratorNormalCompletion = true;
+      var _didIteratorError = false;
+      var _iteratorError = undefined;
 
-        try {
-          for (var _iterator = this.inputs[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-            var input = _step.value;
+      try {
+        for (var _iterator = this.inputs[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+          var input = _step.value;
 
-            // use input.render as check to make sure this isn't a properties dictionary
-            if ((typeof input === 'undefined' ? 'undefined' : _typeof(input)) === 'object' && input.render !== undefined) {
-              inputs.push(input.render(mode));
+          // use input.render as check to make sure this isn't a properties dictionary
+          if ((typeof input === 'undefined' ? 'undefined' : _typeof(input)) === 'object' && input.render !== undefined) {
+            inputs.push(input.render(mode));
+          } else {
+            if (mode === 'genish' && typeof input === 'number') {
+              // replace numbers with params
+              var _input = genish.param(input);
+              defineMethod(this, inputNum, _input);
+
+              inputs.push(_input);
             } else {
               inputs.push(input);
             }
           }
-        } catch (err) {
-          _didIteratorError = true;
-          _iteratorError = err;
+
+          inputNum++;
+        }
+      } catch (err) {
+        _didIteratorError = true;
+        _iteratorError = err;
+      } finally {
+        try {
+          if (!_iteratorNormalCompletion && _iterator.return) {
+            _iterator.return();
+          }
         } finally {
-          try {
-            if (!_iteratorNormalCompletion && _iterator.return) {
-              _iterator.return();
-            }
-          } finally {
-            if (_didIteratorError) {
-              throw _iteratorError;
-            }
+          if (_didIteratorError) {
+            throw _iteratorError;
           }
         }
-
-        var ugen = genish[this.name].apply(genish, inputs);
-
-        return ugen;
       }
-    }
+
+      var ugen = mode === 'genish' ? genish[this.name].apply(genish, inputs) : genfunctions[this.name].apply(genfunctions, inputs);
+
+      //debugger
+
+      return ugen;
+    },
+
+
+    isGen: true
   };
 
   var __gen = {
     gen: gen,
     genish: genish,
     Gibber: Gibber,
-    ugenNames: ['cycle', 'phasor', 'accum', 'counter', 'add', 'mul', 'div', 'sub', 'sah', 'noise', 'beats'],
+    ugenNames: ['cycle', 'phasor', 'accum', 'counter', 'add', 'mul', 'div', 'sub', 'sah', 'noise', 'beats', 'lfo', 'fade', 'abs', 'ceil', 'round', 'floor', 'gt', 'lt', 'ltp', 'gtp', 'samplerate', 'rate'],
 
     ugens: {},
 
@@ -6498,8 +6616,8 @@ module.exports = function (Gibber) {
 
             ugen.name = name;
 
-            for (var _len = arguments.length, inputs = Array(_len), _key = 0; _key < _len; _key++) {
-              inputs[_key] = arguments[_key];
+            for (var _len2 = arguments.length, inputs = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
+              inputs[_key2] = arguments[_key2];
             }
 
             ugen.inputs = inputs;
@@ -6782,34 +6900,38 @@ var Gibber = {
 
       if (_v !== undefined) {
         if ((typeof _v === 'undefined' ? 'undefined' : _typeof(_v)) === 'object' && _v.isGen) {
-          _v.assignTrackAndParamID(trackID, parameter.id);
+          (function () {
+            var __v = _v.render('gen');
+            console.log('__v', __v);
+            __v.assignTrackAndParamID(trackID, parameter.id);
 
-          // if a gen is not already connected to this parameter, push
-          if (Gibber.Gen.connected.find(function (e) {
-            return e.paramID === parameter.id;
-          }) === undefined) {
-            Gibber.Gen.connected.push(_v);
-          }
+            // if a gen is not already connected to this parameter, push
+            if (Gibber.Gen.connected.find(function (e) {
+              return e.paramID === parameter.id;
+            }) === undefined) {
+              Gibber.Gen.connected.push(__v);
+            }
 
-          Gibber.Gen.lastConnected = _v;
-          Gibber.Communication.send('gen ' + parameter.id + ' "' + _v.out() + '"');
-          Gibber.Communication.send('select_track ' + trackID);
+            Gibber.Gen.lastConnected = __v;
+            Gibber.Communication.send('gen ' + parameter.id + ' "' + __v.out() + '"');
+            Gibber.Communication.send('select_track ' + trackID);
 
-          // disconnects for fades etc.
-          if (_typeof(_v.shouldKill) === 'object') {
-            Gibber.Utility.future(function () {
-              Gibber.Communication.send('ungen ' + parameter.id);
-              Gibber.Communication.send('set ' + parameter.id + ' ' + _v.shouldKill.final);
+            // disconnects for fades etc.
+            if (_typeof(__v.shouldKill) === 'object') {
+              Gibber.Utility.future(function () {
+                Gibber.Communication.send('ungen ' + parameter.id);
+                Gibber.Communication.send('set ' + parameter.id + ' ' + __v.shouldKill.final);
 
-              var widget = Gibber.Environment.codeMarkup.genWidgets[parameter.id];
-              if (widget !== undefined && widget.mark !== undefined) {
-                widget.mark.clear();
-              }
-              delete Gibber.Environment.codeMarkup.genWidgets[parameter.id];
-            }, _v.shouldKill.after);
-          }
+                var widget = Gibber.Environment.codeMarkup.genWidgets[parameter.id];
+                if (widget !== undefined && widget.mark !== undefined) {
+                  widget.mark.clear();
+                }
+                delete Gibber.Environment.codeMarkup.genWidgets[parameter.id];
+              }, __v.shouldKill.after);
+            }
 
-          v = _v;
+            v = __v;
+          })();
         } else {
           if (v.isGen) {
             Gibber.Communication.send('ungen ' + parameter.id);
@@ -6820,7 +6942,7 @@ var Gibber = {
             delete Gibber.Environment.codeMarkup.genWidgets[parameter.id];
           }
 
-          v = _v;
+          v = (typeof _v === 'undefined' ? 'undefined' : _typeof(_v)) === 'object' && _v.isGen ? _v.render('gen') : _v;
           Gibber.Communication.send('set ' + parameter.id + ' ' + v);
         }
       } else {
@@ -6844,6 +6966,8 @@ Gibber.Steps = require('./steps.js')(Gibber);
 Gibber.Live = require('./live.js')(Gibber);
 Gibber.Track = require('./track.js')(Gibber);
 Gibber.__gen = require('./gen_abstraction.js')(Gibber);
+Gibber.Gen = Gibber.__gen.gen;
+
 Gibber.WavePattern = require('./wavePattern.js')(Gibber);
 
 module.exports = Gibber;
@@ -7185,8 +7309,6 @@ module.exports = function (Gibber) {
      */
 
     var isFunction = args.length === 1 && typeof args[0] === 'function';
-
-    console.log('isFunction:', isFunction, args);
 
     var fnc = function fnc() {
       var len = fnc.getLength(),
@@ -8173,7 +8295,6 @@ var seqclosure = function seqclosure(Gibber) {
 
       var seq = this;
       if (this.key === 'note') {
-        console.log('adding note filter');
         this.values.filters.push(function (args) {
           args[0] = Theory.Note.convertToMIDI(args[0]);
           if (seq.octave !== 0 || seq.object.octave !== 0) {
@@ -8334,7 +8455,7 @@ var seqclosure = function seqclosure(Gibber) {
             //Gibber.Communication.send( msg )
           } else {
             // schedule internal method / function call immediately
-            if (this.object && this.key) {
+            if (this.object !== undefined && this.key !== undefined) {
               if (typeof this.object[this.key] === 'function') {
                 this.object[this.key](value);
               } else {
@@ -9359,14 +9480,9 @@ var Utility = {
     }return arr;
   },
   beatsToFrequency: function beatsToFrequency(beats) {
-    /*window.btof = function( b ) {
-      Gibber.Audio.context.sampleRate / (b *(60/Clock.bpm) * Gibber.Audio.context.sampleRate)
-    }*/
-
     var bpm = Gibber.Scheduler.bpm;
-    var sr = 1000;
 
-    return sr / (beats * (60 / bpm) * sr);
+    return 1 / (beats * (60 / bpm));
   },
   export: function _export(destination) {
     destination.rndf = Utility.rndf;
@@ -9647,19 +9763,28 @@ module.exports = function (Gibber) {
   'use strict';
 
   var WavePattern = {
-    create: function create(__graph, values) {
+    create: function create(abstractGraph, values) {
 
       var pattern = void 0;
-      var graph = __graph.render('genish'); // convert abstraction to genish.js graph
+      var graph = abstractGraph.render('genish'); // convert abstraction to genish.js graph
 
       var patternOutputFnc = function patternOutputFnc() {
         pattern.run();
 
         var signalValue = pattern.signalOut();
+        // edge case... because adjust might lead to a value of 1
+        // which accum would wrap AFTER the obtaining the current value
+        // leading to an undefined value for the pattern output (e.g. pattern[ pattern.length ] )
+        if (signalValue === 1) signalValue = 0;
+
         var scaledSignalValue = signalValue * pattern._values.length;
         var adjustedSignalValue = scaledSignalValue < 0 ? pattern._values.length + scaledSignalValue : scaledSignalValue;
         var roundedSignalValue = Math.floor(adjustedSignalValue);
         var outputBeforeFilters = pattern._values[roundedSignalValue];
+
+        if (roundedSignalValue > pattern._values.length - 1) {
+          //console.log( signalValue, scaledSignalValue, adjustedSignalValue, roundedSignalValue )
+        }
 
         var output = outputBeforeFilters; // pattern.runFilters( outputBeforeFilters, 0 )[ 0 ]
         //console.log( 'output:', output )
@@ -9677,12 +9802,17 @@ module.exports = function (Gibber) {
 
       pattern = Gibber.Pattern(patternOutputFnc); //, ...values )
 
+      abstractGraph.pattern = pattern;
+      abstractGraph.graph = graph;
+
+      //WavePattern.assignInputProperties( graph, abstractGraph )
+
       Object.assign(pattern, {
         graph: graph,
         _values: values,
         signalOut: genish.gen.createCallback(graph, undefined, false, false, Float64Array),
         out: function out() {
-          return WavePattern.signalOut();
+          return pattern.signalOut();
         },
 
         adjust: WavePattern.adjust,
@@ -9692,6 +9822,19 @@ module.exports = function (Gibber) {
       });
 
       return pattern;
+    },
+    assignInputProperties: function assignInputProperties(genishGraph, abstractGraph) {
+
+      for (var input in abstractGraph.inputs) {
+        if (typeof abstractGraph.inputs[input] === 'number') {
+          (function () {
+            var __param = genishGraph.inputs[input] = genish.param(abstractGraph.inputs[input]);
+            abstractGraph[input] = function (v) {
+              __param.value = v;
+            };
+          })();
+        }
+      }
     },
     run: function run() {
       var now = Gibber.Scheduler.currentTimeInMs;
@@ -9704,25 +9847,42 @@ module.exports = function (Gibber) {
       }
 
       this.phase = now;
+      //debugger;
     },
     adjust: function adjust(ugen, ms) {
-      var amount = ms / 1000 * Gibber.__gen.genish.gen.samplerate;
+      // subtract one sample for the phase incremenet that occurs during
+      // the genish.js callback
+      var numberOfSamplesToAdvance = ms / 1000 * Gibber.__gen.genish.gen.samplerate;
 
       if (ugen.name !== undefined && (ugen.name.indexOf('accum') > -1 || ugen.name.indexOf('phasor') > -1)) {
+        //console.log( ugen.value, amount, JSON.stringify( ugen.inputs ) )
         if (ugen.name.indexOf('accum') > -1) {
-          ugen.value += _typeof(ugen.inputs[0]) === 'object' ? amount * ugen.inputs[0].value : amount * ugen.inputs[0];
+          ugen.value += _typeof(ugen.inputs[0]) === 'object' ? numberOfSamplesToAdvance * ugen.inputs[0].value : numberOfSamplesToAdvance * ugen.inputs[0];
         } else {
           //? accum( (frequency * range) / gen.samplerate, reset, props ) 
           //: accum( mul( frequency, 1 / gen.samplerate / ( 1 / range ) ), reset, props )
-          //const range = ugen.max - ugen.min
-          //const incr = (ugen.inputs[0] * range ) / Gibber.__gen.genish.gen.samplerate//typeof ugen.inputs[0] === 'object'
+          //console.log('what?')
+          var range = ugen.max - ugen.min;
+          var __ugen = ugen;
+
+          while (__ugen.inputs !== undefined) {
+            __ugen = __ugen.inputs[0];
+          }
+
+          // needs .value because the result should be a param
+          var freq = __ugen.value;
+          var incr = freq * range / Gibber.__gen.genish.gen.samplerate; //typeof ugen.inputs[0] === 'object'
           //? 
           //ugen.value += typeof ugen.inputs[0] === 'object' 
           //  ? amount * ( ugen.inputs[0].inputs[0].value  * ugen.inputs[0].inputs[1] )
           //  : amount * ugen.inputs[0]
 
           //console.log( ugen.value, ms, amount, ugen.inputs[0] ) 
-          ugen.value += amount * ugen.inputs[0];
+          //console.log('huh?', ugen.inputs )
+          //if( typeof ugen.inputs[0] === 'undefined' ) console.log( 'undefined!', ugen.inputs[0] )
+          var adjustAmount = (numberOfSamplesToAdvance - 1) * incr;
+          //debugger
+          ugen.value += adjustAmount;
         }
 
         //console.log( ugen.value, amount )

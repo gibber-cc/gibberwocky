@@ -55,7 +55,6 @@ let seqclosure = function( Gibber ) {
 
       let seq = this
       if( this.key === 'note' ) {
-        console.log( 'adding note filter' )
         this.values.filters.push( args => {
           args[ 0 ] = Theory.Note.convertToMIDI( args[ 0 ] )
           if( seq.octave !== 0 || seq.object.octave !== 0 ) {
@@ -219,7 +218,7 @@ let seqclosure = function( Gibber ) {
             //Gibber.Communication.send( msg )
 
           } else { // schedule internal method / function call immediately
-            if( this.object && this.key ) {
+            if( this.object !== undefined && this.key !== undefined ) {
               if( typeof this.object[ this.key ] === 'function' ) {
                 this.object[ this.key ]( value )
               }else{

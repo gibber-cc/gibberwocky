@@ -52,8 +52,6 @@ let Pattern = function( ...args ) {
 
   let isFunction = args.length === 1 && typeof args[0] === 'function'
 
-  console.log('isFunction:', isFunction, args )
-
   let fnc = function() {
     let len = fnc.getLength(),
         idx, val, args

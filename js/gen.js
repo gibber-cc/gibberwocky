@@ -196,9 +196,11 @@ let Gen  = {
 
   composites: { 
     lfo( frequency = .1, amp = .5, center = .5 ) {
-      let _cycle = cycle( frequency ),
-          _mul   = mul( _cycle, amp ),
-          _add   = add( center, _mul ) 
+      const g = Gen.ugens
+
+      let _cycle = g.cycle( frequency ),
+          _mul   = g.mul( _cycle, amp ),
+          _add   = g.add( center, _mul ) 
        
       _add.frequency = (v) => {
         if( v === undefined ) {
@@ -232,15 +234,16 @@ let Gen  = {
     },
 
     fade( time = 1, from = 1, to = 0 ) {
+      let g = Gen.ugens
       let fade, amt, beatsInSeconds = time * ( 60 / Gibber.Live.LOM.bpm )
      
       if( from > to ) {
         amt = from - to
 
-        fade = gtp( sub( from, accum( div( amt, mul(beatsInSeconds, samplerate ) ), 0 ) ), to )
+        fade = g.gtp( g.sub( from, g.accum( g.div( amt, g.mul(beatsInSeconds, g.samplerate ) ), 0 ) ), to )
       }else{
         amt = to - from
-        fade = add( from, ltp( accum( div( amt, mul( beatsInSeconds, samplerate ) ), 0 ), to ) )
+        fade = g.add( from, g.ltp( g.accum( g.div( amt, g.mul( beatsInSeconds, g.samplerate ) ), 0 ), to ) )
       }
       
       // XXX should this be available in ms? msToBeats()?
@@ -254,19 +257,23 @@ let Gen  = {
     },
     
     beats( num ) {
-      return rate( 'in1', num )
+      return Gen.ugens.rate( 'in1', num )
       // beat( n ) => rate(in1, n)
       // final string should be rate( in1, num )
     }
   },
 
+  ugens:{},
+
   export( obj ) {
     for( let key in Gen.functions ) {
-      obj[ key ] = Gen.create.bind( Gen, key )
+      this.ugens[ key ] = Gen.create.bind( Gen, key )
     }
 
-    Object.assign( obj, Gen.constants )
-    Object.assign( obj, Gen.composites )
+    Object.assign( this.ugens, Gen.constants )
+    Object.assign( this.ugens, Gen.composites )
+
+    Object.assign( obj, this.ugens )
   }
 }
 

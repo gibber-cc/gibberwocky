@@ -165,14 +165,9 @@ let Utility = {
   },
 
   beatsToFrequency( beats ) {
-    /*window.btof = function( b ) {
-      Gibber.Audio.context.sampleRate / (b *(60/Clock.bpm) * Gibber.Audio.context.sampleRate)
-    }*/
-
     const bpm = Gibber.Scheduler.bpm
-    const sr  = 1000
 
-   return sr / ( beats * ( 60 / bpm ) * sr )
+    return 1 / ( beats * ( 60 / bpm ) ) 
   },
 
   export( destination ) {
