@@ -32,6 +32,20 @@ let seqclosure = function( Gibber ) {
       
       return seq
     },
+
+    __noteFilter( args ) {
+      const seq = this
+
+      args[ 0 ] = Theory.Note.convertToMIDI( args[ 0 ] )
+      if( seq.octave !== 0 || seq.object.octave !== 0 ) {
+        if( seq.octave !== 0 )
+          args[0] += seq.octave * 12
+        else
+          args[0] += seq.object.octave * 12
+      }
+
+      return args
+    },
     
     init() {
       let valuesPattern, timingsPattern
@@ -54,18 +68,13 @@ let seqclosure = function( Gibber ) {
       }
 
       let seq = this
-      if( this.key === 'note' ) {
-        this.values.filters.push( args => {
-          args[ 0 ] = Theory.Note.convertToMIDI( args[ 0 ] )
-          if( seq.octave !== 0 || seq.object.octave !== 0 ) {
-            if( seq.octave !== 0 )
-              args[0] += seq.octave * 12
-            else
-              args[0] += seq.object.octave * 12
-          }
 
-          return args
-        })
+      if( this.key === 'note' ) {
+        if( this.values.filters.findIndex( v => v.type === 'note' ) === -1 ) {
+          const noteFilter = this.__noteFilter.bind( seq ) 
+          noteFilter.type = 'note'
+          this.values.filters.push( noteFilter )
+        }
       } else if( this.key === 'chord' ) {
 
         this.values.filters.push( args => {
@@ -107,9 +116,26 @@ let seqclosure = function( Gibber ) {
         }
 
         this.timings = timingsPattern
-      } 
+      }
+
+      const proxyFunctionTimings = ( oldPattern, newPattern ) => {
+        this.timings = newPattern
+        this.timings.filters = oldPattern.filters.slice( 0 )
+        newPattern.__listeners.push( proxyFunction ) 
+      }
+      this.timings.__listeners.push( proxyFunctionTimings )
+
+      const proxyFunctionValues = ( oldPattern, newPattern ) => {
+        this.values = newPattern
+        this.values.filters = oldPattern.filters.slice(0)
+        newPattern.__listeners.push( proxyFunctionValues ) 
+      }
+      this.values.__listeners.push( proxyFunctionValues )
 
       this.values.nextTime = this.timings.nextTime = 0
+
+      this.values.seq = this
+      this.timings.seq = this
     },
 
     externalMessages: {

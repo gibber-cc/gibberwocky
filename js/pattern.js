@@ -108,6 +108,7 @@ let Pattern = function( ...args ) {
     stepSize : 1,
     integersOnly : false,
     filters : [],
+    __listeners: [],
     onchange : null,
 
     range() {
@@ -369,6 +370,7 @@ let Pattern = function( ...args ) {
     }
   })
   
+  fnc.filters.pattern = fnc
   fnc.retrograde = fnc.reverse.bind( fnc )
   
   fnc.end = fnc.values.length - 1

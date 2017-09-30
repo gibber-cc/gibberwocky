@@ -5,9 +5,11 @@ module.exports = function( Gibber ) {
 'use strict'
 
 const WavePattern = {
+  __type: 'wavepattern',
+
   create( abstractGraph, values ) {
 
-    let pattern
+    // might change due to proxy functionality, so use 'let'
     let graph = abstractGraph.render( 'genish' ) // convert abstraction to genish.js graph
 
     const patternOutputFnc = function() {
@@ -19,19 +21,17 @@ const WavePattern = {
       // leading to an undefined value for the pattern output (e.g. pattern[ pattern.length ] )
       if( signalValue === 1 ) signalValue = 0
 
-      const scaledSignalValue = signalValue * ( pattern._values.length )
-      const adjustedSignalValue = scaledSignalValue < 0 ? pattern._values.length + scaledSignalValue : scaledSignalValue
-      const roundedSignalValue  = Math.floor( adjustedSignalValue )
-      const outputBeforeFilters = pattern._values[ roundedSignalValue ]
+      let outputBeforeFilters = signalValue
 
-      if( roundedSignalValue > pattern._values.length - 1 ) {
-        //console.log( signalValue, scaledSignalValue, adjustedSignalValue, roundedSignalValue )
+      // if there is an array of values to read from... (signal is a phasor indexing into a values array)
+      if( pattern.__usesValues === true ) {
+        const scaledSignalValue = signalValue * ( pattern._values.length )
+        const adjustedSignalValue = scaledSignalValue < 0 ? pattern._values.length + scaledSignalValue : scaledSignalValue
+        const roundedSignalValue  = Math.floor( adjustedSignalValue )
+        outputBeforeFilters = pattern._values[ roundedSignalValue ]
       }
 
-      let output = outputBeforeFilters// pattern.runFilters( outputBeforeFilters, 0 )[ 0 ]
-      //console.log( 'output:', output )
-
-      //console.log( signalValue, scaledSignalValue, adjustedSignalValue, roundedSignalValue, outputBeforeFilters )
+      let output = outputBeforeFilters
 
       if( pattern.update && pattern.update.value ) pattern.update.value.unshift( output )
 
@@ -42,24 +42,50 @@ const WavePattern = {
 
     patternOutputFnc.wavePattern = true
 
-    pattern = Gibber.Pattern( patternOutputFnc )//, ...values )
+    const pattern = Gibber.Pattern( patternOutputFnc )
+
+    // check whether or not to use raw signal values
+    // or index into values array
+    pattern.__usesValues = values !== undefined
 
     abstractGraph.pattern = pattern
     abstractGraph.graph = graph
+    if( abstractGraph.__listeners === undefined ) {
+      abstractGraph.__listeners = []
+    }
+
+    const proxyFunction = ( oldAbstractGraph, newAbstractGraph ) => {
+      graph = newAbstractGraph.render( 'genish' )
+      newAbstractGraph.pattern = pattern
+      newAbstractGraph.graph = graph
+      pattern.graph = graph
+      pattern.signalOut = genish.gen.createCallback( graph, mem, false, false, Float64Array ),
+      pattern.phase = 0
+      pattern.initialized = false
+
+      if( newAbstractGraph.__listeners === undefined ) {
+        newAbstractGraph.__listeners = []
+      }
+      newAbstractGraph.__listeners.push( proxyFunction ) 
+    }
+
+    abstractGraph.__listeners.push( proxyFunction )
 
     //WavePattern.assignInputProperties( graph, abstractGraph )
+
+    // if memory block has not been defined, create new one by passing in an undefined value
+    // else reuse exisitng memory block
+    let mem = genish.gen.memory || 44100
 
     Object.assign( pattern, {
       graph,
       _values:values,
-      signalOut: genish.gen.createCallback( graph, undefined, false, false, Float64Array ), 
-      out() {
-        return pattern.signalOut()
-      },
-      adjust: WavePattern.adjust,
+      signalOut: genish.gen.createCallback( graph, mem, false, false, Float64Array ), 
+      adjust: WavePattern.adjust.bind( pattern ),
       phase:0,
-      run: WavePattern.run,
-      initialized:false
+      run: WavePattern.run.bind( pattern ),
+      initialized:false,
+      __listeners:[]
     })
 
     return pattern
@@ -98,13 +124,12 @@ const WavePattern = {
 
 
     if( ugen.name !== undefined && ( ugen.name.indexOf( 'accum' ) > -1 || ugen.name.indexOf( 'phasor' ) > -1 ) )  {
-      //console.log( ugen.value, amount, JSON.stringify( ugen.inputs ) )
       if( ugen.name.indexOf( 'accum' ) > -1 ) {
-        ugen.value += typeof ugen.inputs[0] === 'object' ? numberOfSamplesToAdvance  * ugen.inputs[0].value : numberOfSamplesToAdvance * ugen.inputs[0]
+        ugen.value += typeof ugen.inputs[0] === 'object' 
+          ? numberOfSamplesToAdvance  * ugen.inputs[0].value 
+          : numberOfSamplesToAdvance * ugen.inputs[0]
+
       }else{
-      //? accum( (frequency * range) / gen.samplerate, reset, props ) 
-        //: accum( mul( frequency, 1 / gen.samplerate / ( 1 / range ) ), reset, props )
-        //console.log('what?')
         const range = ugen.max - ugen.min
         let __ugen = ugen
 
@@ -114,23 +139,12 @@ const WavePattern = {
 
         // needs .value because the result should be a param
         const freq = __ugen.value
-        const incr = (freq * range ) / Gibber.__gen.genish.gen.samplerate//typeof ugen.inputs[0] === 'object'
-          //? 
-        //ugen.value += typeof ugen.inputs[0] === 'object' 
-        //  ? amount * ( ugen.inputs[0].inputs[0].value  * ugen.inputs[0].inputs[1] )
-        //  : amount * ugen.inputs[0]
-
-        //console.log( ugen.value, ms, amount, ugen.inputs[0] ) 
-        //console.log('huh?', ugen.inputs )
-        //if( typeof ugen.inputs[0] === 'undefined' ) console.log( 'undefined!', ugen.inputs[0] )
+        const incr = (freq * range ) / Gibber.__gen.genish.gen.samplerate
         const adjustAmount = (numberOfSamplesToAdvance-1)  * incr 
-        //debugger
+ 
         ugen.value += adjustAmount
       }
 
-      
-
-      //console.log( ugen.value, amount )
       // wrap or clamp accum value manuallly
       if( ugen.shouldWrap === true ) {
         if( ugen.value > ugen.max ) {

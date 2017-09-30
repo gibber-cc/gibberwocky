@@ -79,8 +79,14 @@ let Gibber = {
     Object.defineProperty( target, key, {
       get() { return proxy },
       set(v) {
-        if( proxy && proxy.clear ) {
+        if( proxy !== null && proxy.clear ) {
           proxy.clear()
+        }
+        
+        if( proxy !== null && proxy.__listeners !== undefined ) {
+          for( let listener of proxy.__listeners ) {
+            listener( proxy, v )
+          }
         }
 
         proxy = v

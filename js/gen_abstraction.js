@@ -101,6 +101,12 @@ module.exports = function( Gibber ) {
     render( mode ) {
       let inputs = [], inputNum = 0
 
+      if( this.name === 'phasor' ) {
+        if( this.inputs[2] === undefined ) {
+          this.inputs[2] = { min:0 }
+        }
+      }
+
       for( let input of this.inputs ) {
         // use input.render as check to make sure this isn't a properties dictionary
         if( typeof input === 'object' && input.render !== undefined ) {
