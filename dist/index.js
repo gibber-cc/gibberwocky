@@ -4243,6 +4243,13 @@ var Marker = {
     widget.gen.widget = widget;
 
     widget.mark = cm.markText({ line: line, ch: ch }, { line: line, ch: end + 1 }, { replacedWith: widget });
+    widget.mark.__clear = widget.mark.clear;
+    widget.clear = function () {
+      return widget.mark.clear();
+    };
+    widget.mark.clear = function () {
+      widget.mark.__clear();
+    };
   },
 
 
@@ -4293,13 +4300,14 @@ var Marker = {
           //yValue = Math.round( (widget.height * .7 + 1) - yValue ) - .5
           yValue = widget.height * .7 + 1 - yValue - .5;
 
-          widget.ctx.lineTo(i, yValue);
           if (shouldDrawDot === true) {
             widget.ctx.fillStyle = COLORS.DOT;
             widget.ctx.fillRect(i - 1, yValue - 1, 3, 3);
             /*widget.ctx.fillStyle = COLORS.DOT
             widget.ctx.fillRect( i, 0, 1, widget.height  )
             widget.ctx.strokeStyle = COLORS.STROKE*/
+          } else {
+            widget.ctx.lineTo(i, yValue);
           }
         }
         widget.ctx.stroke();
@@ -10315,7 +10323,12 @@ module.exports = function (Gibber) {
 
       abstractGraph.__listeners.push(proxyFunction);
 
-      //WavePattern.assignInputProperties( graph, abstractGraph )
+      pattern.clear = function () {
+        if (pattern.widget !== undefined) {
+          pattern.widget.clear();
+          pattern.running = false;
+        }
+      };
 
       // if memory block has not been defined, create new one by passing in an undefined value
       // else reuse exisitng memory block
@@ -10324,7 +10337,7 @@ module.exports = function (Gibber) {
       Object.assign(pattern, {
         type: 'WavePattern',
         graph: graph,
-        paramID: 1000,
+        paramID: Math.round(Math.random() * 100000),
         _values: values,
         signalOut: genish.gen.createCallback(graph, mem, false, false, Float64Array),
         adjust: WavePattern.adjust.bind(pattern),

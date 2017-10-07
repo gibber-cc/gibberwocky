@@ -106,7 +106,12 @@ const WavePattern = {
 
     abstractGraph.__listeners.push( proxyFunction )
 
-    //WavePattern.assignInputProperties( graph, abstractGraph )
+    pattern.clear = function() {
+      if( pattern.widget !== undefined ) { 
+        pattern.widget.clear()
+        pattern.running = false
+      }
+    }
 
     // if memory block has not been defined, create new one by passing in an undefined value
     // else reuse exisitng memory block
@@ -115,7 +120,7 @@ const WavePattern = {
     Object.assign( pattern, {
       type:'WavePattern',
       graph,
-      paramID:1000,
+      paramID:Math.round( Math.random() * 100000 ),
       _values:values,
       signalOut: genish.gen.createCallback( graph, mem, false, false, Float64Array ), 
       adjust: WavePattern.adjust.bind( pattern ),

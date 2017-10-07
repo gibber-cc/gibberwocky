@@ -125,6 +125,11 @@ let Marker = {
     widget.gen.widget = widget
 
     widget.mark = cm.markText({ line, ch }, { line, ch:end+1 }, { replacedWith:widget })
+    widget.mark.__clear = widget.mark.clear
+    widget.clear = ()=> widget.mark.clear()
+    widget.mark.clear = function() {
+      widget.mark.__clear()
+    }
   },
 
   // currently called when a network snapshot message is received providing ugen state..
@@ -173,13 +178,15 @@ let Marker = {
           //yValue = Math.round( (widget.height * .7 + 1) - yValue ) - .5
           yValue = widget.height * .7 + 1 - yValue - .5 
           
-          widget.ctx.lineTo( i, yValue )
+          
           if( shouldDrawDot === true ) {
             widget.ctx.fillStyle = COLORS.DOT
             widget.ctx.fillRect( i-1, yValue - 1, 3, 3)
             /*widget.ctx.fillStyle = COLORS.DOT
             widget.ctx.fillRect( i, 0, 1, widget.height  )
             widget.ctx.strokeStyle = COLORS.STROKE*/
+          }else{
+            widget.ctx.lineTo( i, yValue )
           }
         }
         widget.ctx.stroke()
