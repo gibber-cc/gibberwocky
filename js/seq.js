@@ -13,6 +13,17 @@ let seqclosure = function( Gibber ) {
     create( values, timings, key, object = null, priority=0 ) {
       let seq = Object.create( this )
 
+      if( values.isGen )  values  = Gibber.WavePattern( values )
+      if( timings !== undefined && timings.isGen ) timings = Gibber.WavePattern( timings )
+
+      if( timings === undefined ) {
+        if( object.autorun === undefined ) {
+          object.autorun = [ seq ]
+        }else{
+          object.autorun.push( seq )
+        }
+      }
+
       Object.assign( seq, {
         phase:   0,
         running: false,
@@ -71,6 +82,8 @@ let seqclosure = function( Gibber ) {
 
       if( this.key === 'note' ) {
         if( this.values.filters.findIndex( v => v.type === 'note' ) === -1 ) {
+          // round the values for transformation to midinotes... XXX what about for Max version?
+          this.values.filters.push( args => { args[0] = Math.round( args[0] ); return args })
           const noteFilter = this.__noteFilter.bind( seq ) 
           noteFilter.type = 'note'
           this.values.filters.push( noteFilter )
@@ -98,32 +111,36 @@ let seqclosure = function( Gibber ) {
         })
       }
 
-      if( ! Gibber.Pattern.prototype.isPrototypeOf( this.timings ) ) {
-        if( this.timings !== undefined && !Array.isArray( this.timings ) ) this.timings = [ this.timings ]
-        timingsPattern = Gibber.Pattern.apply( null, this.timings )
-        timingsPattern.values.initial = this.timings.initial
+      // check in case it has no time values and is autotriggered by note / midinote messages
+      if( this.timings !== undefined ) {
+        if( ! Gibber.Pattern.prototype.isPrototypeOf( this.timings ) ) {
+          if( this.timings !== undefined && !Array.isArray( this.timings ) ) this.timings = [ this.timings ]
+          timingsPattern = Gibber.Pattern.apply( null, this.timings )
+          timingsPattern.values.initial = this.timings.initial
 
-        if( this.timings !== undefined ) {
-          if( this.timings.randomFlag ) {
-            timingsPattern.filters.push( ()=> { 
-              var idx = Gibber.Utility.rndi( 0, timingsPattern.values.length - 1)
-              return [ timingsPattern.values[ idx ], 1, idx ] 
-            })
-            for( var i = 0; i < this.timings.randomArgs.length; i+=2 ) {
-              timingsPattern.repeat( this.timings.randomArgs[ i ], this.timings.randomArgs[ i + 1 ] )
+          if( this.timings !== undefined ) {
+            if( this.timings.randomFlag ) {
+              timingsPattern.filters.push( ()=> { 
+                var idx = Gibber.Utility.rndi( 0, timingsPattern.values.length - 1)
+                return [ timingsPattern.values[ idx ], 1, idx ] 
+              })
+              for( var i = 0; i < this.timings.randomArgs.length; i+=2 ) {
+                timingsPattern.repeat( this.timings.randomArgs[ i ], this.timings.randomArgs[ i + 1 ] )
+              }
             }
           }
+
+          this.timings = timingsPattern
         }
-
-        this.timings = timingsPattern
+        const proxyFunctionTimings = ( oldPattern, newPattern ) => {
+          this.timings = newPattern
+          this.timings.filters = oldPattern.filters.slice( 0 )
+          newPattern.__listeners.push( proxyFunctionTimings ) 
+        }
+        this.timings.__listeners.push( proxyFunctionTimings )
+        this.timings.seq = this
+        this.timings.nextTime = 0
       }
-
-      const proxyFunctionTimings = ( oldPattern, newPattern ) => {
-        this.timings = newPattern
-        this.timings.filters = oldPattern.filters.slice( 0 )
-        newPattern.__listeners.push( proxyFunction ) 
-      }
-      this.timings.__listeners.push( proxyFunctionTimings )
 
       const proxyFunctionValues = ( oldPattern, newPattern ) => {
         this.values = newPattern
@@ -132,10 +149,8 @@ let seqclosure = function( Gibber ) {
       }
       this.values.__listeners.push( proxyFunctionValues )
 
-      this.values.nextTime = this.timings.nextTime = 0
-
+      this.values.nextTime = 0
       this.values.seq = this
-      this.timings.seq = this
     },
 
     externalMessages: {
@@ -195,7 +210,8 @@ let seqclosure = function( Gibber ) {
 
     clear() {
       this.stop()
-      if( typeof this.timings.clear === 'function' ) this.timings.clear()
+
+      if( this.timings !== undefined && typeof this.timings.clear === 'function' ) this.timings.clear()
       if( typeof this.values.clear  === 'function' ) this.values.clear()
     },
     
@@ -206,25 +222,31 @@ let seqclosure = function( Gibber ) {
 
     tick( scheduler, beat, beatOffset ) {
       if( !this.running ) return
-      let _beatOffset = parseFloat( beatOffset.toFixed( 6 ) )
 
-      this.timings.nextTime = _beatOffset
-      // pick a new timing and schedule tick
-      let nextTime = this.timings(),
+      let _beatOffset = parseFloat( beatOffset.toFixed( 6 ) ),
           shouldExecute
-      
-      if( typeof nextTime === 'function' )  nextTime = nextTime()
 
-      if( typeof nextTime === 'object' ) {
-        shouldExecute = nextTime.shouldExecute
-        nextTime = nextTime.time
+      // if sequencer is not on autorun...
+      if( this.timings !== undefined ) {
+        this.timings.nextTime = _beatOffset
+        // pick a new timing and schedule tick
+        let nextTime = this.timings()
+        
+        if( typeof nextTime === 'function' )  nextTime = nextTime()
+
+        if( typeof nextTime === 'object' ) {
+          shouldExecute = nextTime.shouldExecute
+          nextTime = nextTime.time
+        }else{
+          shouldExecute = true
+        }
+
+        let bigTime = Big( nextTime )
+
+        scheduler.addMessage( this, bigTime, true, this.priority )
       }else{
         shouldExecute = true
       }
-
-      let bigTime = Big( nextTime )
-
-      scheduler.addMessage( this, bigTime, true, this.priority )
 
       if( shouldExecute ) {
         this.values.nextTime = _beatOffset
@@ -252,6 +274,15 @@ let seqclosure = function( Gibber ) {
               }
             }
           }
+
+          if( this.key === 'note' || this.key === 'midinote' ) {
+            if( Array.isArray( this.object.autorun ) ) {
+              for( let seq of this.object.autorun ) {
+                seq.tick( scheduler, beat, beatOffset )
+              }
+            }
+          }
+
         }
       } 
 

@@ -1,8 +1,13 @@
 const Queue = require( './priorityqueue.js' )
 
 let Scheduler = {
-  currentTime : null,
+  currentTime : performance.now(),
   queue: new Queue( ( a, b ) => a.time - b.time ),
+  visualizationTime: {
+    init:true,
+    base:0,
+    phase:0,
+  },
 
   init() {
     window.requestAnimationFrame( this.onAnimationFrame ) 
@@ -15,7 +20,7 @@ let Scheduler = {
     return time
   },
 
-  run( timestamp ) {
+  run( timestamp, dt ) {
     let nextEvent = this.queue.peek()
     
     if( this.queue.length && nextEvent.time <= timestamp ) {
@@ -39,12 +44,23 @@ let Scheduler = {
   },
 
   onAnimationFrame( timestamp ) {
+    const diff = timestamp - this.currentTime
     this.currentTime = timestamp
+    this.visualizationTime.phase += diff 
 
-    this.run( timestamp )    
+    this.run( timestamp, diff )    
 
     window.requestAnimationFrame( this.onAnimationFrame )
-  }
+  },
+
+  updateVisualizationTime( ms ) {
+    if( this.visualizationTime.init === true ) {
+      this.visualizationTime.base += ms
+      this.visualizationTime.phase = 0
+    }else{
+      this.visualizationTime.init = true 
+    }
+  },
 
 }
 

@@ -3717,10 +3717,15 @@ module.exports = ( in1, min=0, max=1 ) => {
 var Queue = require('./priorityqueue.js');
 
 var Scheduler = {
-  currentTime: null,
+  currentTime: performance.now(),
   queue: new Queue(function (a, b) {
     return a.time - b.time;
   }),
+  visualizationTime: {
+    init: true,
+    base: 0,
+    phase: 0
+  },
 
   init: function init() {
     window.requestAnimationFrame(this.onAnimationFrame);
@@ -3731,7 +3736,7 @@ var Scheduler = {
 
     return time;
   },
-  run: function run(timestamp) {
+  run: function run(timestamp, dt) {
     var nextEvent = this.queue.peek();
 
     if (this.queue.length && nextEvent.time <= timestamp) {
@@ -3754,11 +3759,21 @@ var Scheduler = {
     }
   },
   onAnimationFrame: function onAnimationFrame(timestamp) {
+    var diff = timestamp - this.currentTime;
     this.currentTime = timestamp;
+    this.visualizationTime.phase += diff;
 
-    this.run(timestamp);
+    this.run(timestamp, diff);
 
     window.requestAnimationFrame(this.onAnimationFrame);
+  },
+  updateVisualizationTime: function updateVisualizationTime(ms) {
+    if (this.visualizationTime.init === true) {
+      this.visualizationTime.base += ms;
+      this.visualizationTime.phase = 0;
+    } else {
+      this.visualizationTime.init = true;
+    }
   }
 };
 
@@ -3969,6 +3984,7 @@ var Scheduler = {
       this.phase += advanceAmount; // increment phase
       this.currentTime = this.phase;
       this.currentTimeInMs = Gibber.Utility.beatsToMs(this.currentTime);
+      Gibber.Environment.animationScheduler.updateVisualizationTime(Gibber.Utility.beatsToMs(advanceAmount));
     }
   },
   addMessage: function addMessage(seq, time) {
@@ -4052,6 +4068,12 @@ var callDepths = ['SCORE', 'THIS.METHOD', 'THIS.METHOD.SEQ', 'THIS.METHOD[ 0 ].S
 
 var trackNames = ['this', 'tracks', 'master', 'returns'];
 
+var COLORS = {
+  FILL: 'rgba(46,50,53,1)',
+  STROKE: '#eee',
+  DOT: 'rgba(255,255,255,.3)'
+};
+
 var Utility = require('./utility.js');
 var $ = Utility.create;
 
@@ -4066,7 +4088,7 @@ var Marker = {
     };
   },
   process: function process(code, position, codemirror, track) {
-    var shouldParse = code.includes('.seq') || code.includes('Steps(') || code.includes('Score('),
+    var shouldParse = /*code.includes( '.seq' ) || */code.includes('Steps(') || code.includes('Score('),
         isGen = false;
 
     if (!shouldParse) {
@@ -4077,37 +4099,18 @@ var Marker = {
 
       try {
         for (var _iterator = Gibber.__gen.gen.names[Symbol.iterator](), _step2; !(_iteratorNormalCompletion = (_step2 = _iterator.next()).done); _iteratorNormalCompletion = true) {
-          var ugen = _step2.value;
-          var _iteratorNormalCompletion2 = true;
-          var _didIteratorError2 = false;
-          var _iteratorError2 = undefined;
+          var _ugen = _step2.value;
 
-          try {
-
-            for (var _iterator2 = Gibber.__gen.gen.names[Symbol.iterator](), _step3; !(_iteratorNormalCompletion2 = (_step3 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-              var _ugen = _step3.value;
-
-              var idx = code.indexOf(_ugen);
-              if (idx !== -1 && code.charAt(idx + _ugen.length) === '(') {
-                shouldParse = true;
-                isGen = true;
-
-                break;
-              }
+          var _idx = code.indexOf(_ugen);
+          if (_idx !== -1 && code.charAt(_idx + _ugen.length) === '(') {
+            if (_ugen === 'eq' && code[_idx - 1] === 's') {
+              // found seq, which isn't a match we want
+              continue;
             }
-          } catch (err) {
-            _didIteratorError2 = true;
-            _iteratorError2 = err;
-          } finally {
-            try {
-              if (!_iteratorNormalCompletion2 && _iterator2.return) {
-                _iterator2.return();
-              }
-            } finally {
-              if (_didIteratorError2) {
-                throw _iteratorError2;
-              }
-            }
+            shouldParse = true;
+            isGen = true;
+
+            break;
           }
         }
       } catch (err) {
@@ -4121,6 +4124,39 @@ var Marker = {
         } finally {
           if (_didIteratorError) {
             throw _iteratorError;
+          }
+        }
+      }
+
+      if (isGen === false) {
+        var _iteratorNormalCompletion2 = true;
+        var _didIteratorError2 = false;
+        var _iteratorError2 = undefined;
+
+        try {
+          for (var _iterator2 = Gibber.__gen.ugenNames[Symbol.iterator](), _step3; !(_iteratorNormalCompletion2 = (_step3 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+            var ugen = _step3.value;
+
+            var idx = code.indexOf(ugen);
+            if (idx !== -1 && code.charAt(idx + ugen.length) === '(') {
+              shouldParse = true;
+              isGen = true;
+
+              break;
+            }
+          }
+        } catch (err) {
+          _didIteratorError2 = true;
+          _iteratorError2 = err;
+        } finally {
+          try {
+            if (!_iteratorNormalCompletion2 && _iterator2.return) {
+              _iterator2.return();
+            }
+          } finally {
+            if (_didIteratorError2) {
+              throw _iteratorError2;
+            }
           }
         }
       }
@@ -4187,32 +4223,51 @@ var Marker = {
     widget.style.borderRight = '1px solid #666';
     widget.setAttribute('width', 60);
     widget.setAttribute('height', 13);
-    widget.ctx.fillStyle = 'rgba(46,50,53,1)';
-    widget.ctx.strokeStyle = '#eee';
+    widget.ctx.fillStyle = COLORS.FILL;
+    widget.ctx.strokeStyle = COLORS.STROKE;
     widget.ctx.lineWidth = .5;
     widget.gen = Gibber.__gen.gen.lastConnected;
     widget.values = [];
+    widget.min = 0;
+    widget.max = 1;
 
-    var oldWidget = Marker.genWidgets[widget.gen.paramID];
+    for (var i = 0; i < 120; i++) {
+      widget.values[i] = 0;
+    }var oldWidget = Marker.genWidgets[widget.gen.paramID];
 
     if (oldWidget !== undefined) {
       oldWidget.parentNode.removeChild(oldWidget);
     }
 
     Marker.genWidgets[widget.gen.paramID] = widget;
+    widget.gen.widget = widget;
 
     widget.mark = cm.markText({ line: line, ch: ch }, { line: line, ch: end + 1 }, { replacedWith: widget });
   },
-  updateWidget: function updateWidget(id, value) {
+
+
+  // currently called when a network snapshot message is received providing ugen state..
+  // needs to also be called for wavepatterns.
+  updateWidget: function updateWidget(id, __value) {
     var widget = Marker.genWidgets[id];
     if (widget === undefined) return;
 
-    widget.values.push(parseFloat(value));
+    var value = parseFloat(__value);
 
-    while (widget.values.length > 60) {
-      widget.values.shift();
-    }Marker.genWidgets.dirty = true;
+    widget.values[90] = value;
+
+    if (value > widget.max) {
+      widget.max = value;
+    } else if (value < widget.min) {
+      widget.min = value;
+    }
+
+    widget.values.shift();
+    Marker.genWidgets.dirty = true;
   },
+
+
+  // called by animation scheduler if Marker.genWidgets.dirty === true
   drawWidgets: function drawWidgets() {
 
     Marker.genWidgets.dirty = false;
@@ -4220,11 +4275,32 @@ var Marker = {
     for (var key in Marker.genWidgets) {
       var widget = Marker.genWidgets[key];
       if ((typeof widget === 'undefined' ? 'undefined' : _typeof(widget)) === 'object' && widget.ctx !== undefined) {
+
+        widget.ctx.fillStyle = COLORS.FILL;
         widget.ctx.fillRect(0, 0, widget.width, widget.height);
         widget.ctx.beginPath();
         widget.ctx.moveTo(0, widget.height / 2 + 1);
-        for (var i = 0; i < widget.values.length; i++) {
-          widget.ctx.lineTo(i, widget.values[i] * widget.height * .7 + 1);
+
+        var range = widget.max - widget.min;
+
+        for (var i = 0, len = widget.width; i < len; i++) {
+          var data = widget.values[i];
+          var shouldDrawDot = (typeof data === 'undefined' ? 'undefined' : _typeof(data)) === 'object';
+          var value = shouldDrawDot ? data.value : data;
+          var scaledValue = (value - widget.min) / range;
+
+          var yValue = scaledValue * widget.height * .7 + 1;
+          //yValue = Math.round( (widget.height * .7 + 1) - yValue ) - .5
+          yValue = widget.height * .7 + 1 - yValue - .5;
+
+          widget.ctx.lineTo(i, yValue);
+          if (shouldDrawDot === true) {
+            widget.ctx.fillStyle = COLORS.DOT;
+            widget.ctx.fillRect(i - 1, yValue - 1, 3, 3);
+            /*widget.ctx.fillStyle = COLORS.DOT
+            widget.ctx.fillRect( i, 0, 1, widget.height  )
+            widget.ctx.strokeStyle = COLORS.STROKE*/
+          }
         }
         widget.ctx.stroke();
       }
@@ -6069,7 +6145,6 @@ module.exports = function (Gibber) {
             } else {
               value = v;
               if (obj.active) {
-                //console.log( `${obj.track} genp ${obj.paramID} ${obj[ key ].uid} ${v}` )
                 Gibber.Communication.send('genp ' + obj.paramID + ' ' + obj[key].uid + ' ' + v);
               }
             }
@@ -6488,7 +6563,11 @@ var defineMethod = function defineMethod(obj, methodName, param) {
     seq.__tick = seq.tick;
     seq.tick = function () {
       param.value = 0;
-      obj.pattern.adjust(obj.graph, Gibber.Scheduler.currentTimeInMs - obj.pattern.phase);
+      for (var i = 0; i < obj.patterns.length; i++) {
+        var pattern = obj.patterns[i];
+        var graph = obj.graphs[i];
+        pattern.adjust(graph, Gibber.Scheduler.currentTimeInMs - pattern.phase);
+      }
 
       for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
         args[_key] = arguments[_key];
@@ -6589,8 +6668,6 @@ module.exports = function (Gibber) {
 
       var ugen = mode === 'genish' ? genish[this.name].apply(genish, inputs) : genfunctions[this.name].apply(genfunctions, inputs);
 
-      //debugger
-
       return ugen;
     },
 
@@ -6602,7 +6679,7 @@ module.exports = function (Gibber) {
     gen: gen,
     genish: genish,
     Gibber: Gibber,
-    ugenNames: ['cycle', 'phasor', 'accum', 'counter', 'add', 'mul', 'div', 'sub', 'sah', 'noise', 'beats', 'lfo', 'fade', 'abs', 'ceil', 'round', 'floor', 'gt', 'lt', 'ltp', 'gtp', 'samplerate', 'rate'],
+    ugenNames: ['cycle', 'phasor', 'accum', 'counter', 'add', 'mul', 'div', 'sub', 'sah', 'noise', 'beats', 'lfo', 'fade', 'sinr', 'cosr', 'liner', 'line', 'abs', 'ceil', 'round', 'floor', 'min', 'max', 'gt', 'lt', 'ltp', 'gtp', 'samplerate', 'rate'],
 
     ugens: {},
 
@@ -6651,7 +6728,7 @@ module.exports = function (Gibber) {
       }
 
       this.ugens['beats'] = function (num) {
-        var frequency = Gibber.Utility.beatsToFrequency(num);
+        var frequency = Gibber.Utility.beatsToFrequency(num, 120);
 
         var ugen = _this.ugens['phasor'](frequency, 0, { min: 0, max: 1 });
         var storedAssignmentFunction = ugen[0];
@@ -6662,6 +6739,98 @@ module.exports = function (Gibber) {
           } else {
             var freq = Gibber.Utility.beatsToFrequency(v);
             storedAssignmentFunction(freq);
+          }
+        };
+
+        Gibber.addSequencingToMethod(ugen, '0');
+
+        return ugen;
+      };
+
+      this.ugens['sinr'] = function () {
+        var beats = arguments.length <= 0 || arguments[0] === undefined ? 4 : arguments[0];
+        var center = arguments.length <= 1 || arguments[1] === undefined ? 0 : arguments[1];
+        var amp = arguments.length <= 2 || arguments[2] === undefined ? 7 : arguments[2];
+
+        var freq = btof(beats, 120);
+        var __cycle = _this.ugens.cycle(freq);
+
+        var sine = __cycle;
+        var ugen = _this.ugens.round(_this.ugens.add(center, _this.ugens.mul(sine, amp)));
+
+        ugen[0] = function (v) {
+          if (v === undefined) {
+            return beats;
+          } else {
+            __cycle[0] = btof(beats, 120);
+          }
+        };
+
+        Gibber.addSequencingToMethod(ugen, '0');
+
+        return ugen;
+      };
+      this.ugens['cosr'] = function () {
+        var beats = arguments.length <= 0 || arguments[0] === undefined ? 4 : arguments[0];
+        var center = arguments.length <= 1 || arguments[1] === undefined ? 0 : arguments[1];
+        var amp = arguments.length <= 2 || arguments[2] === undefined ? 7 : arguments[2];
+
+        var freq = btof(beats, 120);
+        var __cycle = _this.ugens.cycle(freq, 0, { initialValue: 1 });
+
+        var sine = __cycle;
+        var ugen = _this.ugens.round(_this.ugens.add(center, _this.ugens.mul(sine, amp)));
+
+        ugen[0] = function (v) {
+          if (v === undefined) {
+            return beats;
+          } else {
+            beats = v;
+            __cycle[0](btof(beats, 120));
+          }
+        };
+
+        Gibber.addSequencingToMethod(ugen, '0');
+
+        return ugen;
+      };
+      this.ugens['liner'] = function () {
+        var beats = arguments.length <= 0 || arguments[0] === undefined ? 4 : arguments[0];
+        var min = arguments.length <= 1 || arguments[1] === undefined ? 0 : arguments[1];
+        var max = arguments.length <= 2 || arguments[2] === undefined ? 7 : arguments[2];
+
+        var line = _this.ugens.beats(beats);
+
+        var ugen = _this.ugens.round(_this.ugens.add(min, _this.ugens.mul(line, max - min)));
+
+        ugen[0] = function (v) {
+          if (v === undefined) {
+            return beats;
+          } else {
+            beats = v;
+            line[0](v);
+          }
+        };
+
+        Gibber.addSequencingToMethod(ugen, '0');
+
+        return ugen;
+      };
+      this.ugens['line'] = function () {
+        var beats = arguments.length <= 0 || arguments[0] === undefined ? 4 : arguments[0];
+        var min = arguments.length <= 1 || arguments[1] === undefined ? 0 : arguments[1];
+        var max = arguments.length <= 2 || arguments[2] === undefined ? 1 : arguments[2];
+
+        var line = _this.ugens.beats(beats);
+
+        var ugen = _this.ugens.add(min, _this.ugens.mul(line, max - min));
+
+        ugen[0] = function (v) {
+          if (v === undefined) {
+            return beats;
+          } else {
+            beats = v;
+            line[0](v);
           }
         };
 
@@ -6715,12 +6884,12 @@ var Gibber = {
     window.log = this.log;
     window.clear = this.clear;
     window.Theory = this.Theory;
-    window.Scale = this.Theory.Scale.master;
     window.WavePattern = this.WavePattern;
 
     Gibber.__gen.export(window);
     //Gibber.Gen.export( window )
 
+    this.Theory.export(window);
     this.Utility.export(window);
   },
   init: function init() {
@@ -6794,6 +6963,38 @@ var Gibber = {
           }
         }
 
+        if (proxy !== null && v !== null) {
+          if (proxy.isGen && v.isGen) {
+            for (var _key in proxy.sequences) {
+              var sequences = proxy.sequences[_key];
+              var _iteratorNormalCompletion2 = true;
+              var _didIteratorError2 = false;
+              var _iteratorError2 = undefined;
+
+              try {
+                for (var _iterator2 = sequences[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+                  var sequence = _step2.value;
+
+                  sequence.target = v;
+                }
+              } catch (err) {
+                _didIteratorError2 = true;
+                _iteratorError2 = err;
+              } finally {
+                try {
+                  if (!_iteratorNormalCompletion2 && _iterator2.return) {
+                    _iterator2.return();
+                  }
+                } finally {
+                  if (_didIteratorError2) {
+                    throw _iteratorError2;
+                  }
+                }
+              }
+            }
+            v.sequences = proxy.sequences;
+          }
+        }
         proxy = v;
       }
     });
@@ -6935,7 +7136,6 @@ var Gibber = {
         if ((typeof _v === 'undefined' ? 'undefined' : _typeof(_v)) === 'object' && _v.isGen) {
           (function () {
             var __v = _v.render('gen');
-            console.log('__v', __v);
             __v.assignTrackAndParamID(trackID, parameter.id);
 
             // if a gen is not already connected to this parameter, push
@@ -7035,7 +7235,6 @@ module.exports = function (Gibber) {
       Live.id = Communication.querystring.track;
 
       Live.LOM = msg;
-      console.log(msg);
 
       Live.processLOM();
     },
@@ -8286,6 +8485,17 @@ var seqclosure = function seqclosure(Gibber) {
 
       var seq = Object.create(this);
 
+      if (values.isGen) values = Gibber.WavePattern(values);
+      if (timings !== undefined && timings.isGen) timings = Gibber.WavePattern(timings);
+
+      if (timings === undefined) {
+        if (object.autorun === undefined) {
+          object.autorun = [seq];
+        } else {
+          object.autorun.push(seq);
+        }
+      }
+
       Object.assign(seq, {
         phase: 0,
         running: false,
@@ -8344,6 +8554,10 @@ var seqclosure = function seqclosure(Gibber) {
         if (this.values.filters.findIndex(function (v) {
           return v.type === 'note';
         }) === -1) {
+          // round the values for transformation to midinotes... XXX what about for Max version?
+          this.values.filters.push(function (args) {
+            args[0] = Math.round(args[0]);return args;
+          });
           var noteFilter = this.__noteFilter.bind(seq);
           noteFilter.type = 'note';
           this.values.filters.push(noteFilter);
@@ -8376,32 +8590,40 @@ var seqclosure = function seqclosure(Gibber) {
         });
       }
 
-      if (!Gibber.Pattern.prototype.isPrototypeOf(this.timings)) {
-        if (this.timings !== undefined && !Array.isArray(this.timings)) this.timings = [this.timings];
-        timingsPattern = Gibber.Pattern.apply(null, this.timings);
-        timingsPattern.values.initial = this.timings.initial;
+      // check in case it has no time values and is autotriggered by note / midinote messages
+      if (this.timings !== undefined) {
+        var i;
 
-        if (this.timings !== undefined) {
-          if (this.timings.randomFlag) {
-            timingsPattern.filters.push(function () {
-              var idx = Gibber.Utility.rndi(0, timingsPattern.values.length - 1);
-              return [timingsPattern.values[idx], 1, idx];
-            });
-            for (var i = 0; i < this.timings.randomArgs.length; i += 2) {
-              timingsPattern.repeat(this.timings.randomArgs[i], this.timings.randomArgs[i + 1]);
+        (function () {
+          if (!Gibber.Pattern.prototype.isPrototypeOf(_this.timings)) {
+            if (_this.timings !== undefined && !Array.isArray(_this.timings)) _this.timings = [_this.timings];
+            timingsPattern = Gibber.Pattern.apply(null, _this.timings);
+            timingsPattern.values.initial = _this.timings.initial;
+
+            if (_this.timings !== undefined) {
+              if (_this.timings.randomFlag) {
+                timingsPattern.filters.push(function () {
+                  var idx = Gibber.Utility.rndi(0, timingsPattern.values.length - 1);
+                  return [timingsPattern.values[idx], 1, idx];
+                });
+                for (i = 0; i < _this.timings.randomArgs.length; i += 2) {
+                  timingsPattern.repeat(_this.timings.randomArgs[i], _this.timings.randomArgs[i + 1]);
+                }
+              }
             }
+
+            _this.timings = timingsPattern;
           }
-        }
-
-        this.timings = timingsPattern;
+          var proxyFunctionTimings = function proxyFunctionTimings(oldPattern, newPattern) {
+            _this.timings = newPattern;
+            _this.timings.filters = oldPattern.filters.slice(0);
+            newPattern.__listeners.push(proxyFunctionTimings);
+          };
+          _this.timings.__listeners.push(proxyFunctionTimings);
+          _this.timings.seq = _this;
+          _this.timings.nextTime = 0;
+        })();
       }
-
-      var proxyFunctionTimings = function proxyFunctionTimings(oldPattern, newPattern) {
-        _this.timings = newPattern;
-        _this.timings.filters = oldPattern.filters.slice(0);
-        newPattern.__listeners.push(proxyFunction);
-      };
-      this.timings.__listeners.push(proxyFunctionTimings);
 
       var proxyFunctionValues = function proxyFunctionValues(oldPattern, newPattern) {
         _this.values = newPattern;
@@ -8410,10 +8632,8 @@ var seqclosure = function seqclosure(Gibber) {
       };
       this.values.__listeners.push(proxyFunctionValues);
 
-      this.values.nextTime = this.timings.nextTime = 0;
-
+      this.values.nextTime = 0;
       this.values.seq = this;
-      this.timings.seq = this;
     },
 
 
@@ -8470,7 +8690,8 @@ var seqclosure = function seqclosure(Gibber) {
     },
     clear: function clear() {
       this.stop();
-      if (typeof this.timings.clear === 'function') this.timings.clear();
+
+      if (this.timings !== undefined && typeof this.timings.clear === 'function') this.timings.clear();
       if (typeof this.values.clear === 'function') this.values.clear();
     },
     delay: function delay(v) {
@@ -8479,25 +8700,31 @@ var seqclosure = function seqclosure(Gibber) {
     },
     tick: function tick(scheduler, beat, beatOffset) {
       if (!this.running) return;
-      var _beatOffset = parseFloat(beatOffset.toFixed(6));
 
-      this.timings.nextTime = _beatOffset;
-      // pick a new timing and schedule tick
-      var nextTime = this.timings(),
+      var _beatOffset = parseFloat(beatOffset.toFixed(6)),
           shouldExecute = void 0;
 
-      if (typeof nextTime === 'function') nextTime = nextTime();
+      // if sequencer is not on autorun...
+      if (this.timings !== undefined) {
+        this.timings.nextTime = _beatOffset;
+        // pick a new timing and schedule tick
+        var nextTime = this.timings();
 
-      if ((typeof nextTime === 'undefined' ? 'undefined' : _typeof(nextTime)) === 'object') {
-        shouldExecute = nextTime.shouldExecute;
-        nextTime = nextTime.time;
+        if (typeof nextTime === 'function') nextTime = nextTime();
+
+        if ((typeof nextTime === 'undefined' ? 'undefined' : _typeof(nextTime)) === 'object') {
+          shouldExecute = nextTime.shouldExecute;
+          nextTime = nextTime.time;
+        } else {
+          shouldExecute = true;
+        }
+
+        var bigTime = Big(nextTime);
+
+        scheduler.addMessage(this, bigTime, true, this.priority);
       } else {
         shouldExecute = true;
       }
-
-      var bigTime = Big(nextTime);
-
-      scheduler.addMessage(this, bigTime, true, this.priority);
 
       if (shouldExecute) {
         this.values.nextTime = _beatOffset;
@@ -8522,6 +8749,35 @@ var seqclosure = function seqclosure(Gibber) {
                 this.object[this.key](value);
               } else {
                 this.object[this.key] = value;
+              }
+            }
+          }
+
+          if (this.key === 'note' || this.key === 'midinote') {
+            if (Array.isArray(this.object.autorun)) {
+              var _iteratorNormalCompletion = true;
+              var _didIteratorError = false;
+              var _iteratorError = undefined;
+
+              try {
+                for (var _iterator = this.object.autorun[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+                  var seq = _step.value;
+
+                  seq.tick(scheduler, beat, beatOffset);
+                }
+              } catch (err) {
+                _didIteratorError = true;
+                _iteratorError = err;
+              } finally {
+                try {
+                  if (!_iteratorNormalCompletion && _iterator.return) {
+                    _iterator.return();
+                  }
+                } finally {
+                  if (_didIteratorError) {
+                    throw _iteratorError;
+                  }
+                }
               }
             }
           }
@@ -8992,14 +9248,30 @@ var Scale = {
   create: function create(root, mode) {
     var scale = Object.create(this);
 
-    scale.rootNumber = Note.convertToMIDI(root);
+    scale.rootNumber = scale.baseNumber = Note.convertToMIDI(root);
+    scale.degree = Scale.degrees.i;
+    scale.quality = 'minor';
 
     scale.root = function (v) {
       if (typeof v === 'string') {
         root = v;
         scale.rootNumber = Note.convertToMIDI(root);
+      } else if (typeof v === 'number') {
+        scale.rootNumber = v;
       } else {
         return root;
+      }
+    };
+
+    scale.degree = function (__degree) {
+      if (typeof __degree === 'string') {
+        var degree = Scale.degrees[scale.quality][__degree];
+
+        scale.__degree = __degree;
+        scale.root(degree.offset + scale.baseNumber);
+        scale.mode(degree.mode);
+      } else {
+        return scale.__degree;
       }
     };
 
@@ -9025,6 +9297,7 @@ var Scale = {
     if (Gibber !== null) {
       Gibber.addSequencingToMethod(scale, 'root', 1);
       Gibber.addSequencingToMethod(scale, 'mode', 1);
+      Gibber.addSequencingToMethod(scale, 'degree', 1);
     }
 
     return scale;
@@ -9044,6 +9317,77 @@ var Scale = {
   },
 
 
+  degrees: {
+    major: {},
+    minor: {}
+  },
+
+  __getBaseNumber: function __getBaseNumber(chord) {
+    var start = scale.baseNumber;
+  },
+  __initDegrees: function __initDegrees() {
+    var base = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii'];
+
+    var scales = [{ name: 'minor', values: Scale.modes.aeolian }, { name: 'major', values: Scale.modes.ionian }];
+
+    var _iteratorNormalCompletion = true;
+    var _didIteratorError = false;
+    var _iteratorError = undefined;
+
+    try {
+      for (var _iterator = scales[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+        var _scale = _step.value;
+
+        var name = _scale.name;
+        var values = _scale.values;
+
+        for (var i = 0; i < base.length; i++) {
+          var chord = base[i];
+          this.degrees[name][chord] = { mode: 'aeolian', offset: values[i] };
+        }
+
+        for (var _i2 = 0; _i2 < base.length; _i2++) {
+          var _chord = base[_i2].toUpperCase();
+          this.degrees[name][_chord] = { mode: 'ionian', offset: values[_i2] };
+        }
+
+        for (var _i3 = 0; _i3 < base.length; _i3++) {
+          var _chord2 = base[_i3] + '7';
+          this.degrees[name][_chord2] = { mode: 'dorian', offset: values[_i3] };
+        }
+
+        for (var _i4 = 0; _i4 < base.length; _i4++) {
+          var _chord3 = base[_i4].toUpperCase() + '7';
+          this.degrees[name][_chord3] = { mode: 'mixolydian', offset: values[_i4] };
+        }
+
+        for (var _i5 = 0; _i5 < base.length; _i5++) {
+          var _chord4 = base[_i5] + 'o';
+          this.degrees[name][_chord4] = { mode: 'locrian', offset: values[_i5] };
+        }
+
+        for (var _i6 = 0; _i6 < base.length; _i6++) {
+          var _chord5 = base[_i6] + 'M7';
+          this.degrees[name][_chord5] = { mode: 'melodicminor', offset: values[_i6] };
+        }
+      }
+    } catch (err) {
+      _didIteratorError = true;
+      _iteratorError = err;
+    } finally {
+      try {
+        if (!_iteratorNormalCompletion && _iterator.return) {
+          _iterator.return();
+        }
+      } finally {
+        if (_didIteratorError) {
+          throw _iteratorError;
+        }
+      }
+    }
+  },
+
+
   modes: {
     ionian: [0, 2, 4, 5, 7, 9, 11],
     dorian: [0, 2, 3, 5, 7, 9, 10],
@@ -9052,6 +9396,7 @@ var Scale = {
     mixolydian: [0, 2, 4, 5, 7, 9, 10],
     aeolian: [0, 2, 3, 5, 7, 8, 10],
     locrian: [0, 1, 3, 5, 6, 8, 10],
+    melodicminor: [0, 2, 3, 5, 7, 8, 11],
     wholeHalf: [0, 2, 3, 5, 6, 8, 9, 11],
     halfWhole: [0, 1, 3, 4, 6, 7, 9, 10],
     chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
@@ -9071,8 +9416,46 @@ module.exports = {
     Gibber = _Gibber;
 
     Scale.master = Scale.create('c4', 'aeolian');
+    Scale.__initDegrees();
 
     return this;
+  },
+  export: function _export(obj) {
+    obj.Theory = this;
+    obj.Scale = Scale.master;
+
+    var base = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii'];
+
+    var _iteratorNormalCompletion2 = true;
+    var _didIteratorError2 = false;
+    var _iteratorError2 = undefined;
+
+    try {
+      for (var _iterator2 = base[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+        var chord = _step2.value;
+
+        obj[chord] = chord;
+        var upper = chord.toUpperCase();
+
+        obj[upper] = upper;
+        obj[chord + '7'] = chord + '7';
+        obj[upper + '7'] = upper + '7';
+        obj[chord + 'M7'] = chord + 'M7';
+      }
+    } catch (err) {
+      _didIteratorError2 = true;
+      _iteratorError2 = err;
+    } finally {
+      try {
+        if (!_iteratorNormalCompletion2 && _iterator2.return) {
+          _iterator2.return();
+        }
+      } finally {
+        if (_didIteratorError2) {
+          throw _iteratorError2;
+        }
+      }
+    }
   }
 };
 },{}],95:[function(require,module,exports){
@@ -9541,8 +9924,13 @@ var Utility = {
       arr.push(i);
     }return arr;
   },
-  beatsToFrequency: function beatsToFrequency(beats) {
-    var bpm = Gibber.Scheduler.bpm;
+
+
+  // NOTE: when using genish.js, the phase of ugens is automatically 
+  // adjusted at a variable rate depending on the current bpm, making
+  // using values other than 120 bpm yield inaccurate results.
+  beatsToFrequency: function beatsToFrequency(beats, __bpm) {
+    var bpm = __bpm || Gibber.Scheduler.bpm;
 
     return 1 / (beats * (60 / bpm));
   },
@@ -9822,18 +10210,27 @@ var genish = require('genish.js');
 
 module.exports = function (Gibber) {
 
+  // XXX - how do we advance time for wavepattern visualizations? 
+  // Time normally advances based off messages from the DAW clock,
+  // but here we want the wavepattern oscillators to basically run freely???
+  // do we make a copy? one for the visualizations and one to actually output
+  // values to send to the DAW? Do we make "adjust" run forwards and backwards?
+  // that way we'd be able to scrub through time as needed... seems like it shoudl already work in reverse.
+
   'use strict';
 
   var WavePattern = {
-    __type: 'wavepattern',
-
     create: function create(abstractGraph, values) {
 
       // might change due to proxy functionality, so use 'let'
       var graph = abstractGraph.render('genish'); // convert abstraction to genish.js graph
+      var count = -1;
 
       var patternOutputFnc = function patternOutputFnc() {
-        pattern.run();
+        var isViz = arguments.length <= 0 || arguments[0] === undefined ? false : arguments[0];
+
+        if (isViz && pattern.vizinit === false) return;
+        pattern.run(isViz);
 
         var signalValue = pattern.signalOut();
         // edge case... because adjust might lead to a value of 1
@@ -9846,16 +10243,29 @@ module.exports = function (Gibber) {
         // if there is an array of values to read from... (signal is a phasor indexing into a values array)
         if (pattern.__usesValues === true) {
           var scaledSignalValue = signalValue * pattern._values.length;
-          var adjustedSignalValue = scaledSignalValue < 0 ? pattern._values.length + scaledSignalValue : scaledSignalValue;
+          var adjustedSignalValue = Math.abs(scaledSignalValue); //scaledSignalValue < 0 ? pattern._values.length + scaledSignalValue : scaledSignalValue
           var roundedSignalValue = Math.floor(adjustedSignalValue);
           outputBeforeFilters = pattern._values[roundedSignalValue];
         }
 
         var output = outputBeforeFilters;
 
-        if (pattern.update && pattern.update.value) pattern.update.value.unshift(output);
+        // if we are running the pattern solely to visualize the waveform data...
+        if (isViz === true && pattern.vizinit && Gibber.Environment.annotations === true) {
+          Gibber.Environment.codeMarkup.updateWidget(pattern.paramID, signalValue);
+        } else if (Gibber.Environment.annotations === true) {
+          // mark the last placed value by the visualization as having a "hit", 
+          // which will cause a dot to be drawn on the sparkline.
+          pattern.widget.values[75 + Math.round(pattern.beatOffset * 12)] = { value: signalValue, type: 'hit' };
+        }
 
         if (output === pattern.DNR) output = null;
+
+        if (pattern.running === false) {
+          //pattern.runVisualization()
+          Gibber.Environment.animationScheduler.add(pattern.runVisualization, 1000 / 60);
+          pattern.running = true;
+        }
 
         return output;
       };
@@ -9864,20 +10274,35 @@ module.exports = function (Gibber) {
 
       var pattern = Gibber.Pattern(patternOutputFnc);
 
+      patternOutputFnc.pattern = pattern;
+
       // check whether or not to use raw signal values
       // or index into values array
       pattern.__usesValues = values !== undefined;
 
-      abstractGraph.pattern = pattern;
-      abstractGraph.graph = graph;
+      if (abstractGraph.patterns === undefined) {
+        abstractGraph.patterns = [];
+        abstractGraph.graphs = [];
+      }
+      abstractGraph.patterns.push(pattern);
+      abstractGraph.graphs.push(graph);
+
+      //abstractGraph.pattern = pattern
+      //abstractGraph.graph = graph
       if (abstractGraph.__listeners === undefined) {
         abstractGraph.__listeners = [];
       }
 
       var proxyFunction = function proxyFunction(oldAbstractGraph, newAbstractGraph) {
         graph = newAbstractGraph.render('genish');
-        newAbstractGraph.pattern = pattern;
-        newAbstractGraph.graph = graph;
+
+        if (newAbstractGraph.patterns === undefined) {
+          newAbstractGraph.patterns = [];
+          newAbstractGraph.graphs = [];
+        }
+        newAbstractGraph.patterns.push(pattern);
+        newAbstractGraph.graphs.push(graph);
+
         pattern.graph = graph;
         pattern.signalOut = genish.gen.createCallback(graph, mem, false, false, Float64Array), pattern.phase = 0;
         pattern.initialized = false;
@@ -9897,17 +10322,33 @@ module.exports = function (Gibber) {
       var mem = genish.gen.memory || 44100;
 
       Object.assign(pattern, {
+        type: 'WavePattern',
         graph: graph,
+        paramID: 1000,
         _values: values,
         signalOut: genish.gen.createCallback(graph, mem, false, false, Float64Array),
         adjust: WavePattern.adjust.bind(pattern),
         phase: 0,
         run: WavePattern.run.bind(pattern),
+        runVisualization: WavePattern.runVisualization.bind(patternOutputFnc),
+        running: false,
         initialized: false,
+        vizinit: true,
         __listeners: []
       });
 
+      Gibber.__gen.gen.lastConnected = pattern;
+      Gibber.Gen.connected.push(pattern);
+
+      //Gibber.Scheduler.addMessage( { tick() { pattern.vizinit = true } }, 0  )
+
       return pattern;
+    },
+    runVisualization: function runVisualization() {
+      // pass true for visualization run as opposed to audio run
+      this(true); // I LOVE JS
+
+      Gibber.Environment.animationScheduler.add(this.pattern.runVisualization, 1000 / 60);
     },
     assignInputProperties: function assignInputProperties(genishGraph, abstractGraph) {
 
@@ -9923,7 +10364,14 @@ module.exports = function (Gibber) {
       }
     },
     run: function run() {
-      var now = Gibber.Scheduler.currentTimeInMs;
+      var isViz = arguments.length <= 0 || arguments[0] === undefined ? false : arguments[0];
+
+      var now = void 0;
+      if (isViz === true) {
+        now = Gibber.Environment.animationScheduler.visualizationTime.base + Gibber.Environment.animationScheduler.visualizationTime.phase;
+      } else {
+        now = Gibber.Scheduler.currentTimeInMs;
+      }
 
       if (this.initialized === true) {
         var adjustment = now - this.phase;

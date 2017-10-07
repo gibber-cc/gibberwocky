@@ -31,12 +31,12 @@ let Gibber = {
     window.log           = this.log
     window.clear         = this.clear
     window.Theory        = this.Theory
-    window.Scale         = this.Theory.Scale.master
     window.WavePattern   = this.WavePattern
 
     Gibber.__gen.export( window ) 
     //Gibber.Gen.export( window )
 
+    this.Theory.export( window )
     this.Utility.export( window )
   },
 
@@ -89,6 +89,17 @@ let Gibber = {
           }
         }
 
+        if( proxy !== null && v !== null ) {
+          if( proxy.isGen && v.isGen ) {
+            for( let key in proxy.sequences ) {
+              let sequences = proxy.sequences[ key ]
+              for( let sequence of sequences ) {
+                sequence.target = v
+              }
+            }
+            v.sequences = proxy.sequences
+          }
+        }
         proxy = v
       }
     })
@@ -225,7 +236,6 @@ let Gibber = {
       if( _v !== undefined ) {
         if( typeof _v === 'object' && _v.isGen ) {
           const __v = _v.render( 'gen' )
-          console.log( '__v', __v )
           __v.assignTrackAndParamID( trackID, parameter.id )
           
           // if a gen is not already connected to this parameter, push

@@ -16,6 +16,12 @@ const callDepths = [
 
 const trackNames = [ 'this', 'tracks', 'master', 'returns' ]
 
+const COLORS = {
+  FILL:'rgba(46,50,53,1)',
+  STROKE:'#eee',
+  DOT:'rgba(255,255,255,.3)'
+}
+
 const Utility = require( './utility.js' )
 const $ = Utility.create
 
@@ -31,13 +37,26 @@ let Marker = {
   },
 
   process( code, position, codemirror, track ) {
-    let shouldParse = code.includes( '.seq' ) || code.includes( 'Steps(' ) || code.includes( 'Score(' ),
+    let shouldParse = /*code.includes( '.seq' ) || */ code.includes( 'Steps(' ) || code.includes( 'Score(' ),
         isGen = false
 
     if( !shouldParse ) { // check for gen~ assignment
       for( let ugen of Gibber.__gen.gen.names ) {
+        let idx = code.indexOf( ugen )
+        if( idx !== -1 && code.charAt( idx + ugen.length ) === '('  ) {
+          if( ugen === 'eq' && code[ idx - 1] === 's' ) { // found seq, which isn't a match we want
+            continue;
+          }
+          shouldParse = true
+          isGen = true
 
-        for( let ugen of Gibber.__gen.gen.names ) {
+          break;
+        }
+      }
+
+
+      if( isGen === false ) {
+        for( let ugen of Gibber.__gen.ugenNames ) {
           let idx = code.indexOf( ugen )
           if( idx !== -1 && code.charAt( idx + ugen.length ) === '('  ) {
             shouldParse = true
@@ -86,11 +105,15 @@ let Marker = {
     widget.style.borderRight = '1px solid #666'
     widget.setAttribute( 'width', 60 )
     widget.setAttribute( 'height', 13 )
-    widget.ctx.fillStyle = 'rgba(46,50,53,1)'
-    widget.ctx.strokeStyle = '#eee'
+    widget.ctx.fillStyle = COLORS.FILL 
+    widget.ctx.strokeStyle = COLORS.STROKE
     widget.ctx.lineWidth = .5
     widget.gen = Gibber.__gen.gen.lastConnected
     widget.values = []
+    widget.min = 0
+    widget.max = 1
+
+    for( let i = 0; i < 120; i++ ) widget.values[ i ] = 0
 
     let oldWidget = Marker.genWidgets[ widget.gen.paramID ] 
 
@@ -99,33 +122,65 @@ let Marker = {
     } 
     
     Marker.genWidgets[ widget.gen.paramID ] = widget
+    widget.gen.widget = widget
 
     widget.mark = cm.markText({ line, ch }, { line, ch:end+1 }, { replacedWith:widget })
   },
 
-  updateWidget( id, value ) {
-    let widget = Marker.genWidgets[ id ]
+  // currently called when a network snapshot message is received providing ugen state..
+  // needs to also be called for wavepatterns.
+  updateWidget( id, __value ) {
+    const widget = Marker.genWidgets[ id ]
     if( widget === undefined ) return 
 
-    widget.values.push( parseFloat( value ) )
+    const value = parseFloat( __value )
 
-    while( widget.values.length > 60 ) widget.values.shift()
+    widget.values[ 90 ] = value
+    
+    if( value > widget.max ) {
+      widget.max = value
+    }else if( value < widget.min ) {
+      widget.min = value
+    } 
+
+    widget.values.shift()
     Marker.genWidgets.dirty = true
   },
 
+  // called by animation scheduler if Marker.genWidgets.dirty === true
   drawWidgets() {
     
     Marker.genWidgets.dirty = false
 
-
     for( let key in Marker.genWidgets ) {
       let widget = Marker.genWidgets[ key ]
       if( typeof widget === 'object' && widget.ctx !== undefined ) {
+
+        widget.ctx.fillStyle = COLORS.FILL
         widget.ctx.fillRect( 0,0, widget.width, widget.height )
         widget.ctx.beginPath()
         widget.ctx.moveTo( 0,  widget.height / 2 + 1 )
-        for( let i = 0; i < widget.values.length; i++ ) {
-          widget.ctx.lineTo( i, widget.values[ i ] * widget.height * .7 + 1 )
+
+        const range = widget.max - widget.min
+
+        for( let i = 0, len = widget.width; i < len; i++ ) {
+          const data = widget.values[ i ]
+          const shouldDrawDot = typeof data === 'object'
+          const value = shouldDrawDot ? data.value : data
+          const scaledValue = ( value - widget.min ) / range
+
+          let yValue = scaledValue * widget.height * .7 + 1
+          //yValue = Math.round( (widget.height * .7 + 1) - yValue ) - .5
+          yValue = widget.height * .7 + 1 - yValue - .5 
+          
+          widget.ctx.lineTo( i, yValue )
+          if( shouldDrawDot === true ) {
+            widget.ctx.fillStyle = COLORS.DOT
+            widget.ctx.fillRect( i-1, yValue - 1, 3, 3)
+            /*widget.ctx.fillStyle = COLORS.DOT
+            widget.ctx.fillRect( i, 0, 1, widget.height  )
+            widget.ctx.strokeStyle = COLORS.STROKE*/
+          }
         }
         widget.ctx.stroke()
       }

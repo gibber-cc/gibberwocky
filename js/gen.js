@@ -53,7 +53,6 @@ let Gen  = {
         }else{
           value = v
           if( obj.active ) {
-            //console.log( `${obj.track} genp ${obj.paramID} ${obj[ key ].uid} ${v}` )
             Gibber.Communication.send( `genp ${obj.paramID} ${obj[ key ].uid} ${v}` ) 
           }
         }

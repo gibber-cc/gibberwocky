@@ -56,7 +56,11 @@ const defineMethod = function( obj, methodName, param, priority=0 ) {
     seq.__tick = seq.tick
     seq.tick = function( ...args ) {
       param.value = 0 
-      obj.pattern.adjust( obj.graph, Gibber.Scheduler.currentTimeInMs - obj.pattern.phase )  
+      for( let i = 0; i < obj.patterns.length; i++ ) {
+        let pattern = obj.patterns[ i ]
+        let graph   = obj.graphs[ i ]
+        pattern.adjust( graph, Gibber.Scheduler.currentTimeInMs - pattern.phase )  
+      }
       seq.__tick.apply( seq, args )
     }
 
@@ -127,8 +131,6 @@ module.exports = function( Gibber ) {
       
       const ugen = mode === 'genish' ? genish[ this.name ]( ...inputs ) : genfunctions[ this.name ]( ...inputs )
 
-      //debugger
-
       return ugen
     },
 
@@ -144,8 +146,9 @@ module.exports = function( Gibber ) {
       'cycle','phasor','accum','counter',
       'add','mul','div','sub',
       'sah','noise',
-      'beats', 'lfo', 'fade',
+      'beats', 'lfo', 'fade', 'sinr', 'cosr', 'liner', 'line',
       'abs', 'ceil', 'round', 'floor',
+      'min','max',
       'gt','lt','ltp','gtp','samplerate','rate'
     ],
 
@@ -164,7 +167,7 @@ module.exports = function( Gibber ) {
       }
 
       this.ugens[ 'beats' ] = ( num ) => {
-        const frequency = Gibber.Utility.beatsToFrequency( num )
+        const frequency = Gibber.Utility.beatsToFrequency( num, 120 )
 
         const ugen = this.ugens[ 'phasor' ]( frequency, 0, { min:0, max:1 } )
         const storedAssignmentFunction = ugen[0]
@@ -175,6 +178,82 @@ module.exports = function( Gibber ) {
           }else{
             const freq = Gibber.Utility.beatsToFrequency( v )
             storedAssignmentFunction( freq )
+          }
+        }
+
+        Gibber.addSequencingToMethod( ugen, '0' )
+
+        return ugen
+      }
+
+      this.ugens[ 'sinr' ] = ( beats=4, center=0, amp=7 ) => {
+        const freq = btof( beats, 120 )
+        const __cycle = this.ugens.cycle( freq )
+
+        const sine = __cycle 
+        const ugen = this.ugens.round( this.ugens.add( center, this.ugens.mul( sine, amp ) ) )
+
+        ugen[0] = v => {
+          if( v === undefined ) {
+            return beats
+          }else{
+            __cycle[0] = btof( beats, 120 )
+          }
+        }
+
+        Gibber.addSequencingToMethod( ugen, '0' )
+
+        return ugen
+      }
+      this.ugens[ 'cosr' ] = ( beats=4, center=0, amp=7 ) => {
+        const freq = btof( beats, 120 )
+        const __cycle = this.ugens.cycle( freq, 0, { initialValue:1 })
+
+        const sine = __cycle 
+        const ugen = this.ugens.round( this.ugens.add( center, this.ugens.mul( sine, amp ) ) )
+
+        ugen[0] = v => {
+          if( v === undefined ) {
+            return beats
+          }else{
+            beats = v
+            __cycle[0]( btof( beats, 120 ) )
+          }
+        }
+
+        Gibber.addSequencingToMethod( ugen, '0' )
+
+        return ugen
+      }
+      this.ugens[ 'liner' ] = ( beats=4, min=0, max=7 ) => {
+        const line = this.ugens.beats( beats )
+
+        const ugen = this.ugens.round( this.ugens.add( min, this.ugens.mul( line, max-min ) ) )
+
+        ugen[0] = v => {
+          if( v === undefined ) {
+            return beats
+          }else{
+            beats = v
+            line[0]( v )
+          }
+        }
+
+        Gibber.addSequencingToMethod( ugen, '0' )
+
+        return ugen
+      }
+      this.ugens[ 'line' ] = ( beats=4, min=0, max=1 ) => {
+        const line = this.ugens.beats( beats )
+
+        const ugen = this.ugens.add( min, this.ugens.mul( line, max-min ) )
+
+        ugen[0] = v => {
+          if( v === undefined ) {
+            return beats
+          }else{
+            beats = v
+            line[0]( v )
           }
         }
 

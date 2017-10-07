@@ -1,19 +1,26 @@
 const genish = require( 'genish.js' )
 
 module.exports = function( Gibber ) {
-  
+
+// XXX - how do we advance time for wavepattern visualizations? 
+// Time normally advances based off messages from the DAW clock,
+// but here we want the wavepattern oscillators to basically run freely???
+// do we make a copy? one for the visualizations and one to actually output
+// values to send to the DAW? Do we make "adjust" run forwards and backwards?
+// that way we'd be able to scrub through time as needed... seems like it shoudl already work in reverse.
+
 'use strict'
 
 const WavePattern = {
-  __type: 'wavepattern',
-
   create( abstractGraph, values ) {
 
     // might change due to proxy functionality, so use 'let'
     let graph = abstractGraph.render( 'genish' ) // convert abstraction to genish.js graph
+    let count = -1
 
-    const patternOutputFnc = function() {
-      pattern.run()
+    const patternOutputFnc = function( isViz = false ) {
+      if( isViz && pattern.vizinit === false ) return 
+      pattern.run( isViz )
 
       let signalValue = pattern.signalOut()
       // edge case... because adjust might lead to a value of 1
@@ -26,16 +33,29 @@ const WavePattern = {
       // if there is an array of values to read from... (signal is a phasor indexing into a values array)
       if( pattern.__usesValues === true ) {
         const scaledSignalValue = signalValue * ( pattern._values.length )
-        const adjustedSignalValue = scaledSignalValue < 0 ? pattern._values.length + scaledSignalValue : scaledSignalValue
+        const adjustedSignalValue = Math.abs( scaledSignalValue )//scaledSignalValue < 0 ? pattern._values.length + scaledSignalValue : scaledSignalValue
         const roundedSignalValue  = Math.floor( adjustedSignalValue )
         outputBeforeFilters = pattern._values[ roundedSignalValue ]
       }
 
       let output = outputBeforeFilters
 
-      if( pattern.update && pattern.update.value ) pattern.update.value.unshift( output )
+      // if we are running the pattern solely to visualize the waveform data...
+      if( isViz === true && pattern.vizinit && Gibber.Environment.annotations === true ) {
+        Gibber.Environment.codeMarkup.updateWidget( pattern.paramID, signalValue )
+      }else if( Gibber.Environment.annotations === true ) {
+        // mark the last placed value by the visualization as having a "hit", 
+        // which will cause a dot to be drawn on the sparkline.
+        pattern.widget.values[ 75 + Math.round( pattern.beatOffset * 12 ) ] = { value: signalValue, type:'hit' }
+      }
 
       if( output === pattern.DNR ) output = null
+
+      if( pattern.running === false ) { 
+        //pattern.runVisualization()
+        Gibber.Environment.animationScheduler.add( pattern.runVisualization, 1000/60 )
+        pattern.running = true
+      }
 
       return output
     }
@@ -44,20 +64,35 @@ const WavePattern = {
 
     const pattern = Gibber.Pattern( patternOutputFnc )
 
+    patternOutputFnc.pattern = pattern
+
     // check whether or not to use raw signal values
     // or index into values array
     pattern.__usesValues = values !== undefined
 
-    abstractGraph.pattern = pattern
-    abstractGraph.graph = graph
+    if( abstractGraph.patterns === undefined ) {
+      abstractGraph.patterns = []
+      abstractGraph.graphs = []
+    }
+    abstractGraph.patterns.push( pattern )
+    abstractGraph.graphs.push( graph )
+
+    //abstractGraph.pattern = pattern
+    //abstractGraph.graph = graph
     if( abstractGraph.__listeners === undefined ) {
       abstractGraph.__listeners = []
     }
 
     const proxyFunction = ( oldAbstractGraph, newAbstractGraph ) => {
       graph = newAbstractGraph.render( 'genish' )
-      newAbstractGraph.pattern = pattern
-      newAbstractGraph.graph = graph
+
+      if( newAbstractGraph.patterns === undefined ) {
+        newAbstractGraph.patterns = []
+        newAbstractGraph.graphs = []
+      }
+      newAbstractGraph.patterns.push( pattern )
+      newAbstractGraph.graphs.push( graph )
+
       pattern.graph = graph
       pattern.signalOut = genish.gen.createCallback( graph, mem, false, false, Float64Array ),
       pattern.phase = 0
@@ -78,17 +113,34 @@ const WavePattern = {
     let mem = genish.gen.memory || 44100
 
     Object.assign( pattern, {
+      type:'WavePattern',
       graph,
+      paramID:1000,
       _values:values,
       signalOut: genish.gen.createCallback( graph, mem, false, false, Float64Array ), 
       adjust: WavePattern.adjust.bind( pattern ),
       phase:0,
       run: WavePattern.run.bind( pattern ),
+      runVisualization: WavePattern.runVisualization.bind( patternOutputFnc ),
+      running: false,
       initialized:false,
+      vizinit:true,
       __listeners:[]
     })
 
+    Gibber.__gen.gen.lastConnected = pattern
+    Gibber.Gen.connected.push( pattern )
+
+    //Gibber.Scheduler.addMessage( { tick() { pattern.vizinit = true } }, 0  )
+
     return pattern
+  },
+
+  runVisualization() {
+    // pass true for visualization run as opposed to audio run
+    this( true ) // I LOVE JS
+
+    Gibber.Environment.animationScheduler.add( this.pattern.runVisualization, 1000 / 60 )
   },
 
   assignInputProperties( genishGraph, abstractGraph ) {
@@ -103,8 +155,13 @@ const WavePattern = {
     }
   },
 
-  run( ) {
-    const now = Gibber.Scheduler.currentTimeInMs 
+  run( isViz = false ) {
+    let now 
+    if( isViz === true ) {
+      now = Gibber.Environment.animationScheduler.visualizationTime.base + Gibber.Environment.animationScheduler.visualizationTime.phase
+    }else{
+      now = Gibber.Scheduler.currentTimeInMs 
+    }
 
     if( this.initialized === true ) {
       const adjustment =  now - this.phase 

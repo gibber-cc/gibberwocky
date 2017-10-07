@@ -164,8 +164,11 @@ let Utility = {
     return arr
   },
 
-  beatsToFrequency( beats ) {
-    const bpm = Gibber.Scheduler.bpm
+  // NOTE: when using genish.js, the phase of ugens is automatically 
+  // adjusted at a variable rate depending on the current bpm, making
+  // using values other than 120 bpm yield inaccurate results.
+  beatsToFrequency( beats, __bpm ) {
+    const bpm = __bpm || Gibber.Scheduler.bpm
 
     return 1 / ( beats * ( 60 / bpm ) ) 
   },

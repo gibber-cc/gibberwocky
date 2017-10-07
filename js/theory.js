@@ -17,6 +17,7 @@ let Note = {
     b:11, cb:11
   },
 
+
   getMIDI() { return this.value },
 
   getFrequency() {
@@ -126,15 +127,32 @@ let Chord = {
 let Scale = {
   create( root, mode ) {
     let scale = Object.create( this )
-
-    scale.rootNumber = Note.convertToMIDI( root )
+    
+    scale.rootNumber = scale.baseNumber = Note.convertToMIDI( root )
+    scale.degree = Scale.degrees.i 
+    scale.quality = 'minor'
 
     scale.root = function( v ) {
       if( typeof v === 'string' ) {
         root = v
         scale.rootNumber = Note.convertToMIDI( root )
+      }else if( typeof v === 'number' ) {
+        scale.rootNumber = v
       }else{
         return root
+      }
+    }
+
+    scale.degree = function( __degree ) {
+      if( typeof __degree  === 'string' ) {
+        const degree = Scale.degrees[ scale.quality ][ __degree ]
+        
+        scale.__degree = __degree
+        scale.root( degree.offset + scale.baseNumber )
+        scale.mode( degree.mode )
+
+      } else {
+        return scale.__degree
       }
     }
     
@@ -156,6 +174,7 @@ let Scale = {
     if( Gibber !== null ) {
       Gibber.addSequencingToMethod( scale, 'root', 1 )
       Gibber.addSequencingToMethod( scale, 'mode', 1 )
+      Gibber.addSequencingToMethod( scale, 'degree',1 )
     }
 
     return scale
@@ -177,6 +196,58 @@ let Scale = {
     return out 
   },
 
+  degrees: {
+    major: {},
+    minor: {}
+  },
+
+  __getBaseNumber( chord ) {
+    const start = scale.baseNumber
+
+  },
+
+  __initDegrees() {
+    const base = [ 'i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii' ]
+
+    const scales = [ { name:'minor', values:Scale.modes.aeolian }, { name:'major', values:Scale.modes.ionian } ]
+
+    for( let scale of scales ) {
+      let name = scale.name
+      let values = scale.values
+
+      for( let i = 0; i < base.length; i++ ) {
+        const chord = base[ i ]
+        this.degrees[ name ][ chord ] = { mode:'aeolian', offset: values[i] }
+      }
+
+      for( let i = 0; i < base.length; i++ ) {
+        const chord = base[ i ].toUpperCase()
+        this.degrees[ name ][ chord ] = { mode:'ionian', offset: values[i] }
+      }
+
+      for( let i = 0; i < base.length; i++ ) {
+        const chord = base[ i ] + '7'
+        this.degrees[ name ][ chord ] = { mode:'dorian', offset: values[i] }
+      }
+
+      for( let i = 0; i < base.length; i++ ) {
+        const chord = base[ i ].toUpperCase() + '7'
+        this.degrees[ name ][ chord ] = { mode:'mixolydian', offset: values[i] }
+      }
+
+      for( let i = 0; i < base.length; i++ ) {
+        const chord = base[ i ] + 'o'
+        this.degrees[ name ][ chord ] = { mode:'locrian', offset: values[i] }
+      }
+
+      for( let i = 0; i < base.length; i++ ) {
+        const chord = base[ i ] + 'M7'
+        this.degrees[ name ][ chord ] = { mode:'melodicminor', offset: values[i] }
+      }
+    }
+    
+  },
+
   modes: {
     ionian:     [0,2,4,5,7,9,11],
     dorian:     [0,2,3,5,7,9,10],
@@ -185,6 +256,7 @@ let Scale = {
     mixolydian: [0,2,4,5,7,9,10],
     aeolian:    [0,2,3,5,7,8,10],
     locrian:    [0,1,3,5,6,8,10],
+    melodicminor:[0,2,3,5,7,8,11],
     wholeHalf:  [0,2,3,5,6,8,9,11],
     halfWhole:  [0,1,3,4,6,7,9,10],
     chromatic:  [0,1,2,3,4,5,6,7,8,9,10,11],
@@ -205,7 +277,25 @@ module.exports = {
     Gibber = _Gibber; 
 
     Scale.master = Scale.create( 'c4','aeolian' )
+    Scale.__initDegrees()
     
     return this 
+  },
+
+  export( obj ) {
+    obj.Theory = this
+    obj.Scale = Scale.master
+    
+    const base = [ 'i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii' ]
+
+    for( let chord of base ) {
+      obj[ chord ] = chord
+      const upper = chord.toUpperCase()
+
+      obj[ upper ] = upper
+      obj[ chord+'7'] = chord+'7'
+      obj[ upper+'7'] = upper+'7'
+      obj[ chord+'M7'] = chord+'M7'
+    }
   } 
 }

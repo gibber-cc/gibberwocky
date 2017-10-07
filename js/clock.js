@@ -61,6 +61,7 @@ let Scheduler = {
       this.phase += advanceAmount   // increment phase
       this.currentTime = this.phase
       this.currentTimeInMs = Gibber.Utility.beatsToMs( this.currentTime )
+      Gibber.Environment.animationScheduler.updateVisualizationTime( Gibber.Utility.beatsToMs( advanceAmount ) )
     }
   },
 
