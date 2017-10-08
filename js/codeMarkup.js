@@ -483,11 +483,21 @@ let Marker = {
       const wait = Utility.beatsToMs( patternObject.nextTime + .5,  Gibber.Scheduler.bpm ),
             idx = args[ 2 ],
             shouldUpdate = patternObject.update.shouldUpdate
-        
-      Gibber.Environment.animationScheduler.add( () => {
-        patternObject.update.currentIndex = idx
-        patternObject.update()
-      }, wait ) 
+
+      // delay is used to ensure that timings pattern is processed after values pattern,
+      // because changing the mark of the values pattern messes up the mark of the timings
+      // pattern; reversing their order of execution fixes this.  
+      if( patternObject.__delayAnnotations === true ) {
+          Gibber.Environment.animationScheduler.add( () => {
+            patternObject.update.currentIndex = idx
+            patternObject.update()
+          }, wait + 1 )
+      }else{
+        Gibber.Environment.animationScheduler.add( () => {
+          patternObject.update.currentIndex = idx
+          patternObject.update()
+        }, wait ) 
+      }
 
       return args
     }) 
@@ -861,9 +871,9 @@ let Marker = {
             activeSpans.forEach( _span => _span.remove( 'euclid1' ) )
             activeSpans.length = 0 
           }, 50 )
+        }else{
+          span.add( 'euclid0' )
         }
-        
-        span.add( 'euclid0' )
       }
 
       patternObject._onchange = () => {
@@ -910,10 +920,9 @@ let Marker = {
 
         cm.replaceRange( val, pos.from, pos.to )
         
-
         if( patternObject.commentMarker ) patternObject.commentMarker.clear()
 
-        patternObject.commentMarker = cm.markText( pos.from, end, { className, atomic:true })
+        patternObject.commentMarker = cm.markText( pos.from, end, { className, atomic:false })
       }
 
       patternObject.clear = () => {

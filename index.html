@@ -5398,10 +5398,20 @@ var Marker = {
           idx = args[2],
           shouldUpdate = patternObject.update.shouldUpdate;
 
-      Gibber.Environment.animationScheduler.add(function () {
-        patternObject.update.currentIndex = idx;
-        patternObject.update();
-      }, wait);
+      // delay is used to ensure that timings pattern is processed after values pattern,
+      // because changing the mark of the values pattern messes up the mark of the timings
+      // pattern; reversing their order of execution fixes this.  
+      if (patternObject.__delayAnnotations === true) {
+        Gibber.Environment.animationScheduler.add(function () {
+          patternObject.update.currentIndex = idx;
+          patternObject.update();
+        }, wait + 1);
+      } else {
+        Gibber.Environment.animationScheduler.add(function () {
+          patternObject.update.currentIndex = idx;
+          patternObject.update();
+        }, wait);
+      }
 
       return args;
     });
@@ -5859,9 +5869,9 @@ var Marker = {
             });
             activeSpans.length = 0;
           }, 50);
+        } else {
+          span.add('euclid0');
         }
-
-        span.add('euclid0');
       };
 
       patternObject._onchange = function () {
@@ -5910,7 +5920,7 @@ var Marker = {
 
         if (patternObject.commentMarker) patternObject.commentMarker.clear();
 
-        patternObject.commentMarker = cm.markText(pos.from, end, { className: className, atomic: true });
+        patternObject.commentMarker = cm.markText(pos.from, end, { className: className, atomic: false });
       };
 
       patternObject.clear = function () {
@@ -8406,14 +8416,28 @@ module.exports = function (Gibber) {
       return args;
     },
     checkForUpdateFunction: function checkForUpdateFunction(name) {
+      var _this = this;
+
       for (var _len = arguments.length, args = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
         args[_key - 1] = arguments[_key];
       }
 
-      if (this.listeners[name]) {
-        this.listeners[name].apply(this, args);
-      } else if (Pattern.listeners[name]) {
-        Pattern.listeners[name].apply(this, args);
+      console.log('check:', this);
+      if (this.__delayAnnotations === true) {
+        console.log('delayed', this.__delayAnnotations);
+        setTimeout(function () {
+          if (_this.listeners[name]) {
+            _this.listeners[name].apply(_this, args);
+          } else if (Pattern.listeners[name]) {
+            Pattern.listeners[name].apply(_this, args);
+          }
+        }, 5);
+      } else {
+        if (this.listeners[name]) {
+          this.listeners[name].apply(this, args);
+        } else if (Pattern.listeners[name]) {
+          Pattern.listeners[name].apply(this, args);
+        }
       }
     },
 
@@ -8487,6 +8511,8 @@ module.exports = function (Gibber) {
       end: 0,
       phase: 0,
       values: args,
+      // wrap annotation update in setTimeout( func, 0 )
+      __delayAnnotations: false,
       //values : typeof arguments[0] !== 'string' || arguments.length > 1 ? Array.prototype.slice.call( arguments, 0 ) : arguments[0].split(''),    
       original: null,
       storage: [],
@@ -9518,6 +9544,11 @@ var seqclosure = function seqclosure(Gibber) {
           _this.timings.nextTime = 0;
         })();
       }
+      this.timings.__delayAnnotations = true;
+
+      // XXX add delay for timings pattern so that values updates first, this should help avoid glitches
+      // in annotations.
+
 
       var proxyFunctionValues = function proxyFunctionValues(oldPattern, newPattern) {
         _this.values = newPattern;

@@ -141,6 +141,11 @@ let seqclosure = function( Gibber ) {
         this.timings.seq = this
         this.timings.nextTime = 0
       }
+      this.timings.__delayAnnotations = true
+
+      // XXX add delay for timings pattern so that values updates first, this should help avoid glitches
+      // in annotations.
+
 
       const proxyFunctionValues = ( oldPattern, newPattern ) => {
         this.values = newPattern

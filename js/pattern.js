@@ -31,10 +31,22 @@ Object.assign( PatternProto, {
   },
 
   checkForUpdateFunction( name, ...args ) {
-    if( this.listeners[ name ] ) {
-      this.listeners[ name ].apply( this, args )
-    }else if( Pattern.listeners[ name ] ) {
-      Pattern.listeners[ name ].apply( this, args )
+    console.log( 'check:', this )
+    if( this.__delayAnnotations === true ) {
+      console.log( 'delayed', this.__delayAnnotations )
+      setTimeout( ()=> {
+        if( this.listeners[ name ] ) {
+          this.listeners[ name ].apply( this, args )
+        }else if( Pattern.listeners[ name ] ) {
+          Pattern.listeners[ name ].apply( this, args )
+        }
+      }, 5 )
+    }else{
+      if( this.listeners[ name ] ) {
+        this.listeners[ name ].apply( this, args )
+      }else if( Pattern.listeners[ name ] ) {
+        Pattern.listeners[ name ].apply( this, args )
+      }
     }
   },
 
@@ -102,6 +114,8 @@ let Pattern = function( ...args ) {
     end   : 0,
     phase : 0,
     values : args, 
+    // wrap annotation update in setTimeout( func, 0 )
+    __delayAnnotations:false,
     //values : typeof arguments[0] !== 'string' || arguments.length > 1 ? Array.prototype.slice.call( arguments, 0 ) : arguments[0].split(''),    
     original : null,
     storage : [],
