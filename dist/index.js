@@ -4071,7 +4071,7 @@ var trackNames = ['this', 'tracks', 'master', 'returns'];
 var COLORS = {
   FILL: 'rgba(46,50,53,1)',
   STROKE: '#eee',
-  DOT: 'rgba(255,255,255,.3)'
+  DOT: 'rgba(89, 151, 198, 1)' //'rgba(0,0,255,1)'
 };
 
 var Utility = require('./utility.js');
@@ -4080,6 +4080,7 @@ var $ = Utility.create;
 var Marker = {
   genWidgets: { dirty: false },
   _patternTypes: ['values', 'timings', 'index'],
+  globalIdentifiers: {},
 
   prepareObject: function prepareObject(obj) {
     obj.markup = {
@@ -4088,54 +4089,36 @@ var Marker = {
     };
   },
   process: function process(code, position, codemirror, track) {
-    var shouldParse = /*code.includes( '.seq' ) || */code.includes('Steps(') || code.includes('Score('),
+    var shouldParse = code.includes('.seq') || code.includes('Steps(') || code.includes('Score('),
+        shouldParseGen = true,
         isGen = false;
 
-    if (!shouldParse) {
+    if (shouldParseGen) {
       // check for gen~ assignment
-      var _iteratorNormalCompletion = true;
-      var _didIteratorError = false;
-      var _iteratorError = undefined;
+      var found = Gibber.__gen.gen.names.reduce(function (r, v) {
+        var idx = code.indexOf(v);
+        if (idx !== -1) {
+          if (v === 'eq' && code[idx - 1] !== 's') return r;
+          if (code[idx + v.length] !== '(' || code[idx + v.length + 1] !== '(') return r;
 
-      try {
-        for (var _iterator = Gibber.__gen.gen.names[Symbol.iterator](), _step2; !(_iteratorNormalCompletion = (_step2 = _iterator.next()).done); _iteratorNormalCompletion = true) {
-          var _ugen = _step2.value;
-
-          var _idx = code.indexOf(_ugen);
-          if (_idx !== -1 && code.charAt(_idx + _ugen.length) === '(') {
-            if (_ugen === 'eq' && code[_idx - 1] === 's') {
-              // found seq, which isn't a match we want
-              continue;
-            }
-            shouldParse = true;
-            isGen = true;
-
-            break;
-          }
+          r = true;
         }
-      } catch (err) {
-        _didIteratorError = true;
-        _iteratorError = err;
-      } finally {
-        try {
-          if (!_iteratorNormalCompletion && _iterator.return) {
-            _iterator.return();
-          }
-        } finally {
-          if (_didIteratorError) {
-            throw _iteratorError;
-          }
-        }
+        return r;
+      }, false);
+
+      if (found === true) {
+        shouldParse = true;
+        isGen = true;
       }
 
       if (isGen === false) {
-        var _iteratorNormalCompletion2 = true;
-        var _didIteratorError2 = false;
-        var _iteratorError2 = undefined;
+        var _iteratorNormalCompletion = true;
+        var _didIteratorError = false;
+        var _iteratorError = undefined;
 
         try {
-          for (var _iterator2 = Gibber.__gen.ugenNames[Symbol.iterator](), _step3; !(_iteratorNormalCompletion2 = (_step3 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-            var ugen = _step3.value;
+          for (var _iterator = Gibber.__gen.ugenNames[Symbol.iterator](), _step2; !(_iteratorNormalCompletion = (_step2 = _iterator.next()).done); _iteratorNormalCompletion = true) {
+            var ugen = _step2.value;
 
             var idx = code.indexOf(ugen);
             if (idx !== -1 && code.charAt(idx + ugen.length) === '(') {
@@ -4146,16 +4129,16 @@ var Marker = {
             }
           }
         } catch (err) {
-          _didIteratorError2 = true;
-          _iteratorError2 = err;
+          _didIteratorError = true;
+          _iteratorError = err;
         } finally {
           try {
-            if (!_iteratorNormalCompletion2 && _iterator2.return) {
-              _iterator2.return();
+            if (!_iteratorNormalCompletion && _iterator.return) {
+              _iterator.return();
             }
           } finally {
-            if (_didIteratorError2) {
-              throw _iteratorError2;
+            if (_didIteratorError) {
+              throw _iteratorError;
             }
           }
         }
@@ -4166,13 +4149,13 @@ var Marker = {
 
     var tree = acorn.parse(code, { locations: true, ecmaVersion: 6 }).body;
 
-    var _iteratorNormalCompletion3 = true;
-    var _didIteratorError3 = false;
-    var _iteratorError3 = undefined;
+    var _iteratorNormalCompletion2 = true;
+    var _didIteratorError2 = false;
+    var _iteratorError2 = undefined;
 
     try {
-      for (var _iterator3 = tree[Symbol.iterator](), _step4; !(_iteratorNormalCompletion3 = (_step4 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
-        var node = _step4.value;
+      for (var _iterator2 = tree[Symbol.iterator](), _step3; !(_iteratorNormalCompletion2 = (_step3 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+        var node = _step3.value;
 
         if (node.type === 'ExpressionStatement') {
           // not control flow
@@ -4190,16 +4173,16 @@ var Marker = {
         }
       }
     } catch (err) {
-      _didIteratorError3 = true;
-      _iteratorError3 = err;
+      _didIteratorError2 = true;
+      _iteratorError2 = err;
     } finally {
       try {
-        if (!_iteratorNormalCompletion3 && _iterator3.return) {
-          _iterator3.return();
+        if (!_iteratorNormalCompletion2 && _iterator2.return) {
+          _iterator2.return();
         }
       } finally {
-        if (_didIteratorError3) {
-          throw _iteratorError3;
+        if (_didIteratorError2) {
+          throw _iteratorError2;
         }
       }
     }
@@ -4228,8 +4211,20 @@ var Marker = {
     widget.ctx.lineWidth = .5;
     widget.gen = Gibber.__gen.gen.lastConnected;
     widget.values = [];
-    widget.min = 0;
-    widget.max = 1;
+    widget.min = 10000;
+    widget.max = -10000;
+
+    if (widget.gen === null || widget.gen === undefined) {
+      if (node.expression.type === 'AssignmentExpression') {
+        widget.gen = window[node.expression.left.name];
+        if (widget.gen.widget !== undefined) {
+          widget.gen.widget.parentNode.removeChild(widget.gen.widget);
+        }
+        widget.gen.widget = widget;
+      }
+    } else {
+      Gibber.__gen.gen.lastConnected = null;
+    }
 
     for (var i = 0; i < 120; i++) {
       widget.values[i] = 0;
@@ -4256,12 +4251,14 @@ var Marker = {
   // currently called when a network snapshot message is received providing ugen state..
   // needs to also be called for wavepatterns.
   updateWidget: function updateWidget(id, __value) {
-    var widget = Marker.genWidgets[id];
+    var widget = (typeof id === 'undefined' ? 'undefined' : _typeof(id)) !== 'object' ? Marker.genWidgets[id] : id;
     if (widget === undefined) return;
 
     var value = parseFloat(__value);
 
-    widget.values[90] = value;
+    if (_typeof(widget.values[72]) !== 'object') {
+      widget.values[72] = value;
+    }
 
     if (value > widget.max) {
       widget.max = value;
@@ -4289,6 +4286,7 @@ var Marker = {
         widget.ctx.moveTo(0, widget.height / 2 + 1);
 
         var range = widget.max - widget.min;
+        var wHeight = widget.height * .9 + .5;
 
         for (var i = 0, len = widget.width; i < len; i++) {
           var data = widget.values[i];
@@ -4296,18 +4294,13 @@ var Marker = {
           var value = shouldDrawDot ? data.value : data;
           var scaledValue = (value - widget.min) / range;
 
-          var yValue = scaledValue * widget.height * .7 + 1;
-          //yValue = Math.round( (widget.height * .7 + 1) - yValue ) - .5
-          yValue = widget.height * .7 + 1 - yValue - .5;
+          var yValue = scaledValue * wHeight - .5;
 
           if (shouldDrawDot === true) {
             widget.ctx.fillStyle = COLORS.DOT;
-            widget.ctx.fillRect(i - 1, yValue - 1, 3, 3);
-            /*widget.ctx.fillStyle = COLORS.DOT
-            widget.ctx.fillRect( i, 0, 1, widget.height  )
-            widget.ctx.strokeStyle = COLORS.STROKE*/
+            widget.ctx.fillRect(i - 1, wHeight - yValue - 1, 2, 2);
           } else {
-            widget.ctx.lineTo(i, yValue);
+            widget.ctx.lineTo(i, wHeight - yValue);
           }
         }
         widget.ctx.stroke();
@@ -4334,9 +4327,17 @@ var Marker = {
 
 
     AssignmentExpression: function AssignmentExpression(expressionNode, codemirror, track) {
+      // if the right-hand op is not a literal and we have a defined annotation for it (in Marker.functions)
       if (expressionNode.expression.right.type !== 'Literal' && Marker.functions[expressionNode.expression.right.callee.name]) {
 
         Marker.functions[expressionNode.expression.right.callee.name](expressionNode.expression.right, codemirror, track, expressionNode.expression.left.name, expressionNode.verticalOffset, expressionNode.horizontalOffset);
+      } else {
+        // if it's a gen~ object we need to store a reference so that we can create wavepattern
+        // annotations when appropriate.
+        var left = expressionNode.expression.left;
+        var right = expressionNode.expression.right;
+
+        Marker.globalIdentifiers[left.name] = right;
       }
     },
 
@@ -4739,13 +4740,13 @@ var Marker = {
 
       var count = 0;
 
-      var _iteratorNormalCompletion4 = true;
-      var _didIteratorError4 = false;
-      var _iteratorError4 = undefined;
+      var _iteratorNormalCompletion3 = true;
+      var _didIteratorError3 = false;
+      var _iteratorError3 = undefined;
 
       try {
-        for (var _iterator4 = patternNode.elements[Symbol.iterator](), _step5; !(_iteratorNormalCompletion4 = (_step5 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
-          var element = _step5.value;
+        for (var _iterator3 = patternNode.elements[Symbol.iterator](), _step4; !(_iteratorNormalCompletion3 = (_step4 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+          var element = _step4.value;
 
           var cssClassName = patternName + '_' + count,
               elementStart = Object.assign({}, start),
@@ -4826,16 +4827,16 @@ var Marker = {
           count++;
         }
       } catch (err) {
-        _didIteratorError4 = true;
-        _iteratorError4 = err;
+        _didIteratorError3 = true;
+        _iteratorError3 = err;
       } finally {
         try {
-          if (!_iteratorNormalCompletion4 && _iterator4.return) {
-            _iterator4.return();
+          if (!_iteratorNormalCompletion3 && _iterator3.return) {
+            _iterator3.return();
           }
         } finally {
-          if (_didIteratorError4) {
-            throw _iteratorError4;
+          if (_didIteratorError3) {
+            throw _iteratorError3;
           }
         }
       }
@@ -6121,6 +6122,8 @@ module.exports = function (Gibber) {
     },
 
 
+    lastConnected: null,
+
     names: [],
 
     connected: [],
@@ -6676,6 +6679,10 @@ module.exports = function (Gibber) {
 
       var ugen = mode === 'genish' ? genish[this.name].apply(genish, inputs) : genfunctions[this.name].apply(genfunctions, inputs);
 
+      if (typeof this.__onrender === 'function') {
+        this.__onrender();
+      }
+
       return ugen;
     },
 
@@ -6687,7 +6694,7 @@ module.exports = function (Gibber) {
     gen: gen,
     genish: genish,
     Gibber: Gibber,
-    ugenNames: ['cycle', 'phasor', 'accum', 'counter', 'add', 'mul', 'div', 'sub', 'sah', 'noise', 'beats', 'lfo', 'fade', 'sinr', 'cosr', 'liner', 'line', 'abs', 'ceil', 'round', 'floor', 'min', 'max', 'gt', 'lt', 'ltp', 'gtp', 'samplerate', 'rate'],
+    ugenNames: ['cycle', 'phasor', 'accum', 'counter', 'add', 'mul', 'div', 'sub', 'sah', 'noise', 'beats', 'lfo', 'fade', 'sine', 'siner', 'cos', 'cosr', 'liner', 'line', 'abs', 'ceil', 'round', 'floor', 'min', 'max', 'gt', 'lt', 'ltp', 'gtp', 'samplerate', 'rate'],
 
     ugens: {},
 
@@ -6755,7 +6762,35 @@ module.exports = function (Gibber) {
         return ugen;
       };
 
-      this.ugens['sinr'] = function () {
+      this.ugens['sine'] = function () {
+        var beats = arguments.length <= 0 || arguments[0] === undefined ? 4 : arguments[0];
+        var center = arguments.length <= 1 || arguments[1] === undefined ? 0 : arguments[1];
+        var amp = arguments.length <= 2 || arguments[2] === undefined ? 7 : arguments[2];
+
+        var freq = btof(beats, 120);
+        var __cycle = _this.ugens.cycle(freq);
+
+        var sine = __cycle;
+        var ugen = _this.ugens.add(center, _this.ugens.mul(sine, amp));
+
+        ugen.__onrender = function () {
+
+          ugen[0] = function (v) {
+            if (v === undefined) {
+              return beats;
+            } else {
+              beats = v;
+              __cycle[0](btof(beats, 120));
+            }
+          };
+
+          Gibber.addSequencingToMethod(ugen, '0');
+        };
+
+        return ugen;
+      };
+
+      this.ugens['siner'] = function () {
         var beats = arguments.length <= 0 || arguments[0] === undefined ? 4 : arguments[0];
         var center = arguments.length <= 1 || arguments[1] === undefined ? 0 : arguments[1];
         var amp = arguments.length <= 2 || arguments[2] === undefined ? 7 : arguments[2];
@@ -6766,11 +6801,42 @@ module.exports = function (Gibber) {
         var sine = __cycle;
         var ugen = _this.ugens.round(_this.ugens.add(center, _this.ugens.mul(sine, amp)));
 
+        ugen.sine = sine;
+
+        ugen.__onrender = function () {
+
+          ugen[0] = function (v) {
+            if (v === undefined) {
+              return beats;
+            } else {
+              beats = v;
+              __cycle[0](btof(beats, 120));
+            }
+          };
+
+          Gibber.addSequencingToMethod(ugen, '0');
+        };
+
+        return ugen;
+      };
+
+      this.ugens['cos'] = function () {
+        var beats = arguments.length <= 0 || arguments[0] === undefined ? 4 : arguments[0];
+        var center = arguments.length <= 1 || arguments[1] === undefined ? 0 : arguments[1];
+        var amp = arguments.length <= 2 || arguments[2] === undefined ? 7 : arguments[2];
+
+        var freq = btof(beats, 120);
+        var __cycle = _this.ugens.cycle(freq, 0, { initialValue: 1 });
+
+        var sine = __cycle;
+        var ugen = _this.ugens.add(center, _this.ugens.mul(sine, amp));
+
         ugen[0] = function (v) {
           if (v === undefined) {
             return beats;
           } else {
-            __cycle[0] = btof(beats, 120);
+            beats = v;
+            __cycle[0](btof(beats, 120));
           }
         };
 
@@ -7074,6 +7140,17 @@ var Gibber = {
       // avoid this for gibber objects that don't communicate with Live such as Scale
       if (obj.id !== undefined) Gibber.Communication.send('select_track ' + obj.id);
 
+      // setup code annotations to place values and widget onto pattern object
+      // not gen~ object
+      if ((typeof values === 'undefined' ? 'undefined' : _typeof(values)) === 'object' && values.isGen) {
+        Gibber.Gen.lastConnected = seq.values;
+      }
+
+      // XXX THIS WILL BREAK IF THERE ARE WAVE PATTERNS FOR BOTH VALUES AND TIMINGS
+      if ((typeof timing === 'undefined' ? 'undefined' : _typeof(timing)) === 'object' && timings.isGen) {
+        Gibber.Gen.lastConnected = seq.timings;
+      }
+
       return seq;
     };
 
@@ -7154,6 +7231,7 @@ var Gibber = {
             }
 
             Gibber.Gen.lastConnected = __v;
+
             Gibber.Communication.send('gen ' + parameter.id + ' "' + __v.out() + '"');
             Gibber.Communication.send('select_track ' + trackID);
 
@@ -10218,13 +10296,6 @@ var genish = require('genish.js');
 
 module.exports = function (Gibber) {
 
-  // XXX - how do we advance time for wavepattern visualizations? 
-  // Time normally advances based off messages from the DAW clock,
-  // but here we want the wavepattern oscillators to basically run freely???
-  // do we make a copy? one for the visualizations and one to actually output
-  // values to send to the DAW? Do we make "adjust" run forwards and backwards?
-  // that way we'd be able to scrub through time as needed... seems like it shoudl already work in reverse.
-
   'use strict';
 
   var WavePattern = {
@@ -10237,7 +10308,9 @@ module.exports = function (Gibber) {
       var patternOutputFnc = function patternOutputFnc() {
         var isViz = arguments.length <= 0 || arguments[0] === undefined ? false : arguments[0];
 
-        if (isViz && pattern.vizinit === false) return;
+        if (isViz && pattern.vizinit === false) {
+          return;
+        }
         pattern.run(isViz);
 
         var signalValue = pattern.signalOut();
@@ -10260,17 +10333,19 @@ module.exports = function (Gibber) {
 
         // if we are running the pattern solely to visualize the waveform data...
         if (isViz === true && pattern.vizinit && Gibber.Environment.annotations === true) {
-          Gibber.Environment.codeMarkup.updateWidget(pattern.paramID, signalValue);
+          Gibber.Environment.codeMarkup.updateWidget(pattern.widget, signalValue);
         } else if (Gibber.Environment.annotations === true) {
           // mark the last placed value by the visualization as having a "hit", 
           // which will cause a dot to be drawn on the sparkline.
-          pattern.widget.values[75 + Math.round(pattern.beatOffset * 12)] = { value: signalValue, type: 'hit' };
+          var idx = 60 + Math.round(pattern.nextTime * 12);
+          var oldValue = pattern.widget.values[idx];
+
+          pattern.widget.values[idx] = { value: signalValue, type: 'hit' };
         }
 
         if (output === pattern.DNR) output = null;
 
         if (pattern.running === false) {
-          //pattern.runVisualization()
           Gibber.Environment.animationScheduler.add(pattern.runVisualization, 1000 / 60);
           pattern.running = true;
         }
@@ -10295,8 +10370,6 @@ module.exports = function (Gibber) {
       abstractGraph.patterns.push(pattern);
       abstractGraph.graphs.push(graph);
 
-      //abstractGraph.pattern = pattern
-      //abstractGraph.graph = graph
       if (abstractGraph.__listeners === undefined) {
         abstractGraph.__listeners = [];
       }
@@ -10337,6 +10410,7 @@ module.exports = function (Gibber) {
       Object.assign(pattern, {
         type: 'WavePattern',
         graph: graph,
+        abstractGraph: abstractGraph,
         paramID: Math.round(Math.random() * 100000),
         _values: values,
         signalOut: genish.gen.createCallback(graph, mem, false, false, Float64Array),
@@ -10350,15 +10424,22 @@ module.exports = function (Gibber) {
         __listeners: []
       });
 
-      Gibber.__gen.gen.lastConnected = pattern;
-      Gibber.Gen.connected.push(pattern);
+      // for assigning an abstract graph to a variable
+      // and then passing that variable as a pattern to a sequence
+      if (abstractGraph.widget !== undefined) {
+        pattern.widget = abstractGraph.widget;
+        Gibber.Environment.codeMarkup.genWidgets[pattern.paramID] = pattern.widget;
+      }
 
-      //Gibber.Scheduler.addMessage( { tick() { pattern.vizinit = true } }, 0  )
+      Gibber.Gen.connected.push(pattern);
 
       return pattern;
     },
     runVisualization: function runVisualization() {
       // pass true for visualization run as opposed to audio run
+      // this represents the patternOutputFunction, pass true to create sparkline
+      // without triggering output
+
       this(true); // I LOVE JS
 
       Gibber.Environment.animationScheduler.add(this.pattern.runVisualization, 1000 / 60);
@@ -10381,7 +10462,7 @@ module.exports = function (Gibber) {
 
       var now = void 0;
       if (isViz === true) {
-        now = Gibber.Environment.animationScheduler.visualizationTime.base + Gibber.Environment.animationScheduler.visualizationTime.phase;
+        now = Gibber.Environment.animationScheduler.visualizationTime.base + Gibber.Environment.animationScheduler.visualizationTime.phase; //+ 4
       } else {
         now = Gibber.Scheduler.currentTimeInMs;
       }

@@ -13,7 +13,7 @@ let seqclosure = function( Gibber ) {
     create( values, timings, key, object = null, priority=0 ) {
       let seq = Object.create( this )
 
-      if( values.isGen )  values  = Gibber.WavePattern( values )
+      if( values.isGen ) values  = Gibber.WavePattern( values )
       if( timings !== undefined && timings.isGen ) timings = Gibber.WavePattern( timings )
 
       if( timings === undefined ) {

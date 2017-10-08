@@ -2,13 +2,6 @@ const genish = require( 'genish.js' )
 
 module.exports = function( Gibber ) {
 
-// XXX - how do we advance time for wavepattern visualizations? 
-// Time normally advances based off messages from the DAW clock,
-// but here we want the wavepattern oscillators to basically run freely???
-// do we make a copy? one for the visualizations and one to actually output
-// values to send to the DAW? Do we make "adjust" run forwards and backwards?
-// that way we'd be able to scrub through time as needed... seems like it shoudl already work in reverse.
-
 'use strict'
 
 const WavePattern = {
@@ -19,7 +12,9 @@ const WavePattern = {
     let count = -1
 
     const patternOutputFnc = function( isViz = false ) {
-      if( isViz && pattern.vizinit === false ) return 
+      if( isViz && pattern.vizinit === false ) {
+        return
+      } 
       pattern.run( isViz )
 
       let signalValue = pattern.signalOut()
@@ -42,17 +37,19 @@ const WavePattern = {
 
       // if we are running the pattern solely to visualize the waveform data...
       if( isViz === true && pattern.vizinit && Gibber.Environment.annotations === true ) {
-        Gibber.Environment.codeMarkup.updateWidget( pattern.paramID, signalValue )
+        Gibber.Environment.codeMarkup.updateWidget( pattern.widget, signalValue )
       }else if( Gibber.Environment.annotations === true ) {
         // mark the last placed value by the visualization as having a "hit", 
         // which will cause a dot to be drawn on the sparkline.
-        pattern.widget.values[ 75 + Math.round( pattern.beatOffset * 12 ) ] = { value: signalValue, type:'hit' }
+        const idx = 60 + Math.round( pattern.nextTime * 12  )
+        const oldValue = pattern.widget.values[ idx ]
+
+        pattern.widget.values[ idx ] = { value: signalValue, type:'hit' }
       }
 
       if( output === pattern.DNR ) output = null
 
       if( pattern.running === false ) { 
-        //pattern.runVisualization()
         Gibber.Environment.animationScheduler.add( pattern.runVisualization, 1000/60 )
         pattern.running = true
       }
@@ -77,8 +74,6 @@ const WavePattern = {
     abstractGraph.patterns.push( pattern )
     abstractGraph.graphs.push( graph )
 
-    //abstractGraph.pattern = pattern
-    //abstractGraph.graph = graph
     if( abstractGraph.__listeners === undefined ) {
       abstractGraph.__listeners = []
     }
@@ -120,6 +115,7 @@ const WavePattern = {
     Object.assign( pattern, {
       type:'WavePattern',
       graph,
+      abstractGraph,
       paramID:Math.round( Math.random() * 100000 ),
       _values:values,
       signalOut: genish.gen.createCallback( graph, mem, false, false, Float64Array ), 
@@ -133,16 +129,23 @@ const WavePattern = {
       __listeners:[]
     })
 
-    Gibber.__gen.gen.lastConnected = pattern
-    Gibber.Gen.connected.push( pattern )
+    // for assigning an abstract graph to a variable
+    // and then passing that variable as a pattern to a sequence
+    if( abstractGraph.widget !== undefined ) {
+      pattern.widget = abstractGraph.widget
+      Gibber.Environment.codeMarkup.genWidgets[ pattern.paramID ] = pattern.widget
+    }
 
-    //Gibber.Scheduler.addMessage( { tick() { pattern.vizinit = true } }, 0  )
+    Gibber.Gen.connected.push( pattern )
 
     return pattern
   },
 
   runVisualization() {
     // pass true for visualization run as opposed to audio run
+    // this represents the patternOutputFunction, pass true to create sparkline
+    // without triggering output
+    
     this( true ) // I LOVE JS
 
     Gibber.Environment.animationScheduler.add( this.pattern.runVisualization, 1000 / 60 )
@@ -163,7 +166,7 @@ const WavePattern = {
   run( isViz = false ) {
     let now 
     if( isViz === true ) {
-      now = Gibber.Environment.animationScheduler.visualizationTime.base + Gibber.Environment.animationScheduler.visualizationTime.phase
+      now = Gibber.Environment.animationScheduler.visualizationTime.base + Gibber.Environment.animationScheduler.visualizationTime.phase //+ 4
     }else{
       now = Gibber.Scheduler.currentTimeInMs 
     }

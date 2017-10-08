@@ -167,6 +167,17 @@ let Gibber = {
       // avoid this for gibber objects that don't communicate with Live such as Scale
       if( obj.id !== undefined ) Gibber.Communication.send( `select_track ${obj.id}` )
 
+      // setup code annotations to place values and widget onto pattern object
+      // not gen~ object
+      if( typeof values === 'object' && values.isGen ) {
+        Gibber.Gen.lastConnected = seq.values 
+      }
+      
+      // XXX THIS WILL BREAK IF THERE ARE WAVE PATTERNS FOR BOTH VALUES AND TIMINGS
+      if( typeof timing === 'object' && timings.isGen ) {
+        Gibber.Gen.lastConnected = seq.timings
+      }
+
       return seq
     }
     
@@ -244,6 +255,8 @@ let Gibber = {
           }
 
           Gibber.Gen.lastConnected = __v
+
+
           Gibber.Communication.send( `gen ${parameter.id} "${__v.out()}"` )
           Gibber.Communication.send( `select_track ${ trackID }` )
           

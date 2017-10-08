@@ -131,6 +131,8 @@ module.exports = function( Gibber ) {
       
       const ugen = mode === 'genish' ? genish[ this.name ]( ...inputs ) : genfunctions[ this.name ]( ...inputs )
 
+      if( typeof this.__onrender === 'function' ) { this.__onrender() }
+
       return ugen
     },
 
@@ -146,7 +148,7 @@ module.exports = function( Gibber ) {
       'cycle','phasor','accum','counter',
       'add','mul','div','sub',
       'sah','noise',
-      'beats', 'lfo', 'fade', 'sinr', 'cosr', 'liner', 'line',
+      'beats', 'lfo', 'fade', 'sine', 'siner', 'cos', 'cosr', 'liner', 'line',
       'abs', 'ceil', 'round', 'floor',
       'min','max',
       'gt','lt','ltp','gtp','samplerate','rate'
@@ -186,18 +188,69 @@ module.exports = function( Gibber ) {
         return ugen
       }
 
-      this.ugens[ 'sinr' ] = ( beats=4, center=0, amp=7 ) => {
+      this.ugens[ 'sine' ] = ( beats=4, center=0, amp=7 ) => {
+        const freq = btof( beats, 120 )
+        const __cycle = this.ugens.cycle( freq )
+
+        const sine = __cycle 
+        const ugen = this.ugens.add( center, this.ugens.mul( sine, amp ) )
+
+        ugen.__onrender = ()=> {
+
+          ugen[0] = v => {
+            if( v === undefined ) {
+              return beats
+            }else{
+              beats = v
+              __cycle[0]( btof( beats, 120 ) )
+            }
+          }
+
+          Gibber.addSequencingToMethod( ugen, '0' )
+        }
+
+        return ugen
+      }
+
+      this.ugens[ 'siner' ] = ( beats=4, center=0, amp=7 ) => {
         const freq = btof( beats, 120 )
         const __cycle = this.ugens.cycle( freq )
 
         const sine = __cycle 
         const ugen = this.ugens.round( this.ugens.add( center, this.ugens.mul( sine, amp ) ) )
+        
+        ugen.sine = sine
+
+        ugen.__onrender = ()=> {
+
+          ugen[0] = v => {
+            if( v === undefined ) {
+              return beats
+            }else{
+              beats = v
+              __cycle[0]( btof( beats, 120 ) )
+            }
+          }
+
+          Gibber.addSequencingToMethod( ugen, '0' )
+        }
+
+        return ugen
+      }
+
+      this.ugens[ 'cos' ] = ( beats=4, center=0, amp=7 ) => {
+        const freq = btof( beats, 120 )
+        const __cycle = this.ugens.cycle( freq, 0, { initialValue:1 })
+
+        const sine = __cycle 
+        const ugen = this.ugens.add( center, this.ugens.mul( sine, amp ) )
 
         ugen[0] = v => {
           if( v === undefined ) {
             return beats
           }else{
-            __cycle[0] = btof( beats, 120 )
+            beats = v
+            __cycle[0]( btof( beats, 120 ) )
           }
         }
 

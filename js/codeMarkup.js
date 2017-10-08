@@ -19,7 +19,7 @@ const trackNames = [ 'this', 'tracks', 'master', 'returns' ]
 const COLORS = {
   FILL:'rgba(46,50,53,1)',
   STROKE:'#eee',
-  DOT:'rgba(255,255,255,.3)'
+  DOT:'rgba(89, 151, 198, 1)'//'rgba(0,0,255,1)'
 }
 
 const Utility = require( './utility.js' )
@@ -28,6 +28,7 @@ const $ = Utility.create
 let Marker = {
   genWidgets: { dirty:false },
   _patternTypes: [ 'values', 'timings', 'index' ],
+  globalIdentifiers:{},
 
   prepareObject( obj ) {
     obj.markup = {
@@ -37,23 +38,26 @@ let Marker = {
   },
 
   process( code, position, codemirror, track ) {
-    let shouldParse = /*code.includes( '.seq' ) || */ code.includes( 'Steps(' ) || code.includes( 'Score(' ),
+    let shouldParse = code.includes( '.seq' ) || code.includes( 'Steps(' ) || code.includes( 'Score(' ),
+        shouldParseGen = true,
         isGen = false
 
-    if( !shouldParse ) { // check for gen~ assignment
-      for( let ugen of Gibber.__gen.gen.names ) {
-        let idx = code.indexOf( ugen )
-        if( idx !== -1 && code.charAt( idx + ugen.length ) === '('  ) {
-          if( ugen === 'eq' && code[ idx - 1] === 's' ) { // found seq, which isn't a match we want
-            continue;
-          }
-          shouldParse = true
-          isGen = true
+    if( shouldParseGen ) { // check for gen~ assignment
+      const found = Gibber.__gen.gen.names.reduce( (r,v) => {
+        const idx = code.indexOf( v )
+        if( idx !== -1 ){
+          if( v === 'eq' && code[ idx - 1 ] !== 's' ) return r 
+          if( code[ idx + v.length ] !== '(' || code[ idx + v.length + 1 ] !== '(' ) return r
 
-          break;
+          r = true
         }
-      }
+        return r
+      }, false )
 
+      if( found === true ) {
+        shouldParse = true
+        isGen = true
+      }
 
       if( isGen === false ) {
         for( let ugen of Gibber.__gen.ugenNames ) {
@@ -70,7 +74,7 @@ let Marker = {
 
     if( !shouldParse ) return
 
-    let tree = acorn.parse( code, { locations:true, ecmaVersion:6 } ).body
+    const tree = acorn.parse( code, { locations:true, ecmaVersion:6 } ).body
     
     for( let node of tree ) {
       if( node.type === 'ExpressionStatement' ) { // not control flow
@@ -110,8 +114,21 @@ let Marker = {
     widget.ctx.lineWidth = .5
     widget.gen = Gibber.__gen.gen.lastConnected
     widget.values = []
-    widget.min = 0
-    widget.max = 1
+    widget.min = 10000
+    widget.max = -10000
+    
+    if( widget.gen === null || widget.gen === undefined ) {
+      if( node.expression.type === 'AssignmentExpression' ) {
+        widget.gen = window[ node.expression.left.name ]
+        if( widget.gen.widget !== undefined ) {
+          widget.gen.widget.parentNode.removeChild( widget.gen.widget )
+        }
+        widget.gen.widget = widget
+      }
+    }else{
+      Gibber.__gen.gen.lastConnected = null
+    }
+
 
     for( let i = 0; i < 120; i++ ) widget.values[ i ] = 0
 
@@ -135,12 +152,14 @@ let Marker = {
   // currently called when a network snapshot message is received providing ugen state..
   // needs to also be called for wavepatterns.
   updateWidget( id, __value ) {
-    const widget = Marker.genWidgets[ id ]
+    const widget = typeof id !== 'object' ? Marker.genWidgets[ id ] : id
     if( widget === undefined ) return 
 
     const value = parseFloat( __value )
 
-    widget.values[ 90 ] = value
+    if( typeof widget.values[72] !== 'object' ) {
+      widget.values[ 72 ] = value
+    }
     
     if( value > widget.max ) {
       widget.max = value
@@ -167,6 +186,7 @@ let Marker = {
         widget.ctx.moveTo( 0,  widget.height / 2 + 1 )
 
         const range = widget.max - widget.min
+        const wHeight = widget.height * .9 + .5
 
         for( let i = 0, len = widget.width; i < len; i++ ) {
           const data = widget.values[ i ]
@@ -174,19 +194,13 @@ let Marker = {
           const value = shouldDrawDot ? data.value : data
           const scaledValue = ( value - widget.min ) / range
 
-          let yValue = scaledValue * widget.height * .7 + 1
-          //yValue = Math.round( (widget.height * .7 + 1) - yValue ) - .5
-          yValue = widget.height * .7 + 1 - yValue - .5 
-          
+          const yValue = scaledValue * wHeight - .5 
           
           if( shouldDrawDot === true ) {
             widget.ctx.fillStyle = COLORS.DOT
-            widget.ctx.fillRect( i-1, yValue - 1, 3, 3)
-            /*widget.ctx.fillStyle = COLORS.DOT
-            widget.ctx.fillRect( i, 0, 1, widget.height  )
-            widget.ctx.strokeStyle = COLORS.STROKE*/
+            widget.ctx.fillRect( i-1, wHeight - yValue - 1, 2, 2)
           }else{
-            widget.ctx.lineTo( i, yValue )
+            widget.ctx.lineTo( i, wHeight - yValue )
           }
         }
         widget.ctx.stroke()
@@ -212,6 +226,7 @@ let Marker = {
     },
 
     AssignmentExpression: function( expressionNode, codemirror, track ) {
+      // if the right-hand op is not a literal and we have a defined annotation for it (in Marker.functions)
       if( expressionNode.expression.right.type !== 'Literal' && Marker.functions[ expressionNode.expression.right.callee.name ] ) {
 
         Marker.functions[ expressionNode.expression.right.callee.name ]( 
@@ -222,8 +237,14 @@ let Marker = {
           expressionNode.verticalOffset,
           expressionNode.horizontalOffset
         )            
+      }else{
+        // if it's a gen~ object we need to store a reference so that we can create wavepattern
+        // annotations when appropriate.
+        const left = expressionNode.expression.left
+        const right= expressionNode.expression.right
+        
+        Marker.globalIdentifiers[ left.name ] = right
       }
-
     },
 
     CallExpression( expressionNode, codemirror, track  ) {

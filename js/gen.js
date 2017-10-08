@@ -28,6 +28,8 @@ let Gen  = {
     Gen.names.push( ...Object.keys( Gen.composites ) )
   },
 
+  lastConnected:null,
+
   names:[],
   
   connected: [],

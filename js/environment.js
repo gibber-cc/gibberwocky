@@ -164,19 +164,19 @@ let Environment = {
 
     'Ctrl-Enter'( cm ) {
       try {
-        let selectedCode = Environment.getSelectionCodeColumn( cm, false )
+        const selectedCode = Environment.getSelectionCodeColumn( cm, false )
 
         Environment.flash( cm, selectedCode.selection )
         
-        let func = new Function( selectedCode.code ).bind( Gibber.currentTrack ),
-            markupFunction = () => { 
-              Environment.codeMarkup.process( 
-                selectedCode.code, 
-                selectedCode.selection, 
-                cm, 
-                Gibber.currentTrack 
-              ) 
-            }
+        const func = new Function( selectedCode.code ).bind( Gibber.currentTrack ),
+              markupFunction = () => { 
+                Environment.codeMarkup.process( 
+                  selectedCode.code, 
+                  selectedCode.selection, 
+                  cm, 
+                  Gibber.currentTrack 
+                ) 
+              }
         
         markupFunction.origin  = func
 
