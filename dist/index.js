@@ -5035,12 +5035,18 @@ var Marker = {
       track.markup.textMarkers[className] = {};
 
       var mark = function mark() {
+        // first time through, use the position given to us by the parser
+        var start = void 0,
+            end = void 0;
         if (initialized === false) {
           memberAnnotationStart.ch = annotationStartCh;
           memberAnnotationEnd.ch = annotationEndCh;
           initialized = true;
         } else {
-          var start = markStart; //track.markup.textMarkers[ className ][ 0 ].find()
+          // after the first time through, every update to the pattern store the current
+          // position of the first element (in markStart) before replacing. Use this to generate position
+          // info. REPLACING TEXT REMOVES TEXT MARKERS.
+          start = markStart;
           memberAnnotationStart.ch = start.from.ch;
           memberAnnotationEnd.ch = start.from.ch + 1;
         }
@@ -5050,6 +5056,13 @@ var Marker = {
 
           memberAnnotationStart.ch += 1;
           memberAnnotationEnd.ch += 1;
+        }
+
+        if (start !== undefined) {
+          start.ch -= 3;
+          end = Object.assign({}, start);
+          end.ch = memberAnnotationEnd.ch + 3;
+          patternObject.commentMarker = cm.markText(start, end, { className: className, atomic: true });
         }
       };
 
