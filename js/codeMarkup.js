@@ -98,7 +98,7 @@ let Marker = {
     
     cm.replaceRange( ') ', { line, ch:start }, { line, ch } )
 
-    let widget = document.createElement( 'canvas' )
+    const widget = document.createElement( 'canvas' )
     widget.ctx = widget.getContext('2d')
     widget.style.display = 'inline-block'
     widget.style.verticalAlign = 'middle'
@@ -116,9 +116,13 @@ let Marker = {
     widget.values = []
     widget.min = 10000
     widget.max = -10000
+
+    let isAssignment = false
     
     if( widget.gen === null || widget.gen === undefined ) {
       if( node.expression.type === 'AssignmentExpression' ) {
+        isAssignment = true
+        
         widget.gen = window[ node.expression.left.name ]
         if( widget.gen.widget !== undefined ) {
           widget.gen.widget.parentNode.removeChild( widget.gen.widget )
@@ -126,17 +130,24 @@ let Marker = {
         widget.gen.widget = widget
       }
     }else{
-      Gibber.__gen.gen.lastConnected = null
+      if( widget.gen.widget !== undefined && widget.gen.widget !== widget ) {
+        isAssignment = true
+        widget.gen = window[ node.expression.left.name ]
+      }
     }
+    Gibber.__gen.gen.lastConnected = null
 
 
     for( let i = 0; i < 120; i++ ) widget.values[ i ] = 0
 
-    let oldWidget = Marker.genWidgets[ widget.gen.paramID ] 
+    if( isAssignment === false ) {
+      console.log( 'not an assignment' )
+      let oldWidget = Marker.genWidgets[ widget.gen.paramID ] 
 
-    if( oldWidget !== undefined ) {
-      oldWidget.parentNode.removeChild( oldWidget )
-    } 
+      if( oldWidget !== undefined ) {
+        oldWidget.parentNode.removeChild( oldWidget )
+      } 
+    }
     
     Marker.genWidgets[ widget.gen.paramID ] = widget
     widget.gen.widget = widget
@@ -318,7 +329,8 @@ let Marker = {
            valuesNode = args[0]
            timingsNode = args[1]
 
-           valuesPattern.codemirror = timingsPattern.codemirror = codemirror
+           valuesPattern.codemirror = codemirror
+           if( timingsPattern !== undefined ) timingsPattern.codemirror = codemirror
 
            if( valuesNode ) { 
              Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
@@ -819,6 +831,8 @@ let Marker = {
           annotationEndCh   = annotationStartCh + 1,
           memberAnnotationStart   = Object.assign( {}, pos.from ),
           memberAnnotationEnd     = Object.assign( {}, pos.to ),
+          initialized = false,
+          markStart = null,
           commentMarker,
           currentMarker, chEnd
 
@@ -827,13 +841,20 @@ let Marker = {
       pos.to.ch -= 1
       cm.replaceRange( val, pos.from, pos.to )
 
-      patternObject.commentMarker = cm.markText( pos.from, end, { className, atomic:true }) //replacedWith:element })
+      patternObject.commentMarker = cm.markText( pos.from, end, { className, atomic:false}) //replacedWith:element })
 
       track.markup.textMarkers[ className ] = {}
       
       let mark = () => {
-        memberAnnotationStart.ch = annotationStartCh
-        memberAnnotationEnd.ch   = annotationEndCh
+        if( initialized === false ) {
+          memberAnnotationStart.ch = annotationStartCh
+          memberAnnotationEnd.ch   = annotationEndCh
+          initialized = true
+        }else{
+          let start = markStart //track.markup.textMarkers[ className ][ 0 ].find()
+          memberAnnotationStart.ch = start.from.ch
+          memberAnnotationEnd.ch = start.from.ch + 1 
+        }
 
         for( let i = 0; i < patternObject.values.length; i++ ) {
           track.markup.textMarkers[ className ][ i ] = cm.markText(
@@ -878,6 +899,8 @@ let Marker = {
 
       patternObject._onchange = () => {
         let delay = Utility.beatsToMs( 1,  Gibber.Scheduler.bpm )
+        markStart = track.markup.textMarkers[ className ][ 0 ].find()
+
         Gibber.Environment.animationScheduler.add( () => {
           for( let i = 0; i < patternObject.values.length; i++ ) {
    

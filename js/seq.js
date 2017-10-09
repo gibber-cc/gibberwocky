@@ -140,12 +140,12 @@ let seqclosure = function( Gibber ) {
         this.timings.__listeners.push( proxyFunctionTimings )
         this.timings.seq = this
         this.timings.nextTime = 0
+        
+        // add delay for timings pattern so that values updates first, this should help avoid glitches
+        // in annotations. This delay is inserted in the _addPatternFilter function of codeMarkup.js. 
+        this.timings.__delayAnnotations = true
       }
-      this.timings.__delayAnnotations = true
-
-      // XXX add delay for timings pattern so that values updates first, this should help avoid glitches
-      // in annotations.
-
+      
 
       const proxyFunctionValues = ( oldPattern, newPattern ) => {
         this.values = newPattern

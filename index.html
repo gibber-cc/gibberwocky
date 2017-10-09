@@ -5022,8 +5022,12 @@ var Marker = {
     widget.min = 10000;
     widget.max = -10000;
 
+    var isAssignment = false;
+
     if (widget.gen === null || widget.gen === undefined) {
       if (node.expression.type === 'AssignmentExpression') {
+        isAssignment = true;
+
         widget.gen = window[node.expression.left.name];
         if (widget.gen.widget !== undefined) {
           widget.gen.widget.parentNode.removeChild(widget.gen.widget);
@@ -5031,15 +5035,22 @@ var Marker = {
         widget.gen.widget = widget;
       }
     } else {
-      Gibber.__gen.gen.lastConnected = null;
+      if (widget.gen.widget !== undefined && widget.gen.widget !== widget) {
+        isAssignment = true;
+        widget.gen = window[node.expression.left.name];
+      }
     }
+    Gibber.__gen.gen.lastConnected = null;
 
     for (var i = 0; i < 120; i++) {
       widget.values[i] = 0;
-    }var oldWidget = Marker.genWidgets[widget.gen.paramID];
+    }if (isAssignment === false) {
+      console.log('not an assignment');
+      var oldWidget = Marker.genWidgets[widget.gen.paramID];
 
-    if (oldWidget !== undefined) {
-      oldWidget.parentNode.removeChild(oldWidget);
+      if (oldWidget !== undefined) {
+        oldWidget.parentNode.removeChild(oldWidget);
+      }
     }
 
     Marker.genWidgets[widget.gen.paramID] = widget;
@@ -5237,7 +5248,8 @@ var Marker = {
           valuesNode = args[0];
           timingsNode = args[1];
 
-          valuesPattern.codemirror = timingsPattern.codemirror = codemirror;
+          valuesPattern.codemirror = codemirror;
+          if (timingsPattern !== undefined) timingsPattern.codemirror = codemirror;
 
           if (valuesNode) {
             Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern);
@@ -5815,6 +5827,8 @@ var Marker = {
           annotationEndCh = annotationStartCh + 1,
           memberAnnotationStart = Object.assign({}, pos.from),
           memberAnnotationEnd = Object.assign({}, pos.to),
+          initialized = false,
+          markStart = null,
           commentMarker = void 0,
           currentMarker = void 0,
           chEnd = void 0;
@@ -5824,13 +5838,20 @@ var Marker = {
       pos.to.ch -= 1;
       cm.replaceRange(val, pos.from, pos.to);
 
-      patternObject.commentMarker = cm.markText(pos.from, end, { className: className, atomic: true }); //replacedWith:element })
+      patternObject.commentMarker = cm.markText(pos.from, end, { className: className, atomic: false }); //replacedWith:element })
 
       track.markup.textMarkers[className] = {};
 
       var mark = function mark() {
-        memberAnnotationStart.ch = annotationStartCh;
-        memberAnnotationEnd.ch = annotationEndCh;
+        if (initialized === false) {
+          memberAnnotationStart.ch = annotationStartCh;
+          memberAnnotationEnd.ch = annotationEndCh;
+          initialized = true;
+        } else {
+          var start = markStart; //track.markup.textMarkers[ className ][ 0 ].find()
+          memberAnnotationStart.ch = start.from.ch;
+          memberAnnotationEnd.ch = start.from.ch + 1;
+        }
 
         for (var i = 0; i < patternObject.values.length; i++) {
           track.markup.textMarkers[className][i] = cm.markText(memberAnnotationStart, memberAnnotationEnd, { 'className': className + '_' + i });
@@ -5876,6 +5897,8 @@ var Marker = {
 
       patternObject._onchange = function () {
         var delay = Utility.beatsToMs(1, Gibber.Scheduler.bpm);
+        markStart = track.markup.textMarkers[className][0].find();
+
         Gibber.Environment.animationScheduler.add(function () {
           for (var i = 0; i < patternObject.values.length; i++) {
 
@@ -9542,13 +9565,12 @@ var seqclosure = function seqclosure(Gibber) {
           _this.timings.__listeners.push(proxyFunctionTimings);
           _this.timings.seq = _this;
           _this.timings.nextTime = 0;
+
+          // add delay for timings pattern so that values updates first, this should help avoid glitches
+          // in annotations. This delay is inserted in the _addPatternFilter function of codeMarkup.js. 
+          _this.timings.__delayAnnotations = true;
         })();
       }
-      this.timings.__delayAnnotations = true;
-
-      // XXX add delay for timings pattern so that values updates first, this should help avoid glitches
-      // in annotations.
-
 
       var proxyFunctionValues = function proxyFunctionValues(oldPattern, newPattern) {
         _this.values = newPattern;
