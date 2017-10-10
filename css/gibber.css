@@ -114,11 +114,11 @@ span.cm-string {color: rgb(225, 225, 225) !important }
 .annotation-no-right-border { border-right-color:transparent !important }
 
 .annotation-border-left {
-  border-left-color:#999 !important;
+  border-left-color:#999;
 }
 
 .annotation-border-right {
-  border-right-color: #999 !important;
+  border-right-color: #999;
 }
 
 .annotation-no-horizontal-border { 

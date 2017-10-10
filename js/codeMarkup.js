@@ -16,12 +16,19 @@ const callDepths = [
 
 const trackNames = [ 'this', 'tracks', 'master', 'returns' ]
 
+const COLORS = {
+  FILL:'rgba(46,50,53,1)',
+  STROKE:'#eee',
+  DOT:'rgba(89, 151, 198, 1)'//'rgba(0,0,255,1)'
+}
+
 const Utility = require( './utility.js' )
 const $ = Utility.create
 
 let Marker = {
   genWidgets: { dirty:false },
   _patternTypes: [ 'values', 'timings', 'index' ],
+  globalIdentifiers:{},
 
   prepareObject( obj ) {
     obj.markup = {
@@ -32,12 +39,28 @@ let Marker = {
 
   process( code, position, codemirror, track ) {
     let shouldParse = code.includes( '.seq' ) || code.includes( 'Steps(' ) || code.includes( 'Score(' ),
+        shouldParseGen = true,
         isGen = false
 
-    if( !shouldParse ) { // check for gen~ assignment
-      for( let ugen of Gibber.Gen.names ) {
+    if( shouldParseGen ) { // check for gen~ assignment
+      const found = Gibber.__gen.gen.names.reduce( (r,v) => {
+        const idx = code.indexOf( v )
+        if( idx !== -1 ){
+          if( v === 'eq' && code[ idx - 1 ] !== 's' ) return r 
+          if( code[ idx + v.length ] !== '(' || code[ idx + v.length + 1 ] !== '(' ) return r
 
-        for( let ugen of Gibber.Gen.names ) {
+          r = true
+        }
+        return r
+      }, false )
+
+      if( found === true ) {
+        shouldParse = true
+        isGen = true
+      }
+
+      if( isGen === false ) {
+        for( let ugen of Gibber.__gen.ugenNames ) {
           let idx = code.indexOf( ugen )
           if( idx !== -1 && code.charAt( idx + ugen.length ) === '('  ) {
             shouldParse = true
@@ -51,7 +74,7 @@ let Marker = {
 
     if( !shouldParse ) return
 
-    let tree = acorn.parse( code, { locations:true, ecmaVersion:6 } ).body
+    const tree = acorn.parse( code, { locations:true, ecmaVersion:6 } ).body
     
     for( let node of tree ) {
       if( node.type === 'ExpressionStatement' ) { // not control flow
@@ -72,10 +95,21 @@ let Marker = {
   
   processGen( node, cm, track ) {
     let ch = node.end, line = node.verticalOffset, start = ch - 1, end = node.end 
-    
+
+    // check to see if a given object is a proxy that already has
+    // a widget created; if so, don't make another one!
+    if( node.expression.type === 'AssignmentExpression' ) {
+      const __obj = window[ node.expression.left.name ]
+      if( __obj !== undefined ) {
+        if( __obj.widget !== undefined ) {
+          return
+        }
+      }
+    }
+
     cm.replaceRange( ') ', { line, ch:start }, { line, ch } )
 
-    let widget = document.createElement( 'canvas' )
+    const widget = document.createElement( 'canvas' )
     widget.ctx = widget.getContext('2d')
     widget.style.display = 'inline-block'
     widget.style.verticalAlign = 'middle'
@@ -86,46 +120,109 @@ let Marker = {
     widget.style.borderRight = '1px solid #666'
     widget.setAttribute( 'width', 60 )
     widget.setAttribute( 'height', 13 )
-    widget.ctx.fillStyle = 'rgba(46,50,53,1)'
-    widget.ctx.strokeStyle = '#eee'
+    widget.ctx.fillStyle = COLORS.FILL 
+    widget.ctx.strokeStyle = COLORS.STROKE
     widget.ctx.lineWidth = .5
-    widget.gen = Gibber.Gen.lastConnected
+    widget.gen = Gibber.__gen.gen.lastConnected
     widget.values = []
+    widget.min = 10000
+    widget.max = -10000
 
-    let oldWidget = Marker.genWidgets[ widget.gen.paramID ] 
+    let isAssignment = false
 
-    if( oldWidget !== undefined ) {
-      oldWidget.parentNode.removeChild( oldWidget )
-    } 
+    if( widget.gen === null || widget.gen === undefined ) {
+      if( node.expression.type === 'AssignmentExpression' ) {
+        isAssignment = true
+        
+        widget.gen = window[ node.expression.left.name ]
+
+        if( widget.gen.widget !== undefined ) {
+          widget.gen.widget.parentNode.removeChild( widget.gen.widget )
+        }
+        widget.gen.widget = widget
+      }
+    }else{
+      if( widget.gen.widget !== undefined && widget.gen.widget !== widget ) {
+        isAssignment = true
+        widget.gen = window[ node.expression.left.name ]
+      }
+    }
+    Gibber.__gen.gen.lastConnected = null
+
+    for( let i = 0; i < 120; i++ ) widget.values[ i ] = 0
+
+    if( isAssignment === false ) {
+      let oldWidget = Marker.genWidgets[ widget.gen.paramID ] 
+
+      if( oldWidget !== undefined ) {
+        oldWidget.parentNode.removeChild( oldWidget )
+      } 
+    }
     
     Marker.genWidgets[ widget.gen.paramID ] = widget
+    widget.gen.widget = widget
 
     widget.mark = cm.markText({ line, ch }, { line, ch:end+1 }, { replacedWith:widget })
+    widget.mark.__clear = widget.mark.clear
+    widget.clear = ()=> widget.mark.clear()
+    widget.mark.clear = function() {
+      widget.mark.__clear()
+    }
   },
 
-  updateWidget( id, value ) {
-    let widget = Marker.genWidgets[ id ]
+  // currently called when a network snapshot message is received providing ugen state..
+  // needs to also be called for wavepatterns.
+  updateWidget( id, __value ) {
+    const widget = typeof id !== 'object' ? Marker.genWidgets[ id ] : id
     if( widget === undefined ) return 
 
-    widget.values.push( parseFloat( value ) )
+    const value = parseFloat( __value )
 
-    while( widget.values.length > 60 ) widget.values.shift()
+    if( typeof widget.values[72] !== 'object' ) {
+      widget.values[ 72 ] = value
+    }
+    
+    if( value > widget.max ) {
+      widget.max = value
+    }else if( value < widget.min ) {
+      widget.min = value
+    } 
+
+    widget.values.shift()
     Marker.genWidgets.dirty = true
   },
 
+  // called by animation scheduler if Marker.genWidgets.dirty === true
   drawWidgets() {
     
     Marker.genWidgets.dirty = false
 
-
     for( let key in Marker.genWidgets ) {
       let widget = Marker.genWidgets[ key ]
       if( typeof widget === 'object' && widget.ctx !== undefined ) {
+
+        widget.ctx.fillStyle = COLORS.FILL
         widget.ctx.fillRect( 0,0, widget.width, widget.height )
         widget.ctx.beginPath()
         widget.ctx.moveTo( 0,  widget.height / 2 + 1 )
-        for( let i = 0; i < widget.values.length; i++ ) {
-          widget.ctx.lineTo( i, widget.values[ i ] * widget.height * .7 + 1 )
+
+        const range = widget.max - widget.min
+        const wHeight = widget.height * .9 + .5
+
+        for( let i = 0, len = widget.width; i < len; i++ ) {
+          const data = widget.values[ i ]
+          const shouldDrawDot = typeof data === 'object'
+          const value = shouldDrawDot ? data.value : data
+          const scaledValue = ( value - widget.min ) / range
+
+          const yValue = scaledValue * wHeight - .5 
+          
+          if( shouldDrawDot === true ) {
+            widget.ctx.fillStyle = COLORS.DOT
+            widget.ctx.fillRect( i-1, wHeight - yValue - 1, 2, 2)
+          }else{
+            widget.ctx.lineTo( i, wHeight - yValue )
+          }
         }
         widget.ctx.stroke()
       }
@@ -150,6 +247,7 @@ let Marker = {
     },
 
     AssignmentExpression: function( expressionNode, codemirror, track ) {
+      // if the right-hand op is not a literal and we have a defined annotation for it (in Marker.functions)
       if( expressionNode.expression.right.type !== 'Literal' && Marker.functions[ expressionNode.expression.right.callee.name ] ) {
 
         Marker.functions[ expressionNode.expression.right.callee.name ]( 
@@ -160,8 +258,14 @@ let Marker = {
           expressionNode.verticalOffset,
           expressionNode.horizontalOffset
         )            
+      }else{
+        // if it's a gen~ object we need to store a reference so that we can create wavepattern
+        // annotations when appropriate.
+        const left = expressionNode.expression.left
+        const right= expressionNode.expression.right
+        
+        Marker.globalIdentifiers[ left.name ] = right
       }
-
     },
 
     CallExpression( expressionNode, codemirror, track  ) {
@@ -235,7 +339,8 @@ let Marker = {
            valuesNode = args[0]
            timingsNode = args[1]
 
-           valuesPattern.codemirror = timingsPattern.codemirror = codemirror
+           valuesPattern.codemirror = codemirror
+           if( timingsPattern !== undefined ) timingsPattern.codemirror = codemirror
 
            if( valuesNode ) { 
              Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
@@ -341,7 +446,7 @@ let Marker = {
         lastBorder = null,
         lastClassName = null
     
-    let cycle = function() {
+    let cycle = function( isArray = false ) {
       let className = '.' + classNamePrefix + '_' +  patternObject.update.currentIndex,
           border = 'top'
 
@@ -352,12 +457,48 @@ let Marker = {
       }
 
 
-      $( className ).remove( 'annotation-' + border + '-border' )
-      $( className ).add( 'annotation-' + border + '-border-cycle' )
-      
-      if( lastBorder !== null ) {
-        $( className ).remove( 'annotation-' + lastBorder + '-border-cycle' )
-        $( className ).add( 'annotation-' + lastBorder + '-border' )
+      // for a pattern holding arrays... like for chord()
+      if( isArray === true ) {
+        switch( border ) {
+          case 'left':
+            $( className ).remove( 'annotation-' + lastBorder + '-border-cycle' )
+            $( className + '_start' ).add( 'annotation-left-border-cycle' )
+
+            break;
+          case 'right':
+            $( className ).remove( 'annotation-' + lastBorder + '-border-cycle' ) 
+            $( className + '_end' ).add( 'annotation-right-border-cycle' )
+ 
+            break;
+          case 'top':
+            $( className ).add( 'annotation-top-border-cycle' )
+            $( className+'_start' ).remove( 'annotation-left-border-cycle' )
+            $( className+'_start' ).add( 'annotation-top-border-cycle' )
+            $( className+'_end' ).add( 'annotation-top-border-cycle' )
+
+            break;
+          case 'bottom':
+            $( className ).add( 'annotation-bottom-border-cycle' )
+            $( className+'_end' ).remove( 'annotation-right-border-cycle' )
+            $( className+'_end' ).add( 'annotation-bottom-border-cycle' )
+            $( className+'_start' ).add( 'annotation-bottom-border-cycle' )
+
+            break;
+          default:
+            $( className ).add( 'annotation-' + border + '-border-cycle' )
+            $( className+'_start' ).remove( 'annotation-' + border + '-border-cycle' )
+            $( className+'_end' ).remove( 'annotation-' + border + '-border-cycle' )
+            break;
+        }
+
+      }else{
+        $( className ).remove( 'annotation-' + border + '-border' )
+        $( className ).add( 'annotation-' + border + '-border-cycle' )
+        
+        if( lastBorder !== null ) {
+          $( className ).remove( 'annotation-' + lastBorder + '-border-cycle' )
+          $( className ).add( 'annotation-' + lastBorder + '-border' )
+        }
       }
       
       lastBorder = border
@@ -400,11 +541,21 @@ let Marker = {
       const wait = Utility.beatsToMs( patternObject.nextTime + .5,  Gibber.Scheduler.bpm ),
             idx = args[ 2 ],
             shouldUpdate = patternObject.update.shouldUpdate
-        
-      Gibber.Environment.animationScheduler.add( () => {
-        patternObject.update.currentIndex = idx
-        patternObject.update()
-      }, wait ) 
+
+      // delay is used to ensure that timings pattern is processed after values pattern,
+      // because changing the mark of the values pattern messes up the mark of the timings
+      // pattern; reversing their order of execution fixes this.  
+      if( patternObject.__delayAnnotations === true ) {
+          Gibber.Environment.animationScheduler.add( () => {
+            patternObject.update.currentIndex = idx
+            patternObject.update()
+          }, wait + 1 )
+      }else{
+        Gibber.Environment.animationScheduler.add( () => {
+          patternObject.update.currentIndex = idx
+          patternObject.update()
+        }, wait ) 
+      }
 
       return args
     }) 
@@ -645,9 +796,9 @@ let Marker = {
 
           highlighted.className = className
 
-          cycle.clear()
+          //cycle.clear()
         }else{
-          cycle()
+          cycle( true ) // pass true for arrays
         }
       }
 
@@ -726,6 +877,8 @@ let Marker = {
           annotationEndCh   = annotationStartCh + 1,
           memberAnnotationStart   = Object.assign( {}, pos.from ),
           memberAnnotationEnd     = Object.assign( {}, pos.to ),
+          initialized = false,
+          markStart = null,
           commentMarker,
           currentMarker, chEnd
 
@@ -734,13 +887,25 @@ let Marker = {
       pos.to.ch -= 1
       cm.replaceRange( val, pos.from, pos.to )
 
-      patternObject.commentMarker = cm.markText( pos.from, end, { className, atomic:true }) //replacedWith:element })
+      patternObject.commentMarker = cm.markText( pos.from, end, { className, atomic:false}) //replacedWith:element })
 
       track.markup.textMarkers[ className ] = {}
       
       let mark = () => {
-        memberAnnotationStart.ch = annotationStartCh
-        memberAnnotationEnd.ch   = annotationEndCh
+        // first time through, use the position given to us by the parser
+        let start, end
+        if( initialized === false ) {
+          memberAnnotationStart.ch = annotationStartCh
+          memberAnnotationEnd.ch   = annotationEndCh
+          initialized = true
+        }else{
+          // after the first time through, every update to the pattern store the current
+          // position of the first element (in markStart) before replacing. Use this to generate position
+          // info. REPLACING TEXT REMOVES TEXT MARKERS.
+          start = markStart
+          memberAnnotationStart.ch = start.from.ch
+          memberAnnotationEnd.ch = start.from.ch + 1 
+        }
 
         for( let i = 0; i < patternObject.values.length; i++ ) {
           track.markup.textMarkers[ className ][ i ] = cm.markText(
@@ -751,7 +916,13 @@ let Marker = {
           memberAnnotationStart.ch += 1
           memberAnnotationEnd.ch   += 1
         }
-
+        
+        if( start !== undefined ) {
+          start.ch -= 3
+          end = Object.assign({}, start)
+          end.ch = memberAnnotationEnd.ch + 3
+          patternObject.commentMarker = cm.markText( start, end, { className, atomic:true })
+        }
       }
       
       mark()
@@ -778,13 +949,15 @@ let Marker = {
             activeSpans.forEach( _span => _span.remove( 'euclid1' ) )
             activeSpans.length = 0 
           }, 50 )
+        }else{
+          span.add( 'euclid0' )
         }
-        
-        span.add( 'euclid0' )
       }
 
       patternObject._onchange = () => {
         let delay = Utility.beatsToMs( 1,  Gibber.Scheduler.bpm )
+        markStart = track.markup.textMarkers[ className ][ 0 ].find()
+
         Gibber.Environment.animationScheduler.add( () => {
           for( let i = 0; i < patternObject.values.length; i++ ) {
    
@@ -827,10 +1000,9 @@ let Marker = {
 
         cm.replaceRange( val, pos.from, pos.to )
         
-
         if( patternObject.commentMarker ) patternObject.commentMarker.clear()
 
-        patternObject.commentMarker = cm.markText( pos.from, end, { className, atomic:true })
+        patternObject.commentMarker = cm.markText( pos.from, end, { className, atomic:false })
       }
 
       patternObject.clear = () => {

@@ -31,10 +31,12 @@ let Gibber = {
     window.log           = this.log
     window.clear         = this.clear
     window.Theory        = this.Theory
-    window.Scale         = this.Theory.Scale.master
-    
-    Gibber.Gen.export( window )
+    window.WavePattern   = this.WavePattern
 
+    Gibber.__gen.export( window ) 
+    //Gibber.Gen.export( window )
+
+    this.Theory.export( window )
     this.Utility.export( window )
   },
 
@@ -56,6 +58,8 @@ let Gibber = {
     
     this.initSingletons( window )
 
+    this.__gen.init( this )
+
     this.export()
   },
 
@@ -75,10 +79,27 @@ let Gibber = {
     Object.defineProperty( target, key, {
       get() { return proxy },
       set(v) {
-        if( proxy && proxy.clear ) {
+        if( proxy !== null && proxy.clear ) {
           proxy.clear()
         }
+        
+        if( proxy !== null && proxy.__listeners !== undefined ) {
+          for( let listener of proxy.__listeners ) {
+            listener( proxy, v )
+          }
+        }
 
+        if( proxy !== null && v !== null ) {
+          if( proxy.isGen && v.isGen ) {
+            for( let key in proxy.sequences ) {
+              let sequences = proxy.sequences[ key ]
+              for( let sequence of sequences ) {
+                sequence.target = v
+              }
+            }
+            v.sequences = proxy.sequences
+          }
+        }
         proxy = v
       }
     })
@@ -145,6 +166,17 @@ let Gibber = {
 
       // avoid this for gibber objects that don't communicate with Live such as Scale
       if( obj.id !== undefined ) Gibber.Communication.send( `select_track ${obj.id}` )
+
+      // setup code annotations to place values and widget onto pattern object
+      // not gen~ object
+      if( typeof values === 'object' && values.isGen ) {
+        Gibber.Gen.lastConnected = seq.values 
+      }
+      
+      // XXX THIS WILL BREAK IF THERE ARE WAVE PATTERNS FOR BOTH VALUES AND TIMINGS
+      if( typeof timing === 'object' && timings.isGen ) {
+        Gibber.Gen.lastConnected = seq.timings
+      }
 
       return seq
     }
@@ -214,32 +246,35 @@ let Gibber = {
 
       if( _v !== undefined ) {
         if( typeof _v === 'object' && _v.isGen ) {
-          _v.assignTrackAndParamID( trackID, parameter.id )
+          const __v = _v.render( 'gen' )
+          __v.assignTrackAndParamID( trackID, parameter.id )
           
           // if a gen is not already connected to this parameter, push
           if( Gibber.Gen.connected.find( e => e.paramID === parameter.id ) === undefined ) {
-            Gibber.Gen.connected.push( _v )
+            Gibber.Gen.connected.push( __v )
           }
 
-          Gibber.Gen.lastConnected = _v
-          Gibber.Communication.send( `gen ${parameter.id} "${_v.out()}"` )
+          //Gibber.Gen.lastConnected = __v
+
+
+          Gibber.Communication.send( `gen ${parameter.id} "${__v.out()}"` )
           Gibber.Communication.send( `select_track ${ trackID }` )
           
           // disconnects for fades etc.
-          if( typeof _v.shouldKill === 'object' ) {
+          if( typeof __v.shouldKill === 'object' ) {
             Gibber.Utility.future( ()=> {
               Gibber.Communication.send( `ungen ${parameter.id}` )
-              Gibber.Communication.send( `set ${parameter.id} ${_v.shouldKill.final}` )
+              Gibber.Communication.send( `set ${parameter.id} ${__v.shouldKill.final}` )
 
               let widget = Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
               if( widget !== undefined && widget.mark !== undefined ) {
                 widget.mark.clear()
               }
               delete Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
-            }, _v.shouldKill.after )
+            }, __v.shouldKill.after )
           }
           
-          v = _v
+          v = __v
         }else{
           if( v.isGen ) {
             Gibber.Communication.send( `ungen ${parameter.id}` )
@@ -250,7 +285,7 @@ let Gibber = {
             delete Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
           }
 
-          v = _v
+          v = typeof _v === 'object' && _v.isGen ? _v.render( 'gen' ) : _v
           Gibber.Communication.send( `set ${parameter.id} ${v}` )
         }
       }else{
@@ -269,9 +304,13 @@ Gibber.Seq     = require( './seq.js' )( Gibber )
 Gibber.Score   = require( './score.js' )( Gibber )
 Gibber.Arp     = require( './arp.js' )( Gibber )
 Gibber.Euclid  = require( './euclidean.js')( Gibber )
-Gibber.Gen     = require( './gen.js' )( Gibber )
+//Gibber.Gen     = require( './gen.js' )( Gibber )
 Gibber.Steps   = require( './steps.js' )( Gibber )
 Gibber.Live    = require( './live.js' )( Gibber )
 Gibber.Track   = require( './track.js')( Gibber )
+Gibber.__gen   = require( './gen_abstraction.js' )( Gibber )
+Gibber.Gen = Gibber.__gen.gen
+
+Gibber.WavePattern = require( './wavePattern.js' )( Gibber )
 
 module.exports = Gibber

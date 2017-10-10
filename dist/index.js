@@ -1,198 +1,3906 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-'use strict';
+'use strict'
 
-var Queue = require('./priorityqueue.js');
+let gen  = require('./gen.js')
 
-var Scheduler = {
-  currentTime: null,
-  queue: new Queue(function (a, b) {
-    return a.time - b.time;
-  }),
+let proto = {
+  name:'abs',
 
-  init: function init() {
-    window.requestAnimationFrame(this.onAnimationFrame);
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+
+    if( isNaN( inputs[0] ) ) {
+      gen.closures.add({ [ this.name ]: Math.abs })
+
+      out = `gen.abs( ${inputs[0]} )`
+
+    } else {
+      out = Math.abs( parseFloat( inputs[0] ) )
+    }
+    
+    return out
+  }
+}
+
+module.exports = x => {
+  let abs = Object.create( proto )
+
+  abs.inputs = [ x ]
+
+  return abs
+}
+
+},{"./gen.js":30}],2:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  basename:'accum',
+
+  gen() {
+    let code,
+        inputs = gen.getInputs( this ),
+        genName = 'gen.' + this.name,
+        functionBody
+
+    gen.requestMemory( this.memory )
+
+    gen.memory.heap[ this.memory.value.idx ] = this.initialValue
+
+    functionBody = this.callback( genName, inputs[0], inputs[1], `memory[${this.memory.value.idx}]` )
+
+    gen.closures.add({ [ this.name ]: this }) 
+
+    gen.memo[ this.name ] = this.name + '_value'
+    
+    return [ this.name + '_value', functionBody ]
   },
-  add: function add(func, offset, idx) {
-    var time = this.currentTime + offset;
-    this.queue.push({ func: func, time: time });
 
-    return time;
+  callback( _name, _incr, _reset, valueRef ) {
+    let diff = this.max - this.min,
+        out = '',
+        wrap = ''
+    
+    /* three different methods of wrapping, third is most expensive:
+     *
+     * 1: range {0,1}: y = x - (x | 0)
+     * 2: log2(this.max) == integer: y = x & (this.max - 1)
+     * 3: all others: if( x >= this.max ) y = this.max -x
+     *
+     */
+
+    // must check for reset before storing value for output
+    if( !(typeof this.inputs[1] === 'number' && this.inputs[1] < 1) ) { 
+      if( this.resetValue !== this.min ) {
+
+        out += `  if( ${_reset} >=1 ) ${valueRef} = ${this.resetValue}\n\n`
+        //out += `  if( ${_reset} >=1 ) ${valueRef} = ${this.min}\n\n`
+      }else{
+        out += `  if( ${_reset} >=1 ) ${valueRef} = ${this.min}\n\n`
+        //out += `  if( ${_reset} >=1 ) ${valueRef} = ${this.initialValue}\n\n`
+      }
+    }
+
+    out += `  var ${this.name}_value = ${valueRef}\n`
+    
+    if( this.shouldWrap === false && this.shouldClamp === true ) {
+      out += `  if( ${valueRef} < ${this.max } ) ${valueRef} += ${_incr}\n`
+    }else{
+      out += `  ${valueRef} += ${_incr}\n` // store output value before accumulating  
+    }
+
+    if( this.max !== Infinity  && this.shouldWrapMax ) wrap += `  if( ${valueRef} >= ${this.max} ) ${valueRef} -= ${diff}\n`
+    if( this.min !== -Infinity && this.shouldWrapMin ) wrap += `  if( ${valueRef} < ${this.min} ) ${valueRef} += ${diff}\n`
+
+    //if( this.min === 0 && this.max === 1 ) { 
+    //  wrap =  `  ${valueRef} = ${valueRef} - (${valueRef} | 0)\n\n`
+    //} else if( this.min === 0 && ( Math.log2( this.max ) | 0 ) === Math.log2( this.max ) ) {
+    //  wrap =  `  ${valueRef} = ${valueRef} & (${this.max} - 1)\n\n`
+    //} else if( this.max !== Infinity ){
+    //  wrap = `  if( ${valueRef} >= ${this.max} ) ${valueRef} -= ${diff}\n\n`
+    //}
+
+    out = out + wrap + '\n'
+
+    return out
   },
-  run: function run(timestamp) {
-    var nextEvent = this.queue.peek();
 
-    if (this.queue.length && nextEvent.time <= timestamp) {
+  defaults : { min:0, max:1, resetValue:0, initialValue:0, shouldWrap:true, shouldWrapMax: true, shouldWrapMin:true, shouldClamp:false }
+}
+
+module.exports = ( incr, reset=0, properties ) => {
+  const ugen = Object.create( proto )
+      
+  Object.assign( ugen, 
+    { 
+      uid:    gen.getUID(),
+      inputs: [ incr, reset ],
+      memory: {
+        value: { length:1, idx:null }
+      }
+    },
+    proto.defaults,
+    properties 
+  )
+
+  if( properties !== undefined && properties.shouldWrapMax === undefined && properties.shouldWrapMin === undefined ) {
+    if( properties.shouldWrap !== undefined ) {
+      ugen.shouldWrapMin = ugen.shouldWrapMax = properties.shouldWrap
+    }
+  }
+
+  if( properties !== undefined && properties.resetValue === undefined ) {
+    ugen.resetValue = ugen.min
+  }
+
+  if( ugen.initialValue === undefined ) ugen.initialValue = ugen.min
+
+  Object.defineProperty( ugen, 'value', {
+    get()  { 
+      //console.log( 'gen:', gen, gen.memory )
+      return gen.memory.heap[ this.memory.value.idx ] 
+    },
+    set(v) { gen.memory.heap[ this.memory.value.idx ] = v }
+  })
+
+  ugen.name = `${ugen.basename}${ugen.uid}`
+
+  return ugen
+}
+
+},{"./gen.js":30}],3:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  basename:'acos',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+    
+    if( isNaN( inputs[0] ) ) {
+      gen.closures.add({ 'acos': Math.acos })
+
+      out = `gen.acos( ${inputs[0]} )` 
+
+    } else {
+      out = Math.acos( parseFloat( inputs[0] ) )
+    }
+    
+    return out
+  }
+}
+
+module.exports = x => {
+  let acos = Object.create( proto )
+
+  acos.inputs = [ x ]
+  acos.id = gen.getUID()
+  acos.name = `${acos.basename}{acos.id}`
+
+  return acos
+}
+
+},{"./gen.js":30}],4:[function(require,module,exports){
+'use strict'
+
+let gen      = require( './gen.js' ),
+    mul      = require( './mul.js' ),
+    sub      = require( './sub.js' ),
+    div      = require( './div.js' ),
+    data     = require( './data.js' ),
+    peek     = require( './peek.js' ),
+    accum    = require( './accum.js' ),
+    ifelse   = require( './ifelseif.js' ),
+    lt       = require( './lt.js' ),
+    bang     = require( './bang.js' ),
+    env      = require( './env.js' ),
+    add      = require( './add.js' ),
+    poke     = require( './poke.js' ),
+    neq      = require( './neq.js' ),
+    and      = require( './and.js' ),
+    gte      = require( './gte.js' ),
+    memo     = require( './memo.js' )
+
+module.exports = ( attackTime = 44100, decayTime = 44100, _props ) => {
+  const props = Object.assign({}, { shape:'exponential', alpha:5, trigger:null }, _props )
+  const _bang = props.trigger !== null ? props.trigger : bang(),
+        phase = accum( 1, _bang, { min:0, max: Infinity, initialValue:-Infinity, shouldWrap:false })
+      
+  let bufferData, bufferDataReverse, decayData, out, buffer
+
+  //console.log( 'shape:', props.shape, 'attack time:', attackTime, 'decay time:', decayTime )
+  let completeFlag = data( [0] )
+  
+  // slightly more efficient to use existing phase accumulator for linear envelopes
+  if( props.shape === 'linear' ) {
+    out = ifelse( 
+      and( gte( phase, 0), lt( phase, attackTime )),
+      div( phase, attackTime ),
+
+      and( gte( phase, 0),  lt( phase, add( attackTime, decayTime ) ) ),
+      sub( 1, div( sub( phase, attackTime ), decayTime ) ),
+      
+      neq( phase, -Infinity),
+      poke( completeFlag, 1, 0, { inline:0 }),
+
+      0 
+    )
+  } else {
+    bufferData = env({ length:1024, type:props.shape, alpha:props.alpha })
+    bufferDataReverse = env({ length:1024, type:props.shape, alpha:props.alpha, reverse:true })
+
+    out = ifelse( 
+      and( gte( phase, 0), lt( phase, attackTime ) ), 
+      peek( bufferData, div( phase, attackTime ), { boundmode:'clamp' } ), 
+
+      and( gte(phase,0), lt( phase, add( attackTime, decayTime ) ) ), 
+      peek( bufferDataReverse, div( sub( phase, attackTime ), decayTime ), { boundmode:'clamp' }),
+
+      neq( phase, -Infinity ),
+      poke( completeFlag, 1, 0, { inline:0 }),
+
+      0
+    )
+  }
+
+  out.isComplete = ()=> gen.memory.heap[ completeFlag.memory.values.idx ]
+
+  out.trigger = ()=> {
+    gen.memory.heap[ completeFlag.memory.values.idx ] = 0
+    _bang.trigger()
+  }
+
+  return out 
+}
+
+},{"./accum.js":2,"./add.js":5,"./and.js":7,"./bang.js":11,"./data.js":18,"./div.js":23,"./env.js":24,"./gen.js":30,"./gte.js":32,"./ifelseif.js":35,"./lt.js":38,"./memo.js":42,"./mul.js":48,"./neq.js":49,"./peek.js":54,"./poke.js":56,"./sub.js":65}],5:[function(require,module,exports){
+'use strict'
+
+const gen = require('./gen.js')
+
+const proto = { 
+  basename:'add',
+  gen() {
+    let inputs = gen.getInputs( this ),
+        out='',
+        sum = 0, numCount = 0, adderAtEnd = false, alreadyFullSummed = true
+
+    if( inputs.length === 0 ) return 0
+
+    out = `  var ${this.name} = `
+
+    inputs.forEach( (v,i) => {
+      if( isNaN( v ) ) {
+        out += v
+        if( i < inputs.length -1 ) {
+          adderAtEnd = true
+          out += ' + '
+        }
+        alreadyFullSummed = false
+      }else{
+        sum += parseFloat( v )
+        numCount++
+      }
+    })
+
+    if( numCount > 0 ) {
+      out += adderAtEnd || alreadyFullSummed ? sum : ' + ' + sum
+    }
+
+    out += '\n'
+
+    gen.memo[ this.name ] = this.name
+
+    return [ this.name, out ]
+  }
+}
+
+module.exports = ( ...args ) => {
+  const add = Object.create( proto )
+  add.id = gen.getUID()
+  add.name = add.basename + add.id
+  add.inputs = args
+
+  return add
+}
+
+},{"./gen.js":30}],6:[function(require,module,exports){
+'use strict'
+
+let gen      = require( './gen.js' ),
+    mul      = require( './mul.js' ),
+    sub      = require( './sub.js' ),
+    div      = require( './div.js' ),
+    data     = require( './data.js' ),
+    peek     = require( './peek.js' ),
+    accum    = require( './accum.js' ),
+    ifelse   = require( './ifelseif.js' ),
+    lt       = require( './lt.js' ),
+    bang     = require( './bang.js' ),
+    env      = require( './env.js' ),
+    param    = require( './param.js' ),
+    add      = require( './add.js' ),
+    gtp      = require( './gtp.js' ),
+    not      = require( './not.js' ),
+    and      = require( './and.js' ),
+    neq      = require( './neq.js' ),
+    poke     = require( './poke.js' )
+
+module.exports = ( attackTime=44, decayTime=22050, sustainTime=44100, sustainLevel=.6, releaseTime=44100, _props ) => {
+  let envTrigger = bang(),
+      phase = accum( 1, envTrigger, { max: Infinity, shouldWrap:false, initialValue:Infinity }),
+      shouldSustain = param( 1 ),
+      defaults = {
+         shape: 'exponential',
+         alpha: 5,
+         triggerRelease: false,
+      },
+      props = Object.assign({}, defaults, _props ),
+      bufferData, decayData, out, buffer, sustainCondition, releaseAccum, releaseCondition
+
+
+  const completeFlag = data( [0] )
+
+  bufferData = env({ length:1024, alpha:props.alpha, shift:0, type:props.shape })
+
+  sustainCondition = props.triggerRelease 
+    ? shouldSustain
+    : lt( phase, add( attackTime, decayTime, sustainTime ) )
+
+  releaseAccum = props.triggerRelease
+    ? gtp( sub( sustainLevel, accum( div( sustainLevel, releaseTime ) , 0, { shouldWrap:false }) ), 0 )
+    : sub( sustainLevel, mul( div( sub( phase, add( attackTime, decayTime, sustainTime ) ), releaseTime ), sustainLevel ) ), 
+
+  releaseCondition = props.triggerRelease
+    ? not( shouldSustain )
+    : lt( phase, add( attackTime, decayTime, sustainTime, releaseTime ) )
+
+  out = ifelse(
+    // attack 
+    lt( phase,  attackTime ), 
+    peek( bufferData, div( phase, attackTime ), { boundmode:'clamp' } ), 
+
+    // decay
+    lt( phase, add( attackTime, decayTime ) ), 
+    peek( bufferData, sub( 1, mul( div( sub( phase,  attackTime ),  decayTime ), sub( 1,  sustainLevel ) ) ), { boundmode:'clamp' }),
+
+    // sustain
+    and( sustainCondition, neq( phase, Infinity ) ),
+    peek( bufferData,  sustainLevel ),
+
+    // release
+    releaseCondition, //lt( phase,  attackTime +  decayTime +  sustainTime +  releaseTime ),
+    peek( 
+      bufferData,
+      releaseAccum, 
+      //sub(  sustainLevel, mul( div( sub( phase,  attackTime +  decayTime +  sustainTime),  releaseTime ),  sustainLevel ) ), 
+      { boundmode:'clamp' }
+    ),
+
+    neq( phase, Infinity ),
+    poke( completeFlag, 1, 0, { inline:0 }),
+
+    0
+  )
+   
+  out.trigger = ()=> {
+    shouldSustain.value = 1
+    envTrigger.trigger()
+  }
+
+  out.isComplete = ()=> gen.memory.heap[ completeFlag.memory.values.idx ]
+
+  out.release = ()=> {
+    shouldSustain.value = 0
+    // XXX pretty nasty... grabs accum inside of gtp and resets value manually
+    // unfortunately envTrigger won't work as it's back to 0 by the time the release block is triggered...
+    gen.memory.heap[ releaseAccum.inputs[0].inputs[1].memory.value.idx ] = 0
+  }
+
+  return out 
+}
+
+},{"./accum.js":2,"./add.js":5,"./and.js":7,"./bang.js":11,"./data.js":18,"./div.js":23,"./env.js":24,"./gen.js":30,"./gtp.js":33,"./ifelseif.js":35,"./lt.js":38,"./mul.js":48,"./neq.js":49,"./not.js":51,"./param.js":53,"./peek.js":54,"./poke.js":56,"./sub.js":65}],7:[function(require,module,exports){
+'use strict'
+
+let gen = require( './gen.js' )
+
+let proto = {
+  basename:'and',
+
+  gen() {
+    let inputs = gen.getInputs( this ), out
+
+    out = `  var ${this.name} = (${inputs[0]} !== 0 && ${inputs[1]} !== 0) | 0\n\n`
+
+    gen.memo[ this.name ] = `${this.name}`
+
+    return [ `${this.name}`, out ]
+  },
+
+}
+
+module.exports = ( in1, in2 ) => {
+  let ugen = Object.create( proto )
+  Object.assign( ugen, {
+    uid:     gen.getUID(),
+    inputs:  [ in1, in2 ],
+  })
+  
+  ugen.name = `${ugen.basename}${ugen.uid}`
+
+  return ugen
+}
+
+},{"./gen.js":30}],8:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  basename:'asin',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+    
+    if( isNaN( inputs[0] ) ) {
+      gen.closures.add({ 'asin': Math.asin })
+
+      out = `gen.asin( ${inputs[0]} )` 
+
+    } else {
+      out = Math.asin( parseFloat( inputs[0] ) )
+    }
+    
+    return out
+  }
+}
+
+module.exports = x => {
+  let asin = Object.create( proto )
+
+  asin.inputs = [ x ]
+  asin.id = gen.getUID()
+  asin.name = `${asin.basename}{asin.id}`
+
+  return asin
+}
+
+},{"./gen.js":30}],9:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  basename:'atan',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+    
+    if( isNaN( inputs[0] ) ) {
+      gen.closures.add({ 'atan': Math.atan })
+
+      out = `gen.atan( ${inputs[0]} )` 
+
+    } else {
+      out = Math.atan( parseFloat( inputs[0] ) )
+    }
+    
+    return out
+  }
+}
+
+module.exports = x => {
+  let atan = Object.create( proto )
+
+  atan.inputs = [ x ]
+  atan.id = gen.getUID()
+  atan.name = `${atan.basename}{atan.id}`
+
+  return atan
+}
+
+},{"./gen.js":30}],10:[function(require,module,exports){
+'use strict'
+
+let gen     = require( './gen.js' ),
+    history = require( './history.js' ),
+    mul     = require( './mul.js' ),
+    sub     = require( './sub.js' )
+
+module.exports = ( decayTime = 44100 ) => {
+  let ssd = history ( 1 ),
+      t60 = Math.exp( -6.907755278921 / decayTime )
+
+  ssd.in( mul( ssd.out, t60 ) )
+
+  ssd.out.trigger = ()=> {
+    ssd.value = 1
+  }
+
+  return sub( 1, ssd.out )
+}
+
+},{"./gen.js":30,"./history.js":34,"./mul.js":48,"./sub.js":65}],11:[function(require,module,exports){
+'use strict'
+
+let gen = require('./gen.js')
+
+let proto = {
+  gen() {
+    gen.requestMemory( this.memory )
+    
+    let out = 
+`  var ${this.name} = memory[${this.memory.value.idx}]
+  if( ${this.name} === 1 ) memory[${this.memory.value.idx}] = 0      
+      
+`
+    gen.memo[ this.name ] = this.name
+
+    return [ this.name, out ]
+  } 
+}
+
+module.exports = ( _props ) => {
+  let ugen = Object.create( proto ),
+      props = Object.assign({}, { min:0, max:1 }, _props )
+
+  ugen.name = 'bang' + gen.getUID()
+
+  ugen.min = props.min
+  ugen.max = props.max
+
+  ugen.trigger = () => {
+    gen.memory.heap[ ugen.memory.value.idx ] = ugen.max 
+  }
+
+  ugen.memory = {
+    value: { length:1, idx:null }
+  }
+
+  return ugen
+}
+
+},{"./gen.js":30}],12:[function(require,module,exports){
+'use strict'
+
+let gen = require( './gen.js' )
+
+let proto = {
+  basename:'bool',
+
+  gen() {
+    let inputs = gen.getInputs( this ), out
+
+    out = `${inputs[0]} === 0 ? 0 : 1`
+    
+    //gen.memo[ this.name ] = `gen.data.${this.name}`
+
+    //return [ `gen.data.${this.name}`, ' ' +out ]
+    return out
+  }
+}
+
+module.exports = ( in1 ) => {
+  let ugen = Object.create( proto )
+
+  Object.assign( ugen, { 
+    uid:        gen.getUID(),
+    inputs:     [ in1 ],
+  })
+  
+  ugen.name = `${ugen.basename}${ugen.uid}`
+
+  return ugen
+}
+
+
+},{"./gen.js":30}],13:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  name:'ceil',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+
+    if( isNaN( inputs[0] ) ) {
+      gen.closures.add({ [ this.name ]: Math.ceil })
+
+      out = `gen.ceil( ${inputs[0]} )`
+
+    } else {
+      out = Math.ceil( parseFloat( inputs[0] ) )
+    }
+    
+    return out
+  }
+}
+
+module.exports = x => {
+  let ceil = Object.create( proto )
+
+  ceil.inputs = [ x ]
+
+  return ceil
+}
+
+},{"./gen.js":30}],14:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js'),
+    floor= require('./floor.js'),
+    sub  = require('./sub.js'),
+    memo = require('./memo.js')
+
+let proto = {
+  basename:'clip',
+
+  gen() {
+    let code,
+        inputs = gen.getInputs( this ),
+        out
+
+    out =
+
+` var ${this.name} = ${inputs[0]}
+  if( ${this.name} > ${inputs[2]} ) ${this.name} = ${inputs[2]}
+  else if( ${this.name} < ${inputs[1]} ) ${this.name} = ${inputs[1]}
+`
+    out = ' ' + out
+    
+    gen.memo[ this.name ] = this.name
+
+    return [ this.name, out ]
+  },
+}
+
+module.exports = ( in1, min=-1, max=1 ) => {
+  let ugen = Object.create( proto )
+
+  Object.assign( ugen, { 
+    min, 
+    max,
+    uid:    gen.getUID(),
+    inputs: [ in1, min, max ],
+  })
+  
+  ugen.name = `${ugen.basename}${ugen.uid}`
+
+  return ugen
+}
+
+},{"./floor.js":27,"./gen.js":30,"./memo.js":42,"./sub.js":65}],15:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  basename:'cos',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+    
+    if( isNaN( inputs[0] ) ) {
+      gen.closures.add({ 'cos': Math.cos })
+
+      out = `gen.cos( ${inputs[0]} )` 
+
+    } else {
+      out = Math.cos( parseFloat( inputs[0] ) )
+    }
+    
+    return out
+  }
+}
+
+module.exports = x => {
+  let cos = Object.create( proto )
+
+  cos.inputs = [ x ]
+  cos.id = gen.getUID()
+  cos.name = `${cos.basename}{cos.id}`
+
+  return cos
+}
+
+},{"./gen.js":30}],16:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  basename:'counter',
+
+  gen() {
+    let code,
+        inputs = gen.getInputs( this ),
+        genName = 'gen.' + this.name,
+        functionBody
+       
+    if( this.memory.value.idx === null ) gen.requestMemory( this.memory )
+    functionBody  = this.callback( genName, inputs[0], inputs[1], inputs[2], inputs[3], inputs[4],  `memory[${this.memory.value.idx}]`, `memory[${this.memory.wrap.idx}]`  )
+
+    gen.closures.add({ [ this.name ]: this }) 
+
+    gen.memo[ this.name ] = this.name + '_value'
+   
+    if( gen.memo[ this.wrap.name ] === undefined ) this.wrap.gen()
+
+    return [ this.name + '_value', functionBody ]
+  },
+
+  callback( _name, _incr, _min, _max, _reset, loops, valueRef, wrapRef ) {
+    let diff = this.max - this.min,
+        out = '',
+        wrap = ''
+    // must check for reset before storing value for output
+    if( !(typeof this.inputs[3] === 'number' && this.inputs[3] < 1) ) { 
+      out += `  if( ${_reset} >= 1 ) ${valueRef} = ${_min}\n`
+    }
+
+    out += `  var ${this.name}_value = ${valueRef};\n  ${valueRef} += ${_incr}\n` // store output value before accumulating  
+    
+    if( typeof this.max === 'number' && this.max !== Infinity && typeof this.min !== 'number' ) {
+      wrap = 
+`  if( ${valueRef} >= ${this.max} &&  ${loops} > 0) {
+    ${valueRef} -= ${diff}
+    ${wrapRef} = 1
+  }else{
+    ${wrapRef} = 0
+  }\n`
+    }else if( this.max !== Infinity && this.min !== Infinity ) {
+      wrap = 
+`  if( ${valueRef} >= ${_max} &&  ${loops} > 0) {
+    ${valueRef} -= ${_max} - ${_min}
+    ${wrapRef} = 1
+  }else if( ${valueRef} < ${_min} &&  ${loops} > 0) {
+    ${valueRef} += ${_max} - ${_min}
+    ${wrapRef} = 1
+  }else{
+    ${wrapRef} = 0
+  }\n`
+    }else{
+      out += '\n'
+    }
+
+    out = out + wrap
+
+    return out
+  }
+}
+
+module.exports = ( incr=1, min=0, max=Infinity, reset=0, loops=1,  properties ) => {
+  let ugen = Object.create( proto ),
+      defaults = { initialValue: 0, shouldWrap:true }
+
+  if( properties !== undefined ) Object.assign( defaults, properties )
+
+  Object.assign( ugen, { 
+    min:    min, 
+    max:    max,
+    value:  defaults.initialValue,
+    uid:    gen.getUID(),
+    inputs: [ incr, min, max, reset, loops ],
+    memory: {
+      value: { length:1, idx: null },
+      wrap:  { length:1, idx: null } 
+    },
+    wrap : {
+      gen() { 
+        if( ugen.memory.wrap.idx === null ) {
+          gen.requestMemory( ugen.memory )
+        }
+        gen.getInputs( this )
+        gen.memo[ this.name ] = `memory[ ${ugen.memory.wrap.idx} ]`
+        return `memory[ ${ugen.memory.wrap.idx} ]` 
+      }
+    }
+  },
+  defaults )
+ 
+  Object.defineProperty( ugen, 'value', {
+    get() {
+      if( this.memory.value.idx !== null ) {
+        return gen.memory.heap[ this.memory.value.idx ]
+      }
+    },
+    set( v ) {
+      if( this.memory.value.idx !== null ) {
+        gen.memory.heap[ this.memory.value.idx ] = v 
+      }
+    }
+  })
+  
+  ugen.wrap.inputs = [ ugen ]
+  ugen.name = `${ugen.basename}${ugen.uid}`
+  ugen.wrap.name = ugen.name + '_wrap'
+  return ugen
+} 
+
+},{"./gen.js":30}],17:[function(require,module,exports){
+'use strict'
+
+let gen  = require( './gen.js' ),
+    accum= require( './phasor.js' ),
+    data = require( './data.js' ),
+    peek = require( './peek.js' ),
+    mul  = require( './mul.js' ),
+    phasor=require( './phasor.js')
+
+let proto = {
+  basename:'cycle',
+
+  initTable() {    
+    let buffer = new Float32Array( 1024 )
+
+    for( let i = 0, l = buffer.length; i < l; i++ ) {
+      buffer[ i ] = Math.sin( ( i / l ) * ( Math.PI * 2 ) )
+    }
+
+    gen.globals.cycle = data( buffer, 1, { immutable:true } )
+  }
+
+}
+
+module.exports = ( frequency=1, reset=0, _props ) => {
+  if( typeof gen.globals.cycle === 'undefined' ) proto.initTable() 
+  const props = Object.assign({}, { min:0 }, _props )
+
+  const ugen = peek( gen.globals.cycle, phasor( frequency, reset, props ))
+  ugen.name = 'cycle' + gen.getUID()
+
+  return ugen
+}
+
+},{"./data.js":18,"./gen.js":30,"./mul.js":48,"./peek.js":54,"./phasor.js":55}],18:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js'),
+  utilities = require( './utilities.js' ),
+  peek = require('./peek.js'),
+  poke = require('./poke.js')
+
+let proto = {
+  basename:'data',
+  globals: {},
+
+  gen() {
+    let idx
+    if( gen.memo[ this.name ] === undefined ) {
+      let ugen = this
+      gen.requestMemory( this.memory, this.immutable ) 
+      idx = this.memory.values.idx
+      try {
+        gen.memory.heap.set( this.buffer, idx )
+      }catch( e ) {
+        console.log( e )
+        throw Error( 'error with request. asking for ' + this.buffer.length +'. current index: ' + gen.memoryIndex + ' of ' + gen.memory.heap.length )
+      }
+      //gen.data[ this.name ] = this
+      //return 'gen.memory' + this.name + '.buffer'
+      gen.memo[ this.name ] = idx
+    }else{
+      idx = gen.memo[ this.name ]
+    }
+    return idx
+  },
+}
+
+module.exports = ( x, y=1, properties ) => {
+  let ugen, buffer, shouldLoad = false
+  
+  if( properties !== undefined && properties.global !== undefined ) {
+    if( gen.globals[ properties.global ] ) {
+      return gen.globals[ properties.global ]
+    }
+  }
+
+  if( typeof x === 'number' ) {
+    if( y !== 1 ) {
+      buffer = []
+      for( let i = 0; i < y; i++ ) {
+        buffer[ i ] = new Float32Array( x )
+      }
+    }else{
+      buffer = new Float32Array( x )
+    }
+  }else if( Array.isArray( x ) ) { //! (x instanceof Float32Array ) ) {
+    let size = x.length
+    buffer = new Float32Array( size )
+    for( let i = 0; i < x.length; i++ ) {
+      buffer[ i ] = x[ i ]
+    }
+  }else if( typeof x === 'string' ) {
+    buffer = { length: y > 1 ? y : gen.samplerate * 60 } // XXX what???
+    shouldLoad = true
+  }else if( x instanceof Float32Array ) {
+    buffer = x
+  }
+  
+  ugen = Object.create( proto )
+
+  Object.assign( ugen, { 
+    buffer,
+    name: proto.basename + gen.getUID(),
+    dim:  buffer.length, // XXX how do we dynamically allocate this?
+    channels : 1,
+    onload: null,
+    then( fnc ) {
+      ugen.onload = fnc
+      return ugen
+    },
+    immutable: properties !== undefined && properties.immutable === true ? true : false,
+    load( filename ) {
+      let promise = utilities.loadSample( filename, ugen )
+      promise.then( ( _buffer )=> { 
+        ugen.memory.values.length = ugen.dim = _buffer.length     
+        ugen.onload() 
+      })
+    },
+    memory : {
+      values: { length:buffer.length, idx:null }
+    }
+  })
+
+  if( shouldLoad ) ugen.load( x )
+  
+  if( properties !== undefined ) {
+    if( properties.global !== undefined ) {
+      gen.globals[ properties.global ] = ugen
+    }
+    if( properties.meta === true ) {
+      for( let i = 0, length = ugen.buffer.length; i < length; i++ ) {
+        Object.defineProperty( ugen, i, {
+          get () {
+            return peek( ugen, i, { mode:'simple', interp:'none' } )
+          },
+          set( v ) {
+            return poke( ugen, v, i )
+          }
+        })
+      }
+    }
+  }
+
+  return ugen
+}
+
+},{"./gen.js":30,"./peek.js":54,"./poke.js":56,"./utilities.js":71}],19:[function(require,module,exports){
+'use strict'
+
+let gen     = require( './gen.js' ),
+    history = require( './history.js' ),
+    sub     = require( './sub.js' ),
+    add     = require( './add.js' ),
+    mul     = require( './mul.js' ),
+    memo    = require( './memo.js' )
+
+module.exports = ( in1 ) => {
+  let x1 = history(),
+      y1 = history(),
+      filter
+
+  //History x1, y1; y = in1 - x1 + y1*0.9997; x1 = in1; y1 = y; out1 = y;
+  filter = memo( add( sub( in1, x1.out ), mul( y1.out, .9997 ) ) )
+  x1.in( in1 )
+  y1.in( filter )
+
+  return filter
+}
+
+},{"./add.js":5,"./gen.js":30,"./history.js":34,"./memo.js":42,"./mul.js":48,"./sub.js":65}],20:[function(require,module,exports){
+'use strict'
+
+let gen     = require( './gen.js' ),
+    history = require( './history.js' ),
+    mul     = require( './mul.js' ),
+    t60     = require( './t60.js' )
+
+module.exports = ( decayTime = 44100, props ) => {
+  let properties = Object.assign({}, { initValue:1 }, props ),
+      ssd = history ( properties.initValue )
+
+  ssd.in( mul( ssd.out, t60( decayTime ) ) )
+
+  ssd.out.trigger = ()=> {
+    ssd.value = 1
+  }
+
+  return ssd.out 
+}
+
+},{"./gen.js":30,"./history.js":34,"./mul.js":48,"./t60.js":67}],21:[function(require,module,exports){
+'use strict'
+
+const gen  = require( './gen.js'  ),
+      data = require( './data.js' ),
+      poke = require( './poke.js' ),
+      peek = require( './peek.js' ),
+      sub  = require( './sub.js'  ),
+      wrap = require( './wrap.js' ),
+      accum= require( './accum.js'),
+      memo = require( './memo.js' )
+
+const proto = {
+  basename:'delay',
+
+  gen() {
+    let inputs = gen.getInputs( this )
+    
+    gen.memo[ this.name ] = inputs[0]
+    
+    return inputs[0]
+  },
+}
+
+const defaults = { size: 512, interp:'none' }
+
+module.exports = ( in1, taps, properties ) => {
+  const ugen = Object.create( proto )
+  let writeIdx, readIdx, delaydata
+
+  if( Array.isArray( taps ) === false ) taps = [ taps ]
+  
+  const props = Object.assign( {}, defaults, properties )
+
+  const maxTapSize = Math.max( ...taps )
+  if( props.size < maxTapSize ) props.size = maxTapSize
+
+  delaydata = data( props.size )
+  
+  ugen.inputs = []
+
+  writeIdx = accum( 1, 0, { max:props.size, min:0 })
+  
+  for( let i = 0; i < taps.length; i++ ) {
+    ugen.inputs[ i ] = peek( delaydata, wrap( sub( writeIdx, taps[i] ), 0, props.size ),{ mode:'samples', interp:props.interp })
+  }
+  
+  ugen.outputs = ugen.inputs // XXX ugh, Ugh, UGH! but i guess it works.
+
+  poke( delaydata, in1, writeIdx )
+
+  ugen.name = `${ugen.basename}${gen.getUID()}`
+
+  return ugen
+}
+
+},{"./accum.js":2,"./data.js":18,"./gen.js":30,"./memo.js":42,"./peek.js":54,"./poke.js":56,"./sub.js":65,"./wrap.js":73}],22:[function(require,module,exports){
+'use strict'
+
+let gen     = require( './gen.js' ),
+    history = require( './history.js' ),
+    sub     = require( './sub.js' )
+
+module.exports = ( in1 ) => {
+  let n1 = history()
+    
+  n1.in( in1 )
+
+  let ugen = sub( in1, n1.out )
+  ugen.name = 'delta'+gen.getUID()
+
+  return ugen
+}
+
+},{"./gen.js":30,"./history.js":34,"./sub.js":65}],23:[function(require,module,exports){
+'use strict'
+
+let gen = require('./gen.js')
+
+const proto = {
+  basename:'div',
+  gen() {
+    let inputs = gen.getInputs( this ),
+        out=`  var ${this.name} = `,
+        diff = 0, 
+        numCount = 0,
+        lastNumber = inputs[ 0 ],
+        lastNumberIsUgen = isNaN( lastNumber ), 
+        divAtEnd = false
+
+    inputs.forEach( (v,i) => {
+      if( i === 0 ) return
+
+      let isNumberUgen = isNaN( v ),
+        isFinalIdx   = i === inputs.length - 1
+
+      if( !lastNumberIsUgen && !isNumberUgen ) {
+        lastNumber = lastNumber / v
+        out += lastNumber
+      }else{
+        out += `${lastNumber} / ${v}`
+      }
+
+      if( !isFinalIdx ) out += ' / ' 
+    })
+
+    out += '\n'
+
+    gen.memo[ this.name ] = this.name
+
+    return [ this.name, out ]
+  }
+}
+
+module.exports = (...args) => {
+  const div = Object.create( proto )
+  
+  Object.assign( div, {
+    id:     gen.getUID(),
+    inputs: args,
+  })
+
+  div.name = div.basename + div.id
+  
+  return div
+}
+
+},{"./gen.js":30}],24:[function(require,module,exports){
+'use strict'
+
+let gen     = require( './gen' ),
+    windows = require( './windows' ),
+    data    = require( './data' ),
+    peek    = require( './peek' ),
+    phasor  = require( './phasor' ),
+    defaults = {
+      type:'triangular', length:1024, alpha:.15, shift:0, reverse:false 
+    }
+
+module.exports = props => {
+  
+  let properties = Object.assign( {}, defaults, props )
+  let buffer = new Float32Array( properties.length )
+
+  let name = properties.type + '_' + properties.length + '_' + properties.shift + '_' + properties.reverse + '_' + properties.alpha
+  if( typeof gen.globals.windows[ name ] === 'undefined' ) { 
+
+    for( let i = 0; i < properties.length; i++ ) {
+      buffer[ i ] = windows[ properties.type ]( properties.length, i, properties.alpha, properties.shift )
+    }
+
+    if( properties.reverse === true ) { 
+      buffer.reverse()
+    }
+    gen.globals.windows[ name ] = data( buffer )
+  }
+
+  let ugen = gen.globals.windows[ name ] 
+  ugen.name = 'env' + gen.getUID()
+
+  return ugen
+}
+
+},{"./data":18,"./gen":30,"./peek":54,"./phasor":55,"./windows":72}],25:[function(require,module,exports){
+'use strict'
+
+let gen = require( './gen.js' )
+
+let proto = {
+  basename:'eq',
+
+  gen() {
+    let inputs = gen.getInputs( this ), out
+
+    out = this.inputs[0] === this.inputs[1] ? 1 : `  var ${this.name} = (${inputs[0]} === ${inputs[1]}) | 0\n\n`
+
+    gen.memo[ this.name ] = `${this.name}`
+
+    return [ `${this.name}`, out ]
+  },
+
+}
+
+module.exports = ( in1, in2 ) => {
+  let ugen = Object.create( proto )
+  Object.assign( ugen, {
+    uid:     gen.getUID(),
+    inputs:  [ in1, in2 ],
+  })
+  
+  ugen.name = `${ugen.basename}${ugen.uid}`
+
+  return ugen
+}
+
+},{"./gen.js":30}],26:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  name:'exp',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+
+    if( isNaN( inputs[0] ) ) {
+      gen.closures.add({ [ this.name ]: Math.exp })
+
+      out = `gen.exp( ${inputs[0]} )`
+
+    } else {
+      out = Math.exp( parseFloat( inputs[0] ) )
+    }
+    
+    return out
+  }
+}
+
+module.exports = x => {
+  let exp = Object.create( proto )
+
+  exp.inputs = [ x ]
+
+  return exp
+}
+
+},{"./gen.js":30}],27:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  name:'floor',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+
+    if( isNaN( inputs[0] ) ) {
+      //gen.closures.add({ [ this.name ]: Math.floor })
+
+      out = `( ${inputs[0]} | 0 )`
+
+    } else {
+      out = inputs[0] | 0
+    }
+    
+    return out
+  }
+}
+
+module.exports = x => {
+  let floor = Object.create( proto )
+
+  floor.inputs = [ x ]
+
+  return floor
+}
+
+},{"./gen.js":30}],28:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  basename:'fold',
+
+  gen() {
+    let code,
+        inputs = gen.getInputs( this ),
+        out
+
+    out = this.createCallback( inputs[0], this.min, this.max ) 
+
+    gen.memo[ this.name ] = this.name + '_value'
+
+    return [ this.name + '_value', out ]
+  },
+
+  createCallback( v, lo, hi ) {
+    let out =
+` var ${this.name}_value = ${v},
+      ${this.name}_range = ${hi} - ${lo},
+      ${this.name}_numWraps = 0
+
+  if(${this.name}_value >= ${hi}){
+    ${this.name}_value -= ${this.name}_range
+    if(${this.name}_value >= ${hi}){
+      ${this.name}_numWraps = ((${this.name}_value - ${lo}) / ${this.name}_range) | 0
+      ${this.name}_value -= ${this.name}_range * ${this.name}_numWraps
+    }
+    ${this.name}_numWraps++
+  } else if(${this.name}_value < ${lo}){
+    ${this.name}_value += ${this.name}_range
+    if(${this.name}_value < ${lo}){
+      ${this.name}_numWraps = ((${this.name}_value - ${lo}) / ${this.name}_range- 1) | 0
+      ${this.name}_value -= ${this.name}_range * ${this.name}_numWraps
+    }
+    ${this.name}_numWraps--
+  }
+  if(${this.name}_numWraps & 1) ${this.name}_value = ${hi} + ${lo} - ${this.name}_value
+`
+    return ' ' + out
+  }
+}
+
+module.exports = ( in1, min=0, max=1 ) => {
+  let ugen = Object.create( proto )
+
+  Object.assign( ugen, { 
+    min, 
+    max,
+    uid:    gen.getUID(),
+    inputs: [ in1 ],
+  })
+  
+  ugen.name = `${ugen.basename}${ugen.uid}`
+
+  return ugen
+}
+
+},{"./gen.js":30}],29:[function(require,module,exports){
+'use strict'
+
+let gen = require( './gen.js' )
+
+let proto = {
+  basename:'gate',
+  controlString:null, // insert into output codegen for determining indexing
+  gen() {
+    let inputs = gen.getInputs( this ), out
+    
+    gen.requestMemory( this.memory )
+    
+    let lastInputMemoryIdx = 'memory[ ' + this.memory.lastInput.idx + ' ]',
+        outputMemoryStartIdx = this.memory.lastInput.idx + 1,
+        inputSignal = inputs[0],
+        controlSignal = inputs[1]
+    
+    /* 
+     * we check to see if the current control inputs equals our last input
+     * if so, we store the signal input in the memory associated with the currently
+     * selected index. If not, we put 0 in the memory associated with the last selected index,
+     * change the selected index, and then store the signal in put in the memery assoicated
+     * with the newly selected index
+     */
+    
+    out =
+
+` if( ${controlSignal} !== ${lastInputMemoryIdx} ) {
+    memory[ ${lastInputMemoryIdx} + ${outputMemoryStartIdx}  ] = 0 
+    ${lastInputMemoryIdx} = ${controlSignal}
+  }
+  memory[ ${outputMemoryStartIdx} + ${controlSignal} ] = ${inputSignal}
+
+`
+    this.controlString = inputs[1]
+    this.initialized = true
+
+    gen.memo[ this.name ] = this.name
+
+    this.outputs.forEach( v => v.gen() )
+
+    return [ null, ' ' + out ]
+  },
+
+  childgen() {
+    if( this.parent.initialized === false ) {
+      gen.getInputs( this ) // parent gate is only input of a gate output, should only be gen'd once.
+    }
+
+    if( gen.memo[ this.name ] === undefined ) {
+      gen.requestMemory( this.memory )
+
+      gen.memo[ this.name ] = `memory[ ${this.memory.value.idx} ]`
+    }
+    
+    return  `memory[ ${this.memory.value.idx} ]`
+  }
+}
+
+module.exports = ( control, in1, properties ) => {
+  let ugen = Object.create( proto ),
+      defaults = { count: 2 }
+
+  if( typeof properties !== undefined ) Object.assign( defaults, properties )
+
+  Object.assign( ugen, {
+    outputs: [],
+    uid:     gen.getUID(),
+    inputs:  [ in1, control ],
+    memory: {
+      lastInput: { length:1, idx:null }
+    },
+    initialized:false
+  },
+  defaults )
+  
+  ugen.name = `${ugen.basename}${gen.getUID()}`
+
+  for( let i = 0; i < ugen.count; i++ ) {
+    ugen.outputs.push({
+      index:i,
+      gen: proto.childgen,
+      parent:ugen,
+      inputs: [ ugen ],
+      memory: {
+        value: { length:1, idx:null }
+      },
+      initialized:false,
+      name: `${ugen.name}_out${gen.getUID()}`
+    })
+  }
+
+  return ugen
+}
+
+},{"./gen.js":30}],30:[function(require,module,exports){
+'use strict'
+
+/* gen.js
+ *
+ * low-level code generation for unit generators
+ *
+ */
+
+let MemoryHelper = require( 'memory-helper' )
+
+let gen = {
+
+  accum:0,
+  getUID() { return this.accum++ },
+  debug:false,
+  samplerate: 44100, // change on audiocontext creation
+  shouldLocalize: false,
+  globals:{
+    windows: {},
+  },
+  
+  /* closures
+   *
+   * Functions that are included as arguments to master callback. Examples: Math.abs, Math.random etc.
+   * XXX Should probably be renamed callbackProperties or something similar... closures are no longer used.
+   */
+
+  closures: new Set(),
+  params:   new Set(),
+
+  parameters:[],
+  endBlock: new Set(),
+  histories: new Map(),
+
+  memo: {},
+
+  //data: {},
+  
+  /* export
+   *
+   * place gen functions into another object for easier reference
+   */
+
+  export( obj ) {},
+
+  addToEndBlock( v ) {
+    this.endBlock.add( '  ' + v )
+  },
+  
+  requestMemory( memorySpec, immutable=false ) {
+    for( let key in memorySpec ) {
+      let request = memorySpec[ key ]
+
+      //console.log( 'requesting ' + key + ':' , JSON.stringify( request ) )
+
+      if( request.length === undefined ) {
+        console.log( 'undefined length for:', key )
+
+        continue
+      }
+
+      request.idx = gen.memory.alloc( request.length, immutable )
+    }
+  },
+
+  /* createCallback
+   *
+   * param ugen - Head of graph to be codegen'd
+   *
+   * Generate callback function for a particular ugen graph.
+   * The gen.closures property stores functions that need to be
+   * passed as arguments to the final function; these are prefixed
+   * before any defined params the graph exposes. For example, given:
+   *
+   * gen.createCallback( abs( param() ) )
+   *
+   * ... the generated function will have a signature of ( abs, p0 ).
+   */
+  
+  createCallback( ugen, mem, debug = false, shouldInlineMemory=false, memType = Float32Array ) {
+    let isStereo = Array.isArray( ugen ) && ugen.length > 1,
+        callback, 
+        channel1, channel2
+
+    if( typeof mem === 'number' || mem === undefined ) {
+      mem = MemoryHelper.create( mem, memType )
+    }
+    
+    //console.log( 'cb memory:', mem )
+    this.memory = mem
+    this.memo = {} 
+    this.endBlock.clear()
+    this.closures.clear()
+    this.params.clear()
+    //this.globals = { windows:{} }
+    
+    this.parameters.length = 0
+    
+    this.functionBody = "  'use strict'\n"
+    if( shouldInlineMemory===false ) this.functionBody += "  var memory = gen.memory\n\n" 
+
+    // call .gen() on the head of the graph we are generating the callback for
+    //console.log( 'HEAD', ugen )
+    for( let i = 0; i < 1 + isStereo; i++ ) {
+      if( typeof ugen[i] === 'number' ) continue
+
+      //let channel = isStereo ? ugen[i].gen() : ugen.gen(),
+      let channel = isStereo ? this.getInput( ugen[i] ) : this.getInput( ugen ), 
+          body = ''
+
+      // if .gen() returns array, add ugen callback (graphOutput[1]) to our output functions body
+      // and then return name of ugen. If .gen() only generates a number (for really simple graphs)
+      // just return that number (graphOutput[0]).
+      body += Array.isArray( channel ) ? channel[1] + '\n' + channel[0] : channel
+
+      // split body to inject return keyword on last line
+      body = body.split('\n')
+     
+      //if( debug ) console.log( 'functionBody length', body )
+      
+      // next line is to accommodate memo as graph head
+      if( body[ body.length -1 ].trim().indexOf('let') > -1 ) { body.push( '\n' ) } 
+
+      // get index of last line
+      let lastidx = body.length - 1
+
+      // insert return keyword
+      body[ lastidx ] = '  gen.out[' + i + ']  = ' + body[ lastidx ] + '\n'
+
+      this.functionBody += body.join('\n')
+    }
+    
+    this.histories.forEach( value => {
+      if( value !== null )
+        value.gen()      
+    })
+
+    let returnStatement = isStereo ? '  return gen.out' : '  return gen.out[0]'
+    
+    this.functionBody = this.functionBody.split('\n')
+
+    if( this.endBlock.size ) { 
+      this.functionBody = this.functionBody.concat( Array.from( this.endBlock ) )
+      this.functionBody.push( returnStatement )
+    }else{
+      this.functionBody.push( returnStatement )
+    }
+    // reassemble function body
+    this.functionBody = this.functionBody.join('\n')
+
+    // we can only dynamically create a named function by dynamically creating another function
+    // to construct the named function! sheesh...
+    //
+    if( shouldInlineMemory === true ) {
+      this.parameters.push( 'memory' )
+    }
+    let buildString = `return function gen( ${ this.parameters.join(',') } ){ \n${ this.functionBody }\n}`
+    
+    if( this.debug || debug ) console.log( buildString ) 
+
+    callback = new Function( buildString )()
+
+    
+    // assign properties to named function
+    for( let dict of this.closures.values() ) {
+      let name = Object.keys( dict )[0],
+          value = dict[ name ]
+
+      callback[ name ] = value
+    }
+
+    for( let dict of this.params.values() ) {
+      let name = Object.keys( dict )[0],
+          ugen = dict[ name ]
+      
+      Object.defineProperty( callback, name, {
+        configurable: true,
+        get() { return ugen.value },
+        set(v){ ugen.value = v }
+      })
+      //callback[ name ] = value
+    }
+
+    callback.data = this.data
+    callback.out  = new Float32Array( 2 )
+    callback.parameters = this.parameters.slice( 0 )
+
+    //if( MemoryHelper.isPrototypeOf( this.memory ) ) 
+    callback.memory = this.memory.heap
+
+    this.histories.clear()
+
+    return callback
+  },
+  
+  /* getInputs
+   *
+   * Called by each individual ugen when their .gen() method is called to resolve their various inputs.
+   * If an input is a number, return the number. If
+   * it is an ugen, call .gen() on the ugen, memoize the result and return the result. If the
+   * ugen has previously been memoized return the memoized value.
+   *
+   */
+  getInputs( ugen ) {
+    return ugen.inputs.map( gen.getInput ) 
+  },
+
+  getInput( input ) {
+    let isObject = typeof input === 'object',
+        processedInput
+
+    if( isObject ) { // if input is a ugen... 
+      //console.log( input.name, gen.memo[ input.name ] )
+      if( gen.memo[ input.name ] ) { // if it has been memoized...
+        processedInput = gen.memo[ input.name ]
+      }else if( Array.isArray( input ) ) {
+        gen.getInput( input[0] )
+        gen.getInput( input[1] )
+      }else{ // if not memoized generate code  
+        if( typeof input.gen !== 'function' ) {
+          console.log( 'no gen found:', input, input.gen )
+        }
+        let code = input.gen()
+        //if( code.indexOf( 'Object' ) > -1 ) console.log( 'bad input:', input, code )
+        
+        if( Array.isArray( code ) ) {
+          if( !gen.shouldLocalize ) {
+            gen.functionBody += code[1]
+          }else{
+            gen.codeName = code[0]
+            gen.localizedCode.push( code[1] )
+          }
+          //console.log( 'after GEN' , this.functionBody )
+          processedInput = code[0]
+        }else{
+          processedInput = code
+        }
+      }
+    }else{ // it input is a number
+      processedInput = input
+    }
+
+    return processedInput
+  },
+
+  startLocalize() {
+    this.localizedCode = []
+    this.shouldLocalize = true
+  },
+  endLocalize() {
+    this.shouldLocalize = false
+
+    return [ this.codeName, this.localizedCode.slice(0) ]
+  },
+
+  free( graph ) {
+    if( Array.isArray( graph ) ) { // stereo ugen
+      for( let channel of graph ) {
+        this.free( channel )
+      }
+    } else {
+      if( typeof graph === 'object' ) {
+        if( graph.memory !== undefined ) {
+          for( let memoryKey in graph.memory ) {
+            this.memory.free( graph.memory[ memoryKey ].idx )
+          }
+        }
+        if( Array.isArray( graph.inputs ) ) {
+          for( let ugen of graph.inputs ) {
+            this.free( ugen )
+          }
+        }
+      }
+    }
+  }
+}
+
+module.exports = gen
+
+},{"memory-helper":403}],31:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  basename:'gt',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+    
+    out = `  var ${this.name} = `  
+
+    if( isNaN( this.inputs[0] ) || isNaN( this.inputs[1] ) ) {
+      out += `(( ${inputs[0]} > ${inputs[1]}) | 0 )`
+    } else {
+      out += inputs[0] > inputs[1] ? 1 : 0 
+    }
+    out += '\n\n'
+
+    gen.memo[ this.name ] = this.name
+
+    return [this.name, out]
+  }
+}
+
+module.exports = (x,y) => {
+  let gt = Object.create( proto )
+
+  gt.inputs = [ x,y ]
+  gt.name = gt.basename + gen.getUID()
+
+  return gt
+}
+
+},{"./gen.js":30}],32:[function(require,module,exports){
+'use strict'
+
+let gen = require('./gen.js')
+
+let proto = {
+  name:'gte',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+    
+    out = `  var ${this.name} = `  
+
+    if( isNaN( this.inputs[0] ) || isNaN( this.inputs[1] ) ) {
+      out += `( ${inputs[0]} >= ${inputs[1]} | 0 )`
+    } else {
+      out += inputs[0] >= inputs[1] ? 1 : 0 
+    }
+    out += '\n\n'
+
+    gen.memo[ this.name ] = this.name
+
+    return [this.name, out]
+  }
+}
+
+module.exports = (x,y) => {
+  let gt = Object.create( proto )
+
+  gt.inputs = [ x,y ]
+  gt.name = 'gte' + gen.getUID()
+
+  return gt
+}
+
+},{"./gen.js":30}],33:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  name:'gtp',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+
+    if( isNaN( this.inputs[0] ) || isNaN( this.inputs[1] ) ) {
+      out = `(${inputs[ 0 ]} * ( ( ${inputs[0]} > ${inputs[1]} ) | 0 ) )` 
+    } else {
+      out = inputs[0] * ( ( inputs[0] > inputs[1] ) | 0 )
+    }
+    
+    return out
+  }
+}
+
+module.exports = (x,y) => {
+  let gtp = Object.create( proto )
+
+  gtp.inputs = [ x,y ]
+
+  return gtp
+}
+
+},{"./gen.js":30}],34:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+module.exports = ( in1=0 ) => {
+  let ugen = {
+    inputs: [ in1 ],
+    memory: { value: { length:1, idx: null } },
+    recorder: null,
+
+    in( v ) {
+      if( gen.histories.has( v ) ){
+        let memoHistory = gen.histories.get( v )
+        ugen.name = memoHistory.name
+        return memoHistory
+      }
+
+      let obj = {
+        gen() {
+          let inputs = gen.getInputs( ugen )
+
+          if( ugen.memory.value.idx === null ) {
+            gen.requestMemory( ugen.memory )
+            gen.memory.heap[ ugen.memory.value.idx ] = in1
+          }
+
+          let idx = ugen.memory.value.idx
+          
+          gen.addToEndBlock( 'memory[ ' + idx + ' ] = ' + inputs[ 0 ] )
+          
+          // return ugen that is being recorded instead of ssd.
+          // this effectively makes a call to ssd.record() transparent to the graph.
+          // recording is triggered by prior call to gen.addToEndBlock.
+          gen.histories.set( v, obj )
+
+          return inputs[ 0 ]
+        },
+        name: ugen.name + '_in'+gen.getUID(),
+        memory: ugen.memory
+      }
+
+      this.inputs[ 0 ] = v
+      
+      ugen.recorder = obj
+
+      return obj
+    },
+    
+    out: {
+            
+      gen() {
+        if( ugen.memory.value.idx === null ) {
+          if( gen.histories.get( ugen.inputs[0] ) === undefined ) {
+            gen.histories.set( ugen.inputs[0], ugen.recorder )
+          }
+          gen.requestMemory( ugen.memory )
+          gen.memory.heap[ ugen.memory.value.idx ] = parseFloat( in1 )
+        }
+        let idx = ugen.memory.value.idx
+         
+        return 'memory[ ' + idx + ' ] '
+      },
+    },
+
+    uid: gen.getUID(),
+  }
+  
+  ugen.out.memory = ugen.memory 
+
+  ugen.name = 'history' + ugen.uid
+  ugen.out.name = ugen.name + '_out'
+  ugen.in._name  = ugen.name = '_in'
+
+  Object.defineProperty( ugen, 'value', {
+    get() {
+      if( this.memory.value.idx !== null ) {
+        return gen.memory.heap[ this.memory.value.idx ]
+      }
+    },
+    set( v ) {
+      if( this.memory.value.idx !== null ) {
+        gen.memory.heap[ this.memory.value.idx ] = v 
+      }
+    }
+  })
+
+  return ugen
+}
+
+},{"./gen.js":30}],35:[function(require,module,exports){
+'use strict'
+
+let gen = require( './gen.js' )
+
+let proto = {
+  basename:'ifelse',
+
+  gen() {
+    let conditionals = this.inputs[0],
+        defaultValue = gen.getInput( conditionals[ conditionals.length - 1] ),
+        out = `  var ${this.name}_out = ${defaultValue}\n` 
+
+    //console.log( 'conditionals:', this.name, conditionals )
+
+    //console.log( 'defaultValue:', defaultValue )
+
+    for( let i = 0; i < conditionals.length - 2; i+= 2 ) {
+      let isEndBlock = i === conditionals.length - 3,
+          cond  = gen.getInput( conditionals[ i ] ),
+          preblock = conditionals[ i+1 ],
+          block, blockName, output
+
+      //console.log( 'pb', preblock )
+
+      if( typeof preblock === 'number' ){
+        block = preblock
+        blockName = null
+      }else{
+        if( gen.memo[ preblock.name ] === undefined ) {
+          // used to place all code dependencies in appropriate blocks
+          gen.startLocalize()
+
+          gen.getInput( preblock )
+
+          block = gen.endLocalize()
+          blockName = block[0]
+          block = block[ 1 ].join('')
+          block = '  ' + block.replace( /\n/gi, '\n  ' )
+        }else{
+          block = ''
+          blockName = gen.memo[ preblock.name ]
+        }
+      }
+
+      output = blockName === null ? 
+        `  ${this.name}_out = ${block}` :
+        `${block}  ${this.name}_out = ${blockName}`
+      
+      if( i===0 ) out += ' '
+      out += 
+` if( ${cond} === 1 ) {
+${output}
+  }`
+
+      if( !isEndBlock ) {
+        out += ` else`
+      }else{
+        out += `\n`
+      }
+    }
+
+    gen.memo[ this.name ] = `${this.name}_out`
+
+    return [ `${this.name}_out`, out ]
+  }
+}
+
+module.exports = ( ...args  ) => {
+  let ugen = Object.create( proto ),
+      conditions = Array.isArray( args[0] ) ? args[0] : args
+
+  Object.assign( ugen, {
+    uid:     gen.getUID(),
+    inputs:  [ conditions ],
+  })
+  
+  ugen.name = `${ugen.basename}${ugen.uid}`
+
+  return ugen
+}
+
+},{"./gen.js":30}],36:[function(require,module,exports){
+'use strict'
+
+let gen = require('./gen.js')
+
+let proto = {
+  basename:'in',
+
+  gen() {
+    gen.parameters.push( this.name )
+    
+    gen.memo[ this.name ] = this.name
+
+    return this.name
+  } 
+}
+
+module.exports = ( name ) => {
+  let input = Object.create( proto )
+
+  input.id   = gen.getUID()
+  input.name = name !== undefined ? name : `${input.basename}${input.id}`
+  input[0] = {
+    gen() {
+      if( ! gen.parameters.includes( input.name ) ) gen.parameters.push( input.name )
+      return input.name + '[0]'
+    }
+  }
+  input[1] = {
+    gen() {
+      if( ! gen.parameters.includes( input.name ) ) gen.parameters.push( input.name )
+      return input.name + '[1]'
+    }
+  }
+
+
+  return input
+}
+
+},{"./gen.js":30}],37:[function(require,module,exports){
+'use strict'
+
+let library = {
+  export( destination ) {
+    if( destination === window ) {
+      destination.ssd = library.history    // history is window object property, so use ssd as alias
+      destination.input = library.in       // in is a keyword in javascript
+      destination.ternary = library.switch // switch is a keyword in javascript
+
+      delete library.history
+      delete library.in
+      delete library.switch
+    }
+
+    Object.assign( destination, library )
+
+    Object.defineProperty( library, 'samplerate', {
+      get() { return library.gen.samplerate },
+      set(v) {}
+    })
+
+    library.in = destination.input
+    library.history = destination.ssd
+    library.switch = destination.ternary
+
+    destination.clip = library.clamp
+  },
+
+  gen:      require( './gen.js' ),
+  
+  abs:      require( './abs.js' ),
+  round:    require( './round.js' ),
+  param:    require( './param.js' ),
+  add:      require( './add.js' ),
+  sub:      require( './sub.js' ),
+  mul:      require( './mul.js' ),
+  div:      require( './div.js' ),
+  accum:    require( './accum.js' ),
+  counter:  require( './counter.js' ),
+  sin:      require( './sin.js' ),
+  cos:      require( './cos.js' ),
+  tan:      require( './tan.js' ),
+  tanh:     require( './tanh.js' ),
+  asin:     require( './asin.js' ),
+  acos:     require( './acos.js' ),
+  atan:     require( './atan.js' ),  
+  phasor:   require( './phasor.js' ),
+  data:     require( './data.js' ),
+  peek:     require( './peek.js' ),
+  cycle:    require( './cycle.js' ),
+  history:  require( './history.js' ),
+  delta:    require( './delta.js' ),
+  floor:    require( './floor.js' ),
+  ceil:     require( './ceil.js' ),
+  min:      require( './min.js' ),
+  max:      require( './max.js' ),
+  sign:     require( './sign.js' ),
+  dcblock:  require( './dcblock.js' ),
+  memo:     require( './memo.js' ),
+  rate:     require( './rate.js' ),
+  wrap:     require( './wrap.js' ),
+  mix:      require( './mix.js' ),
+  clamp:    require( './clamp.js' ),
+  poke:     require( './poke.js' ),
+  delay:    require( './delay.js' ),
+  fold:     require( './fold.js' ),
+  mod :     require( './mod.js' ),
+  sah :     require( './sah.js' ),
+  noise:    require( './noise.js' ),
+  not:      require( './not.js' ),
+  gt:       require( './gt.js' ),
+  gte:      require( './gte.js' ),
+  lt:       require( './lt.js' ), 
+  lte:      require( './lte.js' ), 
+  bool:     require( './bool.js' ),
+  gate:     require( './gate.js' ),
+  train:    require( './train.js' ),
+  slide:    require( './slide.js' ),
+  in:       require( './in.js' ),
+  t60:      require( './t60.js'),
+  mtof:     require( './mtof.js'),
+  ltp:      require( './ltp.js'),        // TODO: test
+  gtp:      require( './gtp.js'),        // TODO: test
+  switch:   require( './switch.js' ),
+  mstosamps:require( './mstosamps.js' ), // TODO: needs test,
+  selector: require( './selector.js' ),
+  utilities:require( './utilities.js' ),
+  pow:      require( './pow.js' ),
+  attack:   require( './attack.js' ),
+  decay:    require( './decay.js' ),
+  windows:  require( './windows.js' ),
+  env:      require( './env.js' ),
+  ad:       require( './ad.js'  ),
+  adsr:     require( './adsr.js' ),
+  ifelse:   require( './ifelseif.js' ),
+  bang:     require( './bang.js' ),
+  and:      require( './and.js' ),
+  pan:      require( './pan.js' ),
+  eq:       require( './eq.js' ),
+  neq:      require( './neq.js' ),
+  exp:      require( './exp.js' )
+}
+
+library.gen.lib = library
+
+module.exports = library
+
+},{"./abs.js":1,"./accum.js":2,"./acos.js":3,"./ad.js":4,"./add.js":5,"./adsr.js":6,"./and.js":7,"./asin.js":8,"./atan.js":9,"./attack.js":10,"./bang.js":11,"./bool.js":12,"./ceil.js":13,"./clamp.js":14,"./cos.js":15,"./counter.js":16,"./cycle.js":17,"./data.js":18,"./dcblock.js":19,"./decay.js":20,"./delay.js":21,"./delta.js":22,"./div.js":23,"./env.js":24,"./eq.js":25,"./exp.js":26,"./floor.js":27,"./fold.js":28,"./gate.js":29,"./gen.js":30,"./gt.js":31,"./gte.js":32,"./gtp.js":33,"./history.js":34,"./ifelseif.js":35,"./in.js":36,"./lt.js":38,"./lte.js":39,"./ltp.js":40,"./max.js":41,"./memo.js":42,"./min.js":43,"./mix.js":44,"./mod.js":45,"./mstosamps.js":46,"./mtof.js":47,"./mul.js":48,"./neq.js":49,"./noise.js":50,"./not.js":51,"./pan.js":52,"./param.js":53,"./peek.js":54,"./phasor.js":55,"./poke.js":56,"./pow.js":57,"./rate.js":58,"./round.js":59,"./sah.js":60,"./selector.js":61,"./sign.js":62,"./sin.js":63,"./slide.js":64,"./sub.js":65,"./switch.js":66,"./t60.js":67,"./tan.js":68,"./tanh.js":69,"./train.js":70,"./utilities.js":71,"./windows.js":72,"./wrap.js":73}],38:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  basename:'lt',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+
+    out = `  var ${this.name} = `  
+
+    if( isNaN( this.inputs[0] ) || isNaN( this.inputs[1] ) ) {
+      out += `(( ${inputs[0]} < ${inputs[1]}) | 0  )`
+    } else {
+      out += inputs[0] < inputs[1] ? 1 : 0 
+    }
+    out += '\n'
+
+    gen.memo[ this.name ] = this.name
+
+    return [this.name, out]
+    
+    return out
+  }
+}
+
+module.exports = (x,y) => {
+  let lt = Object.create( proto )
+
+  lt.inputs = [ x,y ]
+  lt.name = lt.basename + gen.getUID()
+
+  return lt
+}
+
+},{"./gen.js":30}],39:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  name:'lte',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+
+    out = `  var ${this.name} = `  
+
+    if( isNaN( this.inputs[0] ) || isNaN( this.inputs[1] ) ) {
+      out += `( ${inputs[0]} <= ${inputs[1]} | 0  )`
+    } else {
+      out += inputs[0] <= inputs[1] ? 1 : 0 
+    }
+    out += '\n'
+
+    gen.memo[ this.name ] = this.name
+
+    return [this.name, out]
+    
+    return out
+  }
+}
+
+module.exports = (x,y) => {
+  let lt = Object.create( proto )
+
+  lt.inputs = [ x,y ]
+  lt.name = 'lte' + gen.getUID()
+
+  return lt
+}
+
+},{"./gen.js":30}],40:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  name:'ltp',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+
+    if( isNaN( this.inputs[0] ) || isNaN( this.inputs[1] ) ) {
+      out = `(${inputs[ 0 ]} * (( ${inputs[0]} < ${inputs[1]} ) | 0 ) )` 
+    } else {
+      out = inputs[0] * (( inputs[0] < inputs[1] ) | 0 )
+    }
+    
+    return out
+  }
+}
+
+module.exports = (x,y) => {
+  let ltp = Object.create( proto )
+
+  ltp.inputs = [ x,y ]
+
+  return ltp
+}
+
+},{"./gen.js":30}],41:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  name:'max',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+
+    if( isNaN( inputs[0] ) || isNaN( inputs[1] ) ) {
+      gen.closures.add({ [ this.name ]: Math.max })
+
+      out = `gen.max( ${inputs[0]}, ${inputs[1]} )`
+
+    } else {
+      out = Math.max( parseFloat( inputs[0] ), parseFloat( inputs[1] ) )
+    }
+    
+    return out
+  }
+}
+
+module.exports = (x,y) => {
+  let max = Object.create( proto )
+
+  max.inputs = [ x,y ]
+
+  return max
+}
+
+},{"./gen.js":30}],42:[function(require,module,exports){
+'use strict'
+
+let gen = require('./gen.js')
+
+let proto = {
+  basename:'memo',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+    
+    out = `  var ${this.name} = ${inputs[0]}\n`
+
+    gen.memo[ this.name ] = this.name
+
+    return [ this.name, out ]
+  } 
+}
+
+module.exports = (in1,memoName) => {
+  let memo = Object.create( proto )
+  
+  memo.inputs = [ in1 ]
+  memo.id   = gen.getUID()
+  memo.name = memoName !== undefined ? memoName + '_' + gen.getUID() : `${memo.basename}${memo.id}`
+
+  return memo
+}
+
+},{"./gen.js":30}],43:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  name:'min',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+
+    if( isNaN( inputs[0] ) || isNaN( inputs[1] ) ) {
+      gen.closures.add({ [ this.name ]: Math.min })
+
+      out = `gen.min( ${inputs[0]}, ${inputs[1]} )`
+
+    } else {
+      out = Math.min( parseFloat( inputs[0] ), parseFloat( inputs[1] ) )
+    }
+    
+    return out
+  }
+}
+
+module.exports = (x,y) => {
+  let min = Object.create( proto )
+
+  min.inputs = [ x,y ]
+
+  return min
+}
+
+},{"./gen.js":30}],44:[function(require,module,exports){
+'use strict'
+
+let gen = require('./gen.js'),
+    add = require('./add.js'),
+    mul = require('./mul.js'),
+    sub = require('./sub.js'),
+    memo= require('./memo.js')
+
+module.exports = ( in1, in2, t=.5 ) => {
+  let ugen = memo( add( mul(in1, sub(1,t ) ), mul( in2, t ) ) )
+  ugen.name = 'mix' + gen.getUID()
+
+  return ugen
+}
+
+},{"./add.js":5,"./gen.js":30,"./memo.js":42,"./mul.js":48,"./sub.js":65}],45:[function(require,module,exports){
+'use strict'
+
+let gen = require('./gen.js')
+
+module.exports = (...args) => {
+  let mod = {
+    id:     gen.getUID(),
+    inputs: args,
+
+    gen() {
+      let inputs = gen.getInputs( this ),
+          out='(',
+          diff = 0, 
+          numCount = 0,
+          lastNumber = inputs[ 0 ],
+          lastNumberIsUgen = isNaN( lastNumber ), 
+          modAtEnd = false
+
+      inputs.forEach( (v,i) => {
+        if( i === 0 ) return
+
+        let isNumberUgen = isNaN( v ),
+            isFinalIdx   = i === inputs.length - 1
+
+        if( !lastNumberIsUgen && !isNumberUgen ) {
+          lastNumber = lastNumber % v
+          out += lastNumber
+        }else{
+          out += `${lastNumber} % ${v}`
+        }
+
+        if( !isFinalIdx ) out += ' % ' 
+      })
+
+      out += ')'
+
+      return out
+    }
+  }
+  
+  return mod
+}
+
+},{"./gen.js":30}],46:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  basename:'mstosamps',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this ),
+        returnValue
+
+    if( isNaN( inputs[0] ) ) {
+      out = `  var ${this.name } = ${gen.samplerate} / 1000 * ${inputs[0]} \n\n`
+     
+      gen.memo[ this.name ] = out
+      
+      returnValue = [ this.name, out ]
+    } else {
+      out = gen.samplerate / 1000 * this.inputs[0]
+
+      returnValue = out
+    }    
+
+    return returnValue
+  }
+}
+
+module.exports = x => {
+  let mstosamps = Object.create( proto )
+
+  mstosamps.inputs = [ x ]
+  mstosamps.name = proto.basename + gen.getUID()
+
+  return mstosamps
+}
+
+},{"./gen.js":30}],47:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  name:'mtof',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+
+    if( isNaN( inputs[0] ) ) {
+      gen.closures.add({ [ this.name ]: Math.exp })
+
+      out = `( ${this.tuning} * gen.exp( .057762265 * (${inputs[0]} - 69) ) )`
+
+    } else {
+      out = this.tuning * Math.exp( .057762265 * ( inputs[0] - 69) )
+    }
+    
+    return out
+  }
+}
+
+module.exports = ( x, props ) => {
+  let ugen = Object.create( proto ),
+      defaults = { tuning:440 }
+  
+  if( props !== undefined ) Object.assign( props.defaults )
+
+  Object.assign( ugen, defaults )
+  ugen.inputs = [ x ]
+  
+
+  return ugen
+}
+
+},{"./gen.js":30}],48:[function(require,module,exports){
+'use strict'
+
+const gen = require('./gen.js')
+
+const proto = {
+  basename: 'mul',
+
+  gen() {
+    let inputs = gen.getInputs( this ),
+        out = `  var ${this.name} = `,
+        sum = 1, numCount = 0, mulAtEnd = false, alreadyFullSummed = true
+
+    inputs.forEach( (v,i) => {
+      if( isNaN( v ) ) {
+        out += v
+        if( i < inputs.length -1 ) {
+          mulAtEnd = true
+          out += ' * '
+        }
+        alreadyFullSummed = false
+      }else{
+        if( i === 0 ) {
+          sum = v
+        }else{
+          sum *= parseFloat( v )
+        }
+        numCount++
+      }
+    })
+
+    if( numCount > 0 ) {
+      out += mulAtEnd || alreadyFullSummed ? sum : ' * ' + sum
+    }
+
+    out += '\n'
+
+    gen.memo[ this.name ] = this.name
+
+    return [ this.name, out ]
+  }
+}
+
+module.exports = ( ...args ) => {
+  const mul = Object.create( proto )
+  
+  Object.assign( mul, {
+      id:     gen.getUID(),
+      inputs: args,
+  })
+  
+  mul.name = mul.basename + mul.id
+
+  return mul
+}
+
+},{"./gen.js":30}],49:[function(require,module,exports){
+'use strict'
+
+let gen = require( './gen.js' )
+
+let proto = {
+  basename:'neq',
+
+  gen() {
+    let inputs = gen.getInputs( this ), out
+
+    out = /*this.inputs[0] !== this.inputs[1] ? 1 :*/ `  var ${this.name} = (${inputs[0]} !== ${inputs[1]}) | 0\n\n`
+
+    gen.memo[ this.name ] = this.name
+
+    return [ this.name, out ]
+  },
+
+}
+
+module.exports = ( in1, in2 ) => {
+  let ugen = Object.create( proto )
+  Object.assign( ugen, {
+    uid:     gen.getUID(),
+    inputs:  [ in1, in2 ],
+  })
+  
+  ugen.name = `${ugen.basename}${ugen.uid}`
+
+  return ugen
+}
+
+},{"./gen.js":30}],50:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  name:'noise',
+
+  gen() {
+    let out
+
+    gen.closures.add({ 'noise' : Math.random })
+
+    out = `  var ${this.name} = gen.noise()\n`
+    
+    gen.memo[ this.name ] = this.name
+
+    return [ this.name, out ]
+  }
+}
+
+module.exports = x => {
+  let noise = Object.create( proto )
+  noise.name = proto.name + gen.getUID()
+
+  return noise
+}
+
+},{"./gen.js":30}],51:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  name:'not',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+
+    if( isNaN( this.inputs[0] ) ) {
+      out = `( ${inputs[0]} === 0 ? 1 : 0 )`
+    } else {
+      out = !inputs[0] === 0 ? 1 : 0
+    }
+    
+    return out
+  }
+}
+
+module.exports = x => {
+  let not = Object.create( proto )
+
+  not.inputs = [ x ]
+
+  return not
+}
+
+},{"./gen.js":30}],52:[function(require,module,exports){
+'use strict'
+
+let gen = require( './gen.js' ),
+    data = require( './data.js' ),
+    peek = require( './peek.js' ),
+    mul  = require( './mul.js' )
+
+let proto = {
+  basename:'pan', 
+  initTable() {    
+    let bufferL = new Float32Array( 1024 ),
+        bufferR = new Float32Array( 1024 )
+
+    const angToRad = Math.PI / 180
+    for( let i = 0; i < 1024; i++ ) { 
+      let pan = i * ( 90 / 1024 )
+      bufferL[i] = Math.cos( pan * angToRad ) 
+      bufferR[i] = Math.sin( pan * angToRad )
+    }
+
+    gen.globals.panL = data( bufferL, 1, { immutable:true })
+    gen.globals.panR = data( bufferR, 1, { immutable:true })
+  }
+
+}
+
+module.exports = ( leftInput, rightInput, pan =.5, properties ) => {
+  if( gen.globals.panL === undefined ) proto.initTable()
+
+  let ugen = Object.create( proto )
+
+  Object.assign( ugen, {
+    uid:     gen.getUID(),
+    inputs:  [ leftInput, rightInput ],
+    left:    mul( leftInput, peek( gen.globals.panL, pan, { boundmode:'clamp' }) ),
+    right:   mul( rightInput, peek( gen.globals.panR, pan, { boundmode:'clamp' }) )
+  })
+  
+  ugen.name = `${ugen.basename}${ugen.uid}`
+
+  return ugen
+}
+
+},{"./data.js":18,"./gen.js":30,"./mul.js":48,"./peek.js":54}],53:[function(require,module,exports){
+'use strict'
+
+let gen = require('./gen.js')
+
+let proto = {
+  basename: 'param',
+
+  gen() {
+    gen.requestMemory( this.memory )
+    
+    gen.params.add({ [this.name]: this })
+
+    this.value = this.initialValue
+
+    gen.memo[ this.name ] = `memory[${this.memory.value.idx}]`
+
+    return gen.memo[ this.name ]
+  } 
+}
+
+module.exports = ( propName=0, value=0 ) => {
+  let ugen = Object.create( proto )
+  
+  if( typeof propName !== 'string' ) {
+    ugen.name = ugen.basename + gen.getUID()
+    ugen.initialValue = propName
+  }else{
+    ugen.name = propName
+    ugen.initialValue = value
+  }
+
+  Object.defineProperty( ugen, 'value', {
+    get() {
+      if( this.memory.value.idx !== null ) {
+        return gen.memory.heap[ this.memory.value.idx ]
+      }
+    },
+    set( v ) {
+      if( this.memory.value.idx !== null ) {
+        gen.memory.heap[ this.memory.value.idx ] = v 
+      }
+    }
+  })
+
+  ugen.memory = {
+    value: { length:1, idx:null }
+  }
+
+  return ugen
+}
+
+},{"./gen.js":30}],54:[function(require,module,exports){
+'use strict'
+
+const gen  = require('./gen.js'),
+      dataUgen = require('./data.js')
+
+let proto = {
+  basename:'peek',
+
+  gen() {
+    let genName = 'gen.' + this.name,
+        inputs = gen.getInputs( this ),
+        out, functionBody, next, lengthIsLog2, idx
+    
+    idx = inputs[1]
+    lengthIsLog2 = (Math.log2( this.data.buffer.length ) | 0)  === Math.log2( this.data.buffer.length )
+
+    if( this.mode !== 'simple' ) {
+
+    functionBody = `  var ${this.name}_dataIdx  = ${idx}, 
+      ${this.name}_phase = ${this.mode === 'samples' ? inputs[0] : inputs[0] + ' * ' + (this.data.buffer.length - 1) }, 
+      ${this.name}_index = ${this.name}_phase | 0,\n`
+
+    if( this.boundmode === 'wrap' ) {
+      next = lengthIsLog2 ?
+      `( ${this.name}_index + 1 ) & (${this.data.buffer.length} - 1)` :
+      `${this.name}_index + 1 >= ${this.data.buffer.length} ? ${this.name}_index + 1 - ${this.data.buffer.length} : ${this.name}_index + 1`
+    }else if( this.boundmode === 'clamp' ) {
+      next = 
+        `${this.name}_index + 1 >= ${this.data.buffer.length - 1} ? ${this.data.buffer.length - 1} : ${this.name}_index + 1`
+    } else if( this.boundmode === 'fold' || this.boundmode === 'mirror' ) {
+      next = 
+        `${this.name}_index + 1 >= ${this.data.buffer.length - 1} ? ${this.name}_index - ${this.data.buffer.length - 1} : ${this.name}_index + 1`
+    }else{
+       next = 
+      `${this.name}_index + 1`     
+    }
+
+    if( this.interp === 'linear' ) {      
+    functionBody += `      ${this.name}_frac  = ${this.name}_phase - ${this.name}_index,
+      ${this.name}_base  = memory[ ${this.name}_dataIdx +  ${this.name}_index ],
+      ${this.name}_next  = ${next},`
+      
+      if( this.boundmode === 'ignore' ) {
+        functionBody += `
+      ${this.name}_out   = ${this.name}_index >= ${this.data.buffer.length - 1} || ${this.name}_index < 0 ? 0 : ${this.name}_base + ${this.name}_frac * ( memory[ ${this.name}_dataIdx + ${this.name}_next ] - ${this.name}_base )\n\n`
+      }else{
+        functionBody += `
+      ${this.name}_out   = ${this.name}_base + ${this.name}_frac * ( memory[ ${this.name}_dataIdx + ${this.name}_next ] - ${this.name}_base )\n\n`
+      }
+    }else{
+      functionBody += `      ${this.name}_out = memory[ ${this.name}_dataIdx + ${this.name}_index ]\n\n`
+    }
+
+    } else { // mode is simple
+      functionBody = `memory[ ${idx} + ${ inputs[0] } ]`
+      
+      return functionBody
+    }
+
+    gen.memo[ this.name ] = this.name + '_out'
+
+    return [ this.name+'_out', functionBody ]
+  },
+
+  defaults : { channels:1, mode:'phase', interp:'linear', boundmode:'wrap' }
+}
+
+module.exports = ( input_data, index=0, properties ) => {
+  let ugen = Object.create( proto )
+
+  //console.log( dataUgen, gen.data )
+
+  // XXX why is dataUgen not the actual function? some type of browserify nonsense...
+  const finalData = typeof input_data.basename === 'undefined' ? gen.lib.data( input_data ) : input_data
+
+  Object.assign( ugen, 
+    { 
+      'data':     finalData,
+      dataName:   finalData.name,
+      uid:        gen.getUID(),
+      inputs:     [ index, finalData ],
+    },
+    proto.defaults,
+    properties 
+  )
+  
+  ugen.name = ugen.basename + ugen.uid
+
+  return ugen
+}
+
+},{"./data.js":18,"./gen.js":30}],55:[function(require,module,exports){
+'use strict'
+
+let gen   = require( './gen.js' ),
+    accum = require( './accum.js' ),
+    mul   = require( './mul.js' ),
+    proto = { basename:'phasor' },
+    div   = require( './div.js' )
+
+const defaults = { min: -1, max: 1 }
+
+module.exports = ( frequency = 1, reset = 0, _props ) => {
+  const props = Object.assign( {}, defaults, _props )
+
+  const range = props.max - props.min
+
+  const ugen = typeof frequency === 'number' 
+    ? accum( (frequency * range) / gen.samplerate, reset, props ) 
+    : accum( 
+        div( 
+          mul( frequency, range ),
+          gen.samplerate
+        ), 
+        reset, props 
+    )
+
+  ugen.name = proto.basename + gen.getUID()
+
+  return ugen
+}
+
+},{"./accum.js":2,"./div.js":23,"./gen.js":30,"./mul.js":48}],56:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js'),
+    mul  = require('./mul.js'),
+    wrap = require('./wrap.js')
+
+let proto = {
+  basename:'poke',
+
+  gen() {
+    let dataName = 'memory',
+        inputs = gen.getInputs( this ),
+        idx, out, wrapped
+    
+    idx = this.data.gen()
+
+    //gen.requestMemory( this.memory )
+    //wrapped = wrap( this.inputs[1], 0, this.dataLength ).gen()
+    //idx = wrapped[0]
+    //gen.functionBody += wrapped[1]
+    let outputStr = this.inputs[1] === 0 ?
+      `  ${dataName}[ ${idx} ] = ${inputs[0]}\n` :
+      `  ${dataName}[ ${idx} + ${inputs[1]} ] = ${inputs[0]}\n`
+
+    if( this.inline === undefined ) {
+      gen.functionBody += outputStr
+    }else{
+      return [ this.inline, outputStr ]
+    }
+  }
+}
+module.exports = ( data, value, index, properties ) => {
+  let ugen = Object.create( proto ),
+      defaults = { channels:1 } 
+
+  if( properties !== undefined ) Object.assign( defaults, properties )
+
+  Object.assign( ugen, { 
+    data,
+    dataName:   data.name,
+    dataLength: data.buffer.length,
+    uid:        gen.getUID(),
+    inputs:     [ value, index ],
+  },
+  defaults )
+
+
+  ugen.name = ugen.basename + ugen.uid
+  
+  gen.histories.set( ugen.name, ugen )
+
+  return ugen
+}
+
+},{"./gen.js":30,"./mul.js":48,"./wrap.js":73}],57:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  basename:'pow',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+    
+    if( isNaN( inputs[0] ) || isNaN( inputs[1] ) ) {
+      gen.closures.add({ 'pow': Math.pow })
+
+      out = `gen.pow( ${inputs[0]}, ${inputs[1]} )` 
+
+    } else {
+      if( typeof inputs[0] === 'string' && inputs[0][0] === '(' ) {
+        inputs[0] = inputs[0].slice(1,-1)
+      }
+      if( typeof inputs[1] === 'string' && inputs[1][0] === '(' ) {
+        inputs[1] = inputs[1].slice(1,-1)
+      }
+
+      out = Math.pow( parseFloat( inputs[0] ), parseFloat( inputs[1]) )
+    }
+    
+    return out
+  }
+}
+
+module.exports = (x,y) => {
+  let pow = Object.create( proto )
+
+  pow.inputs = [ x,y ]
+  pow.id = gen.getUID()
+  pow.name = `${pow.basename}{pow.id}`
+
+  return pow
+}
+
+},{"./gen.js":30}],58:[function(require,module,exports){
+'use strict'
+
+let gen     = require( './gen.js' ),
+    history = require( './history.js' ),
+    sub     = require( './sub.js' ),
+    add     = require( './add.js' ),
+    mul     = require( './mul.js' ),
+    memo    = require( './memo.js' ),
+    delta   = require( './delta.js' ),
+    wrap    = require( './wrap.js' )
+
+let proto = {
+  basename:'rate',
+
+  gen() {
+    let inputs = gen.getInputs( this ),
+        phase  = history(),
+        inMinus1 = history(),
+        genName = 'gen.' + this.name,
+        filter, sum, out
+
+    gen.closures.add({ [ this.name ]: this }) 
+
+    out = 
+` var ${this.name}_diff = ${inputs[0]} - ${genName}.lastSample
+  if( ${this.name}_diff < -.5 ) ${this.name}_diff += 1
+  ${genName}.phase += ${this.name}_diff * ${inputs[1]}
+  if( ${genName}.phase > 1 ) ${genName}.phase -= 1
+  ${genName}.lastSample = ${inputs[0]}
+`
+    out = ' ' + out
+
+    return [ genName + '.phase', out ]
+  }
+}
+
+module.exports = ( in1, rate ) => {
+  let ugen = Object.create( proto )
+
+  Object.assign( ugen, { 
+    phase:      0,
+    lastSample: 0,
+    uid:        gen.getUID(),
+    inputs:     [ in1, rate ],
+  })
+  
+  ugen.name = `${ugen.basename}${ugen.uid}`
+
+  return ugen
+}
+
+},{"./add.js":5,"./delta.js":22,"./gen.js":30,"./history.js":34,"./memo.js":42,"./mul.js":48,"./sub.js":65,"./wrap.js":73}],59:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  name:'round',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+
+    if( isNaN( inputs[0] ) ) {
+      gen.closures.add({ [ this.name ]: Math.round })
+
+      out = `gen.round( ${inputs[0]} )`
+
+    } else {
+      out = Math.round( parseFloat( inputs[0] ) )
+    }
+    
+    return out
+  }
+}
+
+module.exports = x => {
+  let round = Object.create( proto )
+
+  round.inputs = [ x ]
+
+  return round
+}
+
+},{"./gen.js":30}],60:[function(require,module,exports){
+'use strict'
+
+let gen     = require( './gen.js' )
+
+let proto = {
+  basename:'sah',
+
+  gen() {
+    let inputs = gen.getInputs( this ), out
+
+    //gen.data[ this.name ] = 0
+    //gen.data[ this.name + '_control' ] = 0
+
+    gen.requestMemory( this.memory )
+
+
+    out = 
+` var ${this.name}_control = memory[${this.memory.control.idx}],
+      ${this.name}_trigger = ${inputs[1]} > ${inputs[2]} ? 1 : 0
+
+  if( ${this.name}_trigger !== ${this.name}_control  ) {
+    if( ${this.name}_trigger === 1 ) 
+      memory[${this.memory.value.idx}] = ${inputs[0]}
+    
+    memory[${this.memory.control.idx}] = ${this.name}_trigger
+  }
+`
+    
+    gen.memo[ this.name ] = `gen.data.${this.name}`
+
+    return [ `memory[${this.memory.value.idx}]`, ' ' +out ]
+  }
+}
+
+module.exports = ( in1, control, threshold=0, properties ) => {
+  let ugen = Object.create( proto ),
+      defaults = { init:0 }
+
+  if( properties !== undefined ) Object.assign( defaults, properties )
+
+  Object.assign( ugen, { 
+    lastSample: 0,
+    uid:        gen.getUID(),
+    inputs:     [ in1, control,threshold ],
+    memory: {
+      control: { idx:null, length:1 },
+      value:   { idx:null, length:1 },
+    }
+  },
+  defaults )
+  
+  ugen.name = `${ugen.basename}${ugen.uid}`
+
+  return ugen
+}
+
+},{"./gen.js":30}],61:[function(require,module,exports){
+'use strict'
+
+let gen = require( './gen.js' )
+
+let proto = {
+  basename:'selector',
+
+  gen() {
+    let inputs = gen.getInputs( this ), out, returnValue = 0
+    
+    switch( inputs.length ) {
+      case 2 :
+        returnValue = inputs[1]
+        break;
+      case 3 :
+        out = `  var ${this.name}_out = ${inputs[0]} === 1 ? ${inputs[1]} : ${inputs[2]}\n\n`;
+        returnValue = [ this.name + '_out', out ]
+        break;  
+      default:
+        out = 
+` var ${this.name}_out = 0
+  switch( ${inputs[0]} + 1 ) {\n`
+
+        for( let i = 1; i < inputs.length; i++ ){
+          out +=`    case ${i}: ${this.name}_out = ${inputs[i]}; break;\n` 
+        }
+
+        out += '  }\n\n'
+        
+        returnValue = [ this.name + '_out', ' ' + out ]
+    }
+
+    gen.memo[ this.name ] = this.name + '_out'
+
+    return returnValue
+  },
+}
+
+module.exports = ( ...inputs ) => {
+  let ugen = Object.create( proto )
+  
+  Object.assign( ugen, {
+    uid:     gen.getUID(),
+    inputs
+  })
+  
+  ugen.name = `${ugen.basename}${ugen.uid}`
+
+  return ugen
+}
+
+},{"./gen.js":30}],62:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  name:'sign',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+
+    if( isNaN( inputs[0] ) ) {
+      gen.closures.add({ [ this.name ]: Math.sign })
+
+      out = `gen.sign( ${inputs[0]} )`
+
+    } else {
+      out = Math.sign( parseFloat( inputs[0] ) )
+    }
+    
+    return out
+  }
+}
+
+module.exports = x => {
+  let sign = Object.create( proto )
+
+  sign.inputs = [ x ]
+
+  return sign
+}
+
+},{"./gen.js":30}],63:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  basename:'sin',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+    
+    if( isNaN( inputs[0] ) ) {
+      gen.closures.add({ 'sin': Math.sin })
+
+      out = `gen.sin( ${inputs[0]} )` 
+
+    } else {
+      out = Math.sin( parseFloat( inputs[0] ) )
+    }
+    
+    return out
+  }
+}
+
+module.exports = x => {
+  let sin = Object.create( proto )
+
+  sin.inputs = [ x ]
+  sin.id = gen.getUID()
+  sin.name = `${sin.basename}{sin.id}`
+
+  return sin
+}
+
+},{"./gen.js":30}],64:[function(require,module,exports){
+'use strict'
+
+let gen     = require( './gen.js' ),
+    history = require( './history.js' ),
+    sub     = require( './sub.js' ),
+    add     = require( './add.js' ),
+    mul     = require( './mul.js' ),
+    memo    = require( './memo.js' ),
+    gt      = require( './gt.js' ),
+    div     = require( './div.js' ),
+    _switch = require( './switch.js' )
+
+module.exports = ( in1, slideUp = 1, slideDown = 1 ) => {
+  let y1 = history(0),
+      filter, slideAmount
+
+  //y (n) = y (n-1) + ((x (n) - y (n-1))/slide) 
+  slideAmount = _switch( gt(in1,y1.out), slideUp, slideDown )
+
+  filter = memo( add( y1.out, div( sub( in1, y1.out ), slideAmount ) ) )
+
+  y1.in( filter )
+
+  return filter
+}
+
+},{"./add.js":5,"./div.js":23,"./gen.js":30,"./gt.js":31,"./history.js":34,"./memo.js":42,"./mul.js":48,"./sub.js":65,"./switch.js":66}],65:[function(require,module,exports){
+'use strict'
+
+const gen = require('./gen.js')
+
+const proto = {
+  basename:'sub',
+  gen() {
+    let inputs = gen.getInputs( this ),
+        out=0,
+        diff = 0,
+        needsParens = false, 
+        numCount = 0,
+        lastNumber = inputs[ 0 ],
+        lastNumberIsUgen = isNaN( lastNumber ), 
+        subAtEnd = false,
+        hasUgens = false,
+        returnValue = 0
+
+    this.inputs.forEach( value => { if( isNaN( value ) ) hasUgens = true })
+
+    out = '  var ' + this.name + ' = '
+
+    inputs.forEach( (v,i) => {
+      if( i === 0 ) return
+
+      let isNumberUgen = isNaN( v ),
+          isFinalIdx   = i === inputs.length - 1
+
+      if( !lastNumberIsUgen && !isNumberUgen ) {
+        lastNumber = lastNumber - v
+        out += lastNumber
+        return
+      }else{
+        needsParens = true
+        out += `${lastNumber} - ${v}`
+      }
+
+      if( !isFinalIdx ) out += ' - ' 
+    })
+
+    out += '\n'
+
+    returnValue = [ this.name, out ]
+
+    gen.memo[ this.name ] = this.name
+
+    return returnValue
+  }
+
+}
+
+module.exports = ( ...args ) => {
+  let sub = Object.create( proto )
+
+  Object.assign( sub, {
+    id:     gen.getUID(),
+    inputs: args
+  })
+       
+  sub.name = 'sub' + sub.id
+
+  return sub
+}
+
+},{"./gen.js":30}],66:[function(require,module,exports){
+'use strict'
+
+let gen = require( './gen.js' )
+
+let proto = {
+  basename:'switch',
+
+  gen() {
+    let inputs = gen.getInputs( this ), out
+
+    if( inputs[1] === inputs[2] ) return inputs[1] // if both potential outputs are the same just return one of them
+    
+    out = `  var ${this.name}_out = ${inputs[0]} === 1 ? ${inputs[1]} : ${inputs[2]}\n`
+
+    gen.memo[ this.name ] = `${this.name}_out`
+
+    return [ `${this.name}_out`, out ]
+  },
+
+}
+
+module.exports = ( control, in1 = 1, in2 = 0 ) => {
+  let ugen = Object.create( proto )
+  Object.assign( ugen, {
+    uid:     gen.getUID(),
+    inputs:  [ control, in1, in2 ],
+  })
+  
+  ugen.name = `${ugen.basename}${ugen.uid}`
+
+  return ugen
+}
+
+},{"./gen.js":30}],67:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  basename:'t60',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this ),
+        returnValue
+
+    if( isNaN( inputs[0] ) ) {
+      gen.closures.add({ [ 'exp' ]: Math.exp })
+
+      out = `  var ${this.name} = gen.exp( -6.907755278921 / ${inputs[0]} )\n\n`
+     
+      gen.memo[ this.name ] = out
+      
+      returnValue = [ this.name, out ]
+    } else {
+      out = Math.exp( -6.907755278921 / inputs[0] )
+
+      returnValue = out
+    }    
+
+    return returnValue
+  }
+}
+
+module.exports = x => {
+  let t60 = Object.create( proto )
+
+  t60.inputs = [ x ]
+  t60.name = proto.basename + gen.getUID()
+
+  return t60
+}
+
+},{"./gen.js":30}],68:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  basename:'tan',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+    
+    if( isNaN( inputs[0] ) ) {
+      gen.closures.add({ 'tan': Math.tan })
+
+      out = `gen.tan( ${inputs[0]} )` 
+
+    } else {
+      out = Math.tan( parseFloat( inputs[0] ) )
+    }
+    
+    return out
+  }
+}
+
+module.exports = x => {
+  let tan = Object.create( proto )
+
+  tan.inputs = [ x ]
+  tan.id = gen.getUID()
+  tan.name = `${tan.basename}{tan.id}`
+
+  return tan
+}
+
+},{"./gen.js":30}],69:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js')
+
+let proto = {
+  basename:'tanh',
+
+  gen() {
+    let out,
+        inputs = gen.getInputs( this )
+    
+    if( isNaN( inputs[0] ) ) {
+      gen.closures.add({ 'tanh': Math.tanh })
+
+      out = `gen.tanh( ${inputs[0]} )` 
+
+    } else {
+      out = Math.tanh( parseFloat( inputs[0] ) )
+    }
+    
+    return out
+  }
+}
+
+module.exports = x => {
+  let tanh = Object.create( proto )
+
+  tanh.inputs = [ x ]
+  tanh.id = gen.getUID()
+  tanh.name = `${tanh.basename}{tanh.id}`
+
+  return tanh
+}
+
+},{"./gen.js":30}],70:[function(require,module,exports){
+'use strict'
+
+let gen     = require( './gen.js' ),
+    lt      = require( './lt.js' ),
+    phasor  = require( './phasor.js' )
+
+module.exports = ( frequency=440, pulsewidth=.5 ) => {
+  let graph = lt( accum( div( frequency, 44100 ) ), .5 )
+
+  graph.name = `train${gen.getUID()}`
+
+  return graph
+}
+
+
+},{"./gen.js":30,"./lt.js":38,"./phasor.js":55}],71:[function(require,module,exports){
+'use strict'
+
+let gen = require( './gen.js' ),
+    data = require( './data.js' )
+
+let isStereo = false
+
+let utilities = {
+  ctx: null,
+
+  clear() {
+    this.callback = () => 0
+    this.clear.callbacks.forEach( v => v() )
+    this.clear.callbacks.length = 0
+  },
+
+  createContext() {
+    let AC = typeof AudioContext === 'undefined' ? webkitAudioContext : AudioContext
+    this.ctx = new AC()
+
+    gen.samplerate = this.ctx.sampleRate
+
+    let start = () => {
+      if( typeof AC !== 'undefined' ) {
+        if( document && document.documentElement && 'ontouchstart' in document.documentElement ) {
+          window.removeEventListener( 'touchstart', start )
+
+          if( 'ontouchstart' in document.documentElement ) { // required to start audio under iOS 6
+             let mySource = utilities.ctx.createBufferSource()
+             mySource.connect( utilities.ctx.destination )
+             mySource.noteOn( 0 )
+           }
+         }
+      }
+    }
+
+    if( document && document.documentElement && 'ontouchstart' in document.documentElement ) {
+      window.addEventListener( 'touchstart', start )
+    }
+
+    return this
+  },
+
+  createScriptProcessor() {
+    this.node = this.ctx.createScriptProcessor( 1024, 0, 2 )
+    this.clearFunction = function() { return 0 }
+    if( typeof this.callback === 'undefined' ) this.callback = this.clearFunction
+
+    this.node.onaudioprocess = function( audioProcessingEvent ) {
+      var outputBuffer = audioProcessingEvent.outputBuffer;
+
+      var left = outputBuffer.getChannelData( 0 ),
+          right= outputBuffer.getChannelData( 1 ),
+          isStereo = utilities.isStereo
+
+     for( var sample = 0; sample < left.length; sample++ ) {
+        var out = utilities.callback()
+
+        if( isStereo === false ) {
+          left[ sample ] = right[ sample ] = out 
+        }else{
+          left[ sample  ] = out[0]
+          right[ sample ] = out[1]
+        }
+      }
+    }
+
+    this.node.connect( this.ctx.destination )
+
+    return this
+  },
+  
+  playGraph( graph, debug, mem=44100*10, memType=Float32Array ) {
+    utilities.clear()
+    if( debug === undefined ) debug = false
+          
+    this.isStereo = Array.isArray( graph )
+
+    utilities.callback = gen.createCallback( graph, mem, debug, false, memType )
+    
+    if( utilities.console ) utilities.console.setValue( utilities.callback.toString() )
+
+    return utilities.callback
+  },
+
+  loadSample( soundFilePath, data ) {
+    let req = new XMLHttpRequest()
+    req.open( 'GET', soundFilePath, true )
+    req.responseType = 'arraybuffer' 
+    
+    let promise = new Promise( (resolve,reject) => {
+      req.onload = function() {
+        var audioData = req.response
+
+        utilities.ctx.decodeAudioData( audioData, (buffer) => {
+          data.buffer = buffer.getChannelData(0)
+          resolve( data.buffer )
+        })
+      }
+    })
+
+    req.send()
+
+    return promise
+  }
+
+}
+
+utilities.clear.callbacks = []
+
+module.exports = utilities
+
+},{"./data.js":18,"./gen.js":30}],72:[function(require,module,exports){
+'use strict'
+
+/*
+ * many windows here adapted from https://github.com/corbanbrook/dsp.js/blob/master/dsp.js
+ * starting at line 1427
+ * taken 8/15/16
+*/ 
+
+const windows = module.exports = { 
+  bartlett( length, index ) {
+    return 2 / (length - 1) * ((length - 1) / 2 - Math.abs(index - (length - 1) / 2)) 
+  },
+
+  bartlettHann( length, index ) {
+    return 0.62 - 0.48 * Math.abs(index / (length - 1) - 0.5) - 0.38 * Math.cos( 2 * Math.PI * index / (length - 1))
+  },
+
+  blackman( length, index, alpha ) {
+    let a0 = (1 - alpha) / 2,
+        a1 = 0.5,
+        a2 = alpha / 2
+
+    return a0 - a1 * Math.cos(2 * Math.PI * index / (length - 1)) + a2 * Math.cos(4 * Math.PI * index / (length - 1))
+  },
+
+  cosine( length, index ) {
+    return Math.cos(Math.PI * index / (length - 1) - Math.PI / 2)
+  },
+
+  gauss( length, index, alpha ) {
+    return Math.pow(Math.E, -0.5 * Math.pow((index - (length - 1) / 2) / (alpha * (length - 1) / 2), 2))
+  },
+
+  hamming( length, index ) {
+    return 0.54 - 0.46 * Math.cos( Math.PI * 2 * index / (length - 1))
+  },
+
+  hann( length, index ) {
+    return 0.5 * (1 - Math.cos( Math.PI * 2 * index / (length - 1)) )
+  },
+
+  lanczos( length, index ) {
+    let x = 2 * index / (length - 1) - 1;
+    return Math.sin(Math.PI * x) / (Math.PI * x)
+  },
+
+  rectangular( length, index ) {
+    return 1
+  },
+
+  triangular( length, index ) {
+    return 2 / length * (length / 2 - Math.abs(index - (length - 1) / 2))
+  },
+
+  // parabola
+  welch( length, _index, ignore, shift=0 ) {
+    //w[n] = 1 - Math.pow( ( n - ( (N-1) / 2 ) ) / (( N-1 ) / 2 ), 2 )
+    const index = shift === 0 ? _index : (_index + Math.floor( shift * length )) % length
+    const n_1_over2 = (length - 1) / 2 
+
+    return 1 - Math.pow( ( index - n_1_over2 ) / n_1_over2, 2 )
+  },
+  inversewelch( length, _index, ignore, shift=0 ) {
+    //w[n] = 1 - Math.pow( ( n - ( (N-1) / 2 ) ) / (( N-1 ) / 2 ), 2 )
+    let index = shift === 0 ? _index : (_index + Math.floor( shift * length )) % length
+    const n_1_over2 = (length - 1) / 2
+
+    return Math.pow( ( index - n_1_over2 ) / n_1_over2, 2 )
+  },
+
+  parabola( length, index ) {
+    if( index <= length / 2 ) {
+      return windows.inversewelch( length / 2, index ) - 1
+    }else{
+      return 1 - windows.inversewelch( length / 2, index - length / 2 )
+    }
+  },
+
+  exponential( length, index, alpha ) {
+    return Math.pow( index / length, alpha )
+  },
+
+  linear( length, index ) {
+    return index / length
+  }
+}
+
+},{}],73:[function(require,module,exports){
+'use strict'
+
+let gen  = require('./gen.js'),
+    floor= require('./floor.js'),
+    sub  = require('./sub.js'),
+    memo = require('./memo.js')
+
+let proto = {
+  basename:'wrap',
+
+  gen() {
+    let code,
+        inputs = gen.getInputs( this ),
+        signal = inputs[0], min = inputs[1], max = inputs[2],
+        out, diff
+
+    //out = `(((${inputs[0]} - ${this.min}) % ${diff}  + ${diff}) % ${diff} + ${this.min})`
+    //const long numWraps = long((v-lo)/range) - (v < lo);
+    //return v - range * double(numWraps);   
+    
+    if( this.min === 0 ) {
+      diff = max
+    }else if ( isNaN( max ) || isNaN( min ) ) {
+      diff = `${max} - ${min}`
+    }else{
+      diff = max - min
+    }
+
+    out =
+` var ${this.name} = ${inputs[0]}
+  if( ${this.name} < ${this.min} ) ${this.name} += ${diff}
+  else if( ${this.name} > ${this.max} ) ${this.name} -= ${diff}
+
+`
+
+    return [ this.name, ' ' + out ]
+  },
+}
+
+module.exports = ( in1, min=0, max=1 ) => {
+  let ugen = Object.create( proto )
+
+  Object.assign( ugen, { 
+    min, 
+    max,
+    uid:    gen.getUID(),
+    inputs: [ in1, min, max ],
+  })
+  
+  ugen.name = `${ugen.basename}${ugen.uid}`
+
+  return ugen
+}
+
+},{"./floor.js":27,"./gen.js":30,"./memo.js":42,"./sub.js":65}],74:[function(require,module,exports){
+const Queue = require( './priorityqueue.js' )
+
+let Scheduler = {
+  currentTime : performance.now(),
+  queue: new Queue( ( a, b ) => a.time - b.time ),
+  visualizationTime: {
+    init:true,
+    base:0,
+    phase:0,
+  },
+
+  init() {
+    window.requestAnimationFrame( this.onAnimationFrame ) 
+  },
+  
+  add( func, offset, idx ) {
+    let time = this.currentTime + offset
+    this.queue.push({ func, time })
+
+    return time
+  },
+
+  run( timestamp, dt ) {
+    let nextEvent = this.queue.peek()
+    
+    if( this.queue.length && nextEvent.time <= timestamp ) {
 
       // remove event
-      this.queue.pop();
-
-      try {
-        nextEvent.func();
-      } catch (e) {
-        Gibber.Environment.error('annotation error:', e.toString());
+      this.queue.pop()
+      
+      try{
+        nextEvent.func()
+      }catch( e ) {
+        Gibber.Environment.error( 'annotation error:', e.toString() )
       }
-
+      
       // call recursively
-      this.run(timestamp);
+      this.run( timestamp )
     }
 
-    if (Gibber.Environment.codeMarkup.genWidgets.dirty === true) {
-      Gibber.Environment.codeMarkup.drawWidgets();
+    if( Gibber.Environment.codeMarkup.genWidgets.dirty === true ) {
+      Gibber.Environment.codeMarkup.drawWidgets()
     }
   },
-  onAnimationFrame: function onAnimationFrame(timestamp) {
-    this.currentTime = timestamp;
 
-    this.run(timestamp);
+  onAnimationFrame( timestamp ) {
+    const diff = timestamp - this.currentTime
+    this.currentTime = timestamp
+    this.visualizationTime.phase += diff 
 
-    window.requestAnimationFrame(this.onAnimationFrame);
+    this.run( timestamp, diff )    
+
+    window.requestAnimationFrame( this.onAnimationFrame )
+  },
+
+  updateVisualizationTime( ms ) {
+    if( this.visualizationTime.init === true ) {
+      this.visualizationTime.base += ms
+      this.visualizationTime.phase = 0
+    }else{
+      this.visualizationTime.init = true 
+    }
+  },
+
+}
+
+Scheduler.onAnimationFrame = Scheduler.onAnimationFrame.bind( Scheduler )
+
+module.exports = Scheduler
+
+},{"./priorityqueue.js":89}],75:[function(require,module,exports){
+module.exports = function( Gibber ) {
+
+let Arp = function( chord = [0,2,4,6], octaves = 1, pattern = 'updown2' ) {
+  let notes, arp
+  
+  if( typeof chord === 'string' ) {
+    // TODO: doesn't work... numbers can't be MIDI numbers because they go through scale conversion
+    let _chord = Gibber.Theory.Chord.create( chord )
+    chord = _chord.notes
   }
-};
 
-Scheduler.onAnimationFrame = Scheduler.onAnimationFrame.bind(Scheduler);
+  notes = Gibber.Pattern.apply( null, chord.slice( 0 ) )
 
-module.exports = Scheduler;
-},{"./priorityqueue.js":15}],2:[function(require,module,exports){
-'use strict';
+  if( pattern === 'down' ) notes.reverse()
+  
+  let maxLength = notes.values.length * octaves,
+      dir = pattern !== 'down' ? 'up' : 'down'
 
-module.exports = function (Gibber) {
-
-  var Arp = function Arp() {
-    var chord = arguments.length <= 0 || arguments[0] === undefined ? [0, 2, 4, 6] : arguments[0];
-    var octaves = arguments.length <= 1 || arguments[1] === undefined ? 1 : arguments[1];
-    var pattern = arguments.length <= 2 || arguments[2] === undefined ? 'updown2' : arguments[2];
-
-    var notes = void 0,
-        _arp = void 0;
-
-    if (typeof chord === 'string') {
-      // TODO: doesn't work... numbers can't be MIDI numbers because they go through scale conversion
-      var _chord = Gibber.Theory.Chord.create(chord);
-      chord = _chord.notes;
+  arp = ()=> {
+    arp.phase++
+    if( arp.phase >= maxLength ) {
+      arp.phase = 0
     }
 
-    notes = Gibber.Pattern.apply(null, chord.slice(0));
-
-    if (pattern === 'down') notes.reverse();
-
-    var maxLength = notes.values.length * octaves,
-        dir = pattern !== 'down' ? 'up' : 'down';
-
-    _arp = function arp() {
-      _arp.phase++;
-      if (_arp.phase >= maxLength) {
-        _arp.phase = 0;
-      }
-
-      if (_arp.phase % notes.values.length === 0) {
-        if (dir === 'up') {
-          if (_arp.octave < octaves) {
-            _arp.octave += 1;
+    if( arp.phase % notes.values.length === 0 ) {
+      if( dir === 'up' ) {
+        if( arp.octave < octaves ) {
+          arp.octave += 1 
+        }else{ 
+          if( pattern === 'up' ) {
+            arp.octave = 1
+          }else{
+            dir = 'down'
+            notes.reverse()
+          }
+        }
+      }else{
+        if( arp.octave > 1 ) {
+          arp.octave += -1
+        }else{
+          if( pattern === 'down' ) {
+            arp.octave = octaves
           } else {
-            if (pattern === 'up') {
-              _arp.octave = 1;
-            } else {
-              dir = 'down';
-              notes.reverse();
-            }
-          }
-        } else {
-          if (_arp.octave > 1) {
-            _arp.octave += -1;
-          } else {
-            if (pattern === 'down') {
-              _arp.octave = octaves;
-            } else {
-              dir = 'up';
-              notes.reverse();
-            }
+            dir = 'up'
+            notes.reverse()
           }
         }
       }
-
-      var octaveMod = void 0,
-          note = _arp.notes();
-
-      //note = Gibber.Theory.Note.convertToMIDI( note )
-
-      for (var i = 1; i < _arp.octave; i++) {
-        note += 7;
-      }
-
-      var methodNames = ['rotate', 'switch', 'invert', 'reset', 'flip', 'transpose', 'reverse', 'shuffle', 'scale', 'store', 'range', 'set'];
-
-      var _iteratorNormalCompletion = true;
-      var _didIteratorError = false;
-      var _iteratorError = undefined;
-
-      try {
-        for (var _iterator = methodNames[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-          var key = _step.value;
-
-          _arp[key] = notes[key].bind(notes);
-          Gibber.addSequencingToMethod(_arp, key);
-        }
-
-        //arp.transpose = notes.transpose.bind( notes )
-        //arp.reset = notes.reset.bind( notes )
-        //arp.reverse = notes.reverse.bind( notes )
-        //arp.rotate  = notes.rotate.bind( notes )
-      } catch (err) {
-        _didIteratorError = true;
-        _iteratorError = err;
-      } finally {
-        try {
-          if (!_iteratorNormalCompletion && _iterator.return) {
-            _iterator.return();
-          }
-        } finally {
-          if (_didIteratorError) {
-            throw _iteratorError;
-          }
-        }
-      }
-
-      return note;
-    };
-
-    _arp.octave = 0;
-    _arp.phase = -1;
-    _arp.notes = notes;
-
-    return _arp;
-  };
-
-  Arp.patterns = {
-    up: function up(array) {
-      return array;
-    },
-    down: function down(array) {
-      return array.reverse();
-    },
-    updown: function updown(array) {
-      var _tmp = array.slice(0);
-      _tmp.reverse();
-      return array.concat(_tmp);
-    },
-    updown2: function updown2(array) {
-      // do not repeat highest and lowest notes
-      var tmp = array.slice(0);
-      tmp.pop();
-      tmp.reverse();
-      tmp.pop();
-      return array.concat(tmp);
     }
-  };
 
-  return Arp;
-};
-},{}],3:[function(require,module,exports){
-'use strict';
+    let octaveMod,
+        note = arp.notes()
+    
+    //note = Gibber.Theory.Note.convertToMIDI( note )
+    
+    for( let i = 1; i < arp.octave; i++ ) {
+      note += 7
+    }
 
-var Queue = require('./priorityqueue.js');
-var Big = require('big.js');
+    let methodNames =  [
+      'rotate','switch','invert','reset', 'flip',
+      'transpose','reverse','shuffle','scale',
+      'store', 'range', 'set'
+    ]
 
-var Scheduler = {
+    for( let key of methodNames ) {
+      arp[ key ] = notes[ key ].bind( notes )
+      Gibber.addSequencingToMethod( arp, key ) 
+    }
+
+    //arp.transpose = notes.transpose.bind( notes )
+    //arp.reset = notes.reset.bind( notes )
+    //arp.reverse = notes.reverse.bind( notes )
+    //arp.rotate  = notes.rotate.bind( notes )
+
+    return note
+  }
+
+  arp.octave = 0
+  arp.phase = -1
+  arp.notes = notes
+
+  return arp
+}
+
+Arp.patterns = {
+  up( array ) {
+    return array
+  },
+
+  down( array ) {
+    return array.reverse()
+  },
+
+  updown( array ) {
+    let _tmp = array.slice( 0 )
+    _tmp.reverse()
+    return array.concat( _tmp )
+  },
+
+  updown2( array ) { // do not repeat highest and lowest notes
+    var tmp = array.slice( 0 )
+    tmp.pop()
+    tmp.reverse()
+    tmp.pop()
+    return array.concat( tmp )
+  }
+}
+
+return Arp
+
+}
+
+},{}],76:[function(require,module,exports){
+const Queue = require( './priorityqueue.js' )
+const Big   = require( 'big.js' )
+
+let Scheduler = {
   phase: 0,
   msgs: [],
   delayed: [],
@@ -202,2488 +3910,3020 @@ var Scheduler = {
   mockInterval: null,
   currentBeat: 1,
   currentTime: Big(0),
+  currentTimeInMs:0,
 
-  queue: new Queue(function (a, b) {
-    if (a.time.eq(b.time)) {
-      return b.priority - a.priority;
-    } else {
-      return a.time.minus(b.time);
+  queue: new Queue( ( a, b ) => {
+    if( a.time.eq( b.time ) ) {
+      return b.priority - a.priority
+    }else{
+      return a.time.minus( b.time )
     }
   }),
 
-  mockRun: function mockRun() {
-    var _this = this;
-
-    var seqFunc = function seqFunc() {
-      _this.seq(_this.mockBeat++ % 8);
-    };
-    this.mockInterval = setInterval(seqFunc, 500);
+  mockRun() {
+    let seqFunc = () => {
+      this.seq( this.mockBeat++ % 8 )
+    } 
+    this.mockInterval = setInterval( seqFunc, 500 )
   },
 
-
   // all ticks take the form of { time:timeInSamples, seq:obj }
-  advance: function advance(advanceAmount, beat) {
-    var end = this.phase + advanceAmount,
+  advance( advanceAmount, beat ) {
+    let end = this.phase + advanceAmount,
         nextTick = this.queue.peek(),
         shouldEnd = false,
-        beatOffset = void 0;
+        beatOffset
 
-    this.currentBeat = beat;
+    this.currentBeat = beat
 
-    if (this.queue.length && parseFloat(nextTick.time.toFixed(6)) < end) {
-      beatOffset = nextTick.time.minus(this.phase).div(advanceAmount);
-
+    if( this.queue.length && parseFloat( nextTick.time.toFixed(6) ) < end ) {
+      beatOffset = nextTick.time.minus( this.phase ).div( advanceAmount )
+      
       // remove tick
-      this.queue.pop();
+      this.queue.pop()
 
-      this.currentTime = nextTick.time;
+      this.currentTime = nextTick.time
+      this.currentTimeInMs = Gibber.Utility.beatsToMs( this.currentTime )
 
       // execute callback function for tick passing schedule, time and beatOffset
       // console.log( 'next tick', nextTick.shouldExecute )
-      nextTick.seq.tick(this, beat, beatOffset, nextTick.shouldExecute);
+      nextTick.seq.tick( this, beat, beatOffset, nextTick.shouldExecute )
 
       // recursively call advance
-      this.advance(advanceAmount, beat);
+      this.advance( advanceAmount, beat ) 
     } else {
-      if (this.msgs.length) {
-        // if output messages have been created
-        this.outputMessages(); // output them
-        this.msgs.length = 0; // and reset the contents of the output messages array
+      if( this.msgs.length ) {      // if output messages have been created
+        this.outputMessages()       // output them
+        this.msgs.length = 0        // and reset the contents of the output messages array
       }
 
-      this.phase += advanceAmount; // increment phase
-      this.currentTime = this.phase;
+      this.phase += advanceAmount   // increment phase
+      this.currentTime = this.phase
+      this.currentTimeInMs = Gibber.Utility.beatsToMs( this.currentTime )
+      Gibber.Environment.animationScheduler.updateVisualizationTime( Gibber.Utility.beatsToMs( advanceAmount ) )
     }
   },
-  addMessage: function addMessage(seq, time) {
-    var shouldExecute = arguments.length <= 2 || arguments[2] === undefined ? true : arguments[2];
-    var priority = arguments.length <= 3 || arguments[3] === undefined ? 0 : arguments[3];
 
-    if (typeof time === 'number') time = Big(time);
+  addMessage( seq, time, shouldExecute=true, priority=0 ) {
+    if( typeof time === 'number' ) time = Big( time )
     // TODO: should 4 be a function of the time signature?
-    time = time.times(4).plus(this.currentTime);
+    time = time.times( 4 ).plus( this.currentTime )
 
-    this.queue.push({ seq: seq, time: time, shouldExecute: shouldExecute, priority: priority });
+    this.queue.push({ seq, time, shouldExecute, priority })
   },
-  outputMessages: function outputMessages() {
-    this.msgs.forEach(function (msg) {
-      if (Array.isArray(msg)) {
-        // for chords etc.
-        msg.forEach(Gibber.Communication.send);
-      } else {
-        if (msg !== 0) {
-          // XXX
-          Gibber.Communication.send(msg);
+
+  outputMessages() {
+    this.msgs.forEach( msg => {
+      if( Array.isArray( msg ) ) { // for chords etc.
+        msg.forEach( Gibber.Communication.send )
+      }else{
+        if( msg !== 0 ) { // XXX
+          Gibber.Communication.send( msg )
         }
       }
-    });
+    })
   },
-  seq: function seq(beat) {
-    beat = parseInt(beat);
 
-    if (beat === 1) {
-      var _iteratorNormalCompletion = true;
-      var _didIteratorError = false;
-      var _iteratorError = undefined;
+  seq( beat ) {
+    beat = parseInt( beat )
 
-      try {
-        for (var _iterator = Scheduler.functionsToExecute[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-          var func = _step.value;
-
-          try {
-            func();
-          } catch (e) {
-            console.error('error with user submitted code:', e);
-          }
-        }
-      } catch (err) {
-        _didIteratorError = true;
-        _iteratorError = err;
-      } finally {
+    if( beat === 1 ) {
+      for( let func of Scheduler.functionsToExecute ) {
         try {
-          if (!_iteratorNormalCompletion && _iterator.return) {
-            _iterator.return();
-          }
-        } finally {
-          if (_didIteratorError) {
-            throw _iteratorError;
-          }
+          func()
+        } catch( e ) {
+          console.error( 'error with user submitted code:', e )
         }
       }
-
-      Scheduler.functionsToExecute.length = 0;
+      Scheduler.functionsToExecute.length = 0
     }
 
-    Scheduler.advance(1, beat);
+    Scheduler.advance( 1, beat )
+    
+    Scheduler.outputMessages()
+  },
 
-    Scheduler.outputMessages();
-  }
-};
+}
 
-module.exports = Scheduler;
-},{"./priorityqueue.js":15,"big.js":26}],4:[function(require,module,exports){
-'use strict';
+module.exports = Scheduler
 
-var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
+},{"./priorityqueue.js":89,"big.js":101}],77:[function(require,module,exports){
+const acorn = require( 'acorn' )
 
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj; };
+const callDepths = [
+  'SCORE',
+  'THIS.METHOD',
+  'THIS.METHOD.SEQ',
+  'THIS.METHOD[ 0 ].SEQ',
+  'THIS.METHOD.VALUES.REVERSE.SEQ',
+  'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ',
+  'TRACKS[0].METHOD[ 0 ].VALUES.REVERSE.SEQ',  
+  'TRACKS[0].METHOD.SEQ',
+  'TRACKS[0].METHOD[0].SEQ',
+  'TRACKS[0].METHOD.VALUES.REVERSE.SEQ',
+  'TRACKS[0].METHOD[0].VALUES.REVERSE.SEQ'
+]
 
-function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
+const trackNames = [ 'this', 'tracks', 'master', 'returns' ]
 
-var acorn = require('acorn');
+const COLORS = {
+  FILL:'rgba(46,50,53,1)',
+  STROKE:'#eee',
+  DOT:'rgba(89, 151, 198, 1)'//'rgba(0,0,255,1)'
+}
 
-var callDepths = ['SCORE', 'THIS.METHOD', 'THIS.METHOD.SEQ', 'THIS.METHOD[ 0 ].SEQ', 'THIS.METHOD.VALUES.REVERSE.SEQ', 'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ', 'TRACKS[0].METHOD[ 0 ].VALUES.REVERSE.SEQ', 'TRACKS[0].METHOD.SEQ', 'TRACKS[0].METHOD[0].SEQ', 'TRACKS[0].METHOD.VALUES.REVERSE.SEQ', 'TRACKS[0].METHOD[0].VALUES.REVERSE.SEQ'];
+const Utility = require( './utility.js' )
+const $ = Utility.create
 
-var trackNames = ['this', 'tracks', 'master', 'returns'];
+let Marker = {
+  genWidgets: { dirty:false },
+  _patternTypes: [ 'values', 'timings', 'index' ],
+  globalIdentifiers:{},
 
-var Utility = require('./utility.js');
-var $ = Utility.create;
-
-var Marker = {
-  genWidgets: { dirty: false },
-  _patternTypes: ['values', 'timings', 'index'],
-
-  prepareObject: function prepareObject(obj) {
+  prepareObject( obj ) {
     obj.markup = {
       textMarkers: {},
-      cssClasses: {}
-    };
+      cssClasses:  {} 
+    }  
   },
-  process: function process(code, position, codemirror, track) {
-    var shouldParse = code.includes('.seq') || code.includes('Steps(') || code.includes('Score('),
-        isGen = false;
 
-    if (!shouldParse) {
-      // check for gen~ assignment
-      var _iteratorNormalCompletion = true;
-      var _didIteratorError = false;
-      var _iteratorError = undefined;
+  process( code, position, codemirror, track ) {
+    let shouldParse = code.includes( '.seq' ) || code.includes( 'Steps(' ) || code.includes( 'Score(' ),
+        shouldParseGen = true,
+        isGen = false
 
-      try {
-        for (var _iterator = Gibber.Gen.names[Symbol.iterator](), _step2; !(_iteratorNormalCompletion = (_step2 = _iterator.next()).done); _iteratorNormalCompletion = true) {
-          var ugen = _step2.value;
-          var _iteratorNormalCompletion2 = true;
-          var _didIteratorError2 = false;
-          var _iteratorError2 = undefined;
+    if( shouldParseGen ) { // check for gen~ assignment
+      const found = Gibber.__gen.gen.names.reduce( (r,v) => {
+        const idx = code.indexOf( v )
+        if( idx !== -1 ){
+          if( v === 'eq' && code[ idx - 1 ] !== 's' ) return r 
+          if( code[ idx + v.length ] !== '(' || code[ idx + v.length + 1 ] !== '(' ) return r
 
-          try {
+          r = true
+        }
+        return r
+      }, false )
 
-            for (var _iterator2 = Gibber.Gen.names[Symbol.iterator](), _step3; !(_iteratorNormalCompletion2 = (_step3 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-              var _ugen = _step3.value;
+      if( found === true ) {
+        shouldParse = true
+        isGen = true
+      }
 
-              var idx = code.indexOf(_ugen);
-              if (idx !== -1 && code.charAt(idx + _ugen.length) === '(') {
-                shouldParse = true;
-                isGen = true;
+      if( isGen === false ) {
+        for( let ugen of Gibber.__gen.ugenNames ) {
+          let idx = code.indexOf( ugen )
+          if( idx !== -1 && code.charAt( idx + ugen.length ) === '('  ) {
+            shouldParse = true
+            isGen = true
 
-                break;
-              }
-            }
-          } catch (err) {
-            _didIteratorError2 = true;
-            _iteratorError2 = err;
-          } finally {
-            try {
-              if (!_iteratorNormalCompletion2 && _iterator2.return) {
-                _iterator2.return();
-              }
-            } finally {
-              if (_didIteratorError2) {
-                throw _iteratorError2;
-              }
-            }
+            break;
           }
         }
-      } catch (err) {
-        _didIteratorError = true;
-        _iteratorError = err;
-      } finally {
+      }
+    }
+
+    if( !shouldParse ) return
+
+    const tree = acorn.parse( code, { locations:true, ecmaVersion:6 } ).body
+    
+    for( let node of tree ) {
+      if( node.type === 'ExpressionStatement' ) { // not control flow
+        node.verticalOffset  = position.start.line
+        node.horizontalOffset = position.horizontalOffset === undefined ? 0 : position.horizontalOffset
         try {
-          if (!_iteratorNormalCompletion && _iterator.return) {
-            _iterator.return();
+          if( isGen ) {
+            this.processGen( node, codemirror, track )
+          }else{ 
+            this._process[ node.type ]( node, codemirror, track )
           }
-        } finally {
-          if (_didIteratorError) {
-            throw _iteratorError;
+        } catch( error ) {
+          console.log( 'error processing annotation for', node.expression.type, error )
+        }
+      }
+    }
+  },
+  
+  processGen( node, cm, track ) {
+    let ch = node.end, line = node.verticalOffset, start = ch - 1, end = node.end 
+
+    // check to see if a given object is a proxy that already has
+    // a widget created; if so, don't make another one!
+    if( node.expression.type === 'AssignmentExpression' ) {
+      const __obj = window[ node.expression.left.name ]
+      if( __obj !== undefined ) {
+        if( __obj.widget !== undefined ) {
+          return
+        }
+      }
+    }
+
+    cm.replaceRange( ') ', { line, ch:start }, { line, ch } )
+
+    const widget = document.createElement( 'canvas' )
+    widget.ctx = widget.getContext('2d')
+    widget.style.display = 'inline-block'
+    widget.style.verticalAlign = 'middle'
+    widget.style.height = '1.1em'
+    widget.style.width = '60px'
+    widget.style.backgroundColor = 'transparent'
+    widget.style.borderLeft = '1px solid #666'
+    widget.style.borderRight = '1px solid #666'
+    widget.setAttribute( 'width', 60 )
+    widget.setAttribute( 'height', 13 )
+    widget.ctx.fillStyle = COLORS.FILL 
+    widget.ctx.strokeStyle = COLORS.STROKE
+    widget.ctx.lineWidth = .5
+    widget.gen = Gibber.__gen.gen.lastConnected
+    widget.values = []
+    widget.min = 10000
+    widget.max = -10000
+
+    let isAssignment = false
+
+    if( widget.gen === null || widget.gen === undefined ) {
+      if( node.expression.type === 'AssignmentExpression' ) {
+        isAssignment = true
+        
+        widget.gen = window[ node.expression.left.name ]
+
+        if( widget.gen.widget !== undefined ) {
+          widget.gen.widget.parentNode.removeChild( widget.gen.widget )
+        }
+        widget.gen.widget = widget
+      }
+    }else{
+      if( widget.gen.widget !== undefined && widget.gen.widget !== widget ) {
+        isAssignment = true
+        widget.gen = window[ node.expression.left.name ]
+      }
+    }
+    Gibber.__gen.gen.lastConnected = null
+
+    for( let i = 0; i < 120; i++ ) widget.values[ i ] = 0
+
+    if( isAssignment === false ) {
+      let oldWidget = Marker.genWidgets[ widget.gen.paramID ] 
+
+      if( oldWidget !== undefined ) {
+        oldWidget.parentNode.removeChild( oldWidget )
+      } 
+    }
+    
+    Marker.genWidgets[ widget.gen.paramID ] = widget
+    widget.gen.widget = widget
+
+    widget.mark = cm.markText({ line, ch }, { line, ch:end+1 }, { replacedWith:widget })
+    widget.mark.__clear = widget.mark.clear
+    widget.clear = ()=> widget.mark.clear()
+    widget.mark.clear = function() {
+      widget.mark.__clear()
+    }
+  },
+
+  // currently called when a network snapshot message is received providing ugen state..
+  // needs to also be called for wavepatterns.
+  updateWidget( id, __value ) {
+    const widget = typeof id !== 'object' ? Marker.genWidgets[ id ] : id
+    if( widget === undefined ) return 
+
+    const value = parseFloat( __value )
+
+    if( typeof widget.values[72] !== 'object' ) {
+      widget.values[ 72 ] = value
+    }
+    
+    if( value > widget.max ) {
+      widget.max = value
+    }else if( value < widget.min ) {
+      widget.min = value
+    } 
+
+    widget.values.shift()
+    Marker.genWidgets.dirty = true
+  },
+
+  // called by animation scheduler if Marker.genWidgets.dirty === true
+  drawWidgets() {
+    
+    Marker.genWidgets.dirty = false
+
+    for( let key in Marker.genWidgets ) {
+      let widget = Marker.genWidgets[ key ]
+      if( typeof widget === 'object' && widget.ctx !== undefined ) {
+
+        widget.ctx.fillStyle = COLORS.FILL
+        widget.ctx.fillRect( 0,0, widget.width, widget.height )
+        widget.ctx.beginPath()
+        widget.ctx.moveTo( 0,  widget.height / 2 + 1 )
+
+        const range = widget.max - widget.min
+        const wHeight = widget.height * .9 + .5
+
+        for( let i = 0, len = widget.width; i < len; i++ ) {
+          const data = widget.values[ i ]
+          const shouldDrawDot = typeof data === 'object'
+          const value = shouldDrawDot ? data.value : data
+          const scaledValue = ( value - widget.min ) / range
+
+          const yValue = scaledValue * wHeight - .5 
+          
+          if( shouldDrawDot === true ) {
+            widget.ctx.fillStyle = COLORS.DOT
+            widget.ctx.fillRect( i-1, wHeight - yValue - 1, 2, 2)
+          }else{
+            widget.ctx.lineTo( i, wHeight - yValue )
           }
         }
-      }
-    }
-
-    if (!shouldParse) return;
-
-    var tree = acorn.parse(code, { locations: true, ecmaVersion: 6 }).body;
-
-    var _iteratorNormalCompletion3 = true;
-    var _didIteratorError3 = false;
-    var _iteratorError3 = undefined;
-
-    try {
-      for (var _iterator3 = tree[Symbol.iterator](), _step4; !(_iteratorNormalCompletion3 = (_step4 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
-        var node = _step4.value;
-
-        if (node.type === 'ExpressionStatement') {
-          // not control flow
-          node.verticalOffset = position.start.line;
-          node.horizontalOffset = position.horizontalOffset === undefined ? 0 : position.horizontalOffset;
-          try {
-            if (isGen) {
-              this.processGen(node, codemirror, track);
-            } else {
-              this._process[node.type](node, codemirror, track);
-            }
-          } catch (error) {
-            console.log('error processing annotation for', node.expression.type, error);
-          }
-        }
-      }
-    } catch (err) {
-      _didIteratorError3 = true;
-      _iteratorError3 = err;
-    } finally {
-      try {
-        if (!_iteratorNormalCompletion3 && _iterator3.return) {
-          _iterator3.return();
-        }
-      } finally {
-        if (_didIteratorError3) {
-          throw _iteratorError3;
-        }
+        widget.ctx.stroke()
       }
     }
   },
-  processGen: function processGen(node, cm, track) {
-    var ch = node.end,
-        line = node.verticalOffset,
-        start = ch - 1,
-        end = node.end;
 
-    cm.replaceRange(') ', { line: line, ch: start }, { line: line, ch: ch });
-
-    var widget = document.createElement('canvas');
-    widget.ctx = widget.getContext('2d');
-    widget.style.display = 'inline-block';
-    widget.style.verticalAlign = 'middle';
-    widget.style.height = '1.1em';
-    widget.style.width = '60px';
-    widget.style.backgroundColor = 'transparent';
-    widget.style.borderLeft = '1px solid #666';
-    widget.style.borderRight = '1px solid #666';
-    widget.setAttribute('width', 60);
-    widget.setAttribute('height', 13);
-    widget.ctx.fillStyle = 'rgba(46,50,53,1)';
-    widget.ctx.strokeStyle = '#eee';
-    widget.ctx.lineWidth = .5;
-    widget.gen = Gibber.Gen.lastConnected;
-    widget.values = [];
-
-    var oldWidget = Marker.genWidgets[widget.gen.paramID];
-
-    if (oldWidget !== undefined) {
-      oldWidget.parentNode.removeChild(oldWidget);
-    }
-
-    Marker.genWidgets[widget.gen.paramID] = widget;
-
-    widget.mark = cm.markText({ line: line, ch: ch }, { line: line, ch: end + 1 }, { replacedWith: widget });
-  },
-  updateWidget: function updateWidget(id, value) {
-    var widget = Marker.genWidgets[id];
-    if (widget === undefined) return;
-
-    widget.values.push(parseFloat(value));
-
-    while (widget.values.length > 60) {
-      widget.values.shift();
-    }Marker.genWidgets.dirty = true;
-  },
-  drawWidgets: function drawWidgets() {
-
-    Marker.genWidgets.dirty = false;
-
-    for (var key in Marker.genWidgets) {
-      var widget = Marker.genWidgets[key];
-      if ((typeof widget === 'undefined' ? 'undefined' : _typeof(widget)) === 'object' && widget.ctx !== undefined) {
-        widget.ctx.fillRect(0, 0, widget.width, widget.height);
-        widget.ctx.beginPath();
-        widget.ctx.moveTo(0, widget.height / 2 + 1);
-        for (var i = 0; i < widget.values.length; i++) {
-          widget.ctx.lineTo(i, widget.values[i] * widget.height * .7 + 1);
-        }
-        widget.ctx.stroke();
-      }
-    }
-  },
-  clear: function clear() {
-    for (var key in Marker.genWidgets) {
-      var widget = Marker.genWidgets[key];
-      if ((typeof widget === 'undefined' ? 'undefined' : _typeof(widget)) === 'object') {
-        widget.mark.clear();
+  clear() {
+    for( let key in Marker.genWidgets ) {
+      let widget = Marker.genWidgets[ key ]
+      if( typeof widget === 'object' ) {
+        widget.mark.clear()
         //widget.parentNode.removeChild( widget )
       }
     }
 
-    Marker.genWidgets = { dirty: false };
+    Marker.genWidgets = { dirty:false }
   },
 
-
   _process: {
-    ExpressionStatement: function ExpressionStatement(expressionNode, codemirror, track) {
-      Marker._process[expressionNode.expression.type](expressionNode, codemirror, track);
+    ExpressionStatement( expressionNode, codemirror, track ){ 
+      Marker._process[ expressionNode.expression.type ]( expressionNode, codemirror, track )
     },
 
+    AssignmentExpression: function( expressionNode, codemirror, track ) {
+      // if the right-hand op is not a literal and we have a defined annotation for it (in Marker.functions)
+      if( expressionNode.expression.right.type !== 'Literal' && Marker.functions[ expressionNode.expression.right.callee.name ] ) {
 
-    AssignmentExpression: function AssignmentExpression(expressionNode, codemirror, track) {
-      if (expressionNode.expression.right.type !== 'Literal' && Marker.functions[expressionNode.expression.right.callee.name]) {
-
-        Marker.functions[expressionNode.expression.right.callee.name](expressionNode.expression.right, codemirror, track, expressionNode.expression.left.name, expressionNode.verticalOffset, expressionNode.horizontalOffset);
+        Marker.functions[ expressionNode.expression.right.callee.name ]( 
+          expressionNode.expression.right, 
+          codemirror,
+          track,
+          expressionNode.expression.left.name,
+          expressionNode.verticalOffset,
+          expressionNode.horizontalOffset
+        )            
+      }else{
+        // if it's a gen~ object we need to store a reference so that we can create wavepattern
+        // annotations when appropriate.
+        const left = expressionNode.expression.left
+        const right= expressionNode.expression.right
+        
+        Marker.globalIdentifiers[ left.name ] = right
       }
     },
 
-    CallExpression: function CallExpression(expressionNode, codemirror, track) {
-      var _Marker$_getCallExpre = Marker._getCallExpressionHierarchy(expressionNode.expression);
-
-      var _Marker$_getCallExpre2 = _slicedToArray(_Marker$_getCallExpre, 3);
-
-      var components = _Marker$_getCallExpre2[0];
-      var depthOfCall = _Marker$_getCallExpre2[1];
-      var index = _Marker$_getCallExpre2[2];
-      var args = expressionNode.expression.arguments;
-      var usesThis = void 0;var targetPattern = void 0;var isTrack = void 0;var method = void 0;var target = void 0;
+    CallExpression( expressionNode, codemirror, track  ) {
+      let [ components, depthOfCall, index ] = Marker._getCallExpressionHierarchy( expressionNode.expression ),
+        args = expressionNode.expression.arguments,
+        usesThis, targetPattern, isTrack, method, target
 
       // if index is passed as argument to .seq call...
-      if (args.length > 2) {
-        index = args[2].value;
-      }
-
+      if( args.length > 2 ) { index = args[ 2 ].value }
+      
       //console.log( "depth of call", depthOfCall, components, index )
-      var valuesPattern = void 0,
-          timingsPattern = void 0,
-          valuesNode = void 0,
-          timingsNode = void 0;
+      let valuesPattern, timingsPattern, valuesNode, timingsNode
 
-      switch (callDepths[depthOfCall]) {
-        case 'SCORE':
-          //console.log( 'score no assignment?', components, expressionNode.expression )
-          if (Marker.functions[expressionNode.expression.callee.name]) {
-            Marker.functions[expressionNode.expression.callee.name](expressionNode.expression, codemirror, track, expressionNode.verticalOffset);
-          }
-          break;
+      switch( callDepths[ depthOfCall ] ) {
+         case 'SCORE':
+           //console.log( 'score no assignment?', components, expressionNode.expression )
+           if( Marker.functions[ expressionNode.expression.callee.name ] ) {
+             Marker.functions[ expressionNode.expression.callee.name ]( expressionNode.expression, codemirror, track, expressionNode.verticalOffset )            
+           }
+           break;
 
-        case 'THIS.METHOD':
-          // also for calls to Score([]).start() 
-          break;
+         case 'THIS.METHOD': // also for calls to Score([]).start() 
+           break;
 
-        case 'THIS.METHOD.SEQ':
-          if (components.includes('tracks')) {
-            //expressionNode.expression.callee.object.object.type !== 'ThisExpression' ) {
-            var objName = expressionNode.expression.callee.object.object.name;
+         case 'THIS.METHOD.SEQ':
+           if( components.includes( 'tracks' ) ) { //expressionNode.expression.callee.object.object.type !== 'ThisExpression' ) {
+             let objName = expressionNode.expression.callee.object.object.name
 
-            track = window[objName];
-            method = track[components[1]][index];
-          } else if (components.includes('this')) {
-            track = Gibber.currentTrack;
-            method = track[components[1]][index];
-          } else {
-            var _objName = expressionNode.expression.callee.object.object.name;
+             track = window[ objName ]
+             method = track[ components[ 1 ] ][ index ]
+           }else if( components.includes( 'this' ) ){
+             track = Gibber.currentTrack
+             method = track[ components[ 1 ] ][ index ]
+           }else{
+             let objName = expressionNode.expression.callee.object.object.name
 
-            track = window[components[0]];
-            method = track[components[1]][index];
-          }
+             track = window[ components[0] ]
+             method = track[ components[ 1 ] ][ index ] 
+           }
 
-          if (!track.markup) {
-            Marker.prepareObject(track);
-          }
+           if( !track.markup ) { Marker.prepareObject( track ) }
 
-          valuesPattern = method.values;
-          timingsPattern = method.timings;
-          valuesNode = args[0];
-          timingsNode = args[1];
+           valuesPattern =  method.values
+           timingsPattern = method.timings
+           valuesNode = args[ 0 ]
+           timingsNode= args[ 1 ]
 
-          valuesPattern.codemirror = timingsPattern.codemirror = codemirror;
+           valuesPattern.codemirror = timingsPattern.codemirror = codemirror 
+          
+           if( valuesNode ) {
+             Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
+           }  
+           if( timingsNode ) {
+             Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern )  
+           }
 
-          if (valuesNode) {
-            Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern);
-          }
-          if (timingsNode) {
-            Marker._markPattern[timingsNode.type](timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern);
-          }
+           break;
 
-          break;
+         case 'THIS.METHOD[ 0 ].SEQ': // will this ever happen??? I guess after it has been sequenced once?
+           isTrack  = trackNames.includes( components[0] )
+           target = null
+           track = window[ components[0] ][ components[1] ]
+           
+           if( !isTrack ) { // not a track! XXX please, please get a better parsing method / rules...
+             target = track
+             track = Gibber.currentTrack
+           }
 
-        case 'THIS.METHOD[ 0 ].SEQ':
-          // will this ever happen??? I guess after it has been sequenced once?
-          isTrack = trackNames.includes(components[0]);
-          target = null;
-          track = window[components[0]][components[1]];
+           valuesPattern =  target === null ? track[ components[2] ][ index ].values : target[ components[2] ].values
+           timingsPattern = target === null ? track[ components[2] ][ index ].timings : target[ components[2] ].timings //track[ components[2] ][ index ].timings
+           valuesNode = args[0]
+           timingsNode = args[1]
 
-          if (!isTrack) {
-            // not a track! XXX please, please get a better parsing method / rules...
-            target = track;
-            track = Gibber.currentTrack;
-          }
+           valuesPattern.codemirror = codemirror
+           if( timingsPattern !== undefined ) timingsPattern.codemirror = codemirror
 
-          valuesPattern = target === null ? track[components[2]][index].values : target[components[2]].values;
-          timingsPattern = target === null ? track[components[2]][index].timings : target[components[2]].timings; //track[ components[2] ][ index ].timings
-          valuesNode = args[0];
-          timingsNode = args[1];
+           if( valuesNode ) { 
+             Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
+           }
+           if( timingsNode ) {
+             Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern )  
+           }
 
-          valuesPattern.codemirror = timingsPattern.codemirror = codemirror;
+           break;
 
-          if (valuesNode) {
-            Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern);
-          }
-          if (timingsNode) {
-            Marker._markPattern[timingsNode.type](timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern);
-          }
+         case 'THIS.METHOD.VALUES.REVERSE.SEQ':
+           usesThis = components.includes( 'this' )
+           isTrack  = components.includes( 'tracks' )
 
-          break;
+           if( isTrack ) { // XXX this won't ever get called here, right?
+             track = window[ components[0] ][ components[1] ] 
+             targetPattern = track[ components[2] ][ components[3] ]
+             method = targetPattern[ components[4] ]
 
-        case 'THIS.METHOD.VALUES.REVERSE.SEQ':
-          usesThis = components.includes('this');
-          isTrack = components.includes('tracks');
+           }else{
+             track = usesThis ? Gibber.currentTrack : window[ components[0] ],
+             targetPattern = track[ components[1] ][ components[2] ],
+             method = targetPattern[ components[3] ]
+           }
+        
+            
+           valuesPattern = method.values
+           timingsPattern = method.timings
+           valuesNode = args[0]
+           timingsNode = args[1]
 
-          if (isTrack) {
-            // XXX this won't ever get called here, right?
-            track = window[components[0]][components[1]];
-            targetPattern = track[components[2]][components[3]];
-            method = targetPattern[components[4]];
-          } else {
-            track = usesThis ? Gibber.currentTrack : window[components[0]], targetPattern = track[components[1]][components[2]], method = targetPattern[components[3]];
-          }
+           valuesPattern.codemirror = timingsPattern.codemirror = codemirror
+           
+           if( valuesNode ) {
+             Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
+           }  
+           if( timingsNode ) {
+             Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern )  
+           }
 
-          valuesPattern = method.values;
-          timingsPattern = method.timings;
-          valuesNode = args[0];
-          timingsNode = args[1];
+           break;
 
-          valuesPattern.codemirror = timingsPattern.codemirror = codemirror;
+         case 'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ': // most useful?
+           usesThis = components.includes( 'this' )
+           isTrack  = components.includes( 'tracks' )
+           // tracks['1-Impulse 606'].devices['Impulse']['Global Time']
+           
+           if( isTrack ) {
+             track = window[ components[0] ][ components[1] ] 
+             targetPattern = track[ components[2] ][ components[3] ]
+             method = targetPattern[ components[4] ]
 
-          if (valuesNode) {
-            Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern);
-          }
-          if (timingsNode) {
-            Marker._markPattern[timingsNode.type](timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern);
-          }
+           }else{
+             track = usesThis ? Gibber.currentTrack : window[ components[0] ],
+             targetPattern = track[ components[1] ][ index ][ components[3] ],
+             method = targetPattern[ components[4] ]
+           }
 
-          break;
+           valuesPattern =  method.values
+           timingsPattern = method.timings
+           valuesNode = args[ 0 ]
+           timingsNode= args[ 1 ]
+          
+           valuesPattern.codemirror = timingsPattern.codemirror = codemirror
 
-        case 'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ':
-          // most useful?
-          usesThis = components.includes('this');
-          isTrack = components.includes('tracks');
-          // tracks['1-Impulse 606'].devices['Impulse']['Global Time']
+           if( !isTrack ) components.splice( 2,index )
+          
+           if( valuesNode ) {
+             Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
+           }
+           if( timingsNode ) {
+             Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern )  
+           }
+           break;
+         case 'TRACKS[0].METHOD[ 0 ].VALUES.REVERSE.SEQ':
+           track = window[ 'tracks' ][ components[ 1 ] ]
 
-          if (isTrack) {
-            track = window[components[0]][components[1]];
-            targetPattern = track[components[2]][components[3]];
-            method = targetPattern[components[4]];
-          } else {
-            track = usesThis ? Gibber.currentTrack : window[components[0]], targetPattern = track[components[1]][index][components[3]], method = targetPattern[components[4]];
-          }
+           components[3] = components[3]
+           valuesPattern =  track[ components[ 2 ] ][ components[3] ][ components[4] ][ components[5] ].values
+           timingsPattern = track[ components[ 2 ] ][ components[3] ][ components[4] ][ components[5] ].timings
+           valuesNode = args[ 0 ]
+           timingsNode= args[ 1 ]
+          
+           valuesPattern.codemirror = timingsPattern.codemirror = codemirror
 
-          valuesPattern = method.values;
-          timingsPattern = method.timings;
-          valuesNode = args[0];
-          timingsNode = args[1];
+           if( valuesNode ) {
+             Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
+           }  
+           if( timingsNode ) {
+             Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern )  
+           }
+           break;
 
-          valuesPattern.codemirror = timingsPattern.codemirror = codemirror;
-
-          if (!isTrack) components.splice(2, index);
-
-          if (valuesNode) {
-            Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern);
-          }
-          if (timingsNode) {
-            Marker._markPattern[timingsNode.type](timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern);
-          }
-          break;
-        case 'TRACKS[0].METHOD[ 0 ].VALUES.REVERSE.SEQ':
-          track = window['tracks'][components[1]];
-
-          components[3] = components[3];
-          valuesPattern = track[components[2]][components[3]][components[4]][components[5]].values;
-          timingsPattern = track[components[2]][components[3]][components[4]][components[5]].timings;
-          valuesNode = args[0];
-          timingsNode = args[1];
-
-          valuesPattern.codemirror = timingsPattern.codemirror = codemirror;
-
-          if (valuesNode) {
-            Marker._markPattern[valuesNode.type](valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern);
-          }
-          if (timingsNode) {
-            Marker._markPattern[timingsNode.type](timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern);
-          }
-          break;
-
-        default:
-          console.log('default annotation error');
-          break;
+         default:
+           console.log( 'default annotation error' )
+           break;
       }
+    },
+  },
+
+  _createBorderCycleFunction( classNamePrefix, patternObject ) {
+    let modCount = 0,
+        lastBorder = null,
+        lastClassName = null
+    
+    let cycle = function( isArray = false ) {
+      let className = '.' + classNamePrefix + '_' +  patternObject.update.currentIndex,
+          border = 'top'
+
+      switch( modCount++ % 4 ) {
+        case 1: border = 'right'; break;
+        case 2: border = 'bottom'; break;
+        case 3: border = 'left'; break;
+      }
+
+
+      // for a pattern holding arrays... like for chord()
+      if( isArray === true ) {
+        switch( border ) {
+          case 'left':
+            $( className ).remove( 'annotation-' + lastBorder + '-border-cycle' )
+            $( className + '_start' ).add( 'annotation-left-border-cycle' )
+
+            break;
+          case 'right':
+            $( className ).remove( 'annotation-' + lastBorder + '-border-cycle' ) 
+            $( className + '_end' ).add( 'annotation-right-border-cycle' )
+ 
+            break;
+          case 'top':
+            $( className ).add( 'annotation-top-border-cycle' )
+            $( className+'_start' ).remove( 'annotation-left-border-cycle' )
+            $( className+'_start' ).add( 'annotation-top-border-cycle' )
+            $( className+'_end' ).add( 'annotation-top-border-cycle' )
+
+            break;
+          case 'bottom':
+            $( className ).add( 'annotation-bottom-border-cycle' )
+            $( className+'_end' ).remove( 'annotation-right-border-cycle' )
+            $( className+'_end' ).add( 'annotation-bottom-border-cycle' )
+            $( className+'_start' ).add( 'annotation-bottom-border-cycle' )
+
+            break;
+          default:
+            $( className ).add( 'annotation-' + border + '-border-cycle' )
+            $( className+'_start' ).remove( 'annotation-' + border + '-border-cycle' )
+            $( className+'_end' ).remove( 'annotation-' + border + '-border-cycle' )
+            break;
+        }
+
+      }else{
+        $( className ).remove( 'annotation-' + border + '-border' )
+        $( className ).add( 'annotation-' + border + '-border-cycle' )
+        
+        if( lastBorder !== null ) {
+          $( className ).remove( 'annotation-' + lastBorder + '-border-cycle' )
+          $( className ).add( 'annotation-' + lastBorder + '-border' )
+        }
+      }
+      
+      lastBorder = border
+      lastClassName = className
+
+      //console.log( 'cycle idx:', patternObject.idx )
+    }
+
+    cycle.clear = function() {
+      modCount = 1
+      
+      if( lastClassName !== null ) {
+        $( lastClassName ).remove( 'annotation-left-border' )
+        $( lastClassName ).remove( 'annotation-left-border-cycle' )
+        $( lastClassName ).remove( 'annotation-right-border' )
+        $( lastClassName ).remove( 'annotation-right-border-cycle' )
+        $( lastClassName ).remove( 'annotation-top-border' )
+        $( lastClassName ).remove( 'annotation-top-border-cycle' )
+        $( lastClassName ).remove( 'annotation-bottom-border' )
+        $( lastClassName ).remove( 'annotation-bottom-border-cycle' )
+      }
+
+      lastBorder = null
+    }
+
+    return cycle
+  },
+
+  _addPatternUpdates( patternObject, className ) {
+    let cycle = Marker._createBorderCycleFunction( className, patternObject )
+    
+    patternObject.update = () => {
+      // if( !patternObject.update.shouldUpdate ) return 
+      cycle() 
     }
   },
 
-  _createBorderCycleFunction: function _createBorderCycleFunction(classNamePrefix, patternObject) {
-    var modCount = 0,
-        lastBorder = null,
-        lastClassName = null;
+  _addPatternFilter( patternObject ) {
+    patternObject.filters.push( args => {
+      const wait = Utility.beatsToMs( patternObject.nextTime + .5,  Gibber.Scheduler.bpm ),
+            idx = args[ 2 ],
+            shouldUpdate = patternObject.update.shouldUpdate
 
-    var cycle = function cycle() {
-      var className = '.' + classNamePrefix + '_' + patternObject.update.currentIndex,
-          border = 'top';
-
-      switch (modCount++ % 4) {
-        case 1:
-          border = 'right';break;
-        case 2:
-          border = 'bottom';break;
-        case 3:
-          border = 'left';break;
+      // delay is used to ensure that timings pattern is processed after values pattern,
+      // because changing the mark of the values pattern messes up the mark of the timings
+      // pattern; reversing their order of execution fixes this.  
+      if( patternObject.__delayAnnotations === true ) {
+          Gibber.Environment.animationScheduler.add( () => {
+            patternObject.update.currentIndex = idx
+            patternObject.update()
+          }, wait + 1 )
+      }else{
+        Gibber.Environment.animationScheduler.add( () => {
+          patternObject.update.currentIndex = idx
+          patternObject.update()
+        }, wait ) 
       }
 
-      $(className).remove('annotation-' + border + '-border');
-      $(className).add('annotation-' + border + '-border-cycle');
-
-      if (lastBorder !== null) {
-        $(className).remove('annotation-' + lastBorder + '-border-cycle');
-        $(className).add('annotation-' + lastBorder + '-border');
-      }
-
-      lastBorder = border;
-      lastClassName = className;
-
-      //console.log( 'cycle idx:', patternObject.idx )
-    };
-
-    cycle.clear = function () {
-      modCount = 1;
-
-      if (lastClassName !== null) {
-        $(lastClassName).remove('annotation-left-border');
-        $(lastClassName).remove('annotation-left-border-cycle');
-        $(lastClassName).remove('annotation-right-border');
-        $(lastClassName).remove('annotation-right-border-cycle');
-        $(lastClassName).remove('annotation-top-border');
-        $(lastClassName).remove('annotation-top-border-cycle');
-        $(lastClassName).remove('annotation-bottom-border');
-        $(lastClassName).remove('annotation-bottom-border-cycle');
-      }
-
-      lastBorder = null;
-    };
-
-    return cycle;
+      return args
+    }) 
   },
-  _addPatternUpdates: function _addPatternUpdates(patternObject, className) {
-    var cycle = Marker._createBorderCycleFunction(className, patternObject);
-
-    patternObject.update = function () {
-      // if( !patternObject.update.shouldUpdate ) return 
-      cycle();
-    };
-  },
-  _addPatternFilter: function _addPatternFilter(patternObject) {
-    patternObject.filters.push(function (args) {
-      var wait = Utility.beatsToMs(patternObject.nextTime + .5, Gibber.Scheduler.bpm),
-          idx = args[2],
-          shouldUpdate = patternObject.update.shouldUpdate;
-
-      Gibber.Environment.animationScheduler.add(function () {
-        patternObject.update.currentIndex = idx;
-        patternObject.update();
-      }, wait);
-
-      return args;
-    });
-  },
-
 
   _markPattern: {
-    Literal: function Literal(patternNode, containerNode, components, cm, track) {
-      var index = arguments.length <= 5 || arguments[5] === undefined ? 0 : arguments[5];
-      var patternType = arguments[6];
-      var patternObject = arguments[7];
+    Literal( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) {
+       let [ className, start, end ] = Marker._getNamesAndPosition( patternNode, containerNode, components, index, patternType ),
+           cssName = className + '_0',
+           marker = cm.markText( start, end, { 
+             'className': cssName + ' annotation-border', 
+             inclusiveLeft: true,
+             inclusiveRight: true
+           })
+       
+       track.markup.textMarkers[ className ] = marker
+       
+       if( track.markup.cssClasses[ className ] === undefined ) track.markup.cssClasses[ className ] = []
 
-      var _Marker$_getNamesAndP = Marker._getNamesAndPosition(patternNode, containerNode, components, index, patternType);
-
-      var _Marker$_getNamesAndP2 = _slicedToArray(_Marker$_getNamesAndP, 3);
-
-      var className = _Marker$_getNamesAndP2[0];
-      var start = _Marker$_getNamesAndP2[1];
-      var end = _Marker$_getNamesAndP2[2];
-      var cssName = className + '_0';
-      var marker = cm.markText(start, end, {
-        'className': cssName + ' annotation-border',
-        inclusiveLeft: true,
-        inclusiveRight: true
-      });
-
-      track.markup.textMarkers[className] = marker;
-
-      if (track.markup.cssClasses[className] === undefined) track.markup.cssClasses[className] = [];
-
-      track.markup.cssClasses[className][index] = cssName;
-
-      Marker._addPatternUpdates(patternObject, className);
-      Marker._addPatternFilter(patternObject);
-
-      patternObject.patternName = className;
-      patternObject._onchange = function () {
-        Marker._updatePatternContents(patternObject, className, track);
-      };
+       track.markup.cssClasses[ className ][ index ] = cssName    
+       
+       Marker._addPatternUpdates( patternObject, className )
+       Marker._addPatternFilter( patternObject )
+       
+       patternObject.patternName = className
+       patternObject._onchange = () => { Marker._updatePatternContents( patternObject, className, track ) }
     },
-    UnaryExpression: function UnaryExpression(patternNode, containerNode, components, cm, channel) {
-      var index = arguments.length <= 5 || arguments[5] === undefined ? 0 : arguments[5];
-      var patternType = arguments[6];
-      var patternObject = arguments[7];
 
-      // -1 etc.
-      var _Marker$_getNamesAndP3 = Marker._getNamesAndPosition(patternNode, containerNode, components, index, patternType);
+    UnaryExpression( patternNode, containerNode, components, cm, channel, index=0, patternType, patternObject ) { // -1 etc.
+      let [ className, start, end ] = Marker._getNamesAndPosition( patternNode, containerNode, components, index, patternType ),
+          cssName = className + '_0',
+          marker = cm.markText( start, end, { 
+            'className': cssName + ' annotation', 
+            inclusiveLeft: true,
+            inclusiveRight: true
+          })
 
-      var _Marker$_getNamesAndP4 = _slicedToArray(_Marker$_getNamesAndP3, 3);
+        channel.markup.textMarkers[ className ] = marker
 
-      var className = _Marker$_getNamesAndP4[0];
-      var start = _Marker$_getNamesAndP4[1];
-      var end = _Marker$_getNamesAndP4[2];
-      var cssName = className + '_0';
-      var marker = cm.markText(start, end, {
-        'className': cssName + ' annotation',
-        inclusiveLeft: true,
-        inclusiveRight: true
-      });
+        if( channel.markup.cssClasses[ className ] === undefined ) channel.markup.cssClasses[ className ] = []
 
-      channel.markup.textMarkers[className] = marker;
+        channel.markup.cssClasses[ className ][ index ] = cssName    
 
-      if (channel.markup.cssClasses[className] === undefined) channel.markup.cssClasses[className] = [];
+        let start2 = Object.assign( {}, start )
+        start2.ch += 1
+        let marker2 = cm.markText( start, start2, { 
+          'className': cssName + ' annotation-no-right-border', 
+          inclusiveLeft: true,
+          inclusiveRight: true
+        })
 
-      channel.markup.cssClasses[className][index] = cssName;
+        let marker3 = cm.markText( start2, end, { 
+          'className': cssName + ' annotation-no-left-border', 
+          inclusiveLeft: true,
+          inclusiveRight: true
+        })
 
-      var start2 = Object.assign({}, start);
-      start2.ch += 1;
-      var marker2 = cm.markText(start, start2, {
-        'className': cssName + ' annotation-no-right-border',
-        inclusiveLeft: true,
-        inclusiveRight: true
-      });
+        Marker._addPatternUpdates( patternObject, className )
+        Marker._addPatternFilter( patternObject )
 
-      var marker3 = cm.markText(start2, end, {
-        'className': cssName + ' annotation-no-left-border',
-        inclusiveLeft: true,
-        inclusiveRight: true
-      });
-
-      Marker._addPatternUpdates(patternObject, className);
-      Marker._addPatternFilter(patternObject);
-
-      patternObject.patternName = className;
-      patternObject._onchange = function () {
-        Marker._updatePatternContents(patternObject, className, channel);
-      };
+        patternObject.patternName = className
+        patternObject._onchange = () => { Marker._updatePatternContents( patternObject, className, channel ) }
     },
-    BinaryExpression: function BinaryExpression(patternNode, containerNode, components, cm, track) {
-      var index = arguments.length <= 5 || arguments[5] === undefined ? 0 : arguments[5];
-      var patternType = arguments[6];
-      var patternObject = arguments[7];
 
-      // TODO: same as literal, refactor?
-      var _Marker$_getNamesAndP5 = Marker._getNamesAndPosition(patternNode, containerNode, components, index, patternType);
+    BinaryExpression( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) { // TODO: same as literal, refactor?
+       let [ className, start, end ] = Marker._getNamesAndPosition( patternNode, containerNode, components, index, patternType ),
+           cssName = className + '_0',
+           marker = cm.markText(
+             start, 
+             end,
+             { 
+               'className': cssName + ' annotation annotation-border' ,
+               startStyle: 'annotation-no-right-border',
+               endStyle: 'annotation-no-left-border',
+               inclusiveLeft:true,
+               inclusiveRight:true
+             }
+           ) 
+       
+       track.markup.textMarkers[ className ] = marker
 
-      var _Marker$_getNamesAndP6 = _slicedToArray(_Marker$_getNamesAndP5, 3);
+       const divStart = Object.assign( {}, start )
+       const divEnd   = Object.assign( {}, end )
 
-      var className = _Marker$_getNamesAndP6[0];
-      var start = _Marker$_getNamesAndP6[1];
-      var end = _Marker$_getNamesAndP6[2];
-      var cssName = className + '_0';
-      var marker = cm.markText(start, end, {
-        'className': cssName + ' annotation annotation-border',
-        startStyle: 'annotation-no-right-border',
-        endStyle: 'annotation-no-left-border',
-        inclusiveLeft: true,
-        inclusiveRight: true
-      });
+       divStart.ch += 1
+       divEnd.ch -= 1
 
-      track.markup.textMarkers[className] = marker;
+       const marker2 = cm.markText( divStart, divEnd, { className:'annotation-binop-border' })     
 
-      var divStart = Object.assign({}, start);
-      var divEnd = Object.assign({}, end);
+       if( track.markup.cssClasses[ className ] === undefined ) track.markup.cssClasses[ className ] = []
+       track.markup.cssClasses[ className ][ index ] = cssName
 
-      divStart.ch += 1;
-      divEnd.ch -= 1;
+       //setTimeout( () => { $( '.' + cssName )[ 1 ].classList.add( 'annotation-no-horizontal-border' ) }, 250 )
+       
+       patternObject.patternName = className
 
-      var marker2 = cm.markText(divStart, divEnd, { className: 'annotation-binop-border' });
-
-      if (track.markup.cssClasses[className] === undefined) track.markup.cssClasses[className] = [];
-      track.markup.cssClasses[className][index] = cssName;
-
-      //setTimeout( () => { $( '.' + cssName )[ 1 ].classList.add( 'annotation-no-horizontal-border' ) }, 250 )
-
-      patternObject.patternName = className;
-
-      Marker._addPatternUpdates(patternObject, className);
-      Marker._addPatternFilter(patternObject);
+       Marker._addPatternUpdates( patternObject, className )
+       Marker._addPatternFilter( patternObject )
     },
-    ArrayExpression: function ArrayExpression(patternNode, containerNode, components, cm, channel) {
-      var index = arguments.length <= 5 || arguments[5] === undefined ? 0 : arguments[5];
-      var patternType = arguments[6];
-      var patternObject = arguments[7];
 
-      var _Marker$_getNamesAndP7 = Marker._getNamesAndPosition(patternNode, containerNode, components, index, patternType);
+    ArrayExpression( patternNode, containerNode, components, cm, channel, index=0, patternType, patternObject ) {
+      let [ patternName, start, end ] = Marker._getNamesAndPosition( 
+        patternNode, 
+        containerNode, 
+        components, 
+        index, 
+        patternType 
+      )
+      
+      let count = 0
 
-      var _Marker$_getNamesAndP8 = _slicedToArray(_Marker$_getNamesAndP7, 3);
+      for( let element of patternNode.elements ) {
+        let cssClassName = patternName + '_' + count,
+            elementStart = Object.assign( {}, start ),
+            elementEnd   = Object.assign( {}, end   ),
+            marker
+        
+        elementStart.ch = element.start + containerNode.horizontalOffset
+        elementEnd.ch   = element.end   + containerNode.horizontalOffset
 
-      var patternName = _Marker$_getNamesAndP8[0];
-      var start = _Marker$_getNamesAndP8[1];
-      var end = _Marker$_getNamesAndP8[2];
+        if( element.type === 'BinaryExpression' ) {
+          marker = cm.markText( elementStart, elementEnd, { 
+            'className': cssClassName + ' annotation',
+             startStyle: 'annotation-no-right-border',
+             endStyle: 'annotation-no-left-border',
+             inclusiveLeft:true, inclusiveRight:true
+          })
+
+          // create specific border for operator: top, bottom, no sides
+          const divStart = Object.assign( {}, elementStart )
+          const divEnd   = Object.assign( {}, elementEnd )
+
+          divStart.ch += 1
+          divEnd.ch -= 1
+
+          const marker2 = cm.markText( divStart, divEnd, { className:cssClassName + '_binop annotation-binop' })
 
 
-      var count = 0;
+        }else if (element.type === 'UnaryExpression' ) {
+          marker = cm.markText( elementStart, elementEnd, { 
+            'className': cssClassName + ' annotation', 
+            inclusiveLeft: true,
+            inclusiveRight: true
+          })
 
-      var _iteratorNormalCompletion4 = true;
-      var _didIteratorError4 = false;
-      var _iteratorError4 = undefined;
+          let start2 = Object.assign( {}, elementStart )
+          start2.ch += 1
+          let marker2 = cm.markText( elementStart, start2, { 
+            'className': cssClassName + ' annotation-no-right-border', 
+            inclusiveLeft: true,
+            inclusiveRight: true
+          })
 
-      try {
-        for (var _iterator4 = patternNode.elements[Symbol.iterator](), _step5; !(_iteratorNormalCompletion4 = (_step5 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
-          var element = _step5.value;
+          let marker3 = cm.markText( start2, elementEnd, { 
+            'className': cssClassName + ' annotation-no-left-border', 
+            inclusiveLeft: true,
+            inclusiveRight: true
+          })
+        }else if( element.type === 'ArrayExpression' ) {
+           marker = cm.markText( elementStart, elementEnd, { 
+            'className': cssClassName + ' annotation',
+            inclusiveLeft:true, inclusiveRight:true,
+            startStyle:'annotation-left-border-start',
+            endStyle: 'annotation-right-border-end',
+           })
 
-          var cssClassName = patternName + '_' + count,
-              elementStart = Object.assign({}, start),
-              elementEnd = Object.assign({}, end),
-              marker = void 0;
+           // mark opening array bracket
+           const arrayStart_start = Object.assign( {}, elementStart )
+           const arrayStart_end  = Object.assign( {}, elementStart )
+           arrayStart_end.ch += 1
+           cm.markText( arrayStart_start, arrayStart_end, { className:cssClassName + '_start' })
 
-          elementStart.ch = element.start + containerNode.horizontalOffset;
-          elementEnd.ch = element.end + containerNode.horizontalOffset;
+           // mark closing array bracket
+           const arrayEnd_start = Object.assign( {}, elementEnd )
+           const arrayEnd_end   = Object.assign( {}, elementEnd )
+           arrayEnd_start.ch -=1
+           cm.markText( arrayEnd_start, arrayEnd_end, { className:cssClassName + '_end' })
 
-          if (element.type === 'BinaryExpression') {
-            marker = cm.markText(elementStart, elementEnd, {
-              'className': cssClassName + ' annotation',
-              startStyle: 'annotation-no-right-border',
-              endStyle: 'annotation-no-left-border',
-              inclusiveLeft: true, inclusiveRight: true
-            });
-
-            // create specific border for operator: top, bottom, no sides
-            var divStart = Object.assign({}, elementStart);
-            var divEnd = Object.assign({}, elementEnd);
-
-            divStart.ch += 1;
-            divEnd.ch -= 1;
-
-            var marker2 = cm.markText(divStart, divEnd, { className: cssClassName + '_binop annotation-binop' });
-          } else if (element.type === 'UnaryExpression') {
-            marker = cm.markText(elementStart, elementEnd, {
-              'className': cssClassName + ' annotation',
-              inclusiveLeft: true,
-              inclusiveRight: true
-            });
-
-            var start2 = Object.assign({}, elementStart);
-            start2.ch += 1;
-            var _marker = cm.markText(elementStart, start2, {
-              'className': cssClassName + ' annotation-no-right-border',
-              inclusiveLeft: true,
-              inclusiveRight: true
-            });
-
-            var marker3 = cm.markText(start2, elementEnd, {
-              'className': cssClassName + ' annotation-no-left-border',
-              inclusiveLeft: true,
-              inclusiveRight: true
-            });
-          } else if (element.type === 'ArrayExpression') {
-            marker = cm.markText(elementStart, elementEnd, {
-              'className': cssClassName + ' annotation',
-              inclusiveLeft: true, inclusiveRight: true,
-              startStyle: 'annotation-left-border-start',
-              endStyle: 'annotation-right-border-end'
-            });
-
-            // mark opening array bracket
-            var arrayStart_start = Object.assign({}, elementStart);
-            var arrayStart_end = Object.assign({}, elementStart);
-            arrayStart_end.ch += 1;
-            cm.markText(arrayStart_start, arrayStart_end, { className: cssClassName + '_start' });
-
-            // mark closing array bracket
-            var arrayEnd_start = Object.assign({}, elementEnd);
-            var arrayEnd_end = Object.assign({}, elementEnd);
-            arrayEnd_start.ch -= 1;
-            cm.markText(arrayEnd_start, arrayEnd_end, { className: cssClassName + '_end' });
-          } else {
-            marker = cm.markText(elementStart, elementEnd, {
-              'className': cssClassName + ' annotation',
-              inclusiveLeft: true, inclusiveRight: true
-            });
-          }
-
-          if (channel.markup.textMarkers[patternName] === undefined) channel.markup.textMarkers[patternName] = [];
-          channel.markup.textMarkers[patternName][count] = marker;
-
-          if (channel.markup.cssClasses[patternName] === undefined) channel.markup.cssClasses[patternName] = [];
-          channel.markup.cssClasses[patternName][count] = cssClassName;
-
-          count++;
+        }else{
+          marker = cm.markText( elementStart, elementEnd, { 
+            'className': cssClassName + ' annotation',
+            inclusiveLeft:true, inclusiveRight:true
+          })
         }
-      } catch (err) {
-        _didIteratorError4 = true;
-        _iteratorError4 = err;
-      } finally {
-        try {
-          if (!_iteratorNormalCompletion4 && _iterator4.return) {
-            _iterator4.return();
-          }
-        } finally {
-          if (_didIteratorError4) {
-            throw _iteratorError4;
-          }
-        }
+
+        if( channel.markup.textMarkers[ patternName  ] === undefined ) channel.markup.textMarkers[ patternName ] = []
+        channel.markup.textMarkers[ patternName ][ count ] = marker
+       
+        if( channel.markup.cssClasses[ patternName ] === undefined ) channel.markup.cssClasses[ patternName ] = []
+        channel.markup.cssClasses[ patternName ][ count ] = cssClassName 
+        
+        count++
       }
+      
+      let highlighted = { className:null, isArray:false },
+          cycle = Marker._createBorderCycleFunction( patternName, patternObject )
+      
+      patternObject.patternType = patternType 
+      patternObject.patternName = patternName
 
-      var highlighted = { className: null, isArray: false },
-          cycle = Marker._createBorderCycleFunction(patternName, patternObject);
+      patternObject.update = () => {
+        let className = '.' + patternName
+        
+        className += '_' + patternObject.update.currentIndex 
 
-      patternObject.patternType = patternType;
-      patternObject.patternName = patternName;
-
-      patternObject.update = function () {
-        var className = '.' + patternName;
-
-        className += '_' + patternObject.update.currentIndex;
-
-        if (highlighted.className !== className) {
+        if( highlighted.className !== className ) {
 
           // remove any previous annotations for this pattern
-          if (highlighted.className !== null) {
-            if (highlighted.isArray === false && highlighted.className) {
-              $(highlighted.className).remove('annotation-border');
-            } else {
-              $(highlighted.className).remove('annotation-array');
-              $(highlighted.className + '_start').remove('annotation-border-left');
-              $(highlighted.className + '_end').remove('annotation-border-right');
+          if( highlighted.className !== null ) {
+            if( highlighted.isArray === false && highlighted.className ) { 
+              $( highlighted.className ).remove( 'annotation-border' ) 
+            }else{
+              $( highlighted.className ).remove( 'annotation-array' )
+              $( highlighted.className + '_start' ).remove( 'annotation-border-left' )
+              $( highlighted.className + '_end' ).remove( 'annotation-border-right' )
 
-              if ($(highlighted.className + '_binop').length > 0) {
-                $(highlighted.className + '_binop').remove('annotation-binop-border');
+              if( $( highlighted.className + '_binop' ).length > 0 ) {
+                $( highlighted.className + '_binop' ).remove( 'annotation-binop-border' )
               }
+
             }
           }
 
           // add annotation for current pattern element
-          if (Array.isArray(patternObject.values[patternObject.update.currentIndex])) {
-            $(className).add('annotation-array');
-            $(className + '_start').add('annotation-border-left');
-            $(className + '_end').add('annotation-border-right');
-            highlighted.isArray = true;
-          } else {
-            $(className).add('annotation-border');
+          if( Array.isArray( patternObject.values[ patternObject.update.currentIndex ] ) ) {
+            $( className ).add( 'annotation-array' )
+            $( className + '_start' ).add( 'annotation-border-left' )
+            $( className + '_end' ).add( 'annotation-border-right' )
+            highlighted.isArray = true
+          }else{
+            $( className ).add( 'annotation-border' )
 
-            if ($(className + '_binop').length > 0) {
-              $(className + '_binop').add('annotation-binop-border');
+            if( $( className + '_binop' ).length > 0 ) {
+              $( className + '_binop' ).add( 'annotation-binop-border' )
             }
-            highlighted.isArray = false;
+            highlighted.isArray = false
           }
 
-          highlighted.className = className;
+          highlighted.className = className
 
-          cycle.clear();
-        } else {
-          cycle();
+          //cycle.clear()
+        }else{
+          cycle( true ) // pass true for arrays
         }
-      };
+      }
 
-      patternObject.clear = function () {
-        if (highlighted.className !== null) {
-          $(highlighted.className).remove('annotation-border');
-        }
-        cycle.clear();
-      };
+      patternObject.clear = () => {
+        if( highlighted.className !== null ) { $( highlighted.className ).remove( 'annotation-border' ) }
+        cycle.clear()
+      }
 
-      Marker._addPatternFilter(patternObject);
-      patternObject._onchange = function () {
-        Marker._updatePatternContents(patternObject, patternName, channel);
-      };
+      Marker._addPatternFilter( patternObject )
+      patternObject._onchange = () => { Marker._updatePatternContents( patternObject, patternName, channel ) }
     },
-
 
     // CallExpression denotes an array (or other object) that calls a method, like .rnd()
     // could also represent an anonymous function call, like Rndi(19,40)
-    CallExpression: function CallExpression(patternNode, containerNode, components, cm, track) {
-      var index = arguments.length <= 5 || arguments[5] === undefined ? 0 : arguments[5];
-      var patternType = arguments[6];
-      var patternObject = arguments[7];
-
-      var args = Array.prototype.slice.call(arguments, 0);
+    CallExpression( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) {
+      var args = Array.prototype.slice.call( arguments, 0 )
       // console.log( patternNode.callee.type, patternObject )
 
-      if (patternNode.callee.type === 'MemberExpression' && patternNode.callee.object.type === 'ArrayExpression') {
-        args[0] = patternNode.callee.object;
+      if( patternNode.callee.type === 'MemberExpression' && patternNode.callee.object.type === 'ArrayExpression' ) {
+        args[ 0 ] = patternNode.callee.object
 
-        Marker._markPattern.ArrayExpression.apply(null, args);
-      } else if (patternNode.callee.type === 'Identifier') {
+        Marker._markPattern.ArrayExpression.apply( null, args )
+      } else if (patternNode.callee.type === 'Identifier' ) {
         // function like Euclid
-        Marker._markPattern.Identifier.apply(null, args);
+        Marker._markPattern.Identifier.apply( null, args )
       }
     },
-    FunctionExpression: function FunctionExpression(patternNode, containerNode, components, cm, channel) {
-      var index = arguments.length <= 5 || arguments[5] === undefined ? 0 : arguments[5];
 
-      var _Marker$_markPattern;
-
-      var patternType = arguments[6];
-      var patternObject = arguments[7];
-
-      var args = Array.prototype.slice.call(arguments, 0);
-      (_Marker$_markPattern = Marker._markPattern).Identifier.apply(_Marker$_markPattern, _toConsumableArray(args));
+    FunctionExpression( patternNode, containerNode, components, cm, channel, index=0, patternType, patternObject ) {
+      const args = Array.prototype.slice.call( arguments, 0 )
+      Marker._markPattern.Identifier( ...args )
     },
-    ArrowFunctionExpression: function ArrowFunctionExpression(patternNode, containerNode, components, cm, channel) {
-      var index = arguments.length <= 5 || arguments[5] === undefined ? 0 : arguments[5];
 
-      var _Marker$_markPattern2;
-
-      var patternType = arguments[6];
-      var patternObject = arguments[7];
-
-      var args = Array.prototype.slice.call(arguments, 0);
-      (_Marker$_markPattern2 = Marker._markPattern).Identifier.apply(_Marker$_markPattern2, _toConsumableArray(args));
+    ArrowFunctionExpression( patternNode, containerNode, components, cm, channel, index=0, patternType, patternObject ) {
+      const args = Array.prototype.slice.call( arguments, 0 )
+      Marker._markPattern.Identifier( ...args )
     },
-    Identifier: function Identifier(patternNode, containerNode, components, cm, track) {
-      var index = arguments.length <= 5 || arguments[5] === undefined ? 0 : arguments[5];
-      var patternType = arguments[6];
-      var patternObject = arguments[7];
 
+    Identifier( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) {
       // mark up anonymous functions with comments here... 
-      var _Marker$_getNamesAndP9 = Marker._getNamesAndPosition(patternNode, containerNode, components, index, patternType);
+      let [ className, start, end ] = Marker._getNamesAndPosition( patternNode, containerNode, components, index, patternType ),
+          commentStart = end,
+          commentEnd = {},
+          marker = null
+      
+      Object.assign( commentEnd, commentStart )
+      
+      commentEnd.ch += 1
 
-      var _Marker$_getNamesAndP10 = _slicedToArray(_Marker$_getNamesAndP9, 3);
-
-      var className = _Marker$_getNamesAndP10[0];
-      var start = _Marker$_getNamesAndP10[1];
-      var end = _Marker$_getNamesAndP10[2];
-      var commentStart = end;
-      var commentEnd = {};
-      var marker = null;
-
-      Object.assign(commentEnd, commentStart);
-
-      commentEnd.ch += 1;
-
-      marker = cm.markText(commentStart, commentEnd, { className: className });
-
+      marker = cm.markText( commentStart, commentEnd, { className })
+       
       //  if( track.markup.textMarkers[ className  ] === undefined ) track.markup.textMarkers[ className ] = []
       //  track.markup.textMarkers[ className ][ 0 ] = marker
       //  console.log( 'name', patternNode.callee.name )
-      var updateName = typeof patternNode.callee !== 'undefined' ? patternNode.callee.name : patternNode.name;
-      if (Marker.patternUpdates[updateName]) {
-        patternObject.update = Marker.patternUpdates[updateName](patternObject, marker, className, cm, track);
+      let updateName = typeof patternNode.callee !== 'undefined' ? patternNode.callee.name : patternNode.name 
+      if( Marker.patternUpdates[ updateName ] ) {
+        patternObject.update = Marker.patternUpdates[ updateName ]( patternObject, marker, className, cm, track )
       } else {
-        patternObject.update = Marker.patternUpdates.anonymousFunction(patternObject, marker, className, cm, track);
+        patternObject.update = Marker.patternUpdates.anonymousFunction( patternObject, marker, className, cm, track )
       }
-
-      patternObject.patternName = className;
+      
+      patternObject.patternName = className
       // store value changes in array and then pop them every time the annotation is updated
-      patternObject.update.value = [];
+      patternObject.update.value = []
 
-      Marker._addPatternFilter(patternObject);
-    }
+      Marker._addPatternFilter( patternObject )
+    }, 
   },
 
   patternUpdates: {
-    Euclid: function Euclid(patternObject, marker, className, cm, track) {
-      var val = '/* ' + patternObject.values.join('') + ' */',
+    Euclid: ( patternObject, marker, className, cm, track ) => {
+      let val ='/* ' + patternObject.values.join('')  + ' */',
           pos = marker.find(),
-          end = Object.assign({}, pos.to),
+          end = Object.assign( {}, pos.to ),
           annotationStartCh = pos.from.ch + 3,
-          annotationEndCh = annotationStartCh + 1,
-          memberAnnotationStart = Object.assign({}, pos.from),
-          memberAnnotationEnd = Object.assign({}, pos.to),
-          commentMarker = void 0,
-          currentMarker = void 0,
-          chEnd = void 0;
+          annotationEndCh   = annotationStartCh + 1,
+          memberAnnotationStart   = Object.assign( {}, pos.from ),
+          memberAnnotationEnd     = Object.assign( {}, pos.to ),
+          initialized = false,
+          markStart = null,
+          commentMarker,
+          currentMarker, chEnd
 
-      end.ch = pos.from.ch + val.length;
+      end.ch = pos.from.ch + val.length
 
-      pos.to.ch -= 1;
-      cm.replaceRange(val, pos.from, pos.to);
+      pos.to.ch -= 1
+      cm.replaceRange( val, pos.from, pos.to )
 
-      patternObject.commentMarker = cm.markText(pos.from, end, { className: className, atomic: true }); //replacedWith:element })
+      patternObject.commentMarker = cm.markText( pos.from, end, { className, atomic:false}) //replacedWith:element })
 
-      track.markup.textMarkers[className] = {};
-
-      var mark = function mark() {
-        memberAnnotationStart.ch = annotationStartCh;
-        memberAnnotationEnd.ch = annotationEndCh;
-
-        for (var i = 0; i < patternObject.values.length; i++) {
-          track.markup.textMarkers[className][i] = cm.markText(memberAnnotationStart, memberAnnotationEnd, { 'className': className + '_' + i });
-
-          memberAnnotationStart.ch += 1;
-          memberAnnotationEnd.ch += 1;
+      track.markup.textMarkers[ className ] = {}
+      
+      let mark = () => {
+        // first time through, use the position given to us by the parser
+        let start, end
+        if( initialized === false ) {
+          memberAnnotationStart.ch = annotationStartCh
+          memberAnnotationEnd.ch   = annotationEndCh
+          initialized = true
+        }else{
+          // after the first time through, every update to the pattern store the current
+          // position of the first element (in markStart) before replacing. Use this to generate position
+          // info. REPLACING TEXT REMOVES TEXT MARKERS.
+          start = markStart
+          memberAnnotationStart.ch = start.from.ch
+          memberAnnotationEnd.ch = start.from.ch + 1 
         }
-      };
 
-      mark();
+        for( let i = 0; i < patternObject.values.length; i++ ) {
+          track.markup.textMarkers[ className ][ i ] = cm.markText(
+            memberAnnotationStart,  memberAnnotationEnd,
+            { 'className': `${className}_${i}` }
+          )
+
+          memberAnnotationStart.ch += 1
+          memberAnnotationEnd.ch   += 1
+        }
+        
+        if( start !== undefined ) {
+          start.ch -= 3
+          end = Object.assign({}, start)
+          end.ch = memberAnnotationEnd.ch + 3
+          patternObject.commentMarker = cm.markText( start, end, { className, atomic:true })
+        }
+      }
+      
+      mark()
 
       // XXX: there's a bug when you sequence pattern transformations, and then insert newlines ABOVE the annotation
-      var count = 0,
-          span = void 0,
-          update = void 0,
-          activeSpans = [];
+      let count = 0, span, update, activeSpans = []
 
-      update = function update() {
-        var currentIdx = count++ % patternObject.values.length;
-
-        if (span !== undefined) {
-          span.remove('euclid0');
+      update = () => {
+        let currentIdx = count++ % patternObject.values.length
+        
+        if( span !== undefined ) {
+          span.remove( 'euclid0' )
         }
 
-        var spanName = '.' + className + '_' + currentIdx,
-            currentValue = patternObject.values[currentIdx];
+        let spanName = `.${className}_${currentIdx}`,
+            currentValue = patternObject.values[ currentIdx ]
+ 
+        span = $( spanName )
 
-        span = $(spanName);
-
-        if (currentValue === 1) {
-          span.add('euclid1');
-          activeSpans.push(span);
-          setTimeout(function () {
-            activeSpans.forEach(function (_span) {
-              return _span.remove('euclid1');
-            });
-            activeSpans.length = 0;
-          }, 50);
+        if( currentValue === 1 ) {
+          span.add( 'euclid1' )
+          activeSpans.push( span )
+          setTimeout( ()=> { 
+            activeSpans.forEach( _span => _span.remove( 'euclid1' ) )
+            activeSpans.length = 0 
+          }, 50 )
+        }else{
+          span.add( 'euclid0' )
         }
+      }
 
-        span.add('euclid0');
-      };
+      patternObject._onchange = () => {
+        let delay = Utility.beatsToMs( 1,  Gibber.Scheduler.bpm )
+        markStart = track.markup.textMarkers[ className ][ 0 ].find()
 
-      patternObject._onchange = function () {
-        var delay = Utility.beatsToMs(1, Gibber.Scheduler.bpm);
-        Gibber.Environment.animationScheduler.add(function () {
-          for (var i = 0; i < patternObject.values.length; i++) {
-
-            var markerCh = track.markup.textMarkers[className][i],
-                _pos = markerCh.find();
-
-            marker.doc.replaceRange('' + patternObject.values[i], _pos.from, _pos.to);
+        Gibber.Environment.animationScheduler.add( () => {
+          for( let i = 0; i < patternObject.values.length; i++ ) {
+   
+            let markerCh = track.markup.textMarkers[ className ][ i ],
+                pos = markerCh.find()
+            
+            marker.doc.replaceRange( '' + patternObject.values[ i ], pos.from, pos.to )
           }
-          mark();
-        }, delay);
-      };
+          mark()
+        }, delay ) 
+      }
 
-      patternObject.clear = function () {
-        try {
-          var commentPos = patternObject.commentMarker.find();
-          cm.replaceRange('', commentPos.from, commentPos.to);
-          patternObject.commentMarker.clear();
-        } catch (e) {
-          console.log('euclid annotation error:', e);
+      patternObject.clear = () => {
+        try{
+          let commentPos = patternObject.commentMarker.find()
+          cm.replaceRange( '', commentPos.from, commentPos.to )
+          patternObject.commentMarker.clear()
+        } catch( e ) {
+          console.log( 'euclid annotation error:', e )
         } // yes, I just did that XXX 
-      };
+      }
 
-      return update;
+      return update 
     },
-    anonymousFunction: function anonymousFunction(patternObject, marker, className, cm) {
-      patternObject.commentMarker = marker;
-      var update = function update() {
-        if (!patternObject.commentMarker) return;
-        var patternValue = '' + patternObject.update.value.pop();
+    anonymousFunction: ( patternObject, marker, className, cm ) => {
+      patternObject.commentMarker = marker
+      let update = () => {
+        if( !patternObject.commentMarker ) return
+        let patternValue = '' + patternObject.update.value.pop()
+        
+        if( patternValue.length > 8 ) patternValue = patternValue.slice(0,8) 
 
-        if (patternValue.length > 8) patternValue = patternValue.slice(0, 8);
-
-        var val = '/* ' + patternValue + ' */,',
+        let val ='/* ' + patternValue + ' */,',
             pos = patternObject.commentMarker.find(),
-            end = Object.assign({}, pos.to);
-
+            end = Object.assign( {}, pos.to )
+         
         //pos.from.ch += 1
-        end.ch = pos.from.ch + val.length;
+        end.ch = pos.from.ch + val.length 
         //pos.from.ch += 1
 
-        cm.replaceRange(val, pos.from, pos.to);
+        cm.replaceRange( val, pos.from, pos.to )
+        
+        if( patternObject.commentMarker ) patternObject.commentMarker.clear()
 
-        if (patternObject.commentMarker) patternObject.commentMarker.clear();
+        patternObject.commentMarker = cm.markText( pos.from, end, { className, atomic:false })
+      }
 
-        patternObject.commentMarker = cm.markText(pos.from, end, { className: className, atomic: true });
-      };
-
-      patternObject.clear = function () {
-        try {
-          var commentPos = patternObject.commentMarker.find();
-          commentPos.to.ch -= 1; // XXX wish I didn't have to do this
-          cm.replaceRange('', commentPos.from, commentPos.to);
-          patternObject.commentMarker.clear();
-          delete patternObject.commentMarker;
-        } catch (e) {} // yes, I just did that XXX 
-      };
-      return update;
+      patternObject.clear = () => {
+        try{
+          let commentPos = patternObject.commentMarker.find()
+          commentPos.to.ch -= 1 // XXX wish I didn't have to do this
+          cm.replaceRange( '', commentPos.from, commentPos.to )
+          patternObject.commentMarker.clear()
+          delete patternObject.commentMarker
+        } catch( e ) {} // yes, I just did that XXX 
+      }
+      return update
     }
   },
 
-  functions: {
-    Score: function Score(node, cm, track, objectName) {
-      var vOffset = arguments.length <= 4 || arguments[4] === undefined ? 0 : arguments[4];
-
-      var timelineNodes = node.arguments[0].elements;
+  functions:{
+    Score( node, cm, track, objectName, vOffset=0 ) {
+      let timelineNodes = node.arguments[ 0 ].elements
       //console.log( timelineNodes )
-      track.markup.textMarkers['score'] = [];
+      track.markup.textMarkers[ 'score' ] = []
 
-      for (var i = 0; i < timelineNodes.length; i += 2) {
-        var timeNode = timelineNodes[i],
-            functionNode = timelineNodes[i + 1];
+      for( let i = 0; i < timelineNodes.length; i+=2 ) {
+        let timeNode = timelineNodes[ i ],
+            functionNode = timelineNodes[ i + 1 ]
+            
+        functionNode.loc.start.line += vOffset - 1
+        functionNode.loc.end.line   += vOffset - 1
+        functionNode.loc.start.ch = functionNode.loc.start.column
+        functionNode.loc.end.ch = functionNode.loc.end.column
 
-        functionNode.loc.start.line += vOffset - 1;
-        functionNode.loc.end.line += vOffset - 1;
-        functionNode.loc.start.ch = functionNode.loc.start.column;
-        functionNode.loc.end.ch = functionNode.loc.end.column;
+        let marker = cm.markText( functionNode.loc.start, functionNode.loc.end, { className:`score${i/2}` } )
+        track.markup.textMarkers[ 'score' ][ i/2 ] = marker
 
-        var marker = cm.markText(functionNode.loc.start, functionNode.loc.end, { className: 'score' + i / 2 });
-        track.markup.textMarkers['score'][i / 2] = marker;
       }
 
-      var lastClass = 'score0';
-      $('.' + lastClass).add('scoreCurrentIndex');
+      let lastClass = 'score0'
+      $( '.' + lastClass ).add( 'scoreCurrentIndex' )
       // TODO: global object usage is baaaad methinks?
-      window[objectName].onadvance = function (idx) {
-        $('.' + lastClass).remove('scoreCurrentIndex');
-        lastClass = 'score' + idx;
-        $('.' + lastClass).add('scoreCurrentIndex');
-      };
-    },
-    Steps: function Steps(node, cm, track, objectName) {
-      var vOffset = arguments.length <= 4 || arguments[4] === undefined ? 0 : arguments[4];
-
-      var steps = node.arguments[0].properties;
-
-      track.markup.textMarkers['step'] = [];
-      track.markup.textMarkers['step'].children = [];
-
-      var mark = function mark(_step, _key, _cm, _track) {
-        for (var i = 0; i < _step.value.length; i++) {
-          var pos = { loc: { start: {}, end: {} } };
-          Object.assign(pos.loc.start, _step.loc.start);
-          Object.assign(pos.loc.end, _step.loc.end);
-          pos.loc.start.ch += i;
-          pos.loc.end.ch = pos.loc.start.ch + 1;
-          var posMark = _cm.markText(pos.loc.start, pos.loc.end, { className: 'step_' + _key + '_' + i });
-          _track.markup.textMarkers.step[_key].pattern[i] = posMark;
-        }
-      };
-
-      var _loop = function _loop(key) {
-        var step = steps[key].value;
-
-        if (step && step.value) {
-          (function () {
-            // ensure it is a correctly formed step
-            step.loc.start.line += vOffset - 1;
-            step.loc.end.line += vOffset - 1;
-            step.loc.start.ch = step.loc.start.column + 1;
-            step.loc.end.ch = step.loc.end.column - 1;
-
-            var marker = cm.markText(step.loc.start, step.loc.end, { className: 'step' + key });
-            track.markup.textMarkers.step[key] = marker;
-
-            track.markup.textMarkers.step[key].pattern = [];
-
-            mark(step, key, cm, track);
-
-            var count = 0,
-                span = void 0,
-                _update = void 0,
-                _key = steps[key].key.value,
-                patternObject = window[objectName].seqs[_key].values;
-
-            _update = function update() {
-              var currentIdx = _update.currentIndex; // count++ % step.value.length
-
-              if (span !== undefined) {
-                span.remove('euclid0');
-                span.remove('euclid1');
-              }
-
-              var spanName = '.step_' + key + '_' + currentIdx,
-                  currentValue = patternObject.update.value.pop(); //step.value[ currentIdx ]
-
-              span = $(spanName);
-
-              if (currentValue !== Gibber.Seq.DO_NOT_OUTPUT) {
-                span.add('euclid1');
-                setTimeout(function () {
-                  span.remove('euclid1');
-                }, 50);
-              }
-
-              span.add('euclid0');
-            };
-
-            patternObject._onchange = function () {
-              var delay = Utility.beatsToMs(1, Gibber.Scheduler.bpm);
-              Gibber.Environment.animationScheduler.add(function () {
-                marker.doc.replaceRange(patternObject.values.join(''), step.loc.start, step.loc.end);
-                mark(step, key, cm, track);
-              }, delay);
-            };
-
-            patternObject.update = _update;
-            patternObject.update.value = [];
-
-            Marker._addPatternFilter(patternObject);
-          })();
-        }
-      };
-
-      for (var key in steps) {
-        _loop(key);
+      window[ objectName ].onadvance = ( idx ) => {
+        $( '.' + lastClass ).remove( 'scoreCurrentIndex' )
+        lastClass = `score${idx}`
+        $( '.' + lastClass ).add( 'scoreCurrentIndex' ) 
       }
-    }
+    },
+
+    Steps( node, cm, track, objectName, vOffset=0 ) {
+      let steps = node.arguments[ 0 ].properties
+
+      track.markup.textMarkers[ 'step' ] = []
+      track.markup.textMarkers[ 'step' ].children = []
+
+      let mark = ( _step, _key, _cm, _track ) => {
+        for( let i = 0; i < _step.value.length; i++ ) {
+          let pos = { loc:{ start:{}, end:{}} }
+          Object.assign( pos.loc.start, _step.loc.start )
+          Object.assign( pos.loc.end  , _step.loc.end   )
+          pos.loc.start.ch += i
+          pos.loc.end.ch = pos.loc.start.ch + 1
+          let posMark = _cm.markText( pos.loc.start, pos.loc.end, { className:`step_${_key}_${i}` })
+          _track.markup.textMarkers.step[ _key ].pattern[ i ] = posMark
+        }
+      }
+
+      for( let key in steps ) {
+        let step = steps[ key ].value
+
+        if( step && step.value ) { // ensure it is a correctly formed step
+          step.loc.start.line += vOffset - 1
+          step.loc.end.line   += vOffset - 1
+          step.loc.start.ch   = step.loc.start.column + 1
+          step.loc.end.ch     = step.loc.end.column - 1
+          
+          let marker = cm.markText( step.loc.start, step.loc.end, { className:`step${key}` } )
+          track.markup.textMarkers.step[ key ] = marker
+
+          track.markup.textMarkers.step[ key ].pattern = []
+          
+          mark( step, key, cm, track )
+
+          let count = 0, span, update,
+              _key = steps[ key ].key.value,
+              patternObject = window[ objectName ].seqs[ _key ].values
+
+          update = () => {
+            let currentIdx = update.currentIndex // count++ % step.value.length
+            
+            if( span !== undefined ) {
+              span.remove( 'euclid0' )
+              span.remove( 'euclid1' )
+            }
+            
+            let spanName = `.step_${key}_${currentIdx}`,
+                currentValue = patternObject.update.value.pop() //step.value[ currentIdx ]
+            
+            span = $( spanName )
+
+            if( currentValue !== Gibber.Seq.DO_NOT_OUTPUT ) {
+              span.add( 'euclid1' )
+              setTimeout( ()=> { span.remove( 'euclid1' ) }, 50 )
+            }
+            
+            span.add( 'euclid0' )
+          }
+
+          patternObject._onchange = () => {
+            let delay = Utility.beatsToMs( 1,  Gibber.Scheduler.bpm )
+            Gibber.Environment.animationScheduler.add( () => {
+              marker.doc.replaceRange( patternObject.values.join(''), step.loc.start, step.loc.end )
+              mark( step, key, cm, track )
+            }, delay ) 
+          }
+
+          patternObject.update = update
+          patternObject.update.value = []
+
+          Marker._addPatternFilter( patternObject )
+        }
+      }
+
+    },  
   },
 
-  _updatePatternContents: function _updatePatternContents(pattern, patternClassName, track) {
-    var marker = void 0,
-        pos = void 0,
-        newMarker = void 0;
 
-    if (pattern.values.length > 1) {
+  _updatePatternContents( pattern, patternClassName, track ) {
+    let marker, pos, newMarker
+
+    if( pattern.values.length > 1 ) {
       // array of values
-      for (var i = 0; i < pattern.values.length; i++) {
-        marker = track.markup.textMarkers[patternClassName][i];
-        pos = marker.find();
+      for( let i = 0; i < pattern.values.length; i++) {
+        marker = track.markup.textMarkers[ patternClassName ][ i ]
+        pos = marker.find()
 
-        marker.doc.replaceRange('' + pattern.values[i], pos.from, pos.to);
+        marker.doc.replaceRange( '' + pattern.values[ i ], pos.from, pos.to )
       }
-    } else {
+    }else{
       // single literal
-      marker = track.markup.textMarkers[patternClassName];
-      pos = marker.find();
+      marker = track.markup.textMarkers[ patternClassName ]
+      pos = marker.find()
 
-      marker.doc.replaceRange('' + pattern.values[0], pos.from, pos.to);
+      marker.doc.replaceRange( '' + pattern.values[ 0 ], pos.from, pos.to )
       // newMarker = marker.doc.markText( pos.from, pos.to, { className: patternClassName + ' annotation-border' } )
       // track.markup.textMarkers[ patternClassName ] = newMarker
     }
   },
-  _getNamesAndPosition: function _getNamesAndPosition(patternNode, containerNode, components) {
-    var index = arguments.length <= 3 || arguments[3] === undefined ? 0 : arguments[3];
-    var patternType = arguments[4];
 
-    var start = patternNode.loc.start,
-        end = patternNode.loc.end,
-        className = components.slice(0),
-        cssName = null,
-        marker = void 0;
+  _getNamesAndPosition( patternNode, containerNode, components, index=0, patternType ) {
+    let start   = patternNode.loc.start,
+        end     = patternNode.loc.end,
+        className = components.slice( 0 ),
+        cssName   = null,
+        marker
 
-    if (className.includes('this')) className.shift();
+     if( className.includes( 'this' ) ) className.shift()
 
-    if (className.includes('tracks')) {
-      //className = [ 'tracks', components[1] ].concat( components.slice( 2, components.length - 1 ) )
-      if (index !== 0) {
-        className.splice(3, 0, index);
-      }
-    } else {
-      if (index !== 0) {
-        className.splice(1, 0, index); // insert index into array
-      }
-    }
+     if( className.includes( 'tracks' ) ) {
+       //className = [ 'tracks', components[1] ].concat( components.slice( 2, components.length - 1 ) )
+       if( index !== 0 ) {
+         className.splice( 3, 0, index )
+       }
+     }else{
+       if( index !== 0 ) {
+         className.splice( 1, 0, index ) // insert index into array
+       }
+     }
 
-    className.push(patternType);
-    className = className.join('_');
+     className.push( patternType )
+     className = className.join( '_' )
 
-    var expr = /\[\]/gi;
-    className = className.replace(expr, '');
+     let expr = /\[\]/gi
+     className = className.replace( expr, '' )
 
-    expr = /\-/gi;
-    className = className.replace(expr, '_');
+     expr = /\-/gi
+     className = className.replace( expr, '_' )
 
-    expr = /\ /gi;
-    className = className.replace(expr, '_');
+     expr = /\ /gi
+     className = className.replace( expr, '_' )
 
-    start.line += containerNode.verticalOffset - 1;
-    end.line += containerNode.verticalOffset - 1;
-    start.ch = start.column + containerNode.horizontalOffset;
-    end.ch = end.column + containerNode.horizontalOffset;
+     start.line += containerNode.verticalOffset - 1
+     end.line   += containerNode.verticalOffset - 1
+     start.ch   = start.column + containerNode.horizontalOffset
+     end.ch     = end.column + containerNode.horizontalOffset
 
-    return [className, start, end];
+     return [ className, start, end ]
   },
-  _getCallExpressionHierarchy: function _getCallExpressionHierarchy(expr) {
-    var callee = expr.callee,
+
+  _getCallExpressionHierarchy( expr ) {
+    let callee = expr.callee,
         obj = callee.object,
         components = [],
         index = 0,
-        depth = 0;
+        depth = 0
 
-    while (obj !== undefined) {
-      var pushValue = null;
+    while( obj !== undefined ) {
+      let pushValue = null
 
-      if (obj.type === 'ThisExpression') {
-        pushValue = 'this';
-      } else if (obj.property && obj.property.name) {
-        pushValue = obj.property.name;
-      } else if (obj.property && obj.property.type === 'Literal') {
-        // array index
-        pushValue = obj.property.value;
+      if( obj.type === 'ThisExpression' ) {
+        pushValue = 'this' 
+      }else if( obj.property && obj.property.name ){
+        pushValue = obj.property.name
+      }else if( obj.property && obj.property.type === 'Literal' ){ // array index
+        pushValue = obj.property.value
 
         // don't fall for tracks[0] etc.
-        if (depth > 1) index = obj.property.value;
-      } else if (obj.type === 'Identifier') {
-        pushValue = obj.name;
+        if( depth > 1 ) index = obj.property.value
+      }else if( obj.type === 'Identifier' ) {
+        pushValue = obj.name
       }
+      
+      if( pushValue !== null ) components.push( pushValue ) 
 
-      if (pushValue !== null) components.push(pushValue);
-
-      depth++;
-      obj = obj.object;
+      depth++
+      obj = obj.object
     }
+    
+    components.reverse()
+    
+    if( callee.property )
+      components.push( callee.property.name )
 
-    components.reverse();
+    return [ components, depth, index ]
+  },
 
-    if (callee.property) components.push(callee.property.name);
+}
 
-    return [components, depth, index];
-  }
-};
+module.exports = Marker
 
-module.exports = Marker;
-},{"./utility.js":22,"acorn":24}],5:[function(require,module,exports){
-'use strict';
+},{"./utility.js":96,"acorn":99}],78:[function(require,module,exports){
+let Gibber = null
 
-var Gibber = null;
-
-var Communication = {
+let Communication = {
   webSocketPort: 8081, // default?
   socketInitialized: false,
   connectMsg: null,
   debug: {
-    input: false,
-    output: false
+    input:false,
+    output:false
+  },
+  
+  init( _Gibber ) { 
+    Gibber = _Gibber
+    this.createWebSocket()
+    this.send = this.send.bind( Communication )
   },
 
-  init: function init(_Gibber) {
-    Gibber = _Gibber;
-    this.createWebSocket();
-    this.send = this.send.bind(Communication);
-  },
-  createWebSocket: function createWebSocket() {
-    var _this = this;
+  createWebSocket() {
+    if ( this.connected ) return
 
-    if (this.connected) return;
+    if ( 'WebSocket' in window ) {
+      //Gibber.log( 'Connecting' , this.querystring.host, this.querystring.port )
+      if( this.connectMsg === null ) { 
+        this.connectMsg = Gibber.log( 'connecting' )
+      }else{
+        this.connectMsg.innerText += '.'
+      }
 
-    if ('WebSocket' in window) {
-      (function () {
-        //Gibber.log( 'Connecting' , this.querystring.host, this.querystring.port )
-        if (_this.connectMsg === null) {
-          _this.connectMsg = Gibber.log('connecting');
-        } else {
-          _this.connectMsg.innerText += '.';
+      let host = this.querystring.host || '127.0.0.1',
+          port = this.querystring.port || '8081',
+          address = "ws://" + host + ":" + port
+      
+      this.wsocket = new WebSocket( address )
+      
+      this.wsocket.onopen = function(ev) {        
+        //Gibber.log( 'CONNECTED to ' + address )
+        Gibber.log('gibberwocky is ready to burble.')
+        this.connected = true
+        
+        Gibber.Live.init()
+        // cancel the auto-reconnect task:
+        if ( this.connectTask !== undefined ) clearTimeout( this.connectTask )
+          
+        // apparently this first reply is necessary
+        this.wsocket.send( 'update on' )
+      }.bind( Communication )
+
+      this.wsocket.onclose = function(ev) {
+        if( this.connected ) {
+          Gibber.log( 'disconnected from ' + address )
+          this.connectMsg = null
+          this.connected = false
         }
 
-        var host = _this.querystring.host || '127.0.0.1',
-            port = _this.querystring.port || '8081',
-            address = "ws://" + host + ":" + port;
+        // set up an auto-reconnect task:
+        this.connectTask = setTimeout( this.createWebSocket.bind( Communication ) , 1000 )
+      }.bind( Communication )
 
-        _this.wsocket = new WebSocket(address);
+      this.wsocket.onmessage = function( ev ) {
+        //Gibber.log('msg:', ev )
+        this.handleMessage( ev )
+      }.bind( Communication )
 
-        _this.wsocket.onopen = function (ev) {
-          //Gibber.log( 'CONNECTED to ' + address )
-          Gibber.log('gibberwocky is ready to burble.');
-          this.connected = true;
+      this.wsocket.onerror = function( ev ) {
+        Gibber.log( 'WebSocket error' )
+      }.bind( Communication )
 
-          Gibber.Live.init();
-          // cancel the auto-reconnect task:
-          if (this.connectTask !== undefined) clearTimeout(this.connectTask);
-
-          // apparently this first reply is necessary
-          this.wsocket.send('update on');
-        }.bind(Communication);
-
-        _this.wsocket.onclose = function (ev) {
-          if (this.connected) {
-            Gibber.log('disconnected from ' + address);
-            this.connectMsg = null;
-            this.connected = false;
-          }
-
-          // set up an auto-reconnect task:
-          this.connectTask = setTimeout(this.createWebSocket.bind(Communication), 1000);
-        }.bind(Communication);
-
-        _this.wsocket.onmessage = function (ev) {
-          //Gibber.log('msg:', ev )
-          this.handleMessage(ev);
-        }.bind(Communication);
-
-        _this.wsocket.onerror = function (ev) {
-          Gibber.log('WebSocket error');
-        }.bind(Communication);
-      })();
     } else {
-      post('WebSockets are not available in this browser!!!');
+      post( 'WebSockets are not available in this browser!!!' );
     }
+  
   },
-
 
   callbacks: {},
 
-  count: 0,
+  count:0,
 
-  handleMessage: function handleMessage(_msg) {
-    var id = void 0,
-        key = void 0,
-        data = void 0,
-        msg = void 0;
-
-    if (_msg.data.charAt(0) === '{') {
-      data = _msg.data;
-      key = null;
-      if (Communication.callbacks.scene) {
-        Communication.callbacks.scene(JSON.parse(data));
+  handleMessage( _msg ) {
+    let id, key, data, msg
+    
+    if( _msg.data.charAt( 0 ) === '{' ) {
+      data = _msg.data
+      key = null
+      if( Communication.callbacks.scene ) {
+        Communication.callbacks.scene( JSON.parse( data ) )
       }
-    } else if (_msg.data.includes('snapshot')) {
-      data = _msg.data.substr(9).split(' ');
-      for (var i = 0; i < data.length; i += 2) {
-        var param_id = data[i];
-        var param_value = data[i + 1];
+    }else if( _msg.data.includes( 'snapshot' ) ) {
+      data = _msg.data.substr( 9 ).split(' ')
+      for ( let i = 0; i < data.length; i += 2 ) {
+        let param_id = data[ i ]
+        let param_value = data[ i+1 ] 
 
-        if (param_value < 0) {
-          param_value = 0;
-        } else if (param_value > 1) {
-          param_value = 1;
+        if( param_value < 0 ) {
+          param_value = 0
+        }else if( param_value > 1 ) {
+          param_value = 1
         }
-
-        Gibber.Environment.codeMarkup.updateWidget(param_id, 1 - param_value);
+          
+        Gibber.Environment.codeMarkup.updateWidget( param_id, 1 - param_value )
       }
 
-      return;
-    } else {
-      msg = _msg.data.split(' ');
-      id = msg[0];
-      key = msg[1];
+      return
+    }else{
+      msg = _msg.data.split( ' ' )
+      id = msg[ 0 ]
+      key = msg[ 1 ]
 
-      if (key === 'err') {
-        data = msg.slice(2).join(' ');
-      } else {
-        data = msg[2];
+      if( key === 'err' ) {
+        data = msg.slice( 2 ).join( ' ' )
+      }else{
+        data = msg[ 2 ]
+      }
+    }
+    
+    if( id === undefined ) return
+
+    if( Communication.debug.input ) {
+      if( id !== undefined ) { 
+        Gibber.log( 'debug.input:', id, key, data )
+      }else{
+        Gibber.log( 'debug.input (obj):', JSON.parse( data ) )
       }
     }
 
-    if (id === undefined) return;
-
-    if (Communication.debug.input) {
-      if (id !== undefined) {
-        Gibber.log('debug.input:', id, key, data);
-      } else {
-        Gibber.log('debug.input (obj):', JSON.parse(data));
-      }
-    }
-
-    switch (key) {
-      case 'seq':
-        if (data === undefined) {
-          console.log('faulty ws seq message', _msg.data);
-        } else {
-          Gibber.Scheduler.seq(data);
+    switch( key ) {
+      case 'seq' :
+        if( data === undefined ) {
+          console.log( 'faulty ws seq message', _msg.data )
+        }else{
+          Gibber.Scheduler.seq( data );
         }
         break;
 
-      case 'clr':
-        Gibber.Environment.clearConsole();
+      case 'clr' :
+        Gibber.Environment.clearConsole()
         break;
 
-      case 'bpm':
-        Gibber.Scheduler.bpm = parseFloat(data);
+      case 'bpm' :
+        Gibber.Scheduler.bpm = parseFloat( data )
         break;
 
       case 'err':
-        Gibber.Environment.error(data);
+        Gibber.Environment.error( data )
         break;
 
       default:
         break;
     }
   },
-  send: function send(code) {
-    if (Communication.connected) {
-      if (Communication.debug.output) Gibber.log('beat:', Gibber.Scheduler.currentBeat, 'msg:', code);
-      Communication.wsocket.send(code);
+
+  send( code ) {
+    if( Communication.connected ) {
+      if( Communication.debug.output ) Gibber.log( 'beat:', Gibber.Scheduler.currentBeat, 'msg:', code  )
+      Communication.wsocket.send( code )
     }
   },
 
-
-  querystring: null
-};
-
-var qstr = window.location.search,
-    query = {},
-    a = qstr.substr(1).split('&');
-
-for (var i = 0; i < a.length; i++) {
-  var b = a[i].split('=');
-  query[decodeURIComponent(b[0])] = decodeURIComponent(b[1] || '');
+  querystring : null,
 }
 
-Communication.querystring = query;
+let qstr = window.location.search,
+    query = {},
+    a = qstr.substr( 1 ).split( '&' )
 
-module.exports = Communication;
-},{}],6:[function(require,module,exports){
-'use strict';
+for ( let i = 0; i < a.length; i++ ) {
+  let b = a[ i ].split( '=' )
+  query[ decodeURIComponent( b[0]) ] = decodeURIComponent( b[1] || '' )
+}
 
+Communication.querystring =  query
+
+module.exports = Communication
+
+},{}],79:[function(require,module,exports){
 // singleton 
-var Gibber = null,
-    CodeMirror = require('codemirror');
+let Gibber = null,
+    CodeMirror = require( 'codemirror' )
 
-require('../node_modules/codemirror/mode/javascript/javascript.js');
-require('../node_modules/codemirror/addon/edit/matchbrackets.js');
-require('../node_modules/codemirror/addon/edit/closebrackets.js');
-require('../node_modules/codemirror/addon/hint/show-hint.js');
-require('../node_modules/codemirror/addon/hint/javascript-hint.js');
+require( '../node_modules/codemirror/mode/javascript/javascript.js' )
+//require( '../node_modules/codemirror/addon/edit/matchbrackets.js' )
+require( '../node_modules/codemirror/addon/edit/closebrackets.js' )
+require( '../node_modules/codemirror/addon/hint/show-hint.js' )
+require( '../node_modules/codemirror/addon/hint/javascript-hint.js' )
 
-require('./tabs-standalone.microlib-latest.js');
+require( './tabs-standalone.microlib-latest.js' )
 
-var Environment = {
-  codeMarkup: require('./codeMarkup.js'),
+let Environment = {
+  codeMarkup: require( './codeMarkup.js' ),
   debug: false,
   _codemirror: CodeMirror,
-  animationScheduler: require('./animationScheduler.js'),
-  lomView: require('./lomView.js'),
-  consoleDiv: null,
-  consoleList: null,
+  animationScheduler: require( './animationScheduler.js' ),
+  lomView: require( './lomView.js' ),
+  consoleDiv:null,
+  consoleList:null,
+  annotations:true,
 
-  init: function init(gibber) {
-    Gibber = gibber;
+  init( gibber ) {
+    Gibber = gibber
 
-    this.createCodeMirror();
-    this.createSidePanel();
-    this.setupSplit();
-    this.sidebar = document.querySelector('#sidebar');
-    this.sidebar.isVisible = 1;
+    this.createCodeMirror()   
+    this.createSidePanel()
+    this.setupSplit()
+    this.sidebar = document.querySelector( '#sidebar' )
+    this.sidebar.isVisible = 1
     //this.lomView.init( Gibber )
-    this.animationScheduler.init();
-    this.editorWidth = document.querySelector('#editor').style.width;
+    this.animationScheduler.init()
+    this.editorWidth = document.querySelector( '#editor' ).style.width
   },
-  createSidePanel: function createSidePanel() {
-    this.tabs = new ML.Tabs('#tabs');
 
-    this.createConsole();
-    this.createDemoList();
+  createSidePanel() {
+    this.tabs = new ML.Tabs( '#tabs' )
+
+    this.createConsole()
+    this.createDemoList()
   },
-  setupSplit: function setupSplit() {
-    var splitDiv = document.querySelector('#splitBar'),
-        editor = document.querySelector('#editor'),
-        sidebar = document.querySelector('#sidebar'),
-        mousemove = void 0,
-        _mouseup = void 0;
+  
+  setupSplit() {
+    let splitDiv = document.querySelector( '#splitBar' ),
+        editor   = document.querySelector( '#editor'   ),
+        sidebar  = document.querySelector( '#sidebar'  ),
+        mousemove, mouseup
 
-    _mouseup = function mouseup(evt) {
-      window.removeEventListener('mousemove', mousemove);
-      window.removeEventListener('mouseup', _mouseup);
-    };
+    mouseup = evt => {
+      window.removeEventListener( 'mousemove', mousemove )
+      window.removeEventListener( 'mouseup', mouseup )
+    }
 
-    mousemove = function mousemove(evt) {
-      var splitPos = evt.clientX;
+    mousemove = evt => {
+      let splitPos = evt.clientX
 
-      editor.style.width = splitPos + 'px';
-      sidebar.style.left = splitPos + 'px';
-      sidebar.style.width = window.innerWidth - splitPos + 'px';
-    };
+      editor.style.width = splitPos + 'px'
+      sidebar.style.left = splitPos  + 'px'
+      sidebar.style.width = (window.innerWidth - splitPos) + 'px'
+    }
 
-    splitDiv.addEventListener('mousedown', function (evt) {
-      window.addEventListener('mousemove', mousemove);
-      window.addEventListener('mouseup', _mouseup);
-    });
+    splitDiv.addEventListener( 'mousedown', evt => {
+      window.addEventListener( 'mousemove', mousemove )
+      window.addEventListener( 'mouseup', mouseup )
+    })
+
   },
-  createCodeMirror: function createCodeMirror() {
-    CodeMirror.keyMap.gibber = this.keymap;
-    this.codemirror = CodeMirror(document.querySelector('#editor'), {
-      mode: 'javascript',
-      keyMap: 'gibber',
-      autofocus: true,
+
+  createCodeMirror() {
+    CodeMirror.keyMap.gibber = this.keymap
+    this.codemirror = CodeMirror( document.querySelector('#editor'), {
+      mode:'javascript', 
+      keyMap:'gibber',
+      autofocus:true, 
       value: Gibber.Examples.introduction,
       matchBrackets: true,
       autoCloseBrackets: true,
-      extraKeys: { "Ctrl-Space": "autocomplete" }
-    });
-    this.codemirror.setSize(null, '100%');
+      extraKeys: {"Ctrl-Space": "autocomplete"},
+      //theme:'the-matrix'
+    })
+    this.codemirror.setSize( null, '100%' ) 
   },
-  createConsole: function createConsole() {
 
+  createConsole() {
+    
     //this.console = //CodeMirror( document.querySelector('#console'), { mode:'javascript', autofocus:false, lineWrapping:true })
     //this.console.setSize( null, '100%' )
 
-    var list = document.createElement('ul');
+    let list = document.createElement( 'ul' )
 
-    list.setAttribute('id', 'console_list');
+    list.setAttribute( 'id', 'console_list' )
 
-    Environment.consoleList = list;
-    Environment.consoleDiv = document.querySelector('#console');
+    Environment.consoleList = list
+    Environment.consoleDiv = document.querySelector( '#console' )
 
-    Environment.consoleDiv.appendChild(list);
-
-    Environment.overrideError();
+    Environment.consoleDiv.appendChild( list )
+    
+    Environment.overrideError()
   },
-  overrideError: function overrideError() {
-    console.__error = console.error;
-    console.error = function () {
-      for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
-        args[_key] = arguments[_key];
-      }
 
-      Gibber.Environment.error.apply(null, args);
-      console.__error.apply(console, args);
-    };
-  },
-  replaceError: function replaceError() {
-    console.error = console.__error;
-  },
-  createDemoList: function createDemoList() {
-    var container = document.querySelector('#demos'),
-        list = document.createElement('ul');
-
-    var _loop = function _loop(demoName) {
-      var li = document.createElement('li'),
-          txt = Gibber.Examples[demoName];
-
-      li.innerText = demoName;
-
-      li.addEventListener('click', function () {
-        Environment.codemirror.setValue(txt);
-      });
-
-      list.appendChild(li);
-    };
-
-    for (var demoName in Gibber.Examples) {
-      _loop(demoName);
+  overrideError() {
+    console.__error = console.error
+    console.error = function(...args) {
+      Gibber.Environment.error.apply( null, args )
+      console.__error.apply( console, args )
     }
-
-    container.innerHTML = '';
-    container.appendChild(list);
   },
-  log: function log() {
-    for (var _len2 = arguments.length, args = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
-      args[_key2] = arguments[_key2];
+
+  replaceError() {
+    console.error = console.__error
+  },
+
+  createDemoList() {
+    let container = document.querySelector('#demos'),
+        list = document.createElement( 'ul' )
+
+    for( let demoName in Gibber.Examples ) {
+      let li = document.createElement( 'li' ),
+          txt = Gibber.Examples[ demoName ]
+      
+      li.innerText = demoName 
+
+      li.addEventListener( 'click', () => {
+        Environment.codemirror.setValue( txt )
+      })
+      
+      list.appendChild( li )
     }
-
-    var consoleItem = Environment.createConsoleItem(args);
-    Environment.consoleList.appendChild(consoleItem);
-    consoleItem.scrollIntoView();
-
-    return consoleItem;
-  },
-  error: function error() {
-    for (var _len3 = arguments.length, args = Array(_len3), _key3 = 0; _key3 < _len3; _key3++) {
-      args[_key3] = arguments[_key3];
-    }
-
-    var consoleItem = Environment.createConsoleItem(args);
-
-    consoleItem.setAttribute('class', 'console_error');
-
-    Environment.consoleList.appendChild(consoleItem);
-    consoleItem.scrollIntoView();
-  },
-  createConsoleItem: function createConsoleItem(args) {
-    var li = document.createElement('li');
-    li.innerText = args.join(' ');
-
-    return li;
-  },
-  clearConsole: function clearConsole() {
-    document.querySelector('#console_list').innerHTML = '';
+    
+    container.innerHTML = ''
+    container.appendChild( list )
   },
 
+  log( ...args ) {
+    let consoleItem = Environment.createConsoleItem( args )
+    Environment.consoleList.appendChild( consoleItem )
+    consoleItem.scrollIntoView()
 
-  keymap: {
-    fallthrough: 'default',
+    return consoleItem
+  },
 
-    'Ctrl-Enter': function CtrlEnter(cm) {
+  error( ...args ) {
+    let consoleItem = Environment.createConsoleItem( args )
+    
+    consoleItem.setAttribute( 'class', 'console_error' )
+
+    Environment.consoleList.appendChild( consoleItem )
+    consoleItem.scrollIntoView()
+  },
+  
+  createConsoleItem( args ) {
+    let li = document.createElement( 'li' )
+    li.innerText = args.join( ' ' )
+
+    return li
+  },
+
+  clearConsole() {
+    document.querySelector( '#console_list' ).innerHTML = ''
+  },
+
+  keymap : {
+    fallthrough:'default',
+
+    'Ctrl-Enter'( cm ) {
       try {
-        (function () {
-          var selectedCode = Environment.getSelectionCodeColumn(cm, false);
+        const selectedCode = Environment.getSelectionCodeColumn( cm, false )
 
-          Environment.flash(cm, selectedCode.selection);
+        Environment.flash( cm, selectedCode.selection )
+        
+        const func = new Function( selectedCode.code ).bind( Gibber.currentTrack ),
+              markupFunction = () => { 
+                Environment.codeMarkup.process( 
+                  selectedCode.code, 
+                  selectedCode.selection, 
+                  cm, 
+                  Gibber.currentTrack 
+                ) 
+              }
+        
+        markupFunction.origin  = func
 
-          var func = new Function(selectedCode.code).bind(Gibber.currentTrack),
-              markupFunction = function markupFunction() {
-            Environment.codeMarkup.process(selectedCode.code, selectedCode.selection, cm, Gibber.currentTrack);
-          };
-
-          markupFunction.origin = func;
-
-          if (!Environment.debug) {
-            Gibber.Scheduler.functionsToExecute.push(func);
-            Gibber.Scheduler.functionsToExecute.push(markupFunction);
-          } else {
-            func();
-            markupFunction();
-          }
-        })();
+        if( !Environment.debug ) {
+          Gibber.Scheduler.functionsToExecute.push( func )
+          if( Environment.annotations === true )
+            Gibber.Scheduler.functionsToExecute.push( markupFunction  )
+        }else{
+          func()
+          if( Environment.annotations === true )
+            markupFunction()
+        }
       } catch (e) {
-        console.log(e);
-        Environment.log('ERROR', e);
+        console.log( e )
+        Environment.log( 'ERROR', e )
       }
     },
-    'Alt-Enter': function AltEnter(cm) {
+    'Alt-Enter'( cm ) {
       try {
-        (function () {
-          var selectedCode = Environment.getSelectionCodeColumn(cm, true);
+        let selectedCode = Environment.getSelectionCodeColumn( cm, true )
 
-          Environment.flash(cm, selectedCode.selection);
+        Environment.flash( cm, selectedCode.selection )
+        
+        let func = new Function( selectedCode.code ).bind( Gibber.currentTrack ),
+            markupFunction = () => { 
+              Environment.codeMarkup.process( 
+                selectedCode.code, 
+                selectedCode.selection, 
+                cm, 
+                Gibber.currentTrack 
+              ) 
+            }
+        
+        markupFunction.origin  = func
 
-          var func = new Function(selectedCode.code).bind(Gibber.currentTrack),
-              markupFunction = function markupFunction() {
-            Environment.codeMarkup.process(selectedCode.code, selectedCode.selection, cm, Gibber.currentTrack);
-          };
+        if( !Environment.debug ) {
+          Gibber.Scheduler.functionsToExecute.push( func );
 
-          markupFunction.origin = func;
+          if( Environment.annotations === true )
+            Gibber.Scheduler.functionsToExecute.push( markupFunction  )
+        }else{
+          func()
 
-          if (!Environment.debug) {
-            Gibber.Scheduler.functionsToExecute.push(func);
-            Gibber.Scheduler.functionsToExecute.push(markupFunction);
-          } else {
-            func();
-            markupFunction();
-          }
-        })();
+          if( Environment.annotations === true )
+            markupFunction()
+        }
       } catch (e) {
-        console.log(e);
-        Environment.log('ERROR', e);
+        console.log( e )
+        Environment.log( 'ERROR', e )
       }
     },
-    'Ctrl-.': function Ctrl(cm) {
-      Gibber.clear();
-      Gibber.log('All sequencers stopped.');
+    'Ctrl-.'( cm ) {
+      Gibber.clear()
+      Gibber.log( 'All sequencers stopped.' )
     },
-    'Shift-Ctrl-C': function ShiftCtrlC(cm) {
-      Environment.sidebar.isVisible = !Environment.sidebar.isVisible;
-      var editor = document.querySelector('#editor');
-      if (!Environment.sidebar.isVisible) {
-        Environment.editorWidth = editor.style.width;
-        editor.style.width = '100%';
-      } else {
-        editor.style.width = Environment.editorWidth;
+    'Shift-Ctrl-C'( cm ) {
+      Environment.sidebar.isVisible = !Environment.sidebar.isVisible
+      let editor = document.querySelector( '#editor' )
+      if( !Environment.sidebar.isVisible ) {
+        Environment.editorWidth = editor.style.width
+        editor.style.width = '100%'
+      }else{
+        editor.style.width = Environment.editorWidth
       }
 
-      Environment.sidebar.style.display = Environment.sidebar.isVisible ? 'block' : 'none';
+      Environment.sidebar.style.display = Environment.sidebar.isVisible ? 'block' : 'none'
     }
   },
 
-  getSelectionCodeColumn: function getSelectionCodeColumn(cm, findBlock) {
-    var pos = cm.getCursor(),
-        text = null;
+ 	getSelectionCodeColumn( cm, findBlock ) {
+		let pos = cm.getCursor(), 
+				text = null
+        
+  	if( !findBlock ) {
+      text = cm.getDoc().getSelection()
 
-    if (!findBlock) {
-      text = cm.getDoc().getSelection();
-
-      if (text === "") {
-        text = cm.getLine(pos.line);
-      } else {
-        pos = { start: cm.getCursor('start'), end: cm.getCursor('end') };
+      if ( text === "") {
+        text = cm.getLine( pos.line )
+      }else{
+        pos = { start: cm.getCursor('start'), end: cm.getCursor('end') }
         //pos = null
       }
-    } else {
-      var startline = pos.line,
+    }else{
+      let startline = pos.line, 
           endline = pos.line,
-          pos1 = void 0,
-          pos2 = void 0,
-          sel = void 0;
+          pos1, pos2, sel
+    
+      while ( startline > 0 && cm.getLine( startline ) !== "" ) { startline-- }
+      while ( endline < cm.lineCount() && cm.getLine( endline ) !== "" ) { endline++ }
+    
+      pos1 = { line: startline, ch: 0 }
+      pos2 = { line: endline, ch: 0 }
+    
+      text = cm.getRange( pos1, pos2 )
 
-      while (startline > 0 && cm.getLine(startline) !== "") {
-        startline--;
-      }
-      while (endline < cm.lineCount() && cm.getLine(endline) !== "") {
-        endline++;
-      }
-
-      pos1 = { line: startline, ch: 0 };
-      pos2 = { line: endline, ch: 0 };
-
-      text = cm.getRange(pos1, pos2);
-
-      pos = { start: pos1, end: pos2 };
+      pos = { start: pos1, end: pos2 }
     }
 
-    if (pos.start === undefined) {
-      var lineNumber = pos.line,
+    if( pos.start === undefined ) {
+      let lineNumber = pos.line,
           start = 0,
-          end = text.length;
+          end = text.length
 
-      pos = { start: { line: lineNumber, ch: start }, end: { line: lineNumber, ch: end } };
+      pos = { start:{ line:lineNumber, ch:start }, end:{ line:lineNumber, ch: end } }
     }
+	
+		return { selection: pos, code: text }
+	},
 
-    return { selection: pos, code: text };
-  },
-  flash: function flash(cm, pos) {
-    var sel = void 0,
-        cb = function cb() {
-      sel.clear();
-    };
-
+  flash(cm, pos) {
+    let sel,
+        cb = function() { sel.clear() }
+  
     if (pos !== null) {
-      if (pos.start) {
-        // if called from a findBlock keymap
-        sel = cm.markText(pos.start, pos.end, { className: "CodeMirror-highlight" });
-      } else {
-        // called with single line
-        sel = cm.markText({ line: pos.line, ch: 0 }, { line: pos.line, ch: null }, { className: "CodeMirror-highlight" });
+      if( pos.start ) { // if called from a findBlock keymap
+        sel = cm.markText( pos.start, pos.end, { className:"CodeMirror-highlight" } );
+      }else{ // called with single line
+        sel = cm.markText( { line: pos.line, ch:0 }, { line: pos.line, ch:null }, { className: "CodeMirror-highlight" } )
       }
-    } else {
-      // called with selected block
-      sel = cm.markText(cm.getCursor(true), cm.getCursor(false), { className: "CodeMirror-highlight" });
+    }else{ // called with selected block
+      sel = cm.markText( cm.getCursor(true), cm.getCursor(false), { className: "CodeMirror-highlight" } );
     }
-
+  
     window.setTimeout(cb, 250);
   }
-};
+}
 
-module.exports = Environment;
-},{"../node_modules/codemirror/addon/edit/closebrackets.js":27,"../node_modules/codemirror/addon/edit/matchbrackets.js":28,"../node_modules/codemirror/addon/hint/javascript-hint.js":29,"../node_modules/codemirror/addon/hint/show-hint.js":30,"../node_modules/codemirror/mode/javascript/javascript.js":32,"./animationScheduler.js":1,"./codeMarkup.js":4,"./lomView.js":13,"./tabs-standalone.microlib-latest.js":19,"codemirror":31}],7:[function(require,module,exports){
-'use strict';
+module.exports = Environment
 
-module.exports = function (Gibber) {
+},{"../node_modules/codemirror/addon/edit/closebrackets.js":102,"../node_modules/codemirror/addon/hint/javascript-hint.js":103,"../node_modules/codemirror/addon/hint/show-hint.js":104,"../node_modules/codemirror/mode/javascript/javascript.js":106,"./animationScheduler.js":74,"./codeMarkup.js":77,"./lomView.js":87,"./tabs-standalone.microlib-latest.js":93,"codemirror":105}],80:[function(require,module,exports){
+module.exports = function( Gibber ) {
 
-  var Pattern = Gibber.Pattern;
+let Pattern = Gibber.Pattern
 
-  var flatten = function flatten() {
-    var flat = [];
-    for (var i = 0, l = this.length; i < l; i++) {
-      var type = Object.prototype.toString.call(this[i]).split(' ').pop().split(']').shift().toLowerCase();
+let flatten = function(){
+   let flat = []
+   for ( let i = 0, l = this.length; i < l; i++ ){
+     let type = Object.prototype.toString.call( this[ i ]).split(' ').pop().split( ']' ).shift().toLowerCase()
 
-      if (type) {
-        flat = flat.concat(/^(array|collection|arguments|object)$/.test(type) ? flatten.call(this[i]) : this[i]);
+     if (type) { 
+       flat = flat.concat( /^(array|collection|arguments|object)$/.test( type ) ? flatten.call( this[i] ) : this[i]) 
+     }
+   }
+   return flat
+}
+
+let createStartingArray = function( length, ones ) {
+  let out = []
+  for( let i = 0; i < ones; i++ ) {
+    out.push( [1] )
+  }
+  for( let j = ones; j < length; j++ ) {
+    out.push( 0 )
+  }
+  return out
+}
+
+let printArray = function( array ) {
+  let str = ''
+  for( let i = 0; i < array.length; i++ ) {
+    let outerElement = array[ i ]
+    if( Array.isArray( outerElement ) ) {
+      str += '['
+      for( let j = 0; j < outerElement.length; j++ ) {
+        str += outerElement[ j ]
+      }
+      str += '] '
+    }else{
+      str += outerElement + ''
+    }
+  }
+
+  return str
+}
+
+let arraysEqual = function( a, b ) {
+  if ( a === b ) return true
+  if ( a == null || b == null ) return false
+  if ( a.length != b.length ) return false
+
+  for ( let i = 0; i < a.length; ++i ) {
+    if ( a[ i ] !== b[ i ] ) return false
+  }
+
+  return true
+}
+
+let getLargestArrayCount = function( input ) {
+  let length = 0, count = 0
+
+  for( let i = 0; i < input.length; i++ ) {
+    if( Array.isArray( input[ i ] ) ) { 
+      if( input[ i ].length > length ) {
+        length = input[ i ].length
+        count = 1
+      }else if( input[ i ].length === length ) {
+        count++
       }
     }
-    return flat;
-  };
+  }
 
-  var createStartingArray = function createStartingArray(length, ones) {
-    var out = [];
-    for (var i = 0; i < ones; i++) {
-      out.push([1]);
-    }
-    for (var j = ones; j < length; j++) {
-      out.push(0);
-    }
-    return out;
-  };
+  return count
+}
 
-  var printArray = function printArray(array) {
-    var str = '';
-    for (var i = 0; i < array.length; i++) {
-      var outerElement = array[i];
-      if (Array.isArray(outerElement)) {
-        str += '[';
-        for (var j = 0; j < outerElement.length; j++) {
-          str += outerElement[j];
+let Euclid = function( ones, length, time, rotation ) {
+  let count = 0,
+      out = createStartingArray( length, ones ),
+      onesAndZeros
+
+ 	function Inner( n,k ) {
+    let operationCount = count++ === 0 ? k : getLargestArrayCount( out ),
+        moveCandidateCount = out.length - operationCount,
+        numberOfMoves = operationCount >= moveCandidateCount ? moveCandidateCount : operationCount
+
+    if( numberOfMoves > 1 || count === 1 ) {
+      for( let i = 0; i < numberOfMoves; i++ ) {
+        let willBeMoved = out.pop(), isArray = Array.isArray( willBeMoved )
+        out[ i ].push( willBeMoved )
+        if( isArray ) { 
+          flatten.call( out[ i ] )
         }
-        str += '] ';
-      } else {
-        str += outerElement + '';
-      }
-    }
-
-    return str;
-  };
-
-  var arraysEqual = function arraysEqual(a, b) {
-    if (a === b) return true;
-    if (a == null || b == null) return false;
-    if (a.length != b.length) return false;
-
-    for (var i = 0; i < a.length; ++i) {
-      if (a[i] !== b[i]) return false;
-    }
-
-    return true;
-  };
-
-  var getLargestArrayCount = function getLargestArrayCount(input) {
-    var length = 0,
-        count = 0;
-
-    for (var i = 0; i < input.length; i++) {
-      if (Array.isArray(input[i])) {
-        if (input[i].length > length) {
-          length = input[i].length;
-          count = 1;
-        } else if (input[i].length === length) {
-          count++;
-        }
-      }
-    }
-
-    return count;
-  };
-
-  var Euclid = function Euclid(ones, length, time, rotation) {
-    var count = 0,
-        out = createStartingArray(length, ones),
-        onesAndZeros = void 0;
-
-    function Inner(n, k) {
-      var operationCount = count++ === 0 ? k : getLargestArrayCount(out),
-          moveCandidateCount = out.length - operationCount,
-          numberOfMoves = operationCount >= moveCandidateCount ? moveCandidateCount : operationCount;
-
-      if (numberOfMoves > 1 || count === 1) {
-        for (var i = 0; i < numberOfMoves; i++) {
-          var willBeMoved = out.pop(),
-              isArray = Array.isArray(willBeMoved);
-          out[i].push(willBeMoved);
-          if (isArray) {
-            flatten.call(out[i]);
-          }
-        }
-      }
-
-      if (n % k !== 0) {
-        return Inner(k, n % k);
-      } else {
-        return flatten.call(out);
       }
     }
 
-    onesAndZeros = Inner(length, ones);
+    if( n % k !== 0 ) {
+      return Inner( k, n % k )
+    }else {
+      return flatten.call( out )
+    }
+  }
+  
+  onesAndZeros = Inner( length, ones )
 
-    var pattern = Gibber.Pattern.apply(null, onesAndZeros);
+  let pattern = Gibber.Pattern.apply( null, onesAndZeros )
 
-    if (isNaN(time) || time === null) time = 1 / onesAndZeros.length;
+  if( isNaN( time ) || time === null ) time = 1 / onesAndZeros.length
 
-    pattern.time = time;
+  pattern.time = time
 
-    var output = { time: time, shouldExecute: 0 };
+  let output = { time, shouldExecute: 0 }
+  
+  pattern.filters.push( ( args ) => {
+    let val = args[ 0 ],
+        idx = args[ 2 ]
 
-    pattern.filters.push(function (args) {
-      var val = args[0],
-          idx = args[2];
+    output.shouldExecute = val
+    
+    args[ 0 ] = output
 
-      output.shouldExecute = val;
+    return args
+  })
 
-      args[0] = output;
-
-      return args;
-    });
-
-    pattern.reseed = function () {
-      for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
-        args[_key] = arguments[_key];
-      }
-
-      var n = void 0,
-          k = void 0;
-
-      if (Array.isArray(args[0])) {
-        k = args[0][0];
-        n = args[0][1];
-      } else {
-        k = args[0];
-        n = args[1];
-      }
-
-      if (n === undefined) n = 16;
-
-      out = createStartingArray(n, k);
-      var _onesAndZeros = Inner(n, k);
-
-      pattern.set(_onesAndZeros);
-      pattern.time = 1 / n;
-
-      // this.checkForUpdateFunction( 'reseed', pattern )
-
-      return pattern;
-    };
-
-    Gibber.addSequencingToMethod(pattern, 'reseed');
-
-    // out = calculateRhythms( onesAndZeros, dur )
-    // out.initial = onesAndZeros
-    if (typeof rotation === 'number') pattern.rotate(rotation);
-    return pattern; //out
-  };
-  // E(5,8) = [ .25, .125, .25, .125, .25 ]
-  var calculateRhythms = function calculateRhythms(values, dur) {
-    var out = [];
-
-    if (typeof dur === 'undefined') dur = 1 / values.length;
-
-    var idx = 0,
-        currentDur = 0;
-
-    while (idx < values.length) {
-      idx++;
-      currentDur += dur;
-
-      if (values[idx] == 1 || idx === values.length) {
-        out.push(currentDur);
-        currentDur = 0;
-      }
+  pattern.reseed = ( ...args )=> {
+    let n, k
+    
+    if( Array.isArray( args[0] ) ) {
+      k = args[0][0]
+      n = args[0][1]
+    }else{
+      k = args[0]
+      n = args[1]
     }
 
-    return out;
-  };
+    if( n === undefined ) n = 16
+    
+    out = createStartingArray( n,k )
+    let _onesAndZeros = Inner( n,k )
+    
+    pattern.set( _onesAndZeros )
+    pattern.time = 1 / n
 
-  var answers = {
-    '1,4': '1000',
-    '2,3': '101',
-    '2,5': '10100',
-    '3,4': '1011',
-    '3,5': '10101',
-    '3,7': '1010100',
-    '3,8': '10010010',
-    '4,7': '1010101',
-    '4,9': '101010100',
-    '4,11': '10010010010',
-    '5,6': '101111',
-    '5,7': '1011011',
-    '5,8': '10110110',
-    '5,9': '101010101',
-    '5,11': '10101010100',
-    '5,12': '100101001010',
-    '5,16': '1001001001001000',
-    '7,8': '10111111',
-    '11,24': '100101010101001010101010'
-  };
+    // this.checkForUpdateFunction( 'reseed', pattern )
 
-  Euclid.test = function (testKey) {
-    var failed = 0,
-        passed = 0;
+    return pattern
+  }
 
-    if (typeof testKey !== 'string') {
-      for (var key in answers) {
-        var expectedResult = answers[key],
-            result = flatten.call(Euclid.apply(null, key.split(','))).join('');
+  Gibber.addSequencingToMethod( pattern, 'reseed' )
 
-        console.log(result, expectedResult);
+  // out = calculateRhythms( onesAndZeros, dur )
+  // out.initial = onesAndZeros
+  if( typeof rotation === 'number' ) pattern.rotate( rotation )
+  return pattern //out
+}
+// E(5,8) = [ .25, .125, .25, .125, .25 ]
+let calculateRhythms = function( values, dur ) {
+  let out = []
+  
+  if( typeof dur === 'undefined' ) dur = 1 / values.length
 
-        if (result === expectedResult) {
-          console.log("TEST PASSED", key);
-          passed++;
-        } else {
-          console.log("TEST FAILED", key);
-          failed++;
-        }
-      }
-      console.log("*****************************TEST RESULTS - Passed: " + passed + ", Failed: " + failed);
-    } else {
-      var _expectedResult = answers[testKey],
-          _result = flatten.call(Euclid.apply(null, testKey.split(','))).join('');
+  let idx = 0,
+      currentDur = 0
+  
+  while( idx < values.length ) {
+    idx++
+    currentDur += dur
+    
+    if( values[ idx ] == 1 || idx === values.length ) {
+      out.push( currentDur )
+      currentDur = 0
+    } 
+  }
+  
+  return out
+}
 
-      console.log(_result, _expectedResult);
+let answers = {
+  '1,4' : '1000',
+  '2,3' : '101',
+  '2,5' : '10100',
+  '3,4' : '1011',
+  '3,5' : '10101',
+  '3,7' : '1010100',
+  '3,8' : '10010010',
+  '4,7' : '1010101',
+  '4,9' : '101010100',
+  '4,11': '10010010010',
+  '5,6' : '101111',
+  '5,7' : '1011011',
+  '5,8' : '10110110',
+  '5,9' : '101010101',
+  '5,11': '10101010100',
+  '5,12': '100101001010',
+  '5,16': '1001001001001000',
+  '7,8' : '10111111',
+  '11,24': '100101010101001010101010'
+}
 
-      if (_result == _expectedResult) {
-        console.log("TEST PASSED FOR", testKey);
-      } else {
-        console.log("TEST FAILED FOR", testKey);
+Euclid.test = function( testKey ) {
+  let failed = 0, passed = 0
+
+  if( typeof testKey !== 'string' ) {
+    for( let key in answers ) {
+      let expectedResult = answers[ key ],
+          result = flatten.call( Euclid.apply( null, key.split(',') ) ).join('')
+
+      console.log( result, expectedResult )
+
+      if( result === expectedResult ) {
+        console.log("TEST PASSED", key )
+        passed++
+      }else{
+        console.log("TEST FAILED", key )
+        failed++
       }
     }
-  };
-
-  return Euclid;
-};
-},{}],8:[function(require,module,exports){
-'use strict';
-
-var _Examples;
-
-function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-var Examples = (_Examples = {
-  introduction: '/* gibberwocky.live - introduction\n * \n * This introduction assumes that you have the gibberwocky.demo.als\n * project open and running in Live. If not, it\'s easy to make your own\n * version; just place an instance of the gibberwocky_master plugin on \n * Live\'s master track, and an instance of the gibberwocky_midi plugin\n * on any track you\'d like to control with gibberwokcy.\n *\n * To execute any line of code, hit Ctrl+Enter. \n * To stop all running sequences, hit Ctrl+. (period), or execute clear() \n * (Ctrl+. doesn\'t work on some non-US keyboards).\n *\n * Make sure Live\'s transport is running (hit play). When you\'ve played\n * around with this demo, start working your way through the tutorials\n * listed in the \'demos\' tab in the sidebar.\n */\n\n// start kick drum using impulse (preset 606) on tracks[0]\ntracks[0].midinote.seq( 60, Euclid(5,8) )\n\n// randomly pick between open and closed hi-hats\n// and eighth notes vs. 1/16th notes. If 1/16th\n// notes are played, always play two back to back.\ntracks[0].midinote.seq( [64,65].rnd(), [1/8,1/16].rnd(1/16,2), 1 )\n\n// play a scintillating bass line\ntracks[1].note.seq( [-14,-12,-9,-8], 1/8 )\n\n// play chords with piano sound\ntracks[2].chord.seq( Rndi(0,8,3), 2 )\n\n// control bass filter cutoff\ntracks[1].devices[0][\'Filter Freq\']( mul( beats(2), .75 ) )   \n\n// control panning of piano\ntracks[2].pan( lfo( .15 ) ) \n\n// control time parameter of impulse\ntracks[0].devices[0][\'Global Time\']( beats(8.33) ) \n\n// control transpostion of impulse with an lfo\n// increasing in frequency over 8.66 beats\ntracks[0].devices[0][\'Global Transpose\']( lfo( beats(8.66) ) )    \n'
-
-}, _defineProperty(_Examples, 'tutorial 1: basic messaging', '/*\n * gibberwocky.live - tutorial #1: basic messaging\n *\n * This first intro will explain how to send\n * MIDI note messages and control device and track parameters.\n *\n * To start, makesure you open the gibberwocky.demo project and\n * have Live\'s transport running.\n*/\n\n// The demo gibberwocky project has three tracks: drums, bass, and ambient\n// piano. Let\'s start playing notes with the bass. The bass is located on the \n// second track, zero-indexed (start counting from zero).\nbass = tracks[1]\nbass.midinote( 60 ) // send middle C\n\n// Click on the \'lom\' tab (Live Object Model) in the sidebar on the right side\n// of the gibberwocky client. This lists all the parameters exposed for control\n// to gibberwocky. The bass track is listed under \'2-Muugy\' (Muggy is the name\n// of the bass preset). If you uncollapse this branch, you see that the track\n// contains a single Simpler device (all gibberwocky objects are ignored). Open\n// up that Simpler branch, and you see all the parameters that can be controlled.\n// If you drag and drop the \'Filter Freq\' parameter into the code editor, it\n// will insert the full path for that control into the editor. It should look\n// something like this:\n\ntracks[\'2-Muugy\'].devices[\'Simpler\'][\'Filter Freq\']\n\n// This is the path to a function we can call to change the filter cutoff frequency,\n// like so:\n\n\ntracks[\'2-Muugy\'].devices[\'Simpler\'][\'Filter Freq\'](.75)\ntracks[\'2-Muugy\'].midinote( 36 )\n\ntracks[\'2-Muugy\'].devices[\'Simpler\'][\'Filter Freq\'](.25)\ntracks[\'2-Muugy\'].midinote( 36 )\n\n// Note that we can shorten this in a number of ways. First, we can always refer\n// to tracks and devices by their array position. In this case, the track index is\n// 1 and the device index is 0 (remember, gibberwocky devices are ignored).\n\ntracks[1].devices[0][\'Filter Freq\']( .5 ) // same effect!\n\n// we can also use the shortcut we created earlier\nbass.devices[0][\'Filter Freq\']( .35 )\n\n// or...\nsimpler = tracks[1].devices[0]\nsimpler[\'Filter Freq\']( 1 )\n\n// Conveniently (well, in most cases) all parameters are measured from 0-1, so\n// you don\'t really have to worry about ranges.\n\n// In addition to controlling devices, we can also control parameters of each\n// track in Live, such as volume, panning, mute and solo. This includes\n// the return tracks and the master track as well.\n\ntracks[0].volume( 0 )   // effectively mute our drums track \nreturns[0].volume( 1 )  // increase our reverb volume\ntracks[0].sends[0]( 1 ) // send our drum track full-blast to our reverb\nmaster.volume( .5 )     // set the master volume\n\n// OK, that\'s some basics out of the way. Try the sequencing tutorial next!'), _defineProperty(_Examples, 'tutorial 2: basic sequencing', '/* gibberwocky.live - tutorial #2: basic sequencing\n *\n * This tutorial will provide an introdution to sequencing messages in gibberwocky. In\n * order for sequencing in gibberwocky.live to work, you must start the Global Transport\n * running in Live. We\'re also assuming you\'re running the gibberwocky.demo project for\n * this tutorial.\n */\n\n// In tutorial #1, we saw how we could send MIDI messages to specific tracks\n// in Live.  We can easily sequence any of these methods by adding\n// a call to .seq(). For example:\n\n// send noteon message with a first value of 36\ntracks[1].midinote( 36 )\n\n// send same value every quarter note\ntracks[1].midinote.seq( 36, 1/4 )\n\n// You can stop all sequences in gibberwocky with the Ctrl+. keyboard shortcut\n// (Ctrl + period) or by executing the command clear(). \n// You can also stop all sequences on a specific track:\ntracks[1].stop()\n\n// Most sequences in gibberwocky contain values (36) and timings (1/4). To\n// sequence multiple values we simply pass an array:\ntracks[1].midinote.seq( [36,48,60], 1/4 )\n\n// ... and we can do the same thing with multiple timings:\ntracks[1].midinote.seq( [36,48,60], [1/4,1/8] )\n\n// We can also sequence our note velocities and durations.\nclear()\ntracks[1].midinote.seq( 48, 1/2 )\ntracks[1].velocity.seq( [16, 64, 127], 1/2 )\ntracks[1].duration.seq( [10, 100,500], 1/2 )\n\n// If you experimented with running multiple variations of the midinote \n// sequences you might have noticed that only one runs at a time. For example,\n// if you run these two lines:\n\nclear()\ntracks[1].midinote.seq( 72, 1/4 )\ntracks[1].midinote.seq( 48, 1/4 )\n\n// ...you\'ll notice only the second one actually triggers. By default, gibberwocky\n// will replace an existing sequence with a new one. To stop this, you can pass an ID number \n// as a third argument to calls to .seq(). In the examples of sequencing we\'ve seen so far,\n// no ID has been given, which means gibberwocky is assuming a default ID of 0 for each\n// sequence. When you launch a sequence on a channel that has the same ID as another running \n// sequence, the older sequence is stopped. If the sequences have different IDs they run \n// concurrently. Note this makes it really easy to create polyrhythms.\n\nclear()\ntracks[1].midinote.seq( 48, 1 ) // assumes ID of 0\ntracks[1].midinote.seq( 60, 1/2, 1 ) \ntracks[1].midinote.seq( 72, 1/3, 2 ) \ntracks[1].midinote.seq( 84, 1/7, 3 ) \n\n// We can also sequence calls to midichord. You might remember from the first tutorial\n// that we pass midichord an array of values, where each value represents one note. This\n// means we need to pass an array of arrays in order to move between different chords.\n\nclear()\ntracks[2].midichord.seq( [[60,64,68], [62,66,72]], 1/2 )\n\n// Even we\'re only sequencing a single chord, we still need to pass a 2D array. Of course,\n// specifying arrays of MIDI values is not necessarily an optimal representation for chords.\n// Move on to tutorial #3 to learn more about how to leverage music theory in gibberwocky.'), _defineProperty(_Examples, 'tutorial 3: harmony', '/* gibberwocky.live - tutorial #3: Harmony\n *\n * This tutorial covers the basics of using harmony in gibberwocky.live. It assumes you\n * know the basics of sequencing (tutorial #2) and are using the gibberwocky.demo project. \n *\n * In the previous tutorials we looked at using raw MIDI values to send messages. However,\n * using MIDI note numbers is not an ideal representation. gibberwocky includes knoweldge of\n * scales, chords, and note names to make musical sequencing easier and more flexible. In this\n * tutorial, instead of using track.midinote() and track.midichord() we\'ll be using \n * channel.note() and channel.chord(). These methods use gibberwocky\'s theory objects to\n * determine what MIDI notes are eventually outputted.\n */\n\n// In our previous tutorial, we sent out C in the fourth octave by using MIDI number 60:\nbass = tracks[1]\nbass.midinote( 60 )\n\n// We can also specify notes with calls to the note() method by passing a name and octave.\nbass.note( \'c4\' )\nbass.note( \'fb3\' )\n\nbass.note.seq( [\'c2\',\'e2\',\'g2\'], 1/8 )\n\n// remember, Ctrl+. (or clear()) stops all running sequences.\n\n// In gibberwocky, the default scale employed is C minor, starting in the fourth octave. \n// This means that if we pass 0 as a value to note(), C4 will also be played.\nbass.note( 0 )\n\n// sequence C minor scale, starting in the fourth octave:\nbass.note.seq( [0,1,2,3,4,5,6,7], 1/8 )\n\n// negative scale indices also work:\nbass.note.seq( [-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7], 1/8 )\n\n// there is a global Scale object we can use to change the root and mode\n// for all scales. Run the lines below individually  with the previous note sequence running.\nScale.root( \'d4\' )\nScale.mode( \'lydian\' )\n\nScale.root( \'c4\' )\nScale.mode( \'phrygian\' )\n\n// We can also sequence changes to the root / mode:\nScale.root.seq( [\'c2\',\'d2\',\'f2\',\'g2\'], 2 )\nScale.mode.seq( [\'lydian\', \'ionian\', \'locrian\'], 2 )\n\n// stop the scale sequencing\nScale.root[0].stop()\nScale.mode[0].stop()\nScale.root( \'c4\' )\n\n// We can also define our own scales using chromatic scale indices. Unfortunately, \n// microtuning with MIDI is very diffcult, so only the standard eleven notes of \n// Western harmony are supported. Scales can have arbtrary numbers of notes.\nScale.modes[ \'my mode\' ] = [ 0,1,2,3,5,6,10 ]\nScale.mode( \'my mode\' )\n\nScale.modes[ \'another mode\' ] = [0,1]\nScale.mode( \'another mode\' )\n\nScale.mode.seq( [\'my mode\', \'another mode\'], 4 )\n\n/******** chords **********/\n// Last but not least there are a few different ways to specify chords in gibberwocky.\n// First, clear the current scene using Ctrl+.\n\npad = tracks[2]\n\n// We can use note names:\npad.chord( [\'c4\',\'eb4\',\'gb4\',\'a4\'] )\n\n// Or we can use scale indices:\npad.chord( [0,2,4,5] )\n\n// sequence in two-dimensional array\npad.chord.seq( [[0,2,4,5], [1,3,4,6]], 1 )\n\n// We can also use strings that identify common chord names.\npad.chord( \'c4maj7\' )\npad.chord( \'c#4sus7b9\' )\n\n\npad.chord.seq( [\'c4dim7\', \'bb3maj7\', \'fb3aug7\'], 2 )\n\n// OK, that\'s harmony in a nutshell. Next learn a bit about patterns and\n// pattern manipulation in gibberwocky in tutorial #4.'), _defineProperty(_Examples, 'tutorial 4: patterns and pattern transformations', '/* gibberwocky.live - tutorial #4: Patterns and Transformations\n *\n * This tutorial covers the basics of using patterns in gibberwocky.live. It assumes you\n * know the basics of sequencing (tutorial #2), have the the gibberwocky.demo project\n * loaded, and Live\'s transport running.\n *\n * In tutorial #2 we briefly mentioned that sequences consist of values and timings. These\n * are both stored in Pattern objects in gibberwocky, and these patterns can be controlled\n * and manipulated in a variety of ways over time.\n */\n   \n// Make sure the console is open in your sidebar to see the calls to log()\n// Create a Pattern with some initial values.\nmyvalues = Pattern( 36,40,48,46 )\n\nlog( myvalues() ) // 36\nlog( myvalues() ) // 40\nlog( myvalues() ) // 48\nlog( myvalues() ) // 46\nlog( myvalues() ) // back to 36...\n\n// sequence using this pattern:\nbass = tracks[1]\nbass.midinote.seq( myvalues, 1/8 )\n\n// Everytime we pass values and timings to .seq(), it converts these into Pattern objects\n// (unless we\'re already passing a Pattern object(s)). Remember from tutorial #2 that\n// all of our sequences have an ID number, which defaults to 0. We can access these patterns\n// as follows:\n\nbass.midinote.seq( [36,40,48,46], [1/2,1/4] )\nlog( bass.midinote[0].values.toString() ) \nlog( bass.midinote[0].timings.toString() ) \n\n// Now that we can access them, we can apply transformations:\n\nbass.midinote[0].values.reverse()\nbass.midinote[0].values.transpose( 1 ) // add 1 to each value\nbass.midinote[0].values.scale( 1.5 )   // scale each value by .5\nbass.midinote[0].values.rotate( 1 )    // shift values to the right\nbass.midinote[0].values.rotate( -1 )   // shift values to the left\nbass.midinote[0].values.reset()        // reset to initial values\n\n// We can sequence these transformations:\nbass.midinote[0].values.rotate.seq( 1,1 )\nbass.midinote[0].values.reverse.seq( 1, 2 )\nbass.midinote[0].values.transpose.seq( 1, 2 )\nbass.midinote[0].values.reset.seq( 1, 8 )\n\n// This enables us to quickly create variation over time. One more tutorial to go!\n// Learn more about creating synthesis graphs for modulation in tutorial #5.'), _defineProperty(_Examples, 'tutorial 5: modulating with gen~', '/* Gen is an extension for Max for synthesizing audio/video signals.\nLFOs, ramps, stochastic signals... Gen can create a wide variety of modulation sources for\nexploration in Live.\n\nAny property can be modulated via Gen in gibberwocky.live, and at a much higher resolution\nthan regular MIDI would typically allow for.\n*/\n\n// Let\'s experiment by controlling the \'Global Time\' parameter of our demo project\'s\n// Impulse (similar to the introduction example).\n\nimpulse = tracks[0].devices[0]\nimpulse[\'Global Time\']( phasor(1) )\n\n// This creates a sawtooth wave with a range of {0,1} and a frequency of 1 Hz. \n// We can also do sine waves:\nimpulse[\'Global Time\']( cycle(1) )\n\n// Note that the cycle ugen generates a full bandwidth audio signal with a range of {-1,1}\n// Often times we want to specify a center point (bias) for our sine oscillator, in addition to \n// a specific amplitude and frequency. The lfo() function provides a simpler syntax for doing this:\n\n// frequency, amplitude, bias\nmylfo = lfo( 2, .2, .7 )\n\nimpulse[\'Global Time\']( mylfo )\n\n// We can also easily sequence parameters of our LFO XXX CURRENTLY BROKEN:\n\nmylfo.frequency.seq( [ .5,1,2,4 ], 2 )\n\n/* ... as well as sequence any other parameter in Live controlled by a genish.js graph. Although the lfo()\nugen provides named properties for controlling frequency, amplitude, and centroid, there is a more\ngeneric way to sequence any aspect of a gen~ ugen by using the index operator ( [] ). For example,\ncycle() contains a single inlet that controls its frequency, to sequence it we would use: */\n\nmycycle = cycle( .25 )\n\nmycycle[ 0 ].seq( [ .25, 1, 2 ], 1 )\n\nimpulse[\'Global Time\']( add( .5, div( mycycle, 2 ) ) )\n\n/*For other ugens that have more than one argument (see the genish.js random tutorial for an example) we\nsimply indicate the appropriate index... for example, mysah[ 1 ] etc. For documentation on the types of\nugens that are available, see the gen~ reference: https://docs.cycling74.com/max7/vignettes/gen~_operators*/'), _defineProperty(_Examples, 'tutorial 6: randomness', '/* gibberwocky.max - tutorial #6: Randomness\n *\n * This tutorial covers the basics of using randomness in gibberwocky.max. \n * It assumes you\'ve done all the other tutorials (#4 might be OK to have skipped),\n * have the gibberwocky help patch loaded, DSP turned on in Max and the global\n * transport rnning.\n *\n * Randomness in gibberwocky can be used to both create random values for sequencing \n * as well as stochastic signals for modulation purposes.\n */\n   \n// rndf() and rndi() are used to generate a single random float or integer\n// make sure you have the console tab in the gibberwocky sidebar\nlog( rndf() ) // outputs floats between 0-1\nlog( rndi() ) // outputs either 0 or 1\n\n// although 0 and 1 are the default min/max values, we can pass\n// arbitrary bounds:\n\nlog( rndf(-1,1) )\nlog( rndi(0,127) )\n\n// if we pass a third value, we can create multiple random numbers at once,\n// returned as an array.\n\nlog( rndf( 0,1,4 ) )\nlog( rndi( 0,127,3 ) )\n\n// so, if we wanted to sequence a random midinote to the \'bass\' device\n// in the gibberwocky help patcher, we could sequence a function as follows:\nbass = tracks[1]\nbass.midinote.seq( ()=> rndi(0,127), 1/8 )\n\n// Whenever gibberwocky sees a function in a sequence, it calls that function\n// to generate a value or a timing. In practice this is common enough with\n// random numbers that gibberwocky has a shortcut for creating functions\n// that return a random value(s) in a particular range.\n// Simply capitalize the call to rndi or rndf (to Rndi / Rndf ).\n\nclear() // clear previous sequence\nbass.note.seq( Rndi(-14,-7), 1/8 )\n\n// Note that the code annotations show the final outputted MIDI note\n// value, as opposed to the initial random number.\n\n// And chords:\nclear()\npad = tracks[2]\npad.chord.seq( Rndi(14,21,3), 1 )\n\n// In addition to creating functions outputting random numbers, we can\n// also randomly pick from the arrays used to initialize patterns.\n\n// randomly play open or closed hi-hat every 1/16th note\ndrums = tracks[0]\ndrums.midinote.seq( [64,65].rnd(), 1/16 )\n\n// For timings, it\'s often important to ensure that patterns eventually align\n// themselves with a beat grid. For example, if we randomly choose a single 1/16th \n// note timing, then every subsequent note played will be offset from a 1/8th note\n// grid until a second 1/16th note is chosen. We can ensure that particular values\n// are repeated whenever they are selected to help with this problem.\n\n// play constant kick drum to hear how bass aligns with 1/4 grid\ndrums.midinote.seq( 60, 1/4 )\n\n// whenever a 1/16th timing is used, use it twice in a row\nbass.note.seq( -14, [1/8,1/16].rnd( 1/16,2 ) )\n\n// whenever a 1/16th timing is used, use it twice in a row and\n// whenever a 1/12th timing is used, use it three times in a row\nbass.note.seq( -14, [1/8,1/16,1/12].rnd( 1/16,2,1/12,3 ) )\n\n// OK, that\'s the basics of using randomness in patterns. But we can also use\n// noise to create randomness in modulations.\n\n// here\'s noise() going out to control the \'Global Time\' parameter\n// of our drums Impulse\ndrums.devices[0][\'Global Time\']( noise() ) \n\n// we can scale the noise\ndrums.devices[0][\'Global Time\']( mul( noise(), .5 ) ) \n\n// we can also use sample and hold (sah) to selectively sample a noise signal.\n// below, we sample noise whenever a separate noise signal crosses\n// a threshold of .99995\ndrums.devices[0][\'Global Time\']( sah( noise(), noise(), .99995 ) )      \n\n// alternatively, randomly sample a sine wave\ndrums.devices[0][\'Global Time\']( sah( cycle(2), noise(), .999 ) )\n\n// OK, that\'s it for randomness... use it wisely!'), _defineProperty(_Examples, 'using the Score() object', '// Scores are lists of functions with associated\n// relative time values. In the score below, the first function has\n// a time value of 0, which means it begins playing immediately. The\n// second has a value of 1, which means it beings playing one measure\n// after the previously executed function. The other funcions have\n// timestamps of two, which means they begins playing two measures after\n// the previously executed function. Scores have start(), stop(),\n// loop(), pause() and rewind() methods.\n\nbass = tracks[1]\n\ns = Score([\n  0, ()=> bass.note.seq( -14, 1/4 ),\n \n  1, ()=> bass.note.seq( 0, Euclid(5,8) ),\n \n  2, ()=> {\n    arp = Arp( [0,1,3,5], 3, \'updown2\' )\n    bass.note.seq( arp, 1/32 )\n  },\n \n  2, ()=> arp.transpose( 1 ),\n \n  2, ()=> arp.shuffle()\n])\n\n// Scores can also be stopped automatically to await manual retriggering.\n\ns2 = Score([\n  0,   ()=> bass.note( 0 ),\n\n  1/2, ()=> bass.note( 1 ),\n\n  Score.wait, null,\n\n  0,   ()=> bass.note( 2 )\n])\n\n// restart playback\ns2.next()\n\n// CURRENTLY BROKEN\n/* The loop() method tells a score to... loop. An optional argument specifies\n * an amount of time to wait between the end of one loop and the start of the next.*/\n\ns3 = Score([\n  0, ()=> bass.note.seq( 0, 1/4 ),\n  1, ()=> bass.note.seq( [0,7], 1/8 ),\n  1, ()=> bass.note.seq( [0, 7, 14], 1/12 )\n])\n\ns3.loop( 1 )\n\n'), _defineProperty(_Examples, 'using the Arp() object (arpeggiator)', '/*\n  * This tutorial assumes familiarity with the material\n  * covered in tutorials 2–4.\n  *\n  * The Arp() object creates wrapped Pattern objects (see tutorial\n  * #4) that are simply functions playing arpeggios. However,\n  * the pattern transformations available in gibberwocky open\n  * up a great deal of flexiblity in manipulating these arpeggios.\n  */\n\nbass = tracks[1]\n\n// Make an arp: chord, number of octaves, mode.\nmyarp = Arp( [0,2,4,5], 4, \'updown\' )\n\n// other modes include \'up\' and \'down\'. XXX updown2 is broken :( \n\n// play arpeggiator with 1/16 notes\nbass.note.seq( myarp, 1/16 )\n\n// change root of Scale (see tutorial #3)\nScale.root( \'c2\' )\n\n// randomize arpeggiator\nmyarp.shuffle()\n\n// transpose arpeggiator over time\nmyarp.transpose.seq( 1,1 )\n\n// reset arpeggiator\nmyarp.reset()\n\n// stop arpeggiator\nbass.stop()\n\n// The Arp() object can also be used with MIDI note values instead of\n// gibberwocky\'s system of harmony. However, arp objects are designed\n// to work with calls to note() by default, accordingly, they tranpose\n// patterns by seven per octave (there are seven notes in a scale of one\n// octave). For MIDI notes, there are 12 values... we can specify this\n// as a fourth parameter to the Arp() constructor.\n\nmidiArp = Arp( [60,62,64,67,71], 4, \'down\', 12 )\n\nbass.midinote.seq( midiArp, 1/32 )\n\n// bring everything down an octace\nmidiArp.transpose( -12 )\n\n// change number of octaves\nmidiArp.octaves = 2\n'), _defineProperty(_Examples, 'using the Euclid() object (euclidean rhythms)', '/*\n  * This tutorial assumes familiarty with the material\n  * covered in tutorial #2. It will cover the basics of\n  * working with Euclidean rhythms in gibberwocky.\n  *\n  * Euclidean rhythms are specifcations of rhythm using\n  * a number of pulses allocated over a number of beats.\n  * The algorithm attempts to distribute the pulses as\n  * evenly as possible over all beats while maintaining\n  * a grid. You can read a paper describing this here:\n  *\n  * http://archive.bridgesmathart.org/2005/bridges2005-47.pdf\n  *\n  * For example, consider the rhythm \'5,8\' where there\n  * are 5 pulses over the span of eight notes while\n  * maintaining a temporal grid. The algorithm distributes \n  * these as follows: "x.xx.xx." where \'x\' represents a pulse\n  * and \'.\' represents a rest. Below are a few other examples:\n  *\n  * 1,4 : x...\n  * 2,3 : x.x\n  * 2,5 : x.x..\n  * 3,5 : x.x.x\n  * 3,8 : x..x..x.\n  * 4,9 : x.x.x.x..\n  * 5,9 : x.x.x.x.x\n  *\n  * In gibberwocky, by default the number of beats chosen\n  * also determines the time used by each beat; selecting\n  * \'5,8\' means 5 pulses spread across 8 1/8 notes. However,\n  * you can also specify a different temporal resolution for\n  * the resulting pattern: \'5,8,1/16\' means 5 pulses spread\n  * across 8 beats where each beat is a 1/16th note.\n  *\n  * You can specify Euclidean rhyhtms using the Euclid()\n  * function, which returns a pattern (see tutorial #4);\n  * in the example below I\'ve assigned this to the variable E.\n  */\n\n\n// 5 pulses spread over 8 eighth notes\ntracks[0].midinote.seq( 60, Euclid(5,8) )\n\n// 3 pulses spread over 8 sixteenth notes\ntracks[0].midinote.seq( 62, Euclid( 3, 8, 1/16 ), 1  )\n\n// a quick way of notating x.x.\ntracks[0].midinote.seq( 72, Euclid(2,4), 2 ) \n\n// because Euclid() generates Pattern objects (see tutorial #3)\n// we can transform the patterns it generates:\n\ntracks[0].midinote[1].timings.rotate.seq( 1,1 )\n'), _defineProperty(_Examples, 'using the Steps() object (step-sequencer)', '/* Steps() creates a group of sequencer objects. Each\n * sequencer is responsible for playing a single note,\n * where the velocity of each note is determined by\n * a hexadecimal value (0-f), where f is the loudest note.\n * A value of \'.\' means that no MIDI note message is sent\n * with for that particular pattern element.\n *\n * The lengths of the patterns found in a Steps object can\n * differ. By default, the amount of time for each step in\n * a pattern equals 1 divided by the number of steps in the\n * pattern. In the example below, most patterns have sixteen\n * steps, so each step represents a sixteenth note. However,\n * the first two patterns (60 and 62) only have four steps, so\n * each is a quarter note. \n *\n * The individual patterns can be accessed using the note\n * numbers they are assigned to. So, given an instance with\n * the name \'a\' (as below), the pattern for note 60 can be\n * accessed at a[60]. Note that you have to access with brackets\n * as a.60 is not valid JavaScript.\n *\n * The second argument to Steps is the instrument to target. Note\n * that while the example below is designed to work with the\n * Analogue Drums device found in the gibberwocky help file,\n * that instrument is actually NOT velocity sensitive. \n */\n\ndrums = tracks[0]\n\nsteps = Steps({\n  [60]: \'ffff\', \n  [62]: \'.a.a\',\n  [64]: \'........7.9.c..d\',\n  [65]: \'..6..78..b......\',\n  [67]: \'..c.f....f..f..3\',  \n  [69]: \'.e.a.a...e.a.e.a\',  \n  [71]: \'..............e.\',\n}, drums )\n\n// rotate one pattern (assigned to midinote 71)\n// in step sequencer  every measure\nsteps[69].rotate.seq( 1,1 )\n\n// reverse all steps each measure\nsteps.reverse.seq( 1, 2 )'), _Examples);
-
-module.exports = Examples;
-},{}],9:[function(require,module,exports){
-'use strict';
-
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj; };
-
-function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
-
-module.exports = function (Gibber) {
-
-  var binops = ['min', 'max', 'add', 'sub', 'mul', 'div', 'rdiv', 'mod', 'rsub', 'rmod', 'absdiff', 'and', 'or', 'gt', 'eq', 'eqp', 'gte', 'gtep', 'gtp', 'lt', 'lte', 'ltep', 'ltp', 'neq', 'step', 'rate'];
-
-  var monops = ['abs', 'acos', 'acosh', 'asin', 'asinh', 'atan', 'atan2', 'atanh', 'cos', 'cosh', 'degrees', 'fastcos', 'fastsin', 'fasttan', 'hypot', 'radians', 'sin', 'sinh', 'tan', 'tanh', 'floor', 'ceil', 'sign', 'trunc', 'fract'];
-
-  var noops = ['noise'];
-
-  var Gen = {
-    init: function init() {
-      var _Gen$names, _Gen$names2, _Gen$names3, _Gen$names4, _Gen$names5;
-
-      Gen.createBinopFunctions();
-      Gen.createMonopFunctions();
-
-      (_Gen$names = Gen.names).push.apply(_Gen$names, binops);
-      (_Gen$names2 = Gen.names).push.apply(_Gen$names2, monops);
-      (_Gen$names3 = Gen.names).push.apply(_Gen$names3, _toConsumableArray(Object.keys(Gen.constants)));
-      (_Gen$names4 = Gen.names).push.apply(_Gen$names4, _toConsumableArray(Object.keys(Gen.functions)));
-      (_Gen$names5 = Gen.names).push.apply(_Gen$names5, _toConsumableArray(Object.keys(Gen.composites)));
-    },
-
-
-    names: [],
-
-    connected: [],
-
-    isGen: true,
-    debug: false,
-
-    // if property is !== ugen (it's a number) a Param must be made using a default
-    create: function create(name) {
-      var obj = Object.create(this),
-          count = 0,
-          params = Array.prototype.slice.call(arguments, 1);
-
-      obj.name = name;
-      obj.active = false;
-
-      var _iteratorNormalCompletion = true;
-      var _didIteratorError = false;
-      var _iteratorError = undefined;
-
-      try {
-        var _loop = function _loop() {
-          var key = _step.value;
-
-
-          var value = params[count++];
-          obj[key] = function (v) {
-            if (v === undefined) {
-              return value;
-            } else {
-              value = v;
-              if (obj.active) {
-                //console.log( `${obj.track} genp ${obj.paramID} ${obj[ key ].uid} ${v}` )
-                Gibber.Communication.send('genp ' + obj.paramID + ' ' + obj[key].uid + ' ' + v);
-              }
-            }
-          };
-          obj[key].uid = Gen.getUID();
-
-          Gibber.addSequencingToMethod(obj, key);
-        };
-
-        for (var _iterator = Gen.functions[name].properties[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-          _loop();
-        }
-      } catch (err) {
-        _didIteratorError = true;
-        _iteratorError = err;
-      } finally {
-        try {
-          if (!_iteratorNormalCompletion && _iterator.return) {
-            _iterator.return();
-          }
-        } finally {
-          if (_didIteratorError) {
-            throw _iteratorError;
-          }
-        }
-      }
-
-      return obj;
-    },
-    createBinopFunctions: function createBinopFunctions() {
-      var _iteratorNormalCompletion2 = true;
-      var _didIteratorError2 = false;
-      var _iteratorError2 = undefined;
-
-      try {
-        for (var _iterator2 = binops[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-          var _key = _step2.value;
-
-          Gen.functions[_key] = {
-            properties: ['0', '1'], str: _key
-          };
-        }
-      } catch (err) {
-        _didIteratorError2 = true;
-        _iteratorError2 = err;
-      } finally {
-        try {
-          if (!_iteratorNormalCompletion2 && _iterator2.return) {
-            _iterator2.return();
-          }
-        } finally {
-          if (_didIteratorError2) {
-            throw _iteratorError2;
-          }
-        }
-      }
-    },
-    createMonopFunctions: function createMonopFunctions() {
-      var _iteratorNormalCompletion3 = true;
-      var _didIteratorError3 = false;
-      var _iteratorError3 = undefined;
-
-      try {
-        for (var _iterator3 = monops[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
-          var _key2 = _step3.value;
-
-          Gen.functions[_key2] = {
-            properties: ['0'], str: _key2
-          };
-        }
-      } catch (err) {
-        _didIteratorError3 = true;
-        _iteratorError3 = err;
-      } finally {
-        try {
-          if (!_iteratorNormalCompletion3 && _iterator3.return) {
-            _iterator3.return();
-          }
-        } finally {
-          if (_didIteratorError3) {
-            throw _iteratorError3;
-          }
-        }
-      }
-    },
-
-
-    assignTrackAndParamID: function assignTrackAndParamID(track, id) {
-      this.paramID = id;
-      this.track = track;
-
-      var count = 0,
-          param = void 0;
-      while (param = this[count++]) {
-        if (_typeof(param()) === 'object') {
-          param().assignTrackAndParamID(track, id);
-        }
-      }
-    },
-
-    clear: function clear() {
-      var _iteratorNormalCompletion4 = true;
-      var _didIteratorError4 = false;
-      var _iteratorError4 = undefined;
-
-      try {
-        for (var _iterator4 = Gen.connected[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
-          var ugen = _step4.value;
-
-          Gibber.Communication.send('ungen ' + ugen.paramID);
-        }
-      } catch (err) {
-        _didIteratorError4 = true;
-        _iteratorError4 = err;
-      } finally {
-        try {
-          if (!_iteratorNormalCompletion4 && _iterator4.return) {
-            _iterator4.return();
-          }
-        } finally {
-          if (_didIteratorError4) {
-            throw _iteratorError4;
-          }
-        }
-      }
-
-      Gen.connected.length = 0;
-    },
-
-
-    constants: {
-      degtorad: Math.PI / 180,
-      E: Math.E,
-      halfpi: Math.PI / 2,
-      invpi: Math.PI * -1,
-      ln10: Math.LN10,
-      ln2: Math.LN2,
-      log10e: Math.LOG10E,
-      log2e: Math.LOG2E,
-      pi: Math.PI,
-      sqrt2: Math.SQRT2,
-      sqrt1_2: Math.SQRT1_2,
-      twopi: Math.PI * 2,
-      time: 'time',
-      samplerate: 'samplerate'
-    },
-
-    functions: {
-      phasor: { properties: ['0'], str: 'phasor' },
-      cycle: { properties: ['0'], str: 'cycle' },
-      rate: { properties: ['0', '1'], str: 'rate' },
-      noise: { properties: [], str: 'noise' },
-      accum: { properties: ['0', '1'], str: 'accum' },
-      counter: { properties: ['0', '1'], str: 'counter' },
-      scale: { properties: ['0', '1', '2', '3'], str: 'scale' },
-      sah: { properties: ['0', '1', '2'], str: 'sah' }
-    },
-
-    _count: 0,
-
-    getUID: function getUID() {
-      return 'p' + Gen._count++;
-    },
-
-
-    time: 'time',
-
-    out: function out() {
-      var paramArray = [],
-          body = void 0,
-          out = void 0;
-
-      body = this.gen(paramArray);
-
-      out = paramArray.join(';');
-
-      if (paramArray.length) {
-        out += ';';
-      }
-
-      out += 'out1=';
-      out += body + ';';
-
-      if (Gen.debug) console.log(out);
-
-      return out;
-    },
-    gen: function gen(paramArray) {
-      var def = Gen.functions[this.name],
-          str = def.str + '(',
-          count = 0;
-
-      // tell Gibber that this gen object is part of an active gen graph
-      // so that changes to it are forwarded to m4l
-      this.active = true;
-
-      var _iteratorNormalCompletion5 = true;
-      var _didIteratorError5 = false;
-      var _iteratorError5 = undefined;
-
-      try {
-        for (var _iterator5 = def.properties[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
-          var property = _step5.value;
-
-          var p = this[property](),
-              uid = this[property].uid;
-
-          //console.log( this.name, property, def.properties, uid )
-          if (Gen.isPrototypeOf(p)) {
-            str += p.gen(paramArray);
-          } else if (typeof p === 'number') {
-            var pName = uid;
-            str += pName;
-            paramArray.push('Param ' + pName + '(' + p + ')');
-          } else if (p === Gen.time) {
-            str += p;
-          } else if (typeof p === 'string') {
-            str += p;
-          } else {
-            console.log('CODEGEN ERROR:', p);
-          }
-
-          if (count++ < def.properties.length - 1) str += ',';
-        }
-      } catch (err) {
-        _didIteratorError5 = true;
-        _iteratorError5 = err;
-      } finally {
-        try {
-          if (!_iteratorNormalCompletion5 && _iterator5.return) {
-            _iterator5.return();
-          }
-        } finally {
-          if (_didIteratorError5) {
-            throw _iteratorError5;
-          }
-        }
-      }
-
-      str += ')';
-
-      return str;
-    },
-
-
-    composites: {
-      lfo: function lfo() {
-        var frequency = arguments.length <= 0 || arguments[0] === undefined ? .1 : arguments[0];
-        var amp = arguments.length <= 1 || arguments[1] === undefined ? .5 : arguments[1];
-        var center = arguments.length <= 2 || arguments[2] === undefined ? .5 : arguments[2];
-
-        var _cycle = cycle(frequency),
-            _mul = mul(_cycle, amp),
-            _add = add(center, _mul);
-
-        _add.frequency = function (v) {
-          if (v === undefined) {
-            return _cycle[0]();
-          } else {
-            _cycle[0](v);
-          }
-        };
-
-        _add.amp = function (v) {
-          if (v === undefined) {
-            return _mul[1]();
-          } else {
-            _mul[1](v);
-          }
-        };
-
-        _add.center = function (v) {
-          if (v === undefined) {
-            return _add[0]();
-          } else {
-            _add[0](v);
-          }
-        };
-
-        Gibber.addSequencingToMethod(_add, 'frequency');
-        Gibber.addSequencingToMethod(_add, 'amp');
-        Gibber.addSequencingToMethod(_add, 'center');
-
-        return _add;
-      },
-      fade: function fade() {
-        var time = arguments.length <= 0 || arguments[0] === undefined ? 1 : arguments[0];
-        var from = arguments.length <= 1 || arguments[1] === undefined ? 1 : arguments[1];
-        var to = arguments.length <= 2 || arguments[2] === undefined ? 0 : arguments[2];
-
-        var fade = void 0,
-            amt = void 0,
-            beatsInSeconds = time * (60 / Gibber.Live.LOM.bpm);
-
-        if (from > to) {
-          amt = from - to;
-
-          fade = gtp(sub(from, accum(div(amt, mul(beatsInSeconds, samplerate)), 0)), to);
-        } else {
-          amt = to - from;
-          fade = add(from, ltp(accum(div(amt, mul(beatsInSeconds, samplerate)), 0), to));
-        }
-
-        // XXX should this be available in ms? msToBeats()?
-        var numbeats = time / 4;
-        fade.shouldKill = {
-          after: numbeats,
-          final: to
-        };
-
-        return fade;
-      },
-      beats: function beats(num) {
-        return rate('in1', num);
-        // beat( n ) => rate(in1, n)
-        // final string should be rate( in1, num )
-      }
-    },
-
-    export: function _export(obj) {
-      for (var _key3 in Gen.functions) {
-        obj[_key3] = Gen.create.bind(Gen, _key3);
-      }
-
-      Object.assign(obj, Gen.constants);
-      Object.assign(obj, Gen.composites);
+    console.log("*****************************TEST RESULTS - Passed: " + passed + ", Failed: " + failed )
+  }else{
+    let expectedResult = answers[testKey],
+				result = flatten.call( Euclid.apply( null, testKey.split(',') ) ).join('')
+
+    console.log( result, expectedResult )
+
+    if( result == expectedResult ) {
+      console.log("TEST PASSED FOR", testKey)
+    }else{
+      console.log("TEST FAILED FOR", testKey)
     }
-  };
+  }
+}
 
-  Gen.init();
+return Euclid
+}
 
-  return Gen;
-};
+},{}],81:[function(require,module,exports){
+const Examples = {
+  introduction:`/* gibberwocky.live - introduction
+ * 
+ * This introduction assumes that you have the gibberwocky.demo.als
+ * project open and running in Live. If not, it's easy to make your own
+ * version; just place an instance of the gibberwocky_master plugin on 
+ * Live's master track, and an instance of the gibberwocky_midi plugin
+ * on any track you'd like to control with gibberwokcy.
+ *
+ * To execute any line of code, hit Ctrl+Enter. 
+ * To stop all running sequences, hit Ctrl+. (period), or execute clear() 
+ * (Ctrl+. doesn't work on some non-US keyboards).
+ *
+ * Make sure Live's transport is running (hit play). When you've played
+ * around with this demo, start working your way through the tutorials
+ * listed in the 'demos' tab in the sidebar.
+ */
+
+// start kick drum using impulse (preset 606) on tracks[0]
+tracks[0].midinote.seq( 60, Euclid(5,8) )
+
+// randomly pick between open and closed hi-hats
+// and eighth notes vs. 1/16th notes. If 1/16th
+// notes are played, always play two back to back.
+tracks[0].midinote.seq( [64,65].rnd(), [1/8,1/16].rnd(1/16,2), 1 )
+
+// play a scintillating bass line
+tracks[1].note.seq( [-14,-12,-9,-8], 1/8 )
+
+// play chords with piano sound
+tracks[2].chord.seq( Rndi(0,8,3), 2 )
+
+// control bass filter cutoff
+tracks[1].devices[0]['Filter Freq']( mul( beats(2), .75 ) )   
+
+// control panning of piano
+tracks[2].pan( lfo( .15 ) ) 
+
+// control time parameter of impulse
+tracks[0].devices[0]['Global Time']( beats(8.33) ) 
+
+// control transpostion of impulse with an lfo
+// increasing in frequency over 8.66 beats
+tracks[0].devices[0]['Global Transpose']( lfo( beats(8.66) ) )    
+`,
+
+['tutorial 1: basic messaging']:
+
+`/*
+ * gibberwocky.live - tutorial #1: basic messaging
+ *
+ * This first intro will explain how to send
+ * MIDI note messages and control device and track parameters.
+ *
+ * To start, makesure you open the gibberwocky.demo project and
+ * have Live's transport running.
+*/
+
+// The demo gibberwocky project has three tracks: drums, bass, and ambient
+// piano. Let's start playing notes with the bass. The bass is located on the 
+// second track, zero-indexed (start counting from zero).
+bass = tracks[1]
+bass.midinote( 60 ) // send middle C
+
+// Click on the 'lom' tab (Live Object Model) in the sidebar on the right side
+// of the gibberwocky client. This lists all the parameters exposed for control
+// to gibberwocky. The bass track is listed under '2-Muugy' (Muggy is the name
+// of the bass preset). If you uncollapse this branch, you see that the track
+// contains a single Simpler device (all gibberwocky objects are ignored). Open
+// up that Simpler branch, and you see all the parameters that can be controlled.
+// If you drag and drop the 'Filter Freq' parameter into the code editor, it
+// will insert the full path for that control into the editor. It should look
+// something like this:
+
+tracks['2-Muugy'].devices['Simpler']['Filter Freq']
+
+// This is the path to a function we can call to change the filter cutoff frequency,
+// like so:
+
+
+tracks['2-Muugy'].devices['Simpler']['Filter Freq'](.75)
+tracks['2-Muugy'].midinote( 36 )
+
+tracks['2-Muugy'].devices['Simpler']['Filter Freq'](.25)
+tracks['2-Muugy'].midinote( 36 )
+
+// Note that we can shorten this in a number of ways. First, we can always refer
+// to tracks and devices by their array position. In this case, the track index is
+// 1 and the device index is 0 (remember, gibberwocky devices are ignored).
+
+tracks[1].devices[0]['Filter Freq']( .5 ) // same effect!
+
+// we can also use the shortcut we created earlier
+bass.devices[0]['Filter Freq']( .35 )
+
+// or...
+simpler = tracks[1].devices[0]
+simpler['Filter Freq']( 1 )
+
+// Conveniently (well, in most cases) all parameters are measured from 0-1, so
+// you don't really have to worry about ranges.
+
+// In addition to controlling devices, we can also control parameters of each
+// track in Live, such as volume, panning, mute and solo. This includes
+// the return tracks and the master track as well.
+
+tracks[0].volume( 0 )   // effectively mute our drums track 
+returns[0].volume( 1 )  // increase our reverb volume
+tracks[0].sends[0]( 1 ) // send our drum track full-blast to our reverb
+master.volume( .5 )     // set the master volume
+
+// OK, that's some basics out of the way. Try the sequencing tutorial next!`,
+
+[ 'tutorial 2: basic sequencing' ]: `/* gibberwocky.live - tutorial #2: basic sequencing
+ *
+ * This tutorial will provide an introdution to sequencing messages in gibberwocky. In
+ * order for sequencing in gibberwocky.live to work, you must start the Global Transport
+ * running in Live. We're also assuming you're running the gibberwocky.demo project for
+ * this tutorial.
+ */
+
+// In tutorial #1, we saw how we could send MIDI messages to specific tracks
+// in Live.  We can easily sequence any of these methods by adding
+// a call to .seq(). For example:
+
+// send noteon message with a first value of 36
+tracks[1].midinote( 36 )
+
+// send same value every quarter note
+tracks[1].midinote.seq( 36, 1/4 )
+
+// You can stop all sequences in gibberwocky with the Ctrl+. keyboard shortcut
+// (Ctrl + period) or by executing the command clear(). 
+// You can also stop all sequences on a specific track:
+tracks[1].stop()
+
+// Most sequences in gibberwocky contain values (36) and timings (1/4). To
+// sequence multiple values we simply pass an array:
+tracks[1].midinote.seq( [36,48,60], 1/4 )
+
+// ... and we can do the same thing with multiple timings:
+tracks[1].midinote.seq( [36,48,60], [1/4,1/8] )
+
+// We can also sequence our note velocities and durations.
+clear()
+tracks[1].midinote.seq( 48, 1/2 )
+tracks[1].velocity.seq( [16, 64, 127], 1/2 )
+tracks[1].duration.seq( [10, 100,500], 1/2 )
+
+// If you experimented with running multiple variations of the midinote 
+// sequences you might have noticed that only one runs at a time. For example,
+// if you run these two lines:
+
+clear()
+tracks[1].midinote.seq( 72, 1/4 )
+tracks[1].midinote.seq( 48, 1/4 )
+
+// ...you'll notice only the second one actually triggers. By default, gibberwocky
+// will replace an existing sequence with a new one. To stop this, you can pass an ID number 
+// as a third argument to calls to .seq(). In the examples of sequencing we've seen so far,
+// no ID has been given, which means gibberwocky is assuming a default ID of 0 for each
+// sequence. When you launch a sequence on a channel that has the same ID as another running 
+// sequence, the older sequence is stopped. If the sequences have different IDs they run 
+// concurrently. Note this makes it really easy to create polyrhythms.
+
+clear()
+tracks[1].midinote.seq( 48, 1 ) // assumes ID of 0
+tracks[1].midinote.seq( 60, 1/2, 1 ) 
+tracks[1].midinote.seq( 72, 1/3, 2 ) 
+tracks[1].midinote.seq( 84, 1/7, 3 ) 
+
+// We can also sequence calls to midichord. You might remember from the first tutorial
+// that we pass midichord an array of values, where each value represents one note. This
+// means we need to pass an array of arrays in order to move between different chords.
+
+clear()
+tracks[2].midichord.seq( [[60,64,68], [62,66,72]], 1/2 )
+
+// Even we're only sequencing a single chord, we still need to pass a 2D array. Of course,
+// specifying arrays of MIDI values is not necessarily an optimal representation for chords.
+// Move on to tutorial #3 to learn more about how to leverage music theory in gibberwocky.`,
+
+['tutorial 3: harmony'] :`/* gibberwocky.live - tutorial #3: Harmony
+ *
+ * This tutorial covers the basics of using harmony in gibberwocky.live. It assumes you
+ * know the basics of sequencing (tutorial #2) and are using the gibberwocky.demo project. 
+ *
+ * In the previous tutorials we looked at using raw MIDI values to send messages. However,
+ * using MIDI note numbers is not an ideal representation. gibberwocky includes knoweldge of
+ * scales, chords, and note names to make musical sequencing easier and more flexible. In this
+ * tutorial, instead of using track.midinote() and track.midichord() we'll be using 
+ * channel.note() and channel.chord(). These methods use gibberwocky's theory objects to
+ * determine what MIDI notes are eventually outputted.
+ */
+
+// In our previous tutorial, we sent out C in the fourth octave by using MIDI number 60:
+bass = tracks[1]
+bass.midinote( 60 )
+
+// We can also specify notes with calls to the note() method by passing a name and octave.
+bass.note( 'c4' )
+bass.note( 'fb3' )
+
+bass.note.seq( ['c2','e2','g2'], 1/8 )
+
+// remember, Ctrl+. (or clear()) stops all running sequences.
+
+// In gibberwocky, the default scale employed is C minor, starting in the fourth octave. 
+// This means that if we pass 0 as a value to note(), C4 will also be played.
+bass.note( 0 )
+
+// sequence C minor scale, starting in the fourth octave:
+bass.note.seq( [0,1,2,3,4,5,6,7], 1/8 )
+
+// negative scale indices also work:
+bass.note.seq( [-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7], 1/8 )
+
+// there is a global Scale object we can use to change the root and mode
+// for all scales. Run the lines below individually  with the previous note sequence running.
+Scale.root( 'd4' )
+Scale.mode( 'lydian' )
+
+Scale.root( 'c4' )
+Scale.mode( 'phrygian' )
+
+// We can also sequence changes to the root / mode:
+Scale.root.seq( ['c2','d2','f2','g2'], 2 )
+Scale.mode.seq( ['lydian', 'ionian', 'locrian'], 2 )
+
+// stop the scale sequencing
+Scale.root[0].stop()
+Scale.mode[0].stop()
+Scale.root( 'c4' )
+
+// We can also define our own scales using chromatic scale indices. Unfortunately, 
+// microtuning with MIDI is very diffcult, so only the standard eleven notes of 
+// Western harmony are supported. Scales can have arbtrary numbers of notes.
+Scale.modes[ 'my mode' ] = [ 0,1,2,3,5,6,10 ]
+Scale.mode( 'my mode' )
+
+Scale.modes[ 'another mode' ] = [0,1]
+Scale.mode( 'another mode' )
+
+Scale.mode.seq( ['my mode', 'another mode'], 4 )
+
+/******** chords **********/
+// Last but not least there are a few different ways to specify chords in gibberwocky.
+// First, clear the current scene using Ctrl+.
+
+pad = tracks[2]
+
+// We can use note names:
+pad.chord( ['c4','eb4','gb4','a4'] )
+
+// Or we can use scale indices:
+pad.chord( [0,2,4,5] )
+
+// sequence in two-dimensional array
+pad.chord.seq( [[0,2,4,5], [1,3,4,6]], 1 )
+
+// We can also use strings that identify common chord names.
+pad.chord( 'c4maj7' )
+pad.chord( 'c#4sus7b9' )
+
+
+pad.chord.seq( ['c4dim7', 'bb3maj7', 'fb3aug7'], 2 )
+
+// OK, that's harmony in a nutshell. Next learn a bit about patterns and
+// pattern manipulation in gibberwocky in tutorial #4.`,
+
+['tutorial 4: patterns and pattern transformations']:`/* gibberwocky.live - tutorial #4: Patterns and Transformations
+ *
+ * This tutorial covers the basics of using patterns in gibberwocky.live. It assumes you
+ * know the basics of sequencing (tutorial #2), have the the gibberwocky.demo project
+ * loaded, and Live's transport running.
+ *
+ * In tutorial #2 we briefly mentioned that sequences consist of values and timings. These
+ * are both stored in Pattern objects in gibberwocky, and these patterns can be controlled
+ * and manipulated in a variety of ways over time.
+ */
+   
+// Make sure the console is open in your sidebar to see the calls to log()
+// Create a Pattern with some initial values.
+myvalues = Pattern( 36,40,48,46 )
+
+log( myvalues() ) // 36
+log( myvalues() ) // 40
+log( myvalues() ) // 48
+log( myvalues() ) // 46
+log( myvalues() ) // back to 36...
+
+// sequence using this pattern:
+bass = tracks[1]
+bass.midinote.seq( myvalues, 1/8 )
+
+// Everytime we pass values and timings to .seq(), it converts these into Pattern objects
+// (unless we're already passing a Pattern object(s)). Remember from tutorial #2 that
+// all of our sequences have an ID number, which defaults to 0. We can access these patterns
+// as follows:
+
+bass.midinote.seq( [36,40,48,46], [1/2,1/4] )
+log( bass.midinote[0].values.toString() ) 
+log( bass.midinote[0].timings.toString() ) 
+
+// Now that we can access them, we can apply transformations:
+
+bass.midinote[0].values.reverse()
+bass.midinote[0].values.transpose( 1 ) // add 1 to each value
+bass.midinote[0].values.scale( 1.5 )   // scale each value by .5
+bass.midinote[0].values.rotate( 1 )    // shift values to the right
+bass.midinote[0].values.rotate( -1 )   // shift values to the left
+bass.midinote[0].values.reset()        // reset to initial values
+
+// We can sequence these transformations:
+bass.midinote[0].values.rotate.seq( 1,1 )
+bass.midinote[0].values.reverse.seq( 1, 2 )
+bass.midinote[0].values.transpose.seq( 1, 2 )
+bass.midinote[0].values.reset.seq( 1, 8 )
+
+// This enables us to quickly create variation over time. One more tutorial to go!
+// Learn more about creating synthesis graphs for modulation in tutorial #5.`,
+ 
+['tutorial 5: modulating with gen~'] :
+ `/* Gen is an extension for Max for synthesizing audio/video signals.
+LFOs, ramps, stochastic signals... Gen can create a wide variety of modulation sources for
+exploration in Live.
+
+Any property can be modulated via Gen in gibberwocky.live, and at a much higher resolution
+than regular MIDI would typically allow for.
+*/
+
+// Let's experiment by controlling the 'Global Time' parameter of our demo project's
+// Impulse (similar to the introduction example).
+
+impulse = tracks[0].devices[0]
+impulse['Global Time']( phasor(1) )
+
+// This creates a sawtooth wave with a range of {0,1} and a frequency of 1 Hz. 
+// We can also do sine waves:
+impulse['Global Time']( cycle(1) )
+
+// Note that the cycle ugen generates a full bandwidth audio signal with a range of {-1,1}
+// Often times we want to specify a center point (bias) for our sine oscillator, in addition to 
+// a specific amplitude and frequency. The lfo() function provides a simpler syntax for doing this:
+
+// frequency, amplitude, bias
+mylfo = lfo( 2, .2, .7 )
+
+impulse['Global Time']( mylfo )
+
+// We can also easily sequence parameters of our LFO XXX CURRENTLY BROKEN:
+
+mylfo.frequency.seq( [ .5,1,2,4 ], 2 )
+
+/* ... as well as sequence any other parameter in Live controlled by a genish.js graph. Although the lfo()
+ugen provides named properties for controlling frequency, amplitude, and centroid, there is a more
+generic way to sequence any aspect of a gen~ ugen by using the index operator ( [] ). For example,
+cycle() contains a single inlet that controls its frequency, to sequence it we would use: */
+
+mycycle = cycle( .25 )
+
+mycycle[ 0 ].seq( [ .25, 1, 2 ], 1 )
+
+impulse['Global Time']( add( .5, div( mycycle, 2 ) ) )
+
+/*For other ugens that have more than one argument (see the genish.js random tutorial for an example) we
+simply indicate the appropriate index... for example, mysah[ 1 ] etc. For documentation on the types of
+ugens that are available, see the gen~ reference: https://docs.cycling74.com/max7/vignettes/gen~_operators*/`, 
+
+['tutorial 6: randomness']:
+`/* gibberwocky.max - tutorial #6: Randomness
+ *
+ * This tutorial covers the basics of using randomness in gibberwocky.max. 
+ * It assumes you've done all the other tutorials (#4 might be OK to have skipped),
+ * have the gibberwocky help patch loaded, DSP turned on in Max and the global
+ * transport rnning.
+ *
+ * Randomness in gibberwocky can be used to both create random values for sequencing 
+ * as well as stochastic signals for modulation purposes.
+ */
+   
+// rndf() and rndi() are used to generate a single random float or integer
+// make sure you have the console tab in the gibberwocky sidebar
+log( rndf() ) // outputs floats between 0-1
+log( rndi() ) // outputs either 0 or 1
+
+// although 0 and 1 are the default min/max values, we can pass
+// arbitrary bounds:
+
+log( rndf(-1,1) )
+log( rndi(0,127) )
+
+// if we pass a third value, we can create multiple random numbers at once,
+// returned as an array.
+
+log( rndf( 0,1,4 ) )
+log( rndi( 0,127,3 ) )
+
+// so, if we wanted to sequence a random midinote to the 'bass' device
+// in the gibberwocky help patcher, we could sequence a function as follows:
+bass = tracks[1]
+bass.midinote.seq( ()=> rndi(0,127), 1/8 )
+
+// Whenever gibberwocky sees a function in a sequence, it calls that function
+// to generate a value or a timing. In practice this is common enough with
+// random numbers that gibberwocky has a shortcut for creating functions
+// that return a random value(s) in a particular range.
+// Simply capitalize the call to rndi or rndf (to Rndi / Rndf ).
+
+clear() // clear previous sequence
+bass.note.seq( Rndi(-14,-7), 1/8 )
+
+// Note that the code annotations show the final outputted MIDI note
+// value, as opposed to the initial random number.
+
+// And chords:
+clear()
+pad = tracks[2]
+pad.chord.seq( Rndi(14,21,3), 1 )
+
+// In addition to creating functions outputting random numbers, we can
+// also randomly pick from the arrays used to initialize patterns.
+
+// randomly play open or closed hi-hat every 1/16th note
+drums = tracks[0]
+drums.midinote.seq( [64,65].rnd(), 1/16 )
+
+// For timings, it's often important to ensure that patterns eventually align
+// themselves with a beat grid. For example, if we randomly choose a single 1/16th 
+// note timing, then every subsequent note played will be offset from a 1/8th note
+// grid until a second 1/16th note is chosen. We can ensure that particular values
+// are repeated whenever they are selected to help with this problem.
+
+// play constant kick drum to hear how bass aligns with 1/4 grid
+drums.midinote.seq( 60, 1/4 )
+
+// whenever a 1/16th timing is used, use it twice in a row
+bass.note.seq( -14, [1/8,1/16].rnd( 1/16,2 ) )
+
+// whenever a 1/16th timing is used, use it twice in a row and
+// whenever a 1/12th timing is used, use it three times in a row
+bass.note.seq( -14, [1/8,1/16,1/12].rnd( 1/16,2,1/12,3 ) )
+
+// OK, that's the basics of using randomness in patterns. But we can also use
+// noise to create randomness in modulations.
+
+// here's noise() going out to control the 'Global Time' parameter
+// of our drums Impulse
+drums.devices[0]['Global Time']( noise() ) 
+
+// we can scale the noise
+drums.devices[0]['Global Time']( mul( noise(), .5 ) ) 
+
+// we can also use sample and hold (sah) to selectively sample a noise signal.
+// below, we sample noise whenever a separate noise signal crosses
+// a threshold of .99995
+drums.devices[0]['Global Time']( sah( noise(), noise(), .99995 ) )      
+
+// alternatively, randomly sample a sine wave
+drums.devices[0]['Global Time']( sah( cycle(2), noise(), .999 ) )
+
+// OK, that's it for randomness... use it wisely!`,
+
+[ 'using the Score() object' ]  : 
+`// Scores are lists of functions with associated
+// relative time values. In the score below, the first function has
+// a time value of 0, which means it begins playing immediately. The
+// second has a value of 1, which means it beings playing one measure
+// after the previously executed function. The other funcions have
+// timestamps of two, which means they begins playing two measures after
+// the previously executed function. Scores have start(), stop(),
+// loop(), pause() and rewind() methods.
+
+bass = tracks[1]
+
+s = Score([
+  0, ()=> bass.note.seq( -14, 1/4 ),
+ 
+  1, ()=> bass.note.seq( 0, Euclid(5,8) ),
+ 
+  2, ()=> {
+    arp = Arp( [0,1,3,5], 3, 'updown2' )
+    bass.note.seq( arp, 1/32 )
+  },
+ 
+  2, ()=> arp.transpose( 1 ),
+ 
+  2, ()=> arp.shuffle()
+])
+
+// Scores can also be stopped automatically to await manual retriggering.
+
+s2 = Score([
+  0,   ()=> bass.note( 0 ),
+
+  1/2, ()=> bass.note( 1 ),
+
+  Score.wait, null,
+
+  0,   ()=> bass.note( 2 )
+])
+
+// restart playback
+s2.next()
+
+// CURRENTLY BROKEN
+/* The loop() method tells a score to... loop. An optional argument specifies
+ * an amount of time to wait between the end of one loop and the start of the next.*/
+
+s3 = Score([
+  0, ()=> bass.note.seq( 0, 1/4 ),
+  1, ()=> bass.note.seq( [0,7], 1/8 ),
+  1, ()=> bass.note.seq( [0, 7, 14], 1/12 )
+])
+
+s3.loop( 1 )
+
+`,
+
+['using the Arp() object (arpeggiator)']:
+`/*
+  * This tutorial assumes familiarity with the material
+  * covered in tutorials 2–4.
+  *
+  * The Arp() object creates wrapped Pattern objects (see tutorial
+  * #4) that are simply functions playing arpeggios. However,
+  * the pattern transformations available in gibberwocky open
+  * up a great deal of flexiblity in manipulating these arpeggios.
+  */
+
+bass = tracks[1]
+
+// Make an arp: chord, number of octaves, mode.
+myarp = Arp( [0,2,4,5], 4, 'updown' )
+
+// other modes include 'up' and 'down'. XXX updown2 is broken :( 
+
+// play arpeggiator with 1/16 notes
+bass.note.seq( myarp, 1/16 )
+
+// change root of Scale (see tutorial #3)
+Scale.root( 'c2' )
+
+// randomize arpeggiator
+myarp.shuffle()
+
+// transpose arpeggiator over time
+myarp.transpose.seq( 1,1 )
+
+// reset arpeggiator
+myarp.reset()
+
+// stop arpeggiator
+bass.stop()
+
+// The Arp() object can also be used with MIDI note values instead of
+// gibberwocky's system of harmony. However, arp objects are designed
+// to work with calls to note() by default, accordingly, they tranpose
+// patterns by seven per octave (there are seven notes in a scale of one
+// octave). For MIDI notes, there are 12 values... we can specify this
+// as a fourth parameter to the Arp() constructor.
+
+midiArp = Arp( [60,62,64,67,71], 4, 'down', 12 )
+
+bass.midinote.seq( midiArp, 1/32 )
+
+// bring everything down an octace
+midiArp.transpose( -12 )
+
+// change number of octaves
+midiArp.octaves = 2
+`,
+
+['using the Euclid() object (euclidean rhythms)'] :
+`/*
+  * This tutorial assumes familiarty with the material
+  * covered in tutorial #2. It will cover the basics of
+  * working with Euclidean rhythms in gibberwocky.
+  *
+  * Euclidean rhythms are specifcations of rhythm using
+  * a number of pulses allocated over a number of beats.
+  * The algorithm attempts to distribute the pulses as
+  * evenly as possible over all beats while maintaining
+  * a grid. You can read a paper describing this here:
+  *
+  * http://archive.bridgesmathart.org/2005/bridges2005-47.pdf
+  *
+  * For example, consider the rhythm '5,8' where there
+  * are 5 pulses over the span of eight notes while
+  * maintaining a temporal grid. The algorithm distributes 
+  * these as follows: "x.xx.xx." where 'x' represents a pulse
+  * and '.' represents a rest. Below are a few other examples:
+  *
+  * 1,4 : x...
+  * 2,3 : x.x
+  * 2,5 : x.x..
+  * 3,5 : x.x.x
+  * 3,8 : x..x..x.
+  * 4,9 : x.x.x.x..
+  * 5,9 : x.x.x.x.x
+  *
+  * In gibberwocky, by default the number of beats chosen
+  * also determines the time used by each beat; selecting
+  * '5,8' means 5 pulses spread across 8 1/8 notes. However,
+  * you can also specify a different temporal resolution for
+  * the resulting pattern: '5,8,1/16' means 5 pulses spread
+  * across 8 beats where each beat is a 1/16th note.
+  *
+  * You can specify Euclidean rhyhtms using the Euclid()
+  * function, which returns a pattern (see tutorial #4);
+  * in the example below I've assigned this to the variable E.
+  */
+
+
+// 5 pulses spread over 8 eighth notes
+tracks[0].midinote.seq( 60, Euclid(5,8) )
+
+// 3 pulses spread over 8 sixteenth notes
+tracks[0].midinote.seq( 62, Euclid( 3, 8, 1/16 ), 1  )
+
+// a quick way of notating x.x.
+tracks[0].midinote.seq( 72, Euclid(2,4), 2 ) 
+
+// because Euclid() generates Pattern objects (see tutorial #3)
+// we can transform the patterns it generates:
+
+tracks[0].midinote[1].timings.rotate.seq( 1,1 )
+`,
+
+
+['using the Steps() object (step-sequencer)'] : `/* Steps() creates a group of sequencer objects. Each
+ * sequencer is responsible for playing a single note,
+ * where the velocity of each note is determined by
+ * a hexadecimal value (0-f), where f is the loudest note.
+ * A value of '.' means that no MIDI note message is sent
+ * with for that particular pattern element.
+ *
+ * The lengths of the patterns found in a Steps object can
+ * differ. By default, the amount of time for each step in
+ * a pattern equals 1 divided by the number of steps in the
+ * pattern. In the example below, most patterns have sixteen
+ * steps, so each step represents a sixteenth note. However,
+ * the first two patterns (60 and 62) only have four steps, so
+ * each is a quarter note. 
+ *
+ * The individual patterns can be accessed using the note
+ * numbers they are assigned to. So, given an instance with
+ * the name 'a' (as below), the pattern for note 60 can be
+ * accessed at a[60]. Note that you have to access with brackets
+ * as a.60 is not valid JavaScript.
+ *
+ * The second argument to Steps is the instrument to target. Note
+ * that while the example below is designed to work with the
+ * Analogue Drums device found in the gibberwocky help file,
+ * that instrument is actually NOT velocity sensitive. 
+ */
+
+drums = tracks[0]
+
+steps = Steps({
+  [60]: 'ffff', 
+  [62]: '.a.a',
+  [64]: '........7.9.c..d',
+  [65]: '..6..78..b......',
+  [67]: '..c.f....f..f..3',  
+  [69]: '.e.a.a...e.a.e.a',  
+  [71]: '..............e.',
+}, drums )
+
+// rotate one pattern (assigned to midinote 71)
+// in step sequencer  every measure
+steps[69].rotate.seq( 1,1 )
+
+// reverse all steps each measure
+steps.reverse.seq( 1, 2 )`,
+
+}
+
+module.exports = Examples
+
+},{}],82:[function(require,module,exports){
+module.exports = function( Gibber ) {
+
+const binops = [ 
+  'min','max','add','sub','mul','div','rdiv','mod','rsub','rmod','absdiff',
+  'and','or','gt','eq','eqp','gte','gtep','gtp','lt','lte','ltep','ltp','neq',
+  'step', 'rate'
+]
+
+const monops = [
+  'abs','acos','acosh','asin','asinh','atan','atan2','atanh','cos','cosh','degrees',
+  'fastcos','fastsin','fasttan','hypot','radians','sin','sinh','tan','tanh', 'floor',
+  'ceil', 'sign', 'trunc', 'fract'
+]
+
+const noops = [
+  'noise'
+]
+
+let Gen  = {
+  init() {
+    Gen.createBinopFunctions()
+    Gen.createMonopFunctions()
+
+    Gen.names.push( ...binops )
+    Gen.names.push( ...monops )
+    Gen.names.push( ...Object.keys( Gen.constants ) )
+    Gen.names.push( ...Object.keys( Gen.functions ) )
+    Gen.names.push( ...Object.keys( Gen.composites ) )
+  },
+
+  lastConnected:null,
+
+  names:[],
+  
+  connected: [],
+
+  isGen:true,
+  debug:false,
+
+  // if property is !== ugen (it's a number) a Param must be made using a default
+  create( name ) {
+    let obj = Object.create( this ),
+        count = 0,
+        params = Array.prototype.slice.call( arguments, 1 )
+    
+    obj.name = name
+    obj.active = false
+    
+    for( let key of Gen.functions[ name ].properties ) { 
+
+      let value = params[ count++ ]
+      obj[ key ] = ( v ) => {
+        if( v === undefined ) {
+          return value
+        }else{
+          value = v
+          if( obj.active ) {
+            Gibber.Communication.send( `genp ${obj.paramID} ${obj[ key ].uid} ${v}` ) 
+          }
+        }
+      }
+      obj[ key ].uid = Gen.getUID()
+
+      Gibber.addSequencingToMethod( obj, key )
+    }
+
+    return obj
+  },
+  
+  createBinopFunctions() {
+    for( let key of binops ) {
+      Gen.functions[ key ] = {
+        properties:['0','1'], str:key
+      }
+    }
+  },
+
+  createMonopFunctions() {
+    for( let key of monops ) {
+      Gen.functions[ key ] = {
+        properties:['0'], str:key
+      }
+    }
+  },
+
+  assignTrackAndParamID: function( track, id ) {
+    this.paramID = id
+    this.track = track
+
+    let count = 0, param
+    while( param = this[ count++ ] ) {
+      if( typeof param() === 'object' ) {
+        param().assignTrackAndParamID( track, id )
+      }
+    }
+  },
+
+  clear() {
+    for( let ugen of Gen.connected ) {
+      Gibber.Communication.send( `ungen ${ugen.paramID}` )
+    }
+
+    Gen.connected.length = 0
+  },
+
+  constants: {
+    degtorad: Math.PI / 180,
+    E :       Math.E,
+    halfpi:   Math.PI / 2,
+    invpi :   Math.PI * - 1,
+    ln10  :   Math.LN10,
+    ln2   :   Math.LN2,
+    log10e:   Math.LOG10E,
+    log2e :   Math.LOG2E,
+    pi    :   Math.PI,  
+    sqrt2 :   Math.SQRT2,
+    sqrt1_2:  Math.SQRT1_2,
+    twopi :   Math.PI * 2,
+    time  :   'time',
+    samplerate: 'samplerate'
+  },
+
+  functions: {
+    phasor: { properties:[ '0' ],  str:'phasor' },
+    cycle:  { properties:[ '0' ],  str:'cycle' },
+    rate:   { properties:[ '0','1' ], str:'rate' },
+    noise:  { properties:[], str:'noise' },
+    accum:  { properties:[ '0','1' ], str:'accum' },
+    counter:{ properties:[ '0','1' ], str:'counter' },
+    scale:  { properties: ['0', '1', '2', '3'], str:'scale' },
+    sah:    { properties: ['0', '1', '2'], str:'sah' }
+  },
+
+  _count: 0,
+
+  getUID() {
+    return 'p' + Gen._count++
+  },
+
+  time: 'time',
+
+  out() {
+    let paramArray = [],
+        body, out
+    
+    body = this.gen( paramArray )
+
+    out = paramArray.join( ';' )
+
+    if( paramArray.length ) {
+      out += ';'
+    }
+    
+    out += 'out1='
+    out += body + ';'
+    
+    if( Gen.debug ) console.log( out )
+
+    return out
+  },
+
+  gen( paramArray ) {
+    let def = Gen.functions[ this.name ],
+        str = def.str + '(',
+        count = 0
+    
+
+    // tell Gibber that this gen object is part of an active gen graph
+    // so that changes to it are forwarded to m4l
+    this.active = true
+
+    for( let property of def.properties ) {
+      let p = this[ property ](),
+          uid = this[ property ].uid
+      
+      //console.log( this.name, property, def.properties, uid )
+      if( Gen.isPrototypeOf( p ) ) {
+        str += p.gen( paramArray )
+      }else if( typeof p === 'number' ) {
+        let pName = uid
+        str += pName
+        paramArray.push( `Param ${pName}(${p})` )
+      }else if( p === Gen.time ) {
+        str += p
+      }else if( typeof p === 'string' ) {
+        str += p
+      }else{
+        console.log( 'CODEGEN ERROR:', p )
+      }
+
+      if( count++ < def.properties.length - 1 ) str += ','
+    }
+    str += ')'
+
+    return str
+  },
+
+  composites: { 
+    lfo( frequency = .1, amp = .5, center = .5 ) {
+      const g = Gen.ugens
+
+      let _cycle = g.cycle( frequency ),
+          _mul   = g.mul( _cycle, amp ),
+          _add   = g.add( center, _mul ) 
+       
+      _add.frequency = (v) => {
+        if( v === undefined ) {
+          return _cycle[ 0 ]()
+        }else{
+          _cycle[0]( v )
+        }
+      }
+
+      _add.amp = (v) => {
+        if( v === undefined ) {
+          return _mul[ 1 ]()
+        }else{
+          _mul[1]( v )
+        }
+      }
+
+      _add.center = (v) => {
+        if( v === undefined ) {
+          return _add[ 0 ]()
+        }else{
+          _add[0]( v )
+        }
+      }
+
+      Gibber.addSequencingToMethod( _add, 'frequency' )
+      Gibber.addSequencingToMethod( _add, 'amp' )
+      Gibber.addSequencingToMethod( _add, 'center' )
+
+      return _add
+    },
+
+    fade( time = 1, from = 1, to = 0 ) {
+      let g = Gen.ugens
+      let fade, amt, beatsInSeconds = time * ( 60 / Gibber.Live.LOM.bpm )
+     
+      if( from > to ) {
+        amt = from - to
+
+        fade = g.gtp( g.sub( from, g.accum( g.div( amt, g.mul(beatsInSeconds, g.samplerate ) ), 0 ) ), to )
+      }else{
+        amt = to - from
+        fade = g.add( from, g.ltp( g.accum( g.div( amt, g.mul( beatsInSeconds, g.samplerate ) ), 0 ), to ) )
+      }
+      
+      // XXX should this be available in ms? msToBeats()?
+      let numbeats = time / 4
+      fade.shouldKill = {
+        after: numbeats, 
+        final: to
+      }
+      
+      return fade
+    },
+    
+    beats( num ) {
+      return Gen.ugens.rate( 'in1', num )
+      // beat( n ) => rate(in1, n)
+      // final string should be rate( in1, num )
+    }
+  },
+
+  ugens:{},
+
+  export( obj ) {
+    for( let key in Gen.functions ) {
+      this.ugens[ key ] = Gen.create.bind( Gen, key )
+    }
+
+    Object.assign( this.ugens, Gen.constants )
+    Object.assign( this.ugens, Gen.composites )
+
+    Object.assign( obj, this.ugens )
+  }
+}
+
+Gen.init()
+
+return Gen 
+
+}
+
 
 /*
 
@@ -2695,459 +6935,784 @@ a = LFO( .5, .25, .5 )
 // every array indicates presence of new ugen
 a.graph = [ 'add', 'bias', [ 'mul', 'amp', [ 'cycle', 'frequency' ] ] ]
 */
-},{}],10:[function(require,module,exports){
-'use strict';
 
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj; };
+},{}],83:[function(require,module,exports){
+/* gen_abstraction.js
+ *
+ * This object serves as an asbtraction between the codegen for Gen and
+ * the use of genish.js. In gibberwocky, Gen code is sent to Live/Max for
+ * modulation purposes while genish.js is used to create waveforms that can
+ * be sampled for pattern generation.
+ *
+ * This abstraction delays interpretation of the Gen(ish) graphs until 
+ * one of the following two events occurs:
+ *
+ * 1. The graph is assigned to a property. This means that the graph
+ * should be interpreted as a Gen graph.
+ *
+ * 2. The graph is used to create a WavePattern. This means that the
+ * graph should be interpreted as a genish graph.
+ *
+ * One open problem: what if the same graph is used in two places? Can
+ * the abstraction hold both types of codegen objects inside of it?
+ */
 
-var Gibber = {
-  Utility: require('./utility.js'),
-  Communication: require('./communication.js'),
-  Environment: require('./environment.js'),
-  Scheduler: require('./clock.js'),
-  Theory: require('./theory.js'),
-  Examples: require('./example.js'),
-  Live: null,
-  Track: null,
-  Gen: null,
-  Euclid: null,
-  Seq: null,
-  Score: null,
-  Pattern: null,
-  Arp: null,
-  currentTrack: null,
-  codemirror: null,
-  max: null,
-  '$': null,
+const genish = require( 'genish.js' )
+const genreq = require( './gen.js' )
 
-  export: function _export() {
-    window.Steps = this.Steps;
-    window.Seq = this.Seq;
-    window.Score = this.Score;
-    window.Track = this.Track;
-    window.Scheduler = this.Scheduler;
-    window.Pattern = this.Pattern;
-    window.Euclid = this.Euclid;
-    window.Arp = this.Arp;
-    window.Communication = this.Communication;
-    window.log = this.log;
-    window.clear = this.clear;
-    window.Theory = this.Theory;
-    window.Scale = this.Theory.Scale.master;
+/*  
+assignInputProperties( genishGraph, abstractGraph ) {
+  for( let input in abstractGraph.inputs ) {
+    if( typeof abstractGraph.inputs[ input ] === 'number' ) {
+      let __param = genishGraph.inputs[ input ] = genish.param( abstractGraph.inputs[ input ] )
+      abstractGraph[ input ] = v => {
+        __param.value = v
+      }
+    }
+  }
+},
+*/
 
-    Gibber.Gen.export(window);
+const defineMethod = function( obj, methodName, param, priority=0 ) {
+  obj[ methodName ] = v => {
+    if( v === undefined ) return param.value
+    
+    // else, set the value
+    param.value = v
+  }
 
-    this.Utility.export(window);
+  
+  if( !obj.sequences ) obj.sequences = {}
+
+  obj[ methodName ].seq = function( values, timings, id=0, delay=0 ) {
+    if( obj.sequences[ methodName ] === undefined ) obj.sequences[ methodName ] = []
+
+    if( obj.sequences[ methodName ][ id ] !== undefined ) obj.sequences[ methodName ][ id ].clear()
+
+    const seq = Gibber.Seq( values, timings, methodName, obj, priority )
+    obj.sequences[ methodName ][ id ] = seq 
+
+    seq.__tick = seq.tick
+    seq.tick = function( ...args ) {
+      param.value = 0 
+      for( let i = 0; i < obj.patterns.length; i++ ) {
+        let pattern = obj.patterns[ i ]
+        let graph   = obj.graphs[ i ]
+        pattern.adjust( graph, Gibber.Scheduler.currentTimeInMs - pattern.phase )  
+      }
+      seq.__tick.apply( seq, args )
+    }
+
+    seq.trackID = obj.id
+
+    if( id === 0 ) {
+      obj[ methodName ].values  = obj.sequences[ methodName ][ 0 ].values
+      obj[ methodName ].timings = obj.sequences[ methodName ][ 0 ].timings
+    }
+
+    obj[ methodName ][ id ] = seq
+
+    seq.delay( delay )
+    seq.start()
+
+    // avoid this for gibber objects that don't communicate with Live such as Scale
+    if( obj.id !== undefined ) Gibber.Communication.send( `select_track ${obj.id}` )
+
+    return seq
+  }
+    
+  obj[ methodName ].seq.delay = v => obj[ methodName ][ lastId ].delay( v )
+
+  obj[ methodName ].seq.stop = function() {
+    obj.sequences[ methodName ][ 0 ].stop()
+    return obj
+  }
+
+  obj[ methodName ].seq.start = function() {
+    obj.sequences[ methodName ][ 0 ].start()
+    return obj
+  }
+}
+
+module.exports = function( Gibber ) {
+  const gen = genreq( Gibber )
+  const genfunctions = {}
+
+  gen.export( genfunctions )
+
+  const __ugenproto__ = {
+    render( mode ) {
+      let inputs = [], inputNum = 0
+
+      if( this.name === 'phasor' ) {
+        if( this.inputs[2] === undefined ) {
+          this.inputs[2] = { min:0 }
+        }
+      }
+
+      for( let input of this.inputs ) {
+        // use input.render as check to make sure this isn't a properties dictionary
+        if( typeof input === 'object' && input.render !== undefined ) {
+          inputs.push( input.render( mode ) )
+        }else{
+          if( mode === 'genish' && typeof input === 'number' ) { // replace numbers with params
+            let _input =  genish.param( input )
+            defineMethod( this, inputNum, _input )
+
+            inputs.push( _input )
+          }else{
+            inputs.push( input )
+          }
+        }
+
+        inputNum++
+      }
+      
+      const ugen = mode === 'genish' ? genish[ this.name ]( ...inputs ) : genfunctions[ this.name ]( ...inputs )
+
+      if( typeof this.__onrender === 'function' ) { this.__onrender() }
+
+      return ugen
+    },
+
+    isGen:true
+  }
+
+
+  const __gen = {
+    gen,
+    genish,
+    Gibber,
+    ugenNames: [
+      'cycle','phasor','accum','counter',
+      'add','mul','div','sub',
+      'sah','noise',
+      'beats', 'lfo', 'fade', 'sine', 'siner', 'cos', 'cosr', 'liner', 'line',
+      'abs', 'ceil', 'round', 'floor',
+      'min','max',
+      'gt','lt','ltp','gtp','samplerate','rate'
+    ],
+
+    ugens:{},
+
+    init() {
+      for( let name of this.ugenNames ) {
+        this.ugens[ name ] = function( ...inputs ) {
+          const ugen = Object.create( __ugenproto__ )
+
+          ugen.name = name
+          ugen.inputs = inputs
+
+          return ugen
+        }
+      }
+
+      this.ugens[ 'beats' ] = ( num ) => {
+        const frequency = Gibber.Utility.beatsToFrequency( num, 120 )
+
+        const ugen = this.ugens[ 'phasor' ]( frequency, 0, { min:0, max:1 } )
+        const storedAssignmentFunction = ugen[0]
+
+        ugen[0] = v => {
+          if( v === undefined ) {
+            return storedAssignmentFunction()
+          }else{
+            const freq = Gibber.Utility.beatsToFrequency( v )
+            storedAssignmentFunction( freq )
+          }
+        }
+
+        Gibber.addSequencingToMethod( ugen, '0' )
+
+        return ugen
+      }
+
+      this.ugens[ 'sine' ] = ( beats=4, center=0, amp=7 ) => {
+        const freq = btof( beats, 120 )
+        const __cycle = this.ugens.cycle( freq )
+
+        const sine = __cycle 
+        const ugen = this.ugens.add( center, this.ugens.mul( sine, amp ) )
+
+        ugen.__onrender = ()=> {
+
+          ugen[0] = v => {
+            if( v === undefined ) {
+              return beats
+            }else{
+              beats = v
+              __cycle[0]( btof( beats, 120 ) )
+            }
+          }
+
+          Gibber.addSequencingToMethod( ugen, '0' )
+        }
+
+        return ugen
+      }
+
+      this.ugens[ 'siner' ] = ( beats=4, center=0, amp=7 ) => {
+        const freq = btof( beats, 120 )
+        const __cycle = this.ugens.cycle( freq )
+
+        const sine = __cycle 
+        const ugen = this.ugens.round( this.ugens.add( center, this.ugens.mul( sine, amp ) ) )
+        
+        ugen.sine = sine
+
+        ugen.__onrender = ()=> {
+
+          ugen[0] = v => {
+            if( v === undefined ) {
+              return beats
+            }else{
+              beats = v
+              __cycle[0]( btof( beats, 120 ) )
+            }
+          }
+
+          Gibber.addSequencingToMethod( ugen, '0' )
+        }
+
+        return ugen
+      }
+
+      this.ugens[ 'cos' ] = ( beats=4, center=0, amp=7 ) => {
+        const freq = btof( beats, 120 )
+        const __cycle = this.ugens.cycle( freq, 0, { initialValue:1 })
+
+        const sine = __cycle 
+        const ugen = this.ugens.add( center, this.ugens.mul( sine, amp ) )
+
+        ugen[0] = v => {
+          if( v === undefined ) {
+            return beats
+          }else{
+            beats = v
+            __cycle[0]( btof( beats, 120 ) )
+          }
+        }
+
+        Gibber.addSequencingToMethod( ugen, '0' )
+
+        return ugen
+      }
+      this.ugens[ 'cosr' ] = ( beats=4, center=0, amp=7 ) => {
+        const freq = btof( beats, 120 )
+        const __cycle = this.ugens.cycle( freq, 0, { initialValue:1 })
+
+        const sine = __cycle 
+        const ugen = this.ugens.round( this.ugens.add( center, this.ugens.mul( sine, amp ) ) )
+
+        ugen[0] = v => {
+          if( v === undefined ) {
+            return beats
+          }else{
+            beats = v
+            __cycle[0]( btof( beats, 120 ) )
+          }
+        }
+
+        Gibber.addSequencingToMethod( ugen, '0' )
+
+        return ugen
+      }
+      this.ugens[ 'liner' ] = ( beats=4, min=0, max=7 ) => {
+        const line = this.ugens.beats( beats )
+
+        const ugen = this.ugens.round( this.ugens.add( min, this.ugens.mul( line, max-min ) ) )
+
+        ugen[0] = v => {
+          if( v === undefined ) {
+            return beats
+          }else{
+            beats = v
+            line[0]( v )
+          }
+        }
+
+        Gibber.addSequencingToMethod( ugen, '0' )
+
+        return ugen
+      }
+      this.ugens[ 'line' ] = ( beats=4, min=0, max=1 ) => {
+        const line = this.ugens.beats( beats )
+
+        const ugen = this.ugens.add( min, this.ugens.mul( line, max-min ) )
+
+        ugen[0] = v => {
+          if( v === undefined ) {
+            return beats
+          }else{
+            beats = v
+            line[0]( v )
+          }
+        }
+
+        Gibber.addSequencingToMethod( ugen, '0' )
+
+        return ugen
+      }
+    },
+
+    export( target ) {
+      Object.assign( target, this.ugens )
+    },
+  }
+
+  return __gen
+}
+
+},{"./gen.js":82,"genish.js":37}],84:[function(require,module,exports){
+let Gibber = {
+  Utility:       require( './utility.js' ),
+  Communication: require( './communication.js' ),
+  Environment:   require( './environment.js' ),
+  Scheduler:     require( './clock.js' ),
+  Theory:        require( './theory.js' ),
+  Examples:      require( './example.js' ),
+  Live:          null,
+  Track:         null,
+  Gen:           null,
+  Euclid:        null,
+  Seq:           null,
+  Score:         null,
+  Pattern:       null,
+  Arp:           null,
+  currentTrack:  null,
+  codemirror:    null,
+  max:           null,
+  '$':           null,
+
+  export() {
+    window.Steps         = this.Steps
+    window.Seq           = this.Seq
+    window.Score         = this.Score
+    window.Track         = this.Track
+    window.Scheduler     = this.Scheduler
+    window.Pattern       = this.Pattern
+    window.Euclid        = this.Euclid
+    window.Arp           = this.Arp
+    window.Communication = this.Communication
+    window.log           = this.log
+    window.clear         = this.clear
+    window.Theory        = this.Theory
+    window.WavePattern   = this.WavePattern
+
+    Gibber.__gen.export( window ) 
+    //Gibber.Gen.export( window )
+
+    this.Theory.export( window )
+    this.Utility.export( window )
   },
-  init: function init() {
-    this.max = window.max;
-    this.$ = Gibber.Utility.create;
 
-    this.Environment.init(Gibber);
-    this.Theory.init(Gibber);
-    this.log = this.Environment.log;
+  init() {
+    this.max = window.max
+    this.$   = Gibber.Utility.create
 
-    if (this.Environment.debug) {
-      this.Scheduler.mockRun();
-    } else {
-      this.Communication.init(Gibber);
+    this.Environment.init( Gibber )
+    this.Theory.init( Gibber )
+    this.log = this.Environment.log
+
+    if( this.Environment.debug ) {
+      this.Scheduler.mockRun()
+    }else{
+      this.Communication.init( Gibber ) 
     }
 
     //this.currentTrack = this.Track( this, 1 ) // TODO: how to determine actual "id" from Max?
+    
+    this.initSingletons( window )
 
-    this.initSingletons(window);
+    this.__gen.init( this )
 
-    this.export();
+    this.export()
   },
-  singleton: function singleton(target, key) {
-    if (Array.isArray(key)) {
-      for (var i = 0; i < key.length; i++) {
-        Gibber.singleton(target, key[i]);
+
+  singleton( target, key ) {
+    if( Array.isArray( key ) ) {
+      for( let i = 0; i < key.length; i++ ) {
+        Gibber.singleton( target, key[ i ] )
       }
-      return;
+      return
+    }
+    
+    if( target[ key ] !== undefined ) {
+      delete target[ key ]
     }
 
-    if (target[key] !== undefined) {
-      delete target[key];
-    }
-
-    var proxy = null;
-    Object.defineProperty(target, key, {
-      get: function get() {
-        return proxy;
-      },
-      set: function set(v) {
-        if (proxy && proxy.clear) {
-          proxy.clear();
+    let proxy = null
+    Object.defineProperty( target, key, {
+      get() { return proxy },
+      set(v) {
+        if( proxy !== null && proxy.clear ) {
+          proxy.clear()
+        }
+        
+        if( proxy !== null && proxy.__listeners !== undefined ) {
+          for( let listener of proxy.__listeners ) {
+            listener( proxy, v )
+          }
         }
 
-        proxy = v;
-      }
-    });
-  },
-
-
-  initSingletons: function initSingletons(target) {
-    var letters = "abcdefghijklmnopqrstuvwxyz";
-
-    for (var l = 0; l < letters.length; l++) {
-
-      var lt = letters.charAt(l);
-      Gibber.singleton(target, lt);
-    }
-  },
-
-  clear: function clear() {
-    for (var i = 0; i < this.Seq._seqs.length; i++) {
-      this.Seq._seqs[i].clear();
-    }
-
-    setTimeout(function () {
-      for (var key in Gibber.currentTrack.markup.textMarkers) {
-        var marker = Gibber.currentTrack.markup.textMarkers[key];
-
-        if (Array.isArray(marker)) {
-          marker.forEach(function (m) {
-            return m.clear();
-          });
-        } else {
-          if (marker.clear) marker.clear();
+        if( proxy !== null && v !== null ) {
+          if( proxy.isGen && v.isGen ) {
+            for( let key in proxy.sequences ) {
+              let sequences = proxy.sequences[ key ]
+              for( let sequence of sequences ) {
+                sequence.target = v
+              }
+            }
+            v.sequences = proxy.sequences
+          }
         }
+        proxy = v
       }
-    }, 250);
-
-    Gibber.Gen.clear();
-    Gibber.Environment.codeMarkup.clear();
+    })
   },
-  addSequencingToMethod: function addSequencingToMethod(obj, methodName, priority, overrideName) {
 
-    if (!obj.sequences) obj.sequences = {};
-    if (overrideName === undefined) overrideName = methodName;
+  initSingletons: function( target ) {
+		var letters = "abcdefghijklmnopqrstuvwxyz"
+    
+		for(var l = 0; l < letters.length; l++) {
 
-    var lastId = 0;
-    obj[methodName].seq = function (values, timings) {
-      var id = arguments.length <= 2 || arguments[2] === undefined ? 0 : arguments[2];
-      var delay = arguments.length <= 3 || arguments[3] === undefined ? 0 : arguments[3];
+			var lt = letters.charAt(l);
+      Gibber.singleton( target, lt )
+      
+    }
+  },
 
-      var seq = void 0;
-      lastId = id;
+  clear() {
+    for( let i = 0; i < this.Seq._seqs.length; i++ ){
+      this.Seq._seqs[ i ].clear()
+    }
+    
+    setTimeout( () => {
+      for( let key in Gibber.currentTrack.markup.textMarkers ) {
+        let marker = Gibber.currentTrack.markup.textMarkers[ key ]
 
-      if (obj.sequences[methodName] === undefined) obj.sequences[methodName] = [];
+        if( Array.isArray( marker ) ) {
+          marker.forEach( m => m.clear() )
+        }else{
+          if( marker.clear ) marker.clear() 
+        }
+        }
+    }, 250 )
 
-      if (obj.sequences[methodName][id]) obj.sequences[methodName][id].clear();
+    Gibber.Gen.clear()
+    Gibber.Environment.codeMarkup.clear()
+  },
 
-      obj.sequences[methodName][id] = seq = Gibber.Seq(values, timings, overrideName, obj, priority);
-      seq.trackID = obj.id;
+  addSequencingToMethod( obj, methodName, priority, overrideName ) {
+    
+    if( !obj.sequences ) obj.sequences = {}
+    if( overrideName === undefined ) overrideName = methodName 
+    
+    let lastId = 0
+    obj[ methodName ].seq = function( values, timings, id=0, delay=0 ) {
+      let seq
+      lastId = id
 
-      if (id === 0) {
-        obj[methodName].values = obj.sequences[methodName][0].values;
-        obj[methodName].timings = obj.sequences[methodName][0].timings;
+      if( obj.sequences[ methodName ] === undefined ) obj.sequences[ methodName ] = []
+
+      if( obj.sequences[ methodName ][ id ] ) obj.sequences[ methodName ][ id ].clear()
+
+      obj.sequences[ methodName ][ id ] = seq = Gibber.Seq( values, timings, overrideName, obj, priority )
+      seq.trackID = obj.id
+
+      if( id === 0 ) {
+        obj[ methodName ].values  = obj.sequences[ methodName ][ 0 ].values
+        obj[ methodName ].timings = obj.sequences[ methodName ][ 0 ].timings
       }
 
-      obj[methodName][id] = seq;
+      obj[ methodName ][ id ] = seq
 
-      seq.delay(delay);
-      seq.start();
+      seq.delay( delay )
+      seq.start()
 
       // avoid this for gibber objects that don't communicate with Live such as Scale
-      if (obj.id !== undefined) Gibber.Communication.send('select_track ' + obj.id);
+      if( obj.id !== undefined ) Gibber.Communication.send( `select_track ${obj.id}` )
 
-      return seq;
-    };
-
-    obj[methodName].seq.delay = function (v) {
-      return obj[methodName][lastId].delay(v);
-    };
-
-    obj[methodName].seq.stop = function () {
-      obj.sequences[methodName][0].stop();
-      return obj;
-    };
-
-    obj[methodName].seq.start = function () {
-      obj.sequences[methodName][0].start();
-      return obj;
-    };
-  },
-  addSequencingToProtoMethod: function addSequencingToProtoMethod(proto, methodName) {
-    proto[methodName].seq = function (values, timings) {
-      var id = arguments.length <= 2 || arguments[2] === undefined ? 0 : arguments[2];
-
-
-      if (this.sequences === undefined) this.sequences = {};
-
-      if (this.sequences[methodName] === undefined) this.sequences[methodName] = [];
-
-      if (this.sequences[methodName][id]) this.sequences[methodName][id].stop();
-
-      this.sequences[methodName][id] = Gibber.Seq(values, timings, methodName, this).start(); // 'this' will never be correct reference
-
-      if (id === 0) {
-        this.values = this.sequences[methodName][0].values;
-        this.timings = this.sequences[methodName][0].timings;
+      // setup code annotations to place values and widget onto pattern object
+      // not gen~ object
+      if( typeof values === 'object' && values.isGen ) {
+        Gibber.Gen.lastConnected = seq.values 
+      }
+      
+      // XXX THIS WILL BREAK IF THERE ARE WAVE PATTERNS FOR BOTH VALUES AND TIMINGS
+      if( typeof timing === 'object' && timings.isGen ) {
+        Gibber.Gen.lastConnected = seq.timings
       }
 
-      this[id] = this.sequences[methodName][id];
+      return seq
+    }
+    
+    obj[ methodName ].seq.delay = v => obj[ methodName ][ lastId ].delay( v )
 
-      this.seq.stop = function () {
-        this.sequences[methodName][0].stop();
-        return this;
-      }.bind(this);
+    obj[ methodName ].seq.stop = function() {
+      obj.sequences[ methodName ][ 0 ].stop()
+      return obj
+    }
 
-      this.seq.start = function () {
-        this.sequences[methodName][0].start();
-        return this;
-      }.bind(this);
-    };
+    obj[ methodName ].seq.start = function() {
+      obj.sequences[ methodName ][ 0 ].start()
+      return obj
+    }
+
+
   },
-  addMethod: function addMethod(obj, methodName, parameter, _trackID) {
-    var v = parameter.value,
-        _p = void 0,
-        trackID = isNaN(_trackID) ? obj.id : _trackID,
-        seqKey = trackID + ' ' + obj.id + ' ' + parameter.id;
+
+  addSequencingToProtoMethod( proto, methodName ) {
+    proto[ methodName ].seq = function( values, timings, id = 0 ) {
+
+      if( this.sequences === undefined ) this.sequences = {}
+
+      if( this.sequences[ methodName ] === undefined ) this.sequences[ methodName ] = []
+
+      if( this.sequences[ methodName ][ id ] ) this.sequences[ methodName ][ id ].stop() 
+
+      this.sequences[ methodName ][ id ] = Gibber.Seq( values, timings, methodName, this ).start() // 'this' will never be correct reference
+
+      if( id === 0 ) {
+        this.values  = this.sequences[ methodName ][ 0 ].values
+        this.timings = this.sequences[ methodName ][ 0 ].timings
+      }
+
+      this[ id ] = this.sequences[ methodName ][ id ]
+      
+      this.seq.stop = function() {
+        this.sequences[ methodName ][ 0 ].stop()
+        return this
+      }.bind( this )
+
+      this.seq.start = function() {
+        this.sequences[ methodName ][ 0 ].start()
+        return this
+      }.bind( this )
+    }
+  },
+
+  addMethod( obj, methodName, parameter, _trackID ) {
+    let v = parameter.value,
+        p,
+        trackID = isNaN( _trackID ) ? obj.id : _trackID,
+        seqKey = `${trackID} ${obj.id} ${parameter.id}`
 
     //console.log( "add method trackID", trackID )
 
-    if (methodName === null) methodName = parameter.name;
+    if( methodName === null ) methodName = parameter.name
 
-    Gibber.Seq.proto.externalMessages[seqKey] = function (value, beat) {
-      var msg = 'add ' + beat + ' set ' + parameter.id + ' ' + value;
-      return msg;
-    };
-
-    obj[methodName] = _p = function p(_v) {
-      if (_p.properties.quantized === 1) _v = Math.round(_v);
-
-      if (_v !== undefined) {
-        if ((typeof _v === 'undefined' ? 'undefined' : _typeof(_v)) === 'object' && _v.isGen) {
-          _v.assignTrackAndParamID(trackID, parameter.id);
-
-          // if a gen is not already connected to this parameter, push
-          if (Gibber.Gen.connected.find(function (e) {
-            return e.paramID === parameter.id;
-          }) === undefined) {
-            Gibber.Gen.connected.push(_v);
-          }
-
-          Gibber.Gen.lastConnected = _v;
-          Gibber.Communication.send('gen ' + parameter.id + ' "' + _v.out() + '"');
-          Gibber.Communication.send('select_track ' + trackID);
-
-          // disconnects for fades etc.
-          if (_typeof(_v.shouldKill) === 'object') {
-            Gibber.Utility.future(function () {
-              Gibber.Communication.send('ungen ' + parameter.id);
-              Gibber.Communication.send('set ' + parameter.id + ' ' + _v.shouldKill.final);
-
-              var widget = Gibber.Environment.codeMarkup.genWidgets[parameter.id];
-              if (widget !== undefined && widget.mark !== undefined) {
-                widget.mark.clear();
-              }
-              delete Gibber.Environment.codeMarkup.genWidgets[parameter.id];
-            }, _v.shouldKill.after);
-          }
-
-          v = _v;
-        } else {
-          if (v.isGen) {
-            Gibber.Communication.send('ungen ' + parameter.id);
-            var widget = Gibber.Environment.codeMarkup.genWidgets[parameter.id];
-            if (widget !== undefined && widget.mark !== undefined) {
-              widget.mark.clear();
-            }
-            delete Gibber.Environment.codeMarkup.genWidgets[parameter.id];
-          }
-
-          v = _v;
-          Gibber.Communication.send('set ' + parameter.id + ' ' + v);
-        }
-      } else {
-        return v;
-      }
-    };
-
-    _p.properties = parameter;
-
-    Gibber.addSequencingToMethod(obj, methodName, 0, seqKey);
-  }
-};
-
-Gibber.Pattern = require('./pattern.js')(Gibber);
-Gibber.Seq = require('./seq.js')(Gibber);
-Gibber.Score = require('./score.js')(Gibber);
-Gibber.Arp = require('./arp.js')(Gibber);
-Gibber.Euclid = require('./euclidean.js')(Gibber);
-Gibber.Gen = require('./gen.js')(Gibber);
-Gibber.Steps = require('./steps.js')(Gibber);
-Gibber.Live = require('./live.js')(Gibber);
-Gibber.Track = require('./track.js')(Gibber);
-
-module.exports = Gibber;
-},{"./arp.js":2,"./clock.js":3,"./communication.js":5,"./environment.js":6,"./euclidean.js":7,"./example.js":8,"./gen.js":9,"./live.js":12,"./pattern.js":14,"./score.js":16,"./seq.js":17,"./steps.js":18,"./theory.js":20,"./track.js":21,"./utility.js":22}],11:[function(require,module,exports){
-'use strict';
-
-require('babel-polyfill');
-
-var Gibber = require('./gibber.js'),
-    useAudioContext = false,
-    count = 0;
-
-Gibber.init();
-window.Gibber = Gibber;
-},{"./gibber.js":10,"babel-polyfill":25}],12:[function(require,module,exports){
-'use strict';
-
-module.exports = function (Gibber) {
-
-  var Live = {
-    init: function init() {
-      Gibber.Communication.callbacks.scene = Live.handleScene;
-      Gibber.Communication.send('get_scene');
-    },
-
-
-    tracks: [],
-    master: null,
-    returns: [],
-
-    handleScene: function handleScene(msg) {
-      Live.id = Communication.querystring.track;
-
-      Live.LOM = msg;
-      console.log(msg);
-
-      Live.processLOM();
-    },
-    processLOM: function processLOM() {
-      Live.tracks = Live.LOM.tracks.map(Live.processTrack);
-      Gibber.currentTrack = Live.tracks.find(function (element) {
-        return element.id === Live.id;
-      });
-
-      Live.returns = Live.LOM.returns.map(Live.processTrack);
-
-      Gibber.Live.master = Live.processTrack(Live.LOM.master);
-
-      if (Gibber.currentTrack === undefined) {
-        Gibber.currentTrack = Gibber.Live.master;
-      }
-
-      var _iteratorNormalCompletion = true;
-      var _didIteratorError = false;
-      var _iteratorError = undefined;
-
-      try {
-        for (var _iterator = Live.tracks[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-          var track = _step.value;
-
-          Live.tracks[track.spec.name] = track;
-        }
-      } catch (err) {
-        _didIteratorError = true;
-        _iteratorError = err;
-      } finally {
-        try {
-          if (!_iteratorNormalCompletion && _iterator.return) {
-            _iterator.return();
-          }
-        } finally {
-          if (_didIteratorError) {
-            throw _iteratorError;
-          }
-        }
-      }
-
-      window.tracks = Live.tracks;
-      window.master = Live.master;
-      window.returns = Live.returns;
-
-      Gibber.Scheduler.bpm = Live.LOM.bpm;
-
-      Gibber.Environment.lomView.init(Gibber);
-    },
-    processTrack: function processTrack(spec) {
-      var track = Gibber.Track(spec);
-      track.devices = [];
-
-      spec.devices.forEach(function (val, idx) {
-        Live.processDevice(val, idx, track);
-      });
-
-      if (track.devices[0] !== undefined) {
-        if (track.devices[0].title.includes('gibberwocky')) {
-          track.length = track.devices.length;
-          track.devices.shift();
-          Array.prototype.shift.call(track);
-        }
-      }
-      return track;
-    },
-    processDevice: function processDevice(device, idx, currentTrack) {
-      var d = currentTrack.devices[device.name] = currentTrack.devices[idx] = currentTrack[idx] = { idx: idx },
-          parameterCount = 0;
-
-      //console.log( 'device', device ) 
-      if (device.type === 1) currentTrack.instrument = d;
-
-      d.pickRandomParameter = function () {
-        var idx = Gibber.Utility.rndi(0, device.parameters.length - 1),
-            param = device.parameters[idx];
-
-        while (param.name === 'Device On' || param.name.indexOf('Volume') !== -1) {
-          idx = Gibber.Utility.rndi(0, device.parameters.length - 1), param = device.parameters[idx];
-        }
-
-        return d[param.name];
-      };
-
-      d.galumph = function (value) {
-        return d.pickRandomParameter()(value);
-      };
-      d.on = function () {
-        d.isOn = 1;d['Device On'](d.isOn);
-      };
-      d.off = function () {
-        d.isOn = 0;d['Device On'](d.isOn);
-      };
-      d.toggle = function () {
-        d.isOn = d.isOn === 1 ? 0 : 1;d['Device On'](d.isOn);
-      };
-
-      Gibber.addSequencingToMethod(d, 'galumph');
-      Gibber.addSequencingToMethod(d, 'toggle');
-
-      device.parameters.forEach(function (spec, idx) {
-        return Gibber.addMethod(d, null, spec, currentTrack.id);
-      });
-      d.parameters = device.parameters.slice(0);
-      d.name = device.name;
-      d.title = device.title;
+    Gibber.Seq.proto.externalMessages[ seqKey ] = ( value, beat ) => {
+      let msg = `add ${beat} set ${parameter.id} ${value}` 
+      return msg
     }
-  };
+    
+    obj[ methodName ] = p = ( _v ) => {
+      if( p.properties.quantized === 1 ) _v = Math.round( _v )
 
-  return Live;
-};
-},{}],13:[function(require,module,exports){
-'use strict';
+      if( _v !== undefined ) {
+        if( typeof _v === 'object' && _v.isGen ) {
+          const __v = _v.render( 'gen' )
+          __v.assignTrackAndParamID( trackID, parameter.id )
+          
+          // if a gen is not already connected to this parameter, push
+          if( Gibber.Gen.connected.find( e => e.paramID === parameter.id ) === undefined ) {
+            Gibber.Gen.connected.push( __v )
+          }
 
-require('./vanillatree.js');
+          //Gibber.Gen.lastConnected = __v
 
-var Gibber = null,
-    count = -1;
 
-var lomView = {
+          Gibber.Communication.send( `gen ${parameter.id} "${__v.out()}"` )
+          Gibber.Communication.send( `select_track ${ trackID }` )
+          
+          // disconnects for fades etc.
+          if( typeof __v.shouldKill === 'object' ) {
+            Gibber.Utility.future( ()=> {
+              Gibber.Communication.send( `ungen ${parameter.id}` )
+              Gibber.Communication.send( `set ${parameter.id} ${__v.shouldKill.final}` )
+
+              let widget = Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
+              if( widget !== undefined && widget.mark !== undefined ) {
+                widget.mark.clear()
+              }
+              delete Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
+            }, __v.shouldKill.after )
+          }
+          
+          v = __v
+        }else{
+          if( v.isGen ) {
+            Gibber.Communication.send( `ungen ${parameter.id}` )
+            let widget = Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
+            if( widget !== undefined && widget.mark !== undefined ) {
+              widget.mark.clear()
+            }
+            delete Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
+          }
+
+          v = typeof _v === 'object' && _v.isGen ? _v.render( 'gen' ) : _v
+          Gibber.Communication.send( `set ${parameter.id} ${v}` )
+        }
+      }else{
+        return v
+      }
+    }
+
+    p.properties = parameter
+
+    Gibber.addSequencingToMethod( obj, methodName, 0, seqKey )
+  }
+}
+
+Gibber.Pattern = require( './pattern.js' )( Gibber )
+Gibber.Seq     = require( './seq.js' )( Gibber )
+Gibber.Score   = require( './score.js' )( Gibber )
+Gibber.Arp     = require( './arp.js' )( Gibber )
+Gibber.Euclid  = require( './euclidean.js')( Gibber )
+//Gibber.Gen     = require( './gen.js' )( Gibber )
+Gibber.Steps   = require( './steps.js' )( Gibber )
+Gibber.Live    = require( './live.js' )( Gibber )
+Gibber.Track   = require( './track.js')( Gibber )
+Gibber.__gen   = require( './gen_abstraction.js' )( Gibber )
+Gibber.Gen = Gibber.__gen.gen
+
+Gibber.WavePattern = require( './wavePattern.js' )( Gibber )
+
+module.exports = Gibber
+
+},{"./arp.js":75,"./clock.js":76,"./communication.js":78,"./environment.js":79,"./euclidean.js":80,"./example.js":81,"./gen_abstraction.js":83,"./live.js":86,"./pattern.js":88,"./score.js":90,"./seq.js":91,"./steps.js":92,"./theory.js":94,"./track.js":95,"./utility.js":96,"./wavePattern.js":98}],85:[function(require,module,exports){
+require( 'babel-polyfill' )
+
+let Gibber = require( './gibber.js' ),
+    useAudioContext = false,
+    count = 0
+   
+Gibber.init()
+window.Gibber = Gibber
+
+},{"./gibber.js":84,"babel-polyfill":100}],86:[function(require,module,exports){
+module.exports = function( Gibber ) {
+
+let Live = {
+  init() {
+    Gibber.Communication.callbacks.scene = Live.handleScene
+    Gibber.Communication.send( 'get_scene' )
+  },
+
+  tracks:[],
+  master:null,
+  returns:[],
+  
+  handleScene( msg ) {
+    Live.id = Communication.querystring.track
+
+    Live.LOM = msg
+
+    Live.processLOM()
+  },
+
+  processLOM() {
+    Live.tracks = Live.LOM.tracks.map( Live.processTrack )
+    Gibber.currentTrack = Live.tracks.find( element => { return element.id === Live.id } )
+    
+    Live.returns = Live.LOM.returns.map( Live.processTrack )
+
+    Gibber.Live.master = Live.processTrack( Live.LOM.master )
+
+    if( Gibber.currentTrack === undefined ) {
+      Gibber.currentTrack = Gibber.Live.master
+    }
+
+    for( let track of Live.tracks ) {
+      Live.tracks[ track.spec.name ] = track
+    }
+    
+    window.tracks  = Live.tracks
+    window.master  = Live.master
+    window.returns = Live.returns
+
+    Gibber.Scheduler.bpm = Live.LOM.bpm
+
+    Gibber.Environment.lomView.init( Gibber )
+  },
+
+  processTrack( spec ) {
+    let track = Gibber.Track( spec )
+    track.devices = []
+
+    spec.devices.forEach( (val, idx ) => {
+      Live.processDevice( val, idx, track ) 
+    })
+    
+    if( track.devices[0] !== undefined ) {
+      if( track.devices[0].title.includes('gibberwocky') ) {
+        track.length = track.devices.length
+        track.devices.shift()
+        Array.prototype.shift.call( track )
+      }
+    }
+    return track
+  },
+
+  processDevice( device, idx, currentTrack ) {
+    let d = currentTrack.devices[ device.name ] = currentTrack.devices[ idx ] = currentTrack[ idx ] = { idx },
+        parameterCount = 0
+    
+    //console.log( 'device', device ) 
+    if( device.type === 1 ) currentTrack.instrument = d
+
+    d.pickRandomParameter = ()=> {
+      let idx = Gibber.Utility.rndi( 0, device.parameters.length - 1 ),
+          param = device.parameters[ idx ]
+       
+      while( param.name === 'Device On' || param.name.indexOf( 'Volume' ) !== -1 ) {
+        idx = Gibber.Utility.rndi( 0, device.parameters.length - 1 ),
+        param = device.parameters[ idx ]
+      }
+
+      return d[ param.name ]
+    }
+
+    d.galumph = ( value ) => d.pickRandomParameter()( value )
+    d.on =  ()=>  { d.isOn = 1; d['Device On']( d.isOn ) }
+    d.off = ()=>  { d.isOn = 0; d['Device On']( d.isOn ) }
+    d.toggle = ()=> { d.isOn = d.isOn === 1 ? 0 : 1; d['Device On']( d.isOn ) }
+
+    Gibber.addSequencingToMethod( d, 'galumph' )
+    Gibber.addSequencingToMethod( d, 'toggle' )
+
+    device.parameters.forEach( ( spec, idx ) => Gibber.addMethod( d, null, spec, currentTrack.id ) )
+    d.parameters = device.parameters.slice( 0 )
+    d.name = device.name
+    d.title = device.title
+  },
+}
+
+return Live
+
+}
+
+},{}],87:[function(require,module,exports){
+require( './vanillatree.js' )
+
+let Gibber = null, count = -1
+
+let lomView = {
   tree: null,
 
-  init: function init(_gibber) {
-    Gibber = _gibber;
-    this.setup();
-    this.create();
+  init( _gibber ) {
+    Gibber = _gibber
+    this.setup()
+    this.create()
 
-    count++;
-    if (count) Gibber.log('the live object model (lom) has been updated.');
+    count++
+    if( count )
+      Gibber.log( 'the live object model (lom) has been updated.' )
   },
-  setup: function setup() {
-    document.querySelector('#lomView').innerHTML = '';
+
+  setup() {
+    document.querySelector( '#lomView' ).innerHTML = ''
 
     this.tree = new VanillaTree('#lomView', {
       placeholder: ''
@@ -3162,577 +7727,493 @@ var lomView = {
       //    // someAction
       //  }
       //}]
-    });
+    })
     //elem.addEventListener( 'vtree-select', function( evt ) {
     //  console.log( evt, evt.detail )
     //});
   },
-  processTrack: function processTrack(track, id) {
-    var trackID = id === undefined ? track.spec.name : id;
-    lomView.tree.add({ label: trackID, id: trackID });
-    var _iteratorNormalCompletion = true;
-    var _didIteratorError = false;
-    var _iteratorError = undefined;
 
-    try {
-      for (var _iterator = track.devices[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-        var device = _step.value;
-
-        var deviceID = device.name; // device.title
-        lomView.tree.add({ label: deviceID, id: deviceID, parent: trackID });
-        var _iteratorNormalCompletion2 = true;
-        var _didIteratorError2 = false;
-        var _iteratorError2 = undefined;
-
-        try {
-          for (var _iterator2 = device.parameters[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-            var param = _step2.value;
-
-            lomView.tree.add({ label: param.name, id: encodeURI(param.name), parent: deviceID });
-          }
-        } catch (err) {
-          _didIteratorError2 = true;
-          _iteratorError2 = err;
-        } finally {
-          try {
-            if (!_iteratorNormalCompletion2 && _iterator2.return) {
-              _iterator2.return();
-            }
-          } finally {
-            if (_didIteratorError2) {
-              throw _iteratorError2;
-            }
-          }
-        }
-      }
-    } catch (err) {
-      _didIteratorError = true;
-      _iteratorError = err;
-    } finally {
-      try {
-        if (!_iteratorNormalCompletion && _iterator.return) {
-          _iterator.return();
-        }
-      } finally {
-        if (_didIteratorError) {
-          throw _iteratorError;
-        }
+  processTrack( track, id ) {
+    let trackID = id === undefined ? track.spec.name : id
+    lomView.tree.add({ label:trackID, id:trackID }) 
+    for( let device of track.devices ) {
+      let deviceID = device.name // device.title
+      lomView.tree.add({ label:deviceID, id:deviceID, parent:trackID })
+      for( let param of device.parameters ) {
+        lomView.tree.add({ label:param.name, id:encodeURI(param.name), parent:deviceID })
       }
     }
   },
-  create: function create() {
-    Gibber.Live.tracks.forEach(function (v) {
-      return lomView.processTrack(v);
-    });
-    Gibber.Live.returns.forEach(function (v) {
-      return lomView.processTrack(v);
-    }); // 'return ' + v.id ) )
-    lomView.processTrack(Gibber.Live.master);
+
+  create() {
+    Gibber.Live.tracks.forEach( v => lomView.processTrack( v ) )
+    Gibber.Live.returns.forEach( v => lomView.processTrack( v ) ) // 'return ' + v.id ) )
+    lomView.processTrack( Gibber.Live.master )
   }
-};
+}
 
-module.exports = lomView;
-},{"./vanillatree.js":23}],14:[function(require,module,exports){
-'use strict';
+module.exports = lomView 
 
-module.exports = function (Gibber) {
+},{"./vanillatree.js":97}],88:[function(require,module,exports){
+module.exports = function( Gibber ) {
 
-  "use strict";
+"use strict"
 
-  var PatternProto = Object.create(function () {});
+let PatternProto = Object.create( function(){} )
 
-  Object.assign(PatternProto, {
-    DNR: -987654321,
-    concat: function concat(_pattern) {
-      this.values = this.values.concat(_pattern.values);
-    },
-    toString: function toString() {
-      return this.values.toString();
-    },
-    valueOf: function valueOf() {
-      return this.values;
-    },
-    getLength: function getLength() {
-      var l = void 0;
-      if (this.start <= this.end) {
-        l = this.end - this.start + 1;
-      } else {
-        l = this.values.length + this.end - this.start + 1;
-      }
-      return l;
-    },
-    runFilters: function runFilters(val, idx) {
-      var args = [val, 1, idx]; // 1 is phaseModifier
+Object.assign( PatternProto, {
+  DNR: -987654321,
+  concat( _pattern ) { this.values = this.values.concat( _pattern.values ) },  
+  toString() { return this.values.toString() },
+  valueOf() { return this.values },
 
-      var _iteratorNormalCompletion = true;
-      var _didIteratorError = false;
-      var _iteratorError = undefined;
+  getLength() {
+    let l
+    if( this.start <= this.end ) {
+      l = this.end - this.start + 1
+    }else{
+      l = this.values.length + this.end - this.start + 1
+    }
+    return l
+  },
 
-      try {
-        for (var _iterator = this.filters[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-          var filter = _step.value;
+  runFilters( val, idx ) {
+    let args = [ val, 1, idx ] // 1 is phaseModifier
 
-          args = filter(args, this);
-        }
-      } catch (err) {
-        _didIteratorError = true;
-        _iteratorError = err;
-      } finally {
-        try {
-          if (!_iteratorNormalCompletion && _iterator.return) {
-            _iterator.return();
-          }
-        } finally {
-          if (_didIteratorError) {
-            throw _iteratorError;
-          }
-        }
-      }
-
-      return args;
-    },
-    checkForUpdateFunction: function checkForUpdateFunction(name) {
-      for (var _len = arguments.length, args = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
-        args[_key - 1] = arguments[_key];
-      }
-
-      if (this.listeners[name]) {
-        this.listeners[name].apply(this, args);
-      } else if (Pattern.listeners[name]) {
-        Pattern.listeners[name].apply(this, args);
-      }
-    },
-
-
-    // used when _onchange has not been assigned to individual patterns
-    _onchange: function _onchange() {}
-  });
-
-  var Pattern = function Pattern() {
-    for (var _len2 = arguments.length, args = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
-      args[_key2] = arguments[_key2];
+    for( let filter of this.filters ) {
+      args = filter( args, this ) 
     }
 
-    /*
-     *if( ! ( this instanceof Pattern ) ) {
-     *  let args = Array.prototype.slice.call( arguments, 0 )
-     *  return Gibber.construct( Pattern, args )
-     *}
-     */
-    var isFunction = args.length === 1 && typeof args[0] === 'function';
+    return args
+  },
 
-    var fnc = function fnc() {
-      var len = fnc.getLength(),
-          idx = void 0,
-          val = void 0,
-          args = void 0;
-
-      if (len === 1) {
-        idx = 0;
-      } else {
-        idx = fnc.phase > -1 ? Math.floor(fnc.start + fnc.phase % len) : Math.floor(fnc.end + fnc.phase % len);
+  checkForUpdateFunction( name, ...args ) {
+    console.log( 'check:', this )
+    if( this.__delayAnnotations === true ) {
+      console.log( 'delayed', this.__delayAnnotations )
+      setTimeout( ()=> {
+        if( this.listeners[ name ] ) {
+          this.listeners[ name ].apply( this, args )
+        }else if( Pattern.listeners[ name ] ) {
+          Pattern.listeners[ name ].apply( this, args )
+        }
+      }, 5 )
+    }else{
+      if( this.listeners[ name ] ) {
+        this.listeners[ name ].apply( this, args )
+      }else if( Pattern.listeners[ name ] ) {
+        Pattern.listeners[ name ].apply( this, args )
       }
+    }
+  },
 
-      if (isFunction) {
-        val = fnc.values[0]();
-        args = fnc.runFilters(val, idx);
-        val = args[0];
-      } else {
-        val = fnc.values[Math.floor(idx % fnc.values.length)];
-        args = fnc.runFilters(val, idx);
+  // used when _onchange has not been assigned to individual patterns
+  _onchange() {},
+})
 
-        fnc.phase += fnc.stepSize * args[1];
-        val = args[0];
-      }
-      // check to see if value is a function, and if so evaluate it
-      //if( typeof val === 'function' ) {
+let Pattern = function( ...args ) {
+  /*
+   *if( ! ( this instanceof Pattern ) ) {
+   *  let args = Array.prototype.slice.call( arguments, 0 )
+   *  return Gibber.construct( Pattern, args )
+   *}
+   */
+
+  let isFunction = args.length === 1 && typeof args[0] === 'function'
+
+  let fnc = function() {
+    let len = fnc.getLength(),
+        idx, val, args
+    
+    if( len === 1 ) { 
+      idx = 0 
+    }else{
+      idx = fnc.phase > -1 ? Math.floor( fnc.start + (fnc.phase % len ) ) : Math.floor( fnc.end + (fnc.phase % len ) )
+    }
+
+    if( isFunction ) {
+      val = fnc.values[ 0 ]()
+      args = fnc.runFilters( val, idx )
+      val = args[0]
+    }else{
+      val = fnc.values[ Math.floor( idx % fnc.values.length ) ]
+      args = fnc.runFilters( val, idx )
+    
+      fnc.phase += fnc.stepSize * args[ 1 ]
+      val = args[ 0 ]
+    }
+    // check to see if value is a function, and if so evaluate it
+    //if( typeof val === 'function' ) {
       //val = val()
-      //}
-      /*else if ( Array.isArray( val ) ) {
-        // if val is an Array, loop through array and evaluate any functions found there. TODO: IS THIS SMART?
-         for( let i = 0; i < val.length; i++ ){
-          if( typeof val[ i ] === 'function' ) {
-            val[ i ] = val[ i ]()
+    //}
+    /*else if ( Array.isArray( val ) ) {
+      // if val is an Array, loop through array and evaluate any functions found there. TODO: IS THIS SMART?
+
+      for( let i = 0; i < val.length; i++ ){
+        if( typeof val[ i ] === 'function' ) {
+          val[ i ] = val[ i ]()
+        }
+      }
+    }
+    */
+
+    // if pattern has update function, add new value to array
+    // values are popped when updated by animation scheduler
+    if( fnc.update && fnc.update.value ) fnc.update.value.unshift( val )
+    
+    if( val === fnc.DNR ) val = null
+
+    return val
+  }
+   
+  Object.assign( fnc, {
+    start : 0,
+    end   : 0,
+    phase : 0,
+    values : args, 
+    // wrap annotation update in setTimeout( func, 0 )
+    __delayAnnotations:false,
+    //values : typeof arguments[0] !== 'string' || arguments.length > 1 ? Array.prototype.slice.call( arguments, 0 ) : arguments[0].split(''),    
+    original : null,
+    storage : [],
+    stepSize : 1,
+    integersOnly : false,
+    filters : [],
+    __listeners: [],
+    onchange : null,
+
+    range() {
+      let start, end
+      
+      if( Array.isArray( arguments[0] ) ) {
+        start = arguments[0][0]
+        end   = arguments[0][1]
+      }else{
+        start = arguments[0]
+        end   = arguments[1]
+      }
+      
+      if( start < end ) {
+        fnc.start = start
+        fnc.end = end
+      }else{
+        fnc.start = end
+        fnc.end = start
+      }
+
+      this.checkForUpdateFunction( 'range', fnc )
+
+      return fnc
+    },
+    
+    set() {
+      let args = Array.isArray( arguments[ 0 ] ) ? arguments[ 0 ] : arguments
+      
+      fnc.values.length = 0
+      
+      for( let i = 0; i < args.length; i++ ) {
+        fnc.values.push( args[ i ] )
+      }
+      
+      fnc.end = fnc.values.length - 1
+      
+      // if( fnc.end > fnc.values.length - 1 ) {
+      //   fnc.end = fnc.values.length - 1
+      // }else if( fnc.end < )
+      
+      fnc._onchange()
+      
+      return fnc
+    },
+     
+    reverse() { 
+      //fnc.values.reverse(); 
+      let array = fnc.values,
+          left = null,
+          right = null,
+          length = array.length,
+          temporary;
+          
+      for ( left = 0, right = length - 1; left < right; left += 1, right -= 1 ) {
+        temporary = array[ left ]
+        array[ left ] = array[ right ]
+        array[ right ] = temporary;
+      }
+      
+      fnc._onchange() 
+      
+      return fnc
+    },
+    // humanize: function( randomMin, randomMax ) {
+ //      let lastAmt = 0
+ //
+ //      for( let i = 0; i < this.filters.length; i++ ) {
+ //        if( this.filters[ i ].humanize ) {
+ //          lastAmt = this.filters[ i ].lastAmt
+ //          this.filters.splice( i, 1 )
+ //          break;
+ //        }
+ //      }
+ //
+ //      let filter = function( args ) {
+ //        console.log( filter.lastAmt, args[0])
+ //        args[ 0 ] -= filter.lastAmt
+ //        filter.lastAmt = Gibber.Clock.time( Gibber.Utilities.rndi( randomMin, randomMax ) )
+ //
+ //        console.log( "LA", filter.lastAmt )
+ //        args[0] += filter.lastAmt
+ //
+ //        return args
+ //      }
+ //      filter.lastAmt = lastAmt
+ //      filter.humanize = true
+ //
+ //      this.filters.push( filter )
+ //
+ //      return this
+ //    },
+    repeat() {
+      let counts = {}
+    
+      for( let i = 0; i < arguments.length; i +=2 ) {
+        counts[ arguments[ i ] ] = {
+          phase: 0,
+          target: arguments[ i + 1 ]
+        }
+      }
+      
+      let repeating = false, repeatValue = null, repeatIndex = null
+      let filter = function( args ) {
+        let value = args[ 0 ], phaseModifier = args[ 1 ], output = args
+        
+        //console.log( args, counts )
+        if( repeating === false && counts[ value ] ) {
+          repeating = true
+          repeatValue = value
+          repeatIndex = args[2]
+        }
+        
+        if( repeating === true ) {
+          if( counts[ repeatValue ].phase !== counts[ repeatValue ].target ) {
+            output[ 0 ] = repeatValue            
+            output[ 1 ] = 0
+            output[ 2 ] = repeatIndex
+            //[ val, 1, idx ]
+            counts[ repeatValue ].phase++
+          }else{
+            counts[ repeatValue ].phase = 0
+            output[ 1 ] = 1
+            if( value !== repeatValue ) { 
+              repeating = false
+            }else{
+              counts[ repeatValue ].phase++
+            }
+          }
+        }
+      
+        return output
+      }
+    
+      fnc.filters.push( filter )
+    
+      return fnc
+    },
+  
+    reset() { fnc.values = fnc.original.slice( 0 ); fnc._onchange(); return fnc; },
+    store() { fnc.storage[ fnc.storage.length ] = fnc.values.slice( 0 ); return fnc; },
+
+    transpose( amt ) { 
+      for( let i = 0; i < fnc.values.length; i++ ) { 
+        let val = fnc.values[ i ]
+        
+        if( Array.isArray( val ) ) {
+          for( let j = 0; j < val.length; j++ ) {
+            if( typeof val[ j ] === 'number' ) {
+              val[ j ] = fnc.integersOnly ? Math.round( val[ j ] + amt ) : val[ j ] + amt
+            }
+          }
+        }else{
+          if( typeof val === 'number' ) {
+            fnc.values[ i ] = fnc.integersOnly ? Math.round( fnc.values[ i ] + amt ) : fnc.values[ i ] + amt
           }
         }
       }
-      */
+      
+      fnc._onchange()
+      
+      return fnc
+    },
 
-      // if pattern has update function, add new value to array
-      // values are popped when updated by animation scheduler
-      if (fnc.update && fnc.update.value) fnc.update.value.unshift(val);
+    shuffle() { 
+      Gibber.Utility.shuffle( fnc.values )
+      fnc._onchange()
+      
+      return fnc
+    },
 
-      if (val === fnc.DNR) val = null;
-
-      return val;
-    };
-
-    Object.assign(fnc, {
-      start: 0,
-      end: 0,
-      phase: 0,
-      values: args,
-      //values : typeof arguments[0] !== 'string' || arguments.length > 1 ? Array.prototype.slice.call( arguments, 0 ) : arguments[0].split(''),    
-      original: null,
-      storage: [],
-      stepSize: 1,
-      integersOnly: false,
-      filters: [],
-      onchange: null,
-
-      range: function range() {
-        var start = void 0,
-            end = void 0;
-
-        if (Array.isArray(arguments[0])) {
-          start = arguments[0][0];
-          end = arguments[0][1];
-        } else {
-          start = arguments[0];
-          end = arguments[1];
-        }
-
-        if (start < end) {
-          fnc.start = start;
-          fnc.end = end;
-        } else {
-          fnc.start = end;
-          fnc.end = start;
-        }
-
-        this.checkForUpdateFunction('range', fnc);
-
-        return fnc;
-      },
-      set: function set() {
-        var args = Array.isArray(arguments[0]) ? arguments[0] : arguments;
-
-        fnc.values.length = 0;
-
-        for (var i = 0; i < args.length; i++) {
-          fnc.values.push(args[i]);
-        }
-
-        fnc.end = fnc.values.length - 1;
-
-        // if( fnc.end > fnc.values.length - 1 ) {
-        //   fnc.end = fnc.values.length - 1
-        // }else if( fnc.end < )
-
-        fnc._onchange();
-
-        return fnc;
-      },
-      reverse: function reverse() {
-        //fnc.values.reverse(); 
-        var array = fnc.values,
-            left = null,
-            right = null,
-            length = array.length,
-            temporary = void 0;
-
-        for (left = 0, right = length - 1; left < right; left += 1, right -= 1) {
-          temporary = array[left];
-          array[left] = array[right];
-          array[right] = temporary;
-        }
-
-        fnc._onchange();
-
-        return fnc;
-      },
-
-      // humanize: function( randomMin, randomMax ) {
-      //      let lastAmt = 0
-      //
-      //      for( let i = 0; i < this.filters.length; i++ ) {
-      //        if( this.filters[ i ].humanize ) {
-      //          lastAmt = this.filters[ i ].lastAmt
-      //          this.filters.splice( i, 1 )
-      //          break;
-      //        }
-      //      }
-      //
-      //      let filter = function( args ) {
-      //        console.log( filter.lastAmt, args[0])
-      //        args[ 0 ] -= filter.lastAmt
-      //        filter.lastAmt = Gibber.Clock.time( Gibber.Utilities.rndi( randomMin, randomMax ) )
-      //
-      //        console.log( "LA", filter.lastAmt )
-      //        args[0] += filter.lastAmt
-      //
-      //        return args
-      //      }
-      //      filter.lastAmt = lastAmt
-      //      filter.humanize = true
-      //
-      //      this.filters.push( filter )
-      //
-      //      return this
-      //    },
-      repeat: function repeat() {
-        var counts = {};
-
-        for (var i = 0; i < arguments.length; i += 2) {
-          counts[arguments[i]] = {
-            phase: 0,
-            target: arguments[i + 1]
-          };
-        }
-
-        var repeating = false,
-            repeatValue = null,
-            repeatIndex = null;
-        var filter = function filter(args) {
-          var value = args[0],
-              phaseModifier = args[1],
-              output = args;
-
-          //console.log( args, counts )
-          if (repeating === false && counts[value]) {
-            repeating = true;
-            repeatValue = value;
-            repeatIndex = args[2];
-          }
-
-          if (repeating === true) {
-            if (counts[repeatValue].phase !== counts[repeatValue].target) {
-              output[0] = repeatValue;
-              output[1] = 0;
-              output[2] = repeatIndex;
-              //[ val, 1, idx ]
-              counts[repeatValue].phase++;
+    scale( amt ) { 
+      fnc.values.map( (val, idx, array) => {
+        if( Array.isArray( val ) ) {
+          array[ idx ] = val.map( inside  => {
+            if( typeof inside === 'number' ) {
+              return fnc.integersOnly ? Math.round( inside * amt ) : inside * amt
             } else {
-              counts[repeatValue].phase = 0;
-              output[1] = 1;
-              if (value !== repeatValue) {
-                repeating = false;
-              } else {
-                counts[repeatValue].phase++;
-              }
+              return inside
             }
-          }
-
-          return output;
-        };
-
-        fnc.filters.push(filter);
-
-        return fnc;
-      },
-      reset: function reset() {
-        fnc.values = fnc.original.slice(0);fnc._onchange();return fnc;
-      },
-      store: function store() {
-        fnc.storage[fnc.storage.length] = fnc.values.slice(0);return fnc;
-      },
-      transpose: function transpose(amt) {
-        for (var i = 0; i < fnc.values.length; i++) {
-          var val = fnc.values[i];
-
-          if (Array.isArray(val)) {
-            for (var j = 0; j < val.length; j++) {
-              if (typeof val[j] === 'number') {
-                val[j] = fnc.integersOnly ? Math.round(val[j] + amt) : val[j] + amt;
-              }
-            }
-          } else {
-            if (typeof val === 'number') {
-              fnc.values[i] = fnc.integersOnly ? Math.round(fnc.values[i] + amt) : fnc.values[i] + amt;
-            }
+          })
+        }else{
+          if( typeof val === 'number' ) {
+            array[ idx ] = fnc.integersOnly ? Math.round( val * amt ) : val * amt
           }
         }
+      })
 
-        fnc._onchange();
+      fnc._onchange()
+      
+      return fnc
+    },
 
-        return fnc;
-      },
-      shuffle: function shuffle() {
-        Gibber.Utility.shuffle(fnc.values);
-        fnc._onchange();
-
-        return fnc;
-      },
-      scale: function scale(amt) {
-        fnc.values.map(function (val, idx, array) {
-          if (Array.isArray(val)) {
-            array[idx] = val.map(function (inside) {
-              if (typeof inside === 'number') {
-                return fnc.integersOnly ? Math.round(inside * amt) : inside * amt;
-              } else {
-                return inside;
-              }
-            });
-          } else {
-            if (typeof val === 'number') {
-              array[idx] = fnc.integersOnly ? Math.round(val * amt) : val * amt;
-            }
-          }
-        });
-
-        fnc._onchange();
-
-        return fnc;
-      },
-      flip: function flip() {
-        var start = [],
-            ordered = null;
-
-        ordered = fnc.values.filter(function (elem) {
-          var shouldPush = start.indexOf(elem) === -1;
-          if (shouldPush) start.push(elem);
-          return shouldPush;
-        });
-
-        ordered = ordered.sort(function (a, b) {
-          return a - b;
-        });
-
-        for (var i = 0; i < fnc.values.length; i++) {
-          var pos = ordered.indexOf(fnc.values[i]);
-          fnc.values[i] = ordered[ordered.length - pos - 1];
-        }
-
-        fnc._onchange();
-
-        return fnc;
-      },
-      invert: function invert() {
-        var prime0 = fnc.values[0];
-
-        for (var i = 1; i < fnc.values.length; i++) {
-          if (typeof fnc.values[i] === 'number') {
-            var inverse = prime0 + (prime0 - fnc.values[i]);
-            fnc.values[i] = inverse;
-          }
-        }
-
-        fnc._onchange();
-
-        return fnc;
-      },
-      switch: function _switch(to) {
-        if (fnc.storage[to]) {
-          fnc.values = fnc.storage[to].slice(0);
-        }
-
-        fnc._onchange();
-
-        return fnc;
-      },
-      rotate: function rotate(amt) {
-        if (amt > 0) {
-          while (amt > 0) {
-            var end = fnc.values.pop();
-            fnc.values.unshift(end);
-            amt--;
-          }
-        } else if (amt < 0) {
-          while (amt < 0) {
-            var begin = fnc.values.shift();
-            fnc.values.push(begin);
-            amt++;
-          }
-        }
-
-        fnc._onchange();
-
-        return fnc;
+    flip() {
+      let start = [],
+          ordered = null
+    
+      ordered = fnc.values.filter( function(elem) {
+      	let shouldPush = start.indexOf( elem ) === -1
+        if( shouldPush ) start.push( elem )
+        return shouldPush
+      })
+    
+      ordered = ordered.sort( function( a,b ){ return a - b } )
+    
+      for( let i = 0; i < fnc.values.length; i++ ) {
+        let pos = ordered.indexOf( fnc.values[ i ] )
+        fnc.values[ i ] = ordered[ ordered.length - pos - 1 ]
       }
-    });
-
-    fnc.retrograde = fnc.reverse.bind(fnc);
-
-    fnc.end = fnc.values.length - 1;
-
-    fnc.original = fnc.values.slice(0);
-    fnc.storage[0] = fnc.original.slice(0);
-
-    fnc.integersOnly = fnc.values.every(function (n) {
-      return n === +n && n === (n | 0);
-    });
-
-    var methodNames = ['rotate', 'switch', 'invert', 'reset', 'flip', 'transpose', 'reverse', 'shuffle', 'scale', 'store', 'range', 'set'];
-
-    var _iteratorNormalCompletion2 = true;
-    var _didIteratorError2 = false;
-    var _iteratorError2 = undefined;
-
-    try {
-      for (var _iterator2 = methodNames[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-        var key = _step2.value;
-        Gibber.addSequencingToMethod(fnc, key, 1);
-      }
-    } catch (err) {
-      _didIteratorError2 = true;
-      _iteratorError2 = err;
-    } finally {
-      try {
-        if (!_iteratorNormalCompletion2 && _iterator2.return) {
-          _iterator2.return();
-        }
-      } finally {
-        if (_didIteratorError2) {
-          throw _iteratorError2;
+      
+      fnc._onchange()
+    
+  		return fnc
+    },
+    
+    invert() {
+      let prime0 = fnc.values[ 0 ]
+      
+      for( let i = 1; i < fnc.values.length; i++ ) {
+        if( typeof fnc.values[ i ] === 'number' ) {
+          let inverse = prime0 + (prime0 - fnc.values[ i ])
+          fnc.values[ i ] = inverse
         }
       }
+      
+      fnc._onchange()
+      
+  		return fnc
+    },
+  
+    switch( to ) {
+      if( fnc.storage[ to ] ) {
+        fnc.values = fnc.storage[ to ].slice( 0 )
+      }
+      
+      fnc._onchange()
+      
+      return fnc
+    },
+  
+    rotate( amt ) {
+      if( amt > 0 ) {
+        while( amt > 0 ) {
+          let end = fnc.values.pop()
+          fnc.values.unshift( end )
+          amt--
+        }
+      }else if( amt < 0 ) {
+        while( amt < 0 ) {
+          let begin = fnc.values.shift()
+          fnc.values.push( begin )
+          amt++
+        }
+      }
+      
+      fnc._onchange()
+      
+      return fnc
     }
+  })
+  
+  fnc.filters.pattern = fnc
+  fnc.retrograde = fnc.reverse.bind( fnc )
+  
+  fnc.end = fnc.values.length - 1
+  
+  fnc.original = fnc.values.slice( 0 )
+  fnc.storage[ 0 ] = fnc.original.slice( 0 )
+  
+  fnc.integersOnly = fnc.values.every( function( n ) { return n === +n && n === (n|0); })
+  
+  let methodNames =  [
+    'rotate','switch','invert','reset', 'flip',
+    'transpose','reverse','shuffle','scale',
+    'store', 'range', 'set'
+  ]
+   
+  for( let key of methodNames ) { Gibber.addSequencingToMethod( fnc, key, 1 ) }
+  
+  fnc.listeners = {}
+  fnc.sequences = {}
 
-    fnc.listeners = {};
-    fnc.sequences = {};
+  // TODO: Gibber.createProxyProperties( fnc, { 'stepSize':0, 'start':0, 'end':0 })
+  
+  fnc.__proto__ = PatternProto 
+  
+  return fnc
+}
 
-    // TODO: Gibber.createProxyProperties( fnc, { 'stepSize':0, 'start':0, 'end':0 })
+Pattern.listeners = {}
 
-    fnc.__proto__ = PatternProto;
+Pattern.listeners.range = function( fnc ) {
+  //if( !Notation.isRunning ) return
+  
+  // TODO: don't use Gibber.currentTrack, store the object in the pattern
+  var obj = Gibber.currentTrack,
+      rangeStart = obj.markup.textMarkers[ fnc.patternName ][ fnc.start ].find(),
+      rangeEnd   = obj.markup.textMarkers[ fnc.patternName ][ fnc.end ].find()
 
-    return fnc;
-  };
+  if( !fnc.range.init ) {
+    fnc.range.init = true
+    var ptrnStart = obj.markup.textMarkers[ fnc.patternName ][ 0 ].find(),
+        ptrnEnd = obj.markup.textMarkers[ fnc.patternName ][ obj.markup.textMarkers[ fnc.patternName ].length - 1 ].find()
 
-  Pattern.listeners = {};
+    //fnc.column.editor.markText( ptrnStart.from, ptrnEnd.to, { className:'rangeOutside' })
+    //Gibber.Environment.codemirror.markText( ptrnStart.from, ptrnEnd.to, { className:'pattern-update-range-outside' })
+    if( !Pattern.listeners.range.initialzied ) Pattern.listeners.range.init()
+  }
 
-  Pattern.listeners.range = function (fnc) {
-    //if( !Notation.isRunning ) return
+  if( fnc.range.mark ) fnc.range.mark.clear()
+  //fnc.range.mark = fnc.column.editor.markText( rangeStart.from, rangeEnd.to, { className:'rangeInside' })
+  // TODO: Dont use GE.codemirror... how else do I get this? stored in pattern is created?
+  fnc.range.mark = Gibber.Environment.codemirror.markText( rangeStart.from, rangeEnd.to, { className:'pattern-update-range-inside' })
+}
 
-    // TODO: don't use Gibber.currentTrack, store the object in the pattern
-    var obj = Gibber.currentTrack,
-        rangeStart = obj.markup.textMarkers[fnc.patternName][fnc.start].find(),
-        rangeEnd = obj.markup.textMarkers[fnc.patternName][fnc.end].find();
+Pattern.listeners.range.init = function() {
+  //$.injectCSS({ 
+  //  '.rangeOutside': {
+  //    'color':'#666 !important'
+  //  },
+  //  '.rangeInside': {
+  //    'color':'rgba(102, 153, 221, 1) !important'
+  //  }
+  //})
+  Pattern.listeners.range.initialized = true
+}
 
-    if (!fnc.range.init) {
-      fnc.range.init = true;
-      var ptrnStart = obj.markup.textMarkers[fnc.patternName][0].find(),
-          ptrnEnd = obj.markup.textMarkers[fnc.patternName][obj.markup.textMarkers[fnc.patternName].length - 1].find();
+Pattern.prototype = PatternProto
 
-      //fnc.column.editor.markText( ptrnStart.from, ptrnEnd.to, { className:'rangeOutside' })
-      //Gibber.Environment.codemirror.markText( ptrnStart.from, ptrnEnd.to, { className:'pattern-update-range-outside' })
-      if (!Pattern.listeners.range.initialzied) Pattern.listeners.range.init();
-    }
+return Pattern
 
-    if (fnc.range.mark) fnc.range.mark.clear();
-    //fnc.range.mark = fnc.column.editor.markText( rangeStart.from, rangeEnd.to, { className:'rangeInside' })
-    // TODO: Dont use GE.codemirror... how else do I get this? stored in pattern is created?
-    fnc.range.mark = Gibber.Environment.codemirror.markText(rangeStart.from, rangeEnd.to, { className: 'pattern-update-range-inside' });
-  };
+}
 
-  Pattern.listeners.range.init = function () {
-    //$.injectCSS({ 
-    //  '.rangeOutside': {
-    //    'color':'#666 !important'
-    //  },
-    //  '.rangeInside': {
-    //    'color':'rgba(102, 153, 221, 1) !important'
-    //  }
-    //})
-    Pattern.listeners.range.initialized = true;
-  };
-
-  Pattern.prototype = PatternProto;
-
-  return Pattern;
-};
-},{}],15:[function(require,module,exports){
-"use strict";
-
+},{}],89:[function(require,module,exports){
 /*
  * https://github.com/antimatter15/heapqueue.js/blob/master/heapqueue.js
  *
@@ -3789,57 +8270,51 @@ module.exports = function (Gibber) {
  * heapq.pop(); // ==> 2
  * heapq.pop(); // ==> 3
  */
-var HeapQueue = function HeapQueue(cmp) {
-  this.cmp = cmp || function (a, b) {
-    return a - b;
-  };
+let HeapQueue = function(cmp){
+  this.cmp = (cmp || function(a, b){ return a - b; });
   this.length = 0;
   this.data = [];
-};
-HeapQueue.prototype.peek = function () {
+}
+HeapQueue.prototype.peek = function(){
   return this.data[0];
 };
-HeapQueue.prototype.push = function (value) {
+HeapQueue.prototype.push = function(value){
   this.data.push(value);
 
   var pos = this.data.length - 1,
-      parent,
-      x;
+  parent, x;
 
-  while (pos > 0) {
-    parent = pos - 1 >>> 1;
-    if (this.cmp(this.data[pos], this.data[parent]) < 0) {
+  while(pos > 0){
+    parent = (pos - 1) >>> 1;
+    if(this.cmp(this.data[pos], this.data[parent]) < 0){
       x = this.data[parent];
       this.data[parent] = this.data[pos];
       this.data[pos] = x;
       pos = parent;
-    } else break;
+    }else break;
   }
   return this.length++;
 };
-HeapQueue.prototype.pop = function () {
+HeapQueue.prototype.pop = function(){
   var last_val = this.data.pop(),
-      ret = this.data[0];
-  if (this.data.length > 0) {
+  ret = this.data[0];
+  if(this.data.length > 0){
     this.data[0] = last_val;
     var pos = 0,
-        last = this.data.length - 1,
-        left,
-        right,
-        minIndex,
-        x;
-    while (1) {
+    last = this.data.length - 1,
+    left, right, minIndex, x;
+    while(1){
       left = (pos << 1) + 1;
       right = left + 1;
       minIndex = pos;
-      if (left <= last && this.cmp(this.data[left], this.data[minIndex]) < 0) minIndex = left;
-      if (right <= last && this.cmp(this.data[right], this.data[minIndex]) < 0) minIndex = right;
-      if (minIndex !== pos) {
+      if(left <= last && this.cmp(this.data[left], this.data[minIndex]) < 0) minIndex = left;
+      if(right <= last && this.cmp(this.data[right], this.data[minIndex]) < 0) minIndex = right;
+      if(minIndex !== pos){
         x = this.data[minIndex];
         this.data[minIndex] = this.data[pos];
         this.data[pos] = x;
         pos = minIndex;
-      } else break;
+      }else break;
     }
   } else {
     ret = last_val;
@@ -3848,10 +8323,9 @@ HeapQueue.prototype.pop = function () {
   return ret;
 };
 
-module.exports = HeapQueue;
-},{}],16:[function(require,module,exports){
-'use strict';
+module.exports = HeapQueue
 
+},{}],90:[function(require,module,exports){
 /*
 Score is a Seq(ish) object, with pause, start / stop, rewind, fast-forward.
 It's internal phase is 
@@ -3869,222 +8343,221 @@ a Function              callback. register to receive and advance. must use pub/
 Score.wait             pause until next() method is called
 */
 
-module.exports = function (Gibber) {
+module.exports = function( Gibber ) {
 
-  var Score = {
-    wait: -987654321,
+let Score = {
+  wait: -987654321,
 
-    create: function create(data) {
-      var track = arguments.length <= 1 || arguments[1] === undefined ? Gibber.currentTrack : arguments[1];
+  create( data, track = Gibber.currentTrack ) {
+    let score = Object.create( this )
+    
+    Object.assign( score, {
+      track,
+      timeline:   [],
+      schedule:   [],
+      shouldLoop: false,
+      rate:       1,
+      loopPause:  0,
+      phase:      0,
+      index:      0,
+      isPaused:   true,
+    })
 
-      var score = Object.create(this);
+    for( let i = 0; i < data.length; i+=2 ) {
+      score.schedule.push( data[ i ] )
+      score.timeline.push( data[ i+1 ] )    
+    }
+    
+    let loopPauseFnc = () => {
+          score.nextTime = score.phase = 0
+          score.index = -1
+          score.timeline.pop()
+        }
 
-      Object.assign(score, {
-        track: track,
-        timeline: [],
-        schedule: [],
-        shouldLoop: false,
-        rate: 1,
-        loopPause: 0,
-        phase: 0,
-        index: 0,
-        isPaused: true
-      });
+    score.oncomplete.listeners = []
+    score.oncomplete.owner = this
+  
+    score.nextTime = score.schedule[ 0 ]
+    
+    score.start()
 
-      for (var i = 0; i < data.length; i += 2) {
-        score.schedule.push(data[i]);
-        score.timeline.push(data[i + 1]);
-      }
+    return score
+  },
 
-      var loopPauseFnc = function loopPauseFnc() {
-        score.nextTime = score.phase = 0;
-        score.index = -1;
-        score.timeline.pop();
-      };
+  start() { 
+    if( !this.isPaused ) return
+    this.isPaused = false
+     
+    Gibber.Scheduler.addMessage( this, 0 )   
+  
+    return this
+  },
 
-      score.oncomplete.listeners = [];
-      score.oncomplete.owner = this;
+  stop() { 
+    this.isPaused = true  
+    return this
+  },
+  
+  loop( loopPause = 0 ) {
+    this.loopPause = loopPause
+    this.shouldLoop = !this.shouldLoop
+    
+    return this
+  },
+  
+  pause() {
+    this.isPaused = true
+    
+    return this
+  },
+  
+  next() {
+    this.isPaused = false
+    
+    return this
+  },
+  
+  combine( ...args ) {
+    let score = [ 0, args[ 0 ] ]
+  
+    for( let i = 1; i < args.length; i++ ) {
+      let timeIndex = i * 2,
+          valueIndex = timeIndex +  1,
+          previousValueIndex = timeIndex - 1
 
-      score.nextTime = score.schedule[0];
+      score[ timeIndex  ] = score[ previousValueIndex ].oncomplete
+      score[ valueIndex ] = args[ i ]
+    }
+  
+    return Score.create( score )
+  },
 
-      score.start();
-
-      return score;
-    },
-    start: function start() {
-      if (!this.isPaused) return;
-      this.isPaused = false;
-
-      Gibber.Scheduler.addMessage(this, 0);
-
-      return this;
-    },
-    stop: function stop() {
-      this.isPaused = true;
-      return this;
-    },
-    loop: function loop() {
-      var loopPause = arguments.length <= 0 || arguments[0] === undefined ? 0 : arguments[0];
-
-      this.loopPause = loopPause;
-      this.shouldLoop = !this.shouldLoop;
-
-      return this;
-    },
-    pause: function pause() {
-      this.isPaused = true;
-
-      return this;
-    },
-    next: function next() {
-      this.isPaused = false;
-
-      return this;
-    },
-    combine: function combine() {
-      for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
-        args[_key] = arguments[_key];
-      }
-
-      var score = [0, args[0]];
-
-      for (var i = 1; i < args.length; i++) {
-        var timeIndex = i * 2,
-            valueIndex = timeIndex + 1,
-            previousValueIndex = timeIndex - 1;
-
-        score[timeIndex] = score[previousValueIndex].oncomplete;
-        score[valueIndex] = args[i];
-      }
-
-      return Score.create(score);
-    },
-    tick: function tick(scheduler, beat, beatOffset) {
-      if (!this.isPaused) {
-        if (this.index < this.timeline.length) {
-
-          var fnc = this.timeline[this.index],
-              shouldExecute = true;
-
-          this.index++;
-
-          if (this.index <= this.timeline.length - 1) {
-            var time = this.schedule[this.index];
-
-            if (typeof time === 'number' && time !== Score.wait) {
-              this.nextTime = time;
-            } else {
-              if (time === Score.wait) {
-                this.isPaused = true;
-              } else if (time.owner instanceof Score) {
-                this.isPaused = true;
-                time.owner.oncomplete.listeners.push(self);
-                // shouldExecute = false // doesn't do what I think it should do... 
-              }
-            }
+  tick( scheduler, beat, beatOffset ) {
+    if( !this.isPaused ) {
+      if( this.index < this.timeline.length ) {
+        
+        let fnc = this.timeline[ this.index ],
+            shouldExecute = true
+        
+        this.index++
+        
+        if( this.index <= this.timeline.length - 1 ) {
+          let time = this.schedule[ this.index ]
+          
+          if( typeof time === 'number' && time !== Score.wait ) {
+            this.nextTime =  time
           } else {
-            if (this.shouldLoop) {
-              if (this.timeline[this.timeline.length - 1] !== loopPauseFnc) {
-                this.timeline.push(loopPauseFnc);
-              }
-              this.nextTime = this.loopPause;
-            } else {
-              this.isPaused = true;
+            if( time === Score.wait ) {
+              this.isPaused = true
+            }else if( time.owner instanceof Score ) {
+              this.isPaused = true
+              time.owner.oncomplete.listeners.push( self )
+              // shouldExecute = false // doesn't do what I think it should do... 
             }
-            this.oncomplete();
           }
-
-          if (shouldExecute && fnc) {
-            if (Score.isPrototypeOf(fnc)) {
-              if (!fnc.codeblock) {
-                // TODO: what do I replace codeblock with? isRunning?
-                fnc.start();
-              } else {
-                // TODO: what is this for?
-                fnc.rewind().next();
-                //fnc.rewind().next()
-                //fnc()
-              }
-            } else {
-              fnc.call(this.track);
+        }else{
+          if( this.shouldLoop ) {
+            if( this.timeline[ this.timeline.length - 1 ] !== loopPauseFnc ) {
+              this.timeline.push( loopPauseFnc )
             }
-
-            var marker = Gibber.currentTrack.markup.textMarkers['score'][this.index - 1],
-                pos = marker.find(),
-                funcBody = fnc.toString(),
-                isMultiLine = funcBody.includes('\n'),
-                code = void 0,
-                line = void 0;
-
-            pos.start = Object.assign({}, pos.from);
-            pos.end = Object.assign({}, pos.to);
-
-            if (isMultiLine) {
-              code = fnc.toString().split('\n').slice(1, -1).join('\n');
-              pos.start.line += 1;
-              pos.end.line += 1;
-            } else {
-              if (funcBody.endsWith('}')) {
-                line = marker.lines[0].text;
-
-                var bracketIdx = line.indexOf('{') + 1,
-                    commaIdx = line.indexOf(','),
-                    commaAmount = line.endsWith(',') ? 1 : 0;
-
-                code = line.substr(bracketIdx, line.length - bracketIdx - 1 - commaAmount);
-
-                pos.horizontalOffset = bracketIdx; //pos.start.ch
-              } else {
-                // TODO: why doesn't this work? acorn seems unable to parse arrow functions?
-                line = marker.lines[0].text;
-
-                var arrowIdx = line.indexOf('>') + 1,
-                    _commaAmount = line.endsWith(',') ? 1 : 0;
-
-                code = line.substr(arrowIdx, line.length - arrowIdx - _commaAmount);
-
-                pos.horizontalOffset = arrowIdx;
-              }
-            }
-            //funcBody = fnc.toString(),
-            //code = funcBody.match(/(?:function\s*\(\)*[\s]*[\{\n])([\s\S]*)\}/)[1]
-            //code = funcBody.match(/(?:(?:\(\))*(?:_)*(?:=>)\s*(?:\{)*)([\"\'\.\{\}\(\)\w\d\s\n]+)(?:\})/i)[1]
-
-            // TODO: should not be Gibber.currentTrack ?
-            Gibber.Environment.codeMarkup.process(code, pos, Gibber.Environment.codemirror, Gibber.currentTrack);
-
-            if (typeof this.onadvance === 'function') this.onadvance(this.index - 1);
+            this.nextTime = this.loopPause
+          }else{
+            this.isPaused = true
           }
+          this.oncomplete()
         }
 
-        Gibber.Scheduler.addMessage(this, this.nextTime);
-        this.phase += this.rate; //rate TODO: what if a beat isn't a quarter note?
+        if( shouldExecute && fnc ) {
+          if( Score.isPrototypeOf( fnc )  ) {
+            if( !fnc.codeblock ) { // TODO: what do I replace codeblock with? isRunning?
+              fnc.start()
+            }else{
+              // TODO: what is this for?
+              fnc.rewind().next()
+              //fnc.rewind().next()
+              //fnc()
+            }
+          }else{
+            fnc.call( this.track )
+          }
+          
+          let marker      = Gibber.currentTrack.markup.textMarkers[ 'score' ][ this.index - 1 ],
+              pos         = marker.find(),
+              funcBody    = fnc.toString(),
+              isMultiLine = funcBody.includes('\n'),
+              code, line 
+
+          pos.start = Object.assign( {}, pos.from )
+          pos.end   = Object.assign( {}, pos.to   )
+
+          if( isMultiLine ) {
+            code  = fnc.toString().split('\n').slice(1,-1).join('\n')
+            pos.start.line += 1
+            pos.end.line += 1
+          } else {
+            if( funcBody.endsWith( '}' ) ) {
+              line  = marker.lines[ 0 ].text
+
+              let bracketIdx = line.indexOf( '{' ) + 1,
+                  commaIdx   = line.indexOf( ',' ),
+                  commaAmount = line.endsWith( ',' ) ? 1 : 0
+  
+              code = line.substr( bracketIdx, line.length - bracketIdx - 1 - commaAmount )
+
+              pos.horizontalOffset = bracketIdx//pos.start.ch
+
+            }else{
+              // TODO: why doesn't this work? acorn seems unable to parse arrow functions?
+              line = marker.lines[ 0 ].text
+              
+              let arrowIdx = line.indexOf( '>' ) + 1,
+                  commaAmount = line.endsWith( ',' ) ? 1 : 0
+
+              code = line.substr( arrowIdx, line.length - arrowIdx - commaAmount )
+
+              pos.horizontalOffset = arrowIdx
+
+            }
+          }
+          //funcBody = fnc.toString(),
+          //code = funcBody.match(/(?:function\s*\(\)*[\s]*[\{\n])([\s\S]*)\}/)[1]
+          //code = funcBody.match(/(?:(?:\(\))*(?:_)*(?:=>)\s*(?:\{)*)([\"\'\.\{\}\(\)\w\d\s\n]+)(?:\})/i)[1]
+
+          // TODO: should not be Gibber.currentTrack ?
+          Gibber.Environment.codeMarkup.process( code, pos, Gibber.Environment.codemirror, Gibber.currentTrack )
+
+          if( typeof this.onadvance === 'function' ) this.onadvance( this.index - 1 )
+        }
       }
-      return 0;
-    },
 
+      Gibber.Scheduler.addMessage( this, this.nextTime )
+      this.phase += this.rate //rate TODO: what if a beat isn't a quarter note?
+    }
+    return 0
+  },
 
-    rewind: function rewind() {
-      this.phase = this.index = 0;
-      this.nextTime = this.schedule[0];
-      return this;
-    },
+  rewind : function() { 
+    this.phase = this.index = 0 
+    this.nextTime = this.schedule[ 0 ]
+    return this
+  },
 
-    oncomplete: function oncomplete() {
-      // console.log("ON COMPLETE", this.oncomplete.listeners )
-      var listeners = this.oncomplete.listeners;
-      for (var i = listeners.length - 1; i >= 0; i--) {
-        var listener = listeners[i];
-        if (listener instanceof Score) {
-          listener.next();
-        }
+  oncomplete: function() {
+    // console.log("ON COMPLETE", this.oncomplete.listeners )
+    let listeners = this.oncomplete.listeners
+    for( let i = listeners.length - 1; i >= 0; i-- ) {
+      let listener = listeners[i]
+      if( listener instanceof Score ) {
+        listener.next()
       }
     }
+  }
 
-  };
+}
 
-  return Score.create.bind(Score);
-};
+return Score.create.bind( Score )
+
+}
 
 /*
 a = Score([ 
@@ -4241,350 +8714,408 @@ song = Score([
 song.start()
 
 */
-},{}],17:[function(require,module,exports){
+
+
+},{}],91:[function(require,module,exports){
 'use strict';
 
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj; };
+const Big = require( 'big.js' )
 
-var Big = require('big.js');
+let seqclosure = function( Gibber ) {
+  
+  let Theory = Gibber.Theory
 
-var seqclosure = function seqclosure(Gibber) {
-
-  var Theory = Gibber.Theory;
-
-  var proto = {
+  let proto = {
     DO_NOT_OUTPUT: -987654321,
     _seqs: [],
 
-    create: function create(values, timings, key) {
-      var object = arguments.length <= 3 || arguments[3] === undefined ? null : arguments[3];
-      var priority = arguments.length <= 4 || arguments[4] === undefined ? 0 : arguments[4];
+    create( values, timings, key, object = null, priority=0 ) {
+      let seq = Object.create( this )
 
-      var seq = Object.create(this);
+      if( values.isGen ) values  = Gibber.WavePattern( values )
+      if( timings !== undefined && timings.isGen ) timings = Gibber.WavePattern( timings )
 
-      Object.assign(seq, {
-        phase: 0,
+      if( timings === undefined ) {
+        if( object.autorun === undefined ) {
+          object.autorun = [ seq ]
+        }else{
+          object.autorun.push( seq )
+        }
+      }
+
+      Object.assign( seq, {
+        phase:   0,
         running: false,
         offset: 0,
-        values: values,
-        timings: timings,
-        object: object,
-        key: key,
-        priority: priority,
-        trackID: -1,
-        octave: 0
-      });
+        values,
+        timings,
+        object,
+        key,
+        priority,
+        trackID:-1,
+        octave:0
+      })
+      
+      seq.init()
 
-      seq.init();
-
-      proto._seqs.push(seq);
-
-      return seq;
+      proto._seqs.push( seq )
+      
+      return seq
     },
-    init: function init() {
-      var _this = this;
 
-      var valuesPattern = void 0,
-          timingsPattern = void 0;
+    __noteFilter( args ) {
+      args[ 0 ] = Theory.Note.convertToMIDI( args[ 0 ] )
+      if( this.octave !== 0 || this.object.octave !== 0 ) {
+        if( this.octave !== 0 )
+          args[0] += this.octave * 12
+        else
+          args[0] += this.object.octave * 12
+      }
 
-      if (!Gibber.Pattern.prototype.isPrototypeOf(this.values)) {
-        if (!Array.isArray(this.values)) this.values = [this.values];
-        valuesPattern = Gibber.Pattern.apply(null, this.values);
+      return args
+    },
+    
+    init() {
+      let valuesPattern, timingsPattern
 
-        if (this.values.randomFlag) {
-          valuesPattern.filters.push(function () {
-            var idx = Gibber.Utility.rndi(0, valuesPattern.values.length - 1);
-            return [valuesPattern.values[idx], 1, idx];
-          });
-          for (var i = 0; i < this.values.randomArgs.length; i += 2) {
-            valuesPattern.repeat(this.values.randomArgs[i], this.values.randomArgs[i + 1]);
+      if( ! Gibber.Pattern.prototype.isPrototypeOf( this.values ) ) {
+        if( !Array.isArray( this.values ) ) this.values  = [ this.values ] 
+        valuesPattern = Gibber.Pattern.apply( null, this.values ) 
+
+        if( this.values.randomFlag ) {
+          valuesPattern.filters.push( () => {
+            var idx = Gibber.Utility.rndi( 0, valuesPattern.values.length - 1 )
+            return [ valuesPattern.values[ idx ], 1, idx ] 
+          })
+          for( var i = 0; i < this.values.randomArgs.length; i+=2 ) {
+            valuesPattern.repeat( this.values.randomArgs[ i ], this.values.randomArgs[ i + 1 ] )
           }
         }
 
-        this.values = valuesPattern;
+        this.values = valuesPattern
       }
 
-      var seq = this;
-      if (this.key === 'note') {
-        this.values.filters.push(function (args) {
-          args[0] = Theory.Note.convertToMIDI(args[0]);
-          if (seq.octave !== 0 || seq.object.octave !== 0) {
-            if (seq.octave !== 0) args[0] += seq.octave * 12;else args[0] += seq.object.octave * 12;
-          }
+      if( this.key === 'note' ) {
+        if( this.values.filters.findIndex( v => v.type === 'note' ) === -1 ) {
+          // round the values for transformation to midinotes... XXX what about for Max version?
+          this.values.filters.push( args => { args[0] = Math.round( args[0] ); return args })
+          const noteFilter = this.__noteFilter.bind( this ) 
+          noteFilter.type = 'note'
+          this.values.filters.push( noteFilter )
+        }
+      } else if( this.key === 'chord' ) {
 
-          return args;
-        });
-      } else if (this.key === 'chord') {
+        this.values.filters.push( args => {
+          let chord = args[ 0 ], out
 
-        this.values.filters.push(function (args) {
-          var chord = args[0],
-              out = void 0;
+          if( typeof chord === 'string' ) {
+            let chordObj = Gibber.Theory.Chord.create( chord )
 
-          if (typeof chord === 'string') {
-            var chordObj = Gibber.Theory.Chord.create(chord);
-
-            out = chordObj.notes;
-          } else {
-            if (typeof chord === 'function') chord = chord();
-            out = chord.map(Gibber.Theory.Note.convertToMIDI);
-            if (_this.octave !== 0 || _this.object.octave !== 0) {
-              out = _this.octave !== 0 ? out.map(function (v) {
-                return v + _this.octave * 12;
-              }) : out.map(function (v) {
-                return v + _this.object.octave * 12;
-              });
+            out = chordObj.notes 
+          }else{
+            if( typeof chord === 'function' ) chord = chord()
+            out = chord.map( Gibber.Theory.Note.convertToMIDI )
+            if( this.octave !== 0 || this.object.octave !== 0 ) {
+              out = this.octave !== 0 ? out.map( v => v + ( this.octave * 12 ) ) : out.map( v=> v + ( this.object.octave * 12 ) )
             }
           }
 
-          args[0] = out;
-
-          return args;
-        });
+          args[0] = out
+          
+          return args
+        })
       }
 
-      if (!Gibber.Pattern.prototype.isPrototypeOf(this.timings)) {
-        if (this.timings !== undefined && !Array.isArray(this.timings)) this.timings = [this.timings];
-        timingsPattern = Gibber.Pattern.apply(null, this.timings);
-        timingsPattern.values.initial = this.timings.initial;
+      // check in case it has no time values and is autotriggered by note / midinote messages
+      if( this.timings !== undefined ) {
+        if( ! Gibber.Pattern.prototype.isPrototypeOf( this.timings ) ) {
+          if( this.timings !== undefined && !Array.isArray( this.timings ) ) this.timings = [ this.timings ]
+          timingsPattern = Gibber.Pattern.apply( null, this.timings )
+          timingsPattern.values.initial = this.timings.initial
 
-        if (this.timings !== undefined) {
-          if (this.timings.randomFlag) {
-            timingsPattern.filters.push(function () {
-              var idx = Gibber.Utility.rndi(0, timingsPattern.values.length - 1);
-              return [timingsPattern.values[idx], 1, idx];
-            });
-            for (var i = 0; i < this.timings.randomArgs.length; i += 2) {
-              timingsPattern.repeat(this.timings.randomArgs[i], this.timings.randomArgs[i + 1]);
-            }
-          }
-        }
-
-        this.timings = timingsPattern;
-      }
-
-      this.values.nextTime = this.timings.nextTime = 0;
-    },
-
-
-    externalMessages: {
-      note: function note(number, beat, trackID) {
-        // let msgstring = "add " + beat + " " + t + " " + n + " " + v + " " + d
-
-        return trackID + ' add ' + beat + ' note ' + number;
-      },
-      midinote: function midinote(number, beat, trackID) {
-        return trackID + ' add ' + beat + ' note ' + number;
-      },
-      duration: function duration(value, beat, trackID) {
-        return trackID + ' add ' + beat + ' duration ' + value;
-      },
-      velocity: function velocity(value, beat, trackID) {
-        return trackID + ' add ' + beat + ' velocity ' + value;
-      },
-      chord: function chord(_chord, beat, trackID) {
-        //console.log( chord )
-        var msg = [];
-
-        for (var i = 0; i < _chord.length; i++) {
-          msg.push(trackID + ' add ' + beat + ' note ' + _chord[i]);
-        }
-
-        return msg;
-      },
-      midichord: function midichord(chord, beat, trackID) {
-        //console.log( chord )
-        var msg = [];
-
-        for (var i = 0; i < chord.length; i++) {
-          msg.push(trackID + ' add ' + beat + ' note ' + chord[i]);
-        }
-
-        return msg;
-      },
-      cc: function cc(number, value, beat) {
-        return trackID + ' add ' + beat + ' cc ' + number + ' ' + value;
-      }
-    },
-
-    start: function start() {
-      if (this.running) return;
-      this.running = true;
-      //console.log( 'starting with offset', this.offset ) 
-      Gibber.Scheduler.addMessage(this, Big(this.offset));
-
-      return this;
-    },
-    stop: function stop() {
-      this.running = false;
-    },
-    clear: function clear() {
-      this.stop();
-      if (typeof this.timings.clear === 'function') this.timings.clear();
-      if (typeof this.values.clear === 'function') this.values.clear();
-    },
-    delay: function delay(v) {
-      this.offset = v;
-      return this;
-    },
-    tick: function tick(scheduler, beat, beatOffset) {
-      if (!this.running) return;
-      var _beatOffset = parseFloat(beatOffset.toFixed(6));
-
-      this.timings.nextTime = _beatOffset;
-      // pick a new timing and schedule tick
-      var nextTime = this.timings(),
-          shouldExecute = void 0;
-
-      if (typeof nextTime === 'function') nextTime = nextTime();
-
-      if ((typeof nextTime === 'undefined' ? 'undefined' : _typeof(nextTime)) === 'object') {
-        shouldExecute = nextTime.shouldExecute;
-        nextTime = nextTime.time;
-      } else {
-        shouldExecute = true;
-      }
-
-      var bigTime = Big(nextTime);
-
-      scheduler.addMessage(this, bigTime, true, this.priority);
-
-      if (shouldExecute) {
-        this.values.nextTime = _beatOffset;
-        this.values.beat = beat;
-        this.values.beatOffset = _beatOffset;
-        this.values.scheduler = scheduler;
-
-        var value = this.values();
-        if (typeof value === 'function') value = value();
-        if (value !== null) {
-          // delay messages  
-          if (this.externalMessages[this.key] !== undefined) {
-
-            var msg = this.externalMessages[this.key](value, beat + _beatOffset, this.trackID);
-            scheduler.msgs.push(msg, this.priority);
-
-            //Gibber.Communication.send( msg )
-          } else {
-            // schedule internal method / function call immediately
-            if (this.object && this.key) {
-              if (typeof this.object[this.key] === 'function') {
-                this.object[this.key](value);
-              } else {
-                this.object[this.key] = value;
+          if( this.timings !== undefined ) {
+            if( this.timings.randomFlag ) {
+              timingsPattern.filters.push( ()=> { 
+                var idx = Gibber.Utility.rndi( 0, timingsPattern.values.length - 1)
+                return [ timingsPattern.values[ idx ], 1, idx ] 
+              })
+              for( var i = 0; i < this.timings.randomArgs.length; i+=2 ) {
+                timingsPattern.repeat( this.timings.randomArgs[ i ], this.timings.randomArgs[ i + 1 ] )
               }
             }
           }
+
+          this.timings = timingsPattern
         }
+        const proxyFunctionTimings = ( oldPattern, newPattern ) => {
+          this.timings = newPattern
+          this.timings.filters = oldPattern.filters.slice( 0 )
+          newPattern.__listeners.push( proxyFunctionTimings ) 
+        }
+        this.timings.__listeners.push( proxyFunctionTimings )
+        this.timings.seq = this
+        this.timings.nextTime = 0
+        
+        // add delay for timings pattern so that values updates first, this should help avoid glitches
+        // in annotations. This delay is inserted in the _addPatternFilter function of codeMarkup.js. 
+        this.timings.__delayAnnotations = true
       }
+      
+
+      const proxyFunctionValues = ( oldPattern, newPattern ) => {
+        this.values = newPattern
+        this.values.filters = oldPattern.filters.slice(0)
+        newPattern.__listeners.push( proxyFunctionValues ) 
+      }
+      this.values.__listeners.push( proxyFunctionValues )
+
+      this.values.nextTime = 0
+      this.values.seq = this
+    },
+
+    externalMessages: {
+      note( number, beat, trackID ) {
+        // let msgstring = "add " + beat + " " + t + " " + n + " " + v + " " + d
+
+        return `${trackID} add ${beat} note ${number}` 
+      },
+      midinote( number, beat, trackID ) {
+        return `${trackID} add ${beat} note ${number}` 
+      },
+      duration( value, beat, trackID ) {
+        return `${trackID} add ${beat} duration ${value}` 
+      },
+
+      velocity( value, beat, trackID ) {
+        return `${trackID} add ${beat} velocity ${value}` 
+      },
+
+      chord( chord, beat, trackID ) {
+        //console.log( chord )
+        let msg = []
+
+        for( let i = 0; i < chord.length; i++ ) {
+          msg.push( `${trackID} add ${beat} note ${chord[i]}` )
+        }
+
+        return msg
+      },
+      midichord( chord, beat, trackID ) {
+        //console.log( chord )
+        let msg = []
+
+        for( let i = 0; i < chord.length; i++ ) {
+          msg.push( `${trackID} add ${beat} note ${chord[i]}` )
+        }
+
+        return msg
+      },
+      cc( number, value, beat ) {
+        return `${trackID} add ${beat} cc ${number} ${value}`
+      },
+    },
+
+    start() {
+      if( this.running ) return
+      this.running = true
+      //console.log( 'starting with offset', this.offset ) 
+      Gibber.Scheduler.addMessage( this, Big( this.offset ) )     
+      
+      return this
+    },
+
+    stop() {
+      this.running = false
+    },
+
+    clear() {
+      this.stop()
+
+      if( this.timings !== undefined && typeof this.timings.clear === 'function' ) this.timings.clear()
+      if( typeof this.values.clear  === 'function' ) this.values.clear()
+    },
+    
+    delay( v ) { 
+      this.offset = v
+      return this
+    },
+
+    tick( scheduler, beat, beatOffset ) {
+      if( !this.running ) return
+
+      let _beatOffset = parseFloat( beatOffset.toFixed( 6 ) ),
+          shouldExecute
+
+      // if sequencer is not on autorun...
+      if( this.timings !== undefined ) {
+        this.timings.nextTime = _beatOffset
+        // pick a new timing and schedule tick
+        let nextTime = this.timings()
+        
+        if( typeof nextTime === 'function' )  nextTime = nextTime()
+
+        if( typeof nextTime === 'object' ) {
+          shouldExecute = nextTime.shouldExecute
+          nextTime = nextTime.time
+        }else{
+          shouldExecute = true
+        }
+
+        let bigTime = Big( nextTime )
+
+        scheduler.addMessage( this, bigTime, true, this.priority )
+      }else{
+        shouldExecute = true
+      }
+
+      if( shouldExecute ) {
+        this.values.nextTime = _beatOffset
+        this.values.beat = beat
+        this.values.beatOffset = _beatOffset
+        this.values.scheduler = scheduler
+
+        let value = this.values()
+        if( typeof value === 'function' ) value = value()
+        if( value !== null ) {
+          // delay messages  
+          if( this.externalMessages[ this.key ] !== undefined ) {
+
+            let msg = this.externalMessages[ this.key ]( value, beat + _beatOffset, this.trackID )
+            scheduler.msgs.push( msg, this.priority )
+
+            //Gibber.Communication.send( msg )
+
+          } else { // schedule internal method / function call immediately
+            if( this.object !== undefined && this.key !== undefined ) {
+              if( typeof this.object[ this.key ] === 'function' ) {
+                this.object[ this.key ]( value )
+              }else{
+                this.object[ this.key ] = value
+              }
+            }
+          }
+
+          if( this.key === 'note' || this.key === 'midinote' ) {
+            if( Array.isArray( this.object.autorun ) ) {
+              for( let seq of this.object.autorun ) {
+                seq.tick( scheduler, beat, beatOffset )
+              }
+            }
+          }
+
+        }
+      } 
 
       //console.log( 'beat', beat )
       //this.timings.nextTime = _beatOffset // for scheduling pattern updates
+    },
+    
+  }
+
+  proto.create = proto.create.bind( proto )
+  proto.create.DO_NOT_OUTPUT = proto.DO_NOT_OUTPUT
+  proto.create._seqs = proto._seqs
+  proto.create.proto = proto
+
+  return proto.create
+
+}
+
+module.exports = seqclosure
+
+},{"big.js":101}],92:[function(require,module,exports){
+module.exports = function( Gibber ) {
+  
+let Steps = {
+  type:'Steps',
+  create( _steps, track = Gibber.currentTrack ) {
+    let stepseq = Object.create( Steps )
+    
+    stepseq.seqs = {}
+
+    //  create( values, timings, key, object = null, priority=0 )
+    for ( let _key in _steps ) {
+      let values = _steps[ _key ].split(''),
+          key = parseInt( _key )
+
+      let seq = Gibber.Seq( values, 1 / values.length, 'midinote', track, 0 )
+      seq.trackID = track.id
+
+      seq.values.filters.push( function( args ) {
+        let sym = args[ 0 ],
+            velocity = ( parseInt( sym, 16 ) * 8 ) - 1
+
+        if( isNaN( velocity ) ) {
+          velocity = 0
+        }
+
+        // TODO: is there a better way to get access to beat, beatOffset and scheduler?
+        if( velocity !== 0 ) {
+          let msg = seq.externalMessages[ 'velocity' ]( velocity, seq.values.beat + seq.values.beatOffset, seq.trackID )
+          seq.values.scheduler.msgs.push( msg ) 
+        }
+
+        args[ 0 ] = sym === '.' ? Gibber.Seq.DO_NOT_OUTPUT : key
+
+        return args
+      })
+
+      stepseq.seqs[ _key ] = seq
+      stepseq[ _key ] = seq.values
     }
-  };
 
-  proto.create = proto.create.bind(proto);
-  proto.create.DO_NOT_OUTPUT = proto.DO_NOT_OUTPUT;
-  proto.create._seqs = proto._seqs;
-  proto.create.proto = proto;
+    stepseq.start()
+    stepseq.addPatternMethods()
 
-  return proto.create;
-};
-
-module.exports = seqclosure;
-},{"big.js":26}],18:[function(require,module,exports){
-'use strict';
-
-module.exports = function (Gibber) {
-
-  var Steps = {
-    type: 'Steps',
-    create: function create(_steps) {
-      var track = arguments.length <= 1 || arguments[1] === undefined ? Gibber.currentTrack : arguments[1];
-
-      var stepseq = Object.create(Steps);
-
-      stepseq.seqs = {};
-
-      //  create( values, timings, key, object = null, priority=0 )
-
-      var _loop = function _loop(_key) {
-        var values = _steps[_key].split(''),
-            key = parseInt(_key);
-
-        var seq = Gibber.Seq(values, 1 / values.length, 'midinote', track, 0);
-        seq.trackID = track.id;
-
-        seq.values.filters.push(function (args) {
-          var sym = args[0],
-              velocity = parseInt(sym, 16) * 8 - 1;
-
-          if (isNaN(velocity)) {
-            velocity = 0;
-          }
-
-          // TODO: is there a better way to get access to beat, beatOffset and scheduler?
-          if (velocity !== 0) {
-            var msg = seq.externalMessages['velocity'](velocity, seq.values.beat + seq.values.beatOffset, seq.trackID);
-            seq.values.scheduler.msgs.push(msg);
-          }
-
-          args[0] = sym === '.' ? Gibber.Seq.DO_NOT_OUTPUT : key;
-
-          return args;
-        });
-
-        stepseq.seqs[_key] = seq;
-        stepseq[_key] = seq.values;
-      };
-
-      for (var _key in _steps) {
-        _loop(_key);
+    return stepseq
+  },
+  
+  addPatternMethods() {
+    groupMethodNames.map( (name) => {
+      this[ name ] = function( ...args ) {
+        for( let key in this.seqs ) {
+          this.seqs[ key ].values[ name ].apply( this, args )
+        }
       }
+    
+      Gibber.addSequencingToMethod( this, name, 1 )
+    })
+  },
 
-      stepseq.start();
-      stepseq.addPatternMethods();
-
-      return stepseq;
-    },
-    addPatternMethods: function addPatternMethods() {
-      var _this = this;
-
-      groupMethodNames.map(function (name) {
-        _this[name] = function () {
-          for (var _len = arguments.length, args = Array(_len), _key2 = 0; _key2 < _len; _key2++) {
-            args[_key2] = arguments[_key2];
-          }
-
-          for (var _key3 in this.seqs) {
-            this.seqs[_key3].values[name].apply(this, args);
-          }
-        };
-
-        Gibber.addSequencingToMethod(_this, name, 1);
-      });
-    },
-    start: function start() {
-      for (var _key4 in this.seqs) {
-        this.seqs[_key4].start();
-      }
-    },
-    stop: function stop() {
-      for (var _key5 in this.seqs) {
-        this.seqs[_key5].stop();
-      }
-    },
-    clear: function clear() {
-      this.stop();
+  start() {
+    for( let key in this.seqs ) { 
+      this.seqs[ key ].start()
     }
-  };
+  },
 
-  var groupMethodNames = ['rotate', 'reverse', 'transpose', 'range', 'shuffle', 'scale', 'repeat', 'switch', 'store', 'reset', 'flip', 'invert', 'set'];
+  stop() {
+    for( let key in this.seqs ) { 
+      this.seqs[ key ].stop()
+    }
+  },
 
-  return Steps.create;
-};
-},{}],19:[function(require,module,exports){
-"use strict";
+  clear() { this.stop() },
 
+  /*
+   *rotate( amt ) {
+   *  for( let key in this.seqs ) { 
+   *    this.seqs[ key ].values.rotate( amt )
+   *  }
+   *},
+   */
+}
+
+const groupMethodNames = [ 
+  'rotate', 'reverse', 'transpose', 'range',
+  'shuffle', 'scale', 'repeat', 'switch', 'store', 
+  'reset','flip', 'invert', 'set'
+]
+
+return Steps.create
+
+}
+
+},{}],93:[function(require,module,exports){
 /**
  * MicroLib-Utils is the utility library for other MicroLib libraries. It provides
  * helper methods for common tasks such as adding, checking and removing classes.
@@ -4602,7 +9133,7 @@ module.exports = function (Gibber) {
 function forEach(array, callback) {
     "use strict";
 
-    for (var i = 0; i < array.length; i++) {
+    for(var i = 0; i < array.length; i++) {
         callback(i, array[i]);
     }
 }
@@ -4615,7 +9146,7 @@ function forEach(array, callback) {
 function makeUID() {
     "use strict";
 
-    return ('0000' + (Math.random() * Math.pow(36, 4) << 0).toString(36)).slice(-4);
+    return ('0000' + (Math.random()*Math.pow(36,4) << 0).toString(36)).slice(-4);
 }
 
 /**
@@ -4642,7 +9173,7 @@ function addClass(element, className) {
     "use strict";
 
     var classes = element.className.split(' ');
-    if (!hasClass(element, className)) {
+    if(!hasClass(element, className)) {
         classes.push(className);
     }
     element.className = classes.join(' ');
@@ -4658,7 +9189,7 @@ function removeClass(element, className) {
     "use strict";
 
     var classes = element.className.split(' ');
-    if (hasClass(element, className)) {
+    if(hasClass(element, className)) {
         classes.splice(classes.indexOf(className), 1);
     }
     element.className = classes.join(' ');
@@ -4679,7 +9210,7 @@ function findFromElement(element, searchItem) {
     var results = [];
 
     forEach(children, function (index, item) {
-        if (hasClass(item, searchItem) || item.id === searchItem) {
+        if(hasClass(item, searchItem) || item.id === searchItem) {
             results.push(item);
         }
     });
@@ -4688,12 +9219,12 @@ function findFromElement(element, searchItem) {
 }
 
 var MicroTabs = function MicroTabs(element) {
-    if (!element || typeof element !== 'string' && element === Object(element)) {
+    if(!element || (typeof element !== 'string' && element === Object(element))) {
         throw new TypeError('Element is expected to be of type string or object.');
     }
 
-    if (typeof element === 'string') {
-        if (element.indexOf(0) === '#') {
+    if(typeof element === 'string') {
+        if(element.indexOf(0) === '#') {
             this._element = document.querySelector(element);
         } else {
             this._element = document.querySelectorAll(element);
@@ -4706,7 +9237,7 @@ var MicroTabs = function MicroTabs(element) {
 
     this._generateTabNavigation();
 
-    this.onChange = function (newContent, newTab, event) {};
+    this.onChange = function(newContent, newTab, event){};
 };
 
 /**
@@ -4730,7 +9261,7 @@ MicroTabs.prototype._findTabs = function _findTabs() {
  * @method generateTabNavigation
  */
 MicroTabs.prototype._generateTabNavigation = function _generateTabNavigation() {
-    var this$1 = this;
+        var this$1 = this;
 
     forEach(this._tabs, function (index, item) {
         var navContainer = document.createElement('div');
@@ -4739,7 +9270,7 @@ MicroTabs.prototype._generateTabNavigation = function _generateTabNavigation() {
         var parent = '';
 
         forEach(item, function (child_index, child) {
-            if (!parent || parent === '') {
+            if(!parent || parent === '') {
                 parent = child.parentNode;
             }
 
@@ -4750,7 +9281,7 @@ MicroTabs.prototype._generateTabNavigation = function _generateTabNavigation() {
 
             navItem.addEventListener('click', this$1._processClick.bind(this$1));
 
-            if (child_index === 0) {
+            if(child_index === 0) {
                 addClass(navItem, 'microlib_active');
             }
 
@@ -4789,852 +9320,769 @@ MicroTabs.prototype._processClick = function _processClick(e) {
 
 window.ML = window.ML || {};
 window.ML.Tabs = MicroTabs;
-},{}],20:[function(require,module,exports){
-'use strict';
 
-var _extensions;
+},{}],94:[function(require,module,exports){
+let Gibber = null
 
-var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
-
-function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-var Gibber = null;
-
-var Note = {
-  names: ['c', 'db', 'd', 'eb', 'e', 'f', 'gb', 'g', 'ab', 'a', 'bb', 'b'],
+let Note = {
+  names: [ 'c','db','d','eb','e','f','gb','g','ab','a','bb','b' ],
   indices: {
     c: 0,
     'c#': 1, db: 1,
-    d: 2,
-    'd#': 3, eb: 3,
-    e: 4, fb: 4,
-    f: 5,
-    'f#': 6, gb: 6,
-    g: 7,
-    'g#': 8, ab: 8,
-    a: 9,
-    'a#': 10, bb: 10,
-    b: 11, cb: 11
+    d:2,
+    'd#':3, eb:3,
+    e:4, fb:4,
+    f:5,
+    'f#':6, gb:6,
+    g:7,
+    'g#':8, ab:8,
+    a:9,
+    'a#':10, bb:10,
+    b:11, cb:11
   },
 
-  getMIDI: function getMIDI() {
-    return this.value;
-  },
-  getFrequency: function getFrequency() {
-    return Math.pow(2, (this.value - 69) / 12) * 440;
-  },
-  getString: function getString() {
-    var octave = Math.floor(this.value / 12) - 1,
-        index = this.value % 12;
 
-    return Note.names[index] + octave;
+  getMIDI() { return this.value },
+
+  getFrequency() {
+    return Math.pow( 2, (this.value - 69) / 12 ) * 440  
   },
-  create: function create(value) {
-    var midiValue = Note.convertToMIDI(value),
-        note = Object.create(this);
 
-    note.value = midiValue;
+  getString() {
+    let octave = Math.floor( ( this.value / 12 ) ) - 1,
+        index  = this.value % 12
 
-    return note;
+    return Note.names[ index ] + octave
   },
-  convertToMIDI: function convertToMIDI(value) {
-    var midiValue = void 0;
 
-    if (typeof value === 'string') {
-      midiValue = this.convertStringToMIDI(value);
+  create( value ) {
+    let midiValue = Note.convertToMIDI( value ),
+        note = Object.create( this )
+
+    note.value = midiValue
+
+    return note
+  },
+
+  convertToMIDI( value ) {
+    let midiValue
+
+    if( typeof value === 'string' ) { 
+      midiValue = this.convertStringToMIDI( value )
     } else {
-      midiValue = Scale.master.getMIDINumber(value);
+      midiValue = Scale.master.getMIDINumber( value )
     }
-
-    return midiValue;
+    
+    return midiValue
   },
-  convertStringToMIDI: function convertStringToMIDI(stringValue) {
-    var octave = parseInt(stringValue.substr(-1)),
-        noteName = stringValue.substr(0, stringValue.length === 2 ? 1 : 2),
-        noteNum = Note.indices[noteName];
 
-    return (octave + 1) * 12 + noteNum;
+  convertStringToMIDI( stringValue ) {
+    let octave   = parseInt( stringValue.substr( -1 ) ),
+        noteName = stringValue.substr( 0, stringValue.length === 2 ? 1 : 2 ),
+        noteNum  = Note.indices[ noteName ]
+    
+    return ( octave + 1 ) * 12 + noteNum
   },
-  convertMIDIToString: function convertMIDIToString(midiValue) {},
-  convertMIDIToFrequency: function convertMIDIToFrequency(midiValue) {},
-  convertScaleMemberToMIDI: function convertScaleMemberToMIDI(scaleIndex, scale) {}
-};
 
-var Chord = {
-  create: function create(str) {
-    var chord = Object.create(this);
+  convertMIDIToString( midiValue ) { },
 
-    var _Chord$parseString = Chord.parseString(str);
+  convertMIDIToFrequency( midiValue ) { },
 
-    var _Chord$parseString2 = _slicedToArray(_Chord$parseString, 4);
+  convertScaleMemberToMIDI( scaleIndex, scale ) { }
+}
 
-    var root = _Chord$parseString2[0];
-    var octave = _Chord$parseString2[1];
-    var quality = _Chord$parseString2[2];
-    var extension = _Chord$parseString2[3];
+let Chord = {
+  create( str ) {
+    let chord = Object.create( this )
 
+    let [ root, octave, quality, extension ] = Chord.parseString( str )
 
-    Object.assign(chord, {
-      root: root,
-      octave: octave,
-      quality: quality,
-      extension: extension,
+    Object.assign( chord, {
+      root,
+      octave,
+      quality,
+      extension,
       notes: []
-    });
+    })
 
-    chord.notes[0] = parseInt(Note.convertStringToMIDI(root + octave));
-
-    var _quality = Chord.qualities[chord.quality];
-    for (var i = 0; i < _quality.length; i++) {
-      chord.notes.push(chord.notes[0] + _quality[i]);
+    chord.notes[ 0 ] = parseInt( Note.convertStringToMIDI( root + octave ) )
+    
+    let _quality = Chord.qualities[ chord.quality ]
+    for( let i = 0; i <  _quality.length; i++  ) {
+      chord.notes.push( chord.notes[ 0 ] + _quality[ i ] )
     }
-
-    if (chord.extension) {
+    
+    if( chord.extension ) {
       // split each extension into array
-      chord.extensions = extension.split(/(b?#?\d+)/i);
-
-      for (var _i = 0; _i < chord.extensions.length; _i++) {
-        var _extension = chord.extensions[_i];
-        if (_extension !== '') chord.notes.push(Chord.extensions[_extension](chord.notes));
+      chord.extensions = extension.split(/(b?#?\d+)/i)
+      
+      for( let i = 0; i < chord.extensions.length; i++ ) {
+        let _extension = chord.extensions[ i ]
+        if( _extension !== '' ) 
+          chord.notes.push( Chord.extensions[ _extension ]( chord.notes ) )
       }
     }
 
-    return chord;
+    return chord
   },
-
 
   qualities: {
-    min: [3, 7],
-    maj: [4, 7],
-    dim: [3, 6],
-    aug: [4, 8],
-    sus: [5, 7]
+    min: [ 3, 7 ],
+    maj: [ 4, 7 ],
+    dim: [ 3, 6 ],
+    aug: [ 4, 8 ],
+    sus: [ 5, 7 ]
   },
 
-  extensions: (_extensions = {}, _defineProperty(_extensions, '7', function _(notes) {
-    return notes[2] + 3;
-  }), _defineProperty(_extensions, '#7', function _(notes) {
-    return notes[2] + 4;
-  }), _defineProperty(_extensions, '9', function _(notes) {
-    return notes[2] + 7;
-  }), _defineProperty(_extensions, 'b9', function b9(notes) {
-    return notes[2] + 6;
-  }), _extensions),
+  extensions: {
+    ['7']  ( notes ) { return notes[ 2 ] + 3 },
+    ['#7'] ( notes ) { return notes[ 2 ] + 4 },
+    ['9']  ( notes ) { return notes[ 2 ] + 7 },
+    ['b9'] ( notes ) { return notes[ 2 ] + 6 }
+  },
 
-  parseString: function parseString(str) {
-    var _str$match = str.match(/([A-Za-z]b?#?)(\d)([a-z]{3})([b?#?\d]*)/i);
+  parseString( str ) {
+    let [ chord, root, octave, quality, extension ] = str.match(/([A-Za-z]b?#?)(\d)([a-z]{3})([b?#?\d]*)/i) 
 
-    var _str$match2 = _slicedToArray(_str$match, 5);
+    return [ root.toLowerCase(), octave, quality.toLowerCase(), extension ]
+  },
+}
 
-    var chord = _str$match2[0];
-    var root = _str$match2[1];
-    var octave = _str$match2[2];
-    var quality = _str$match2[3];
-    var extension = _str$match2[4];
+let Scale = {
+  create( root, mode ) {
+    let scale = Object.create( this )
+    
+    scale.rootNumber = scale.baseNumber = Note.convertToMIDI( root )
+    scale.degree = Scale.degrees.i 
+    scale.quality = 'minor'
 
-
-    return [root.toLowerCase(), octave, quality.toLowerCase(), extension];
-  }
-};
-
-var Scale = {
-  create: function create(root, mode) {
-    var scale = Object.create(this);
-
-    scale.rootNumber = Note.convertToMIDI(root);
-
-    scale.root = function (v) {
-      if (typeof v === 'string') {
-        root = v;
-        scale.rootNumber = Note.convertToMIDI(root);
-      } else {
-        return root;
+    scale.root = function( v ) {
+      if( typeof v === 'string' ) {
+        root = v
+        scale.rootNumber = Note.convertToMIDI( root )
+      }else if( typeof v === 'number' ) {
+        scale.rootNumber = v
+      }else{
+        return root
       }
-    };
-
-    scale.modeNumbers = Scale.modes[mode];
-
-    scale.mode = function (v) {
-      if (typeof v === 'string') {
-        mode = v;
-        mode = mode[0].toLowerCase() + mode.slice(1);
-        scale.modeNumbers = Scale.modes[mode];
-      } else {
-        return mode;
-      }
-    };
-
-    scale.root.valueOf = function () {
-      return root;
-    };
-    scale.mode.valueOf = function () {
-      return mode;
-    };
-
-    if (Gibber !== null) {
-      Gibber.addSequencingToMethod(scale, 'root', 1);
-      Gibber.addSequencingToMethod(scale, 'mode', 1);
     }
 
-    return scale;
+    scale.degree = function( __degree ) {
+      if( typeof __degree  === 'string' ) {
+        const degree = Scale.degrees[ scale.quality ][ __degree ]
+        
+        scale.__degree = __degree
+        scale.root( degree.offset + scale.baseNumber )
+        scale.mode( degree.mode )
+
+      } else {
+        return scale.__degree
+      }
+    }
+    
+    scale.modeNumbers = Scale.modes[ mode ]
+
+    scale.mode = function( v ) {
+      if( typeof v === 'string' ) {
+        mode = v
+        mode = mode[0].toLowerCase() + mode.slice(1)
+        scale.modeNumbers = Scale.modes[ mode ]
+      }else{
+        return mode
+      }
+    }
+
+    scale.root.valueOf = () => { return root }
+    scale.mode.valueOf = () => { return mode }
+
+    if( Gibber !== null ) {
+      Gibber.addSequencingToMethod( scale, 'root', 1 )
+      Gibber.addSequencingToMethod( scale, 'mode', 1 )
+      Gibber.addSequencingToMethod( scale, 'degree',1 )
+    }
+
+    return scale
   },
-  getMIDINumber: function getMIDINumber(scaleDegree) {
-    var mode = this.modeNumbers,
+
+  getMIDINumber( scaleDegree ) {
+    let mode   = this.modeNumbers,
         isNegative = scaleDegree < 0,
-        octave = Math.floor(scaleDegree / mode.length),
-        degree = isNegative ? mode[Math.abs(mode.length + scaleDegree % mode.length)] : mode[scaleDegree % mode.length],
-        out = void 0;
+        octave = Math.floor( scaleDegree / mode.length ),
+        degree = isNegative ? mode[ Math.abs( mode.length + (scaleDegree % mode.length ) )   ] : mode[ scaleDegree % mode.length ],
+        out
 
-    if (degree === undefined) degree = 0;
+    if( degree === undefined ) degree = 0
 
-    out = isNegative ? this.rootNumber + octave * 12 + degree : this.rootNumber + octave * 12 + degree;
-
-    return out;
+    out = isNegative ? 
+        this.rootNumber + (octave * 12 ) + degree : 
+        this.rootNumber + (octave * 12 ) + degree
+  
+    return out 
   },
 
+  degrees: {
+    major: {},
+    minor: {}
+  },
+
+  __getBaseNumber( chord ) {
+    const start = scale.baseNumber
+
+  },
+
+  __initDegrees() {
+    const base = [ 'i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii' ]
+
+    const scales = [ { name:'minor', values:Scale.modes.aeolian }, { name:'major', values:Scale.modes.ionian } ]
+
+    for( let scale of scales ) {
+      let name = scale.name
+      let values = scale.values
+
+      for( let i = 0; i < base.length; i++ ) {
+        const chord = base[ i ]
+        this.degrees[ name ][ chord ] = { mode:'aeolian', offset: values[i] }
+      }
+
+      for( let i = 0; i < base.length; i++ ) {
+        const chord = base[ i ].toUpperCase()
+        this.degrees[ name ][ chord ] = { mode:'ionian', offset: values[i] }
+      }
+
+      for( let i = 0; i < base.length; i++ ) {
+        const chord = base[ i ] + '7'
+        this.degrees[ name ][ chord ] = { mode:'dorian', offset: values[i] }
+      }
+
+      for( let i = 0; i < base.length; i++ ) {
+        const chord = base[ i ].toUpperCase() + '7'
+        this.degrees[ name ][ chord ] = { mode:'mixolydian', offset: values[i] }
+      }
+
+      for( let i = 0; i < base.length; i++ ) {
+        const chord = base[ i ] + 'o'
+        this.degrees[ name ][ chord ] = { mode:'locrian', offset: values[i] }
+      }
+
+      for( let i = 0; i < base.length; i++ ) {
+        const chord = base[ i ] + 'M7'
+        this.degrees[ name ][ chord ] = { mode:'melodicminor', offset: values[i] }
+      }
+    }
+    
+  },
 
   modes: {
-    ionian: [0, 2, 4, 5, 7, 9, 11],
-    dorian: [0, 2, 3, 5, 7, 9, 10],
-    phrygian: [0, 1, 3, 5, 7, 8, 10],
-    lydian: [0, 2, 4, 6, 7, 9, 11],
-    mixolydian: [0, 2, 4, 5, 7, 9, 10],
-    aeolian: [0, 2, 3, 5, 7, 8, 10],
-    locrian: [0, 1, 3, 5, 6, 8, 10],
-    wholeHalf: [0, 2, 3, 5, 6, 8, 9, 11],
-    halfWhole: [0, 1, 3, 4, 6, 7, 9, 10],
-    chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    ionian:     [0,2,4,5,7,9,11],
+    dorian:     [0,2,3,5,7,9,10],
+    phrygian:   [0,1,3,5,7,8,10],
+    lydian:     [0,2,4,6,7,9,11],
+    mixolydian: [0,2,4,5,7,9,10],
+    aeolian:    [0,2,3,5,7,8,10],
+    locrian:    [0,1,3,5,6,8,10],
+    melodicminor:[0,2,3,5,7,8,11],
+    wholeHalf:  [0,2,3,5,6,8,9,11],
+    halfWhole:  [0,1,3,4,6,7,9,10],
+    chromatic:  [0,1,2,3,4,5,6,7,8,9,10,11],
   }
-};
+}
 
-Scale.modes.major = Scale.modes.ionian;
-Scale.modes.minor = Scale.modes.aeolian;
-Scale.modes.blues = Scale.modes.mixolydian;
+
+Scale.modes.major = Scale.modes.ionian
+Scale.modes.minor = Scale.modes.aeolian
+Scale.modes.blues = Scale.modes.mixolydian
 
 module.exports = {
-  Note: Note,
-  Chord: Chord,
-  Scale: Scale,
+  Note, 
+  Chord, 
+  Scale, 
 
-  init: function init(_Gibber) {
-    Gibber = _Gibber;
+  init( _Gibber ) { 
+    Gibber = _Gibber; 
 
-    Scale.master = Scale.create('c4', 'aeolian');
+    Scale.master = Scale.create( 'c4','aeolian' )
+    Scale.__initDegrees()
+    
+    return this 
+  },
 
-    return this;
+  export( obj ) {
+    obj.Theory = this
+    obj.Scale = Scale.master
+    
+    const base = [ 'i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii' ]
+
+    for( let chord of base ) {
+      obj[ chord ] = chord
+      const upper = chord.toUpperCase()
+
+      obj[ upper ] = upper
+      obj[ chord+'7'] = chord+'7'
+      obj[ upper+'7'] = upper+'7'
+      obj[ chord+'M7'] = chord+'M7'
+    }
+  } 
+}
+
+},{}],95:[function(require,module,exports){
+module.exports = function( Gibber ) {
+
+let Track = {
+  create( spec ) {
+
+    let track = {    
+      id: spec.id,
+      spec,
+		  sequences:{},
+      sends:[],
+      octave:0,
+      note( ...args ) {
+        args[0] = Gibber.Theory.Note.convertToMIDI( args[0] )
+        
+        let msg = `${track.id} note ${args.join(' ')}`
+        Gibber.Communication.send( msg )
+      },
+
+      midinote( ...args ) {
+        let msg = `${track.id} note ${args.join(' ')}`
+        Gibber.Communication.send( msg )
+      },
+      
+      duration( value ) {
+        Gibber.Communication.send( `${track.id} duration ${value}` )
+      },
+      
+      velocity( value ) {
+        Gibber.Communication.send( `${track.id} velocity ${value}` )
+      },
+
+      cc( ccnum, value ) {
+        let msg =  `${track.id} cc ${ccnum} ${value}`
+        Gibber.Communication.send( msg )
+      },
+
+      mute( value ) {
+        let msg =  `${track.id} mute ${value}`
+        Gibber.Communication.send( msg )
+      },
+
+      solo( value ) {
+        let msg =  `${track.id} solo ${value}`
+        Gibber.Communication.send( msg )
+      },
+
+      chord( chord, velocity='', duration='' ) {
+        let msg = []
+        
+        if( typeof chord  === 'string' ){
+          chord = Gibber.Theory.Chord.create( chord ).notes
+          chord.forEach( v => track.midinote( v ) )
+        }else{
+          chord.forEach( v => track.note( v ) )
+        }
+      },
+
+      midichord( chord, velocity='', duration='' ) {
+        let msg = []
+        for( let i = 0; i < chord.length; i++ ) {
+          track.midinote( chord[i] )
+          //msg.push( `${track.id} note ${chord[i]} ${velocity} ${duration}`.trimRight() )
+        }
+
+        //Gibber.Communication.send( msg )
+      },
+
+      stop() {
+        for( let key in this.sequences ) {
+          for( let seq of this.sequences[ key ] ) {
+            if( seq !== undefined ) {
+              seq.stop()
+            }
+          }
+        }
+      },
+
+      start() {
+        for( let key in this.sequences ) {
+          for( let seq of this.sequences[ key ] ) {
+            if( seq !== undefined ) {
+              seq.start()
+            }
+          }
+        }
+      },
+      select() {
+        Gibber.Communication.send( `select_track ${track.id}` )
+      }
+    }
+
+    Gibber.Environment.codeMarkup.prepareObject( track ) 
+    Gibber.addSequencingToMethod( track, 'note' )
+    Gibber.addSequencingToMethod( track, 'cc' )
+    Gibber.addSequencingToMethod( track, 'chord' )
+    Gibber.addSequencingToMethod( track, 'velocity', 1 )
+    Gibber.addSequencingToMethod( track, 'duration', 1 )
+    Gibber.addSequencingToMethod( track, 'midinote' )
+    Gibber.addSequencingToMethod( track, 'midichord' )
+    Gibber.addSequencingToMethod( track, 'mute' )
+    Gibber.addSequencingToMethod( track, 'solo' )
+
+    Gibber.addMethod( track, 'pan', spec.panning )
+    Gibber.addMethod( track, 'volume', spec.volume )
+
+    spec.sends.forEach( (element, idx) => {
+      Gibber.addMethod( track.sends, idx, element )
+    })
+
+
+    const proxy = new Proxy( track, {
+      // whenever a property on the namespace is accessed
+      get( target, prop, receiver ) {
+        let hasProp = true, 
+          device = null, 
+          upper = prop[0].toUpperCase() + prop.slice( 1 ), // convert lowercase to camelcase
+          useUpper = false
+
+        // if the property is undefined...
+        if( target[ prop ] === undefined && target[ upper ] === undefined && prop !== 'markup' && prop !== 'seq' && prop !== 'sequences' ) {
+          //target[ prop ] = Max.namespace( prop, target )
+          //target[ prop ].address = addr + ' ' + prop
+          for( let __device of target.devices ) {
+            if( typeof __device !== 'object' ) continue
+
+            if( __device[ prop ] !== undefined ) {
+              device = __device
+              break
+            }else if( __device[ upper ] !== undefined ) {
+              device = __device
+              useUpper = true
+              break
+            }
+          }
+
+          hasProp = false
+        }
+
+
+        let propName = useUpper ? upper : prop
+        return hasProp ? target[ prop ] : device[ propName ]
+      }
+    })
+
+    return proxy
+  },
+}
+
+return Track.create.bind( Track )
+
+}
+
+},{}],96:[function(require,module,exports){
+let Utility = {
+  elementArray: function( list ) {
+    let out = []
+
+    for( var i = 0; i < list.length; i++ ) {
+      out.push( list.item( i ) )
+    }
+
+    return out
+  },
+  
+  _classListMethods: [ 'toggle', 'add', 'remove' ],
+
+  create( query ) {
+    let elementList = document.querySelectorAll( query ),
+        arr = Utility.elementArray( elementList )
+    
+    for( let method of Utility._classListMethods ) { 
+      arr[ method ] = ( style ) => {
+        for( let element of arr ) { 
+          element.classList[ method ]( style )
+        }
+      } 
+    }
+
+    return arr
+  },
+
+  rndf( min=0, max=1, number, canRepeat=true ) {
+    let out = 0
+  	if( number === undefined ) {
+  		let diff = max - min,
+  		    r = Math.random(),
+  		    rr = diff * r
+
+  		out =  min + rr;
+  	}else{
+      let output = [],
+  		    tmp = []
+
+  		for( let i = 0; i < number; i++ ) {
+  			let num
+        if( canRepeat ) {
+          num = Utility.rndf(min, max)
+        }else{
+          num = Utility.rndf( min, max )
+          while( tmp.indexOf( num ) > -1) {
+            num = Utility.rndf( min, max )
+          }
+          tmp.push( num )
+        }
+  			output.push( num )
+  		}
+
+  		out = output
+  	}
+
+    return out
+  },
+
+  Rndf( _min = 0, _max = 1, quantity, canRepeat=true ) {
+    return function() {
+      let value, min, max
+
+      min = typeof _min === 'function' ? _min() : _min
+      max = typeof _max === 'function' ? _max() : _max
+  
+      if( quantity === undefined ) {
+        value = Utility.rndf( min, max )
+      }else{
+        value = Utility.rndf( min, max, quantity, canRepeat )
+      }
+
+      return value
+    }
+  },
+
+  rndi( min = 0, max = 1, number, canRepeat = true ) {
+    let range = max - min,
+        out
+    
+    if( range < number ) canRepeat = true
+
+    if( typeof number === 'undefined' ) {
+      range = max - min
+      out = Math.round( min + Math.random() * range );
+    }else{
+  		let output = [],
+  		    tmp = []
+
+  		for( let i = 0; i < number; i++ ) {
+  			let num
+  			if( canRepeat ) {
+  				num = Utility.rndi( min, max )
+  			}else{
+  				num = Utility.rndi( min, max )
+  				while( tmp.indexOf( num ) > -1 ) {
+  					num = Utility.rndi( min, max )
+  				}
+  				tmp.push( num )
+  			}
+  			output.push( num )
+  		}
+  		out = output
+    }
+    return out
+  },
+
+  Rndi( _min = 0, _max = 1, quantity, canRepeat = true ) {
+    let range = _max - _min
+    if( typeof quantity === 'number' && range < quantity ) canRepeat = true
+
+    return function() {
+      let value = 0, min, max, range
+
+      min = typeof _min === 'function' ? _min() : _min
+      max = typeof _max === 'function' ? _max() : _max
+
+      if( quantity === undefined ) {
+        value = Utility.rndi( min, max )
+      }else{
+        value = Utility.rndi( min, max, quantity, canRepeat )
+      }
+
+      return value
+    }
+  },
+
+  random() {
+    this.randomFlag = true
+    this.randomArgs = Array.prototype.slice.call( arguments, 0 )
+
+    return this
+  },
+
+  shuffle : function( arr ) {
+    for( let j, x, i = arr.length; i; j = parseInt(Math.random() * i), x = arr[--i], arr[i] = arr[j], arr[j] = x );
+  },
+
+  beatsToMs( beats, bpm=120 ) {
+    const beatsPerSecond = bpm / 60
+
+    return ( beats / beatsPerSecond ) * 1000
+  },
+
+  future( func, time ) {
+    let msg = {
+      tick( scheduler, beat, beatOffset ) {
+        func()
+      }
+    }
+
+    Gibber.Scheduler.addMessage( msg, time )
+  },
+
+  select( trackNumber ) {
+    Gibber.Communication.send( `select_track ${ trackNumber }` )
+  },
+
+  range( min=0,max=100 ) {
+    const arr = []
+    for( let i = min; i<=max; i++ ) arr.push( i )
+
+    return arr
+  },
+
+  // NOTE: when using genish.js, the phase of ugens is automatically 
+  // adjusted at a variable rate depending on the current bpm, making
+  // using values other than 120 bpm yield inaccurate results.
+  beatsToFrequency( beats, __bpm ) {
+    const bpm = __bpm || Gibber.Scheduler.bpm
+
+    return 1 / ( beats * ( 60 / bpm ) ) 
+  },
+
+  export( destination ) {
+    destination.rndf = Utility.rndf
+    destination.rndi = Utility.rndi
+    destination.Rndf = Utility.Rndf
+    destination.Rndi = Utility.Rndi
+    destination.future = Utility.future
+    destination.select = Utility.select
+    destination.btof = Utility.beatsToFrequency
+    destination.range = Utility.range
+
+    Array.prototype.random = Array.prototype.rnd = Utility.random
   }
-};
-},{}],21:[function(require,module,exports){
-'use strict';
+}
 
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj; };
+module.exports = Utility
 
-module.exports = function (Gibber) {
-
-  var Track = {
-    create: function create(spec) {
-
-      var track = {
-        id: spec.id,
-        spec: spec,
-        sequences: {},
-        sends: [],
-        octave: 0,
-        note: function note() {
-          for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
-            args[_key] = arguments[_key];
-          }
-
-          args[0] = Gibber.Theory.Note.convertToMIDI(args[0]);
-
-          var msg = track.id + ' note ' + args.join(' ');
-          Gibber.Communication.send(msg);
-        },
-        midinote: function midinote() {
-          for (var _len2 = arguments.length, args = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
-            args[_key2] = arguments[_key2];
-          }
-
-          var msg = track.id + ' note ' + args.join(' ');
-          Gibber.Communication.send(msg);
-        },
-        duration: function duration(value) {
-          Gibber.Communication.send(track.id + ' duration ' + value);
-        },
-        velocity: function velocity(value) {
-          Gibber.Communication.send(track.id + ' velocity ' + value);
-        },
-        cc: function cc(ccnum, value) {
-          var msg = track.id + ' cc ' + ccnum + ' ' + value;
-          Gibber.Communication.send(msg);
-        },
-        mute: function mute(value) {
-          var msg = track.id + ' mute ' + value;
-          Gibber.Communication.send(msg);
-        },
-        solo: function solo(value) {
-          var msg = track.id + ' solo ' + value;
-          Gibber.Communication.send(msg);
-        },
-        chord: function chord(_chord) {
-          var velocity = arguments.length <= 1 || arguments[1] === undefined ? '' : arguments[1];
-          var duration = arguments.length <= 2 || arguments[2] === undefined ? '' : arguments[2];
-
-          var msg = [];
-
-          if (typeof _chord === 'string') {
-            _chord = Gibber.Theory.Chord.create(_chord).notes;
-            _chord.forEach(function (v) {
-              return track.midinote(v);
-            });
-          } else {
-            _chord.forEach(function (v) {
-              return track.note(v);
-            });
-          }
-        },
-        midichord: function midichord(chord) {
-          var velocity = arguments.length <= 1 || arguments[1] === undefined ? '' : arguments[1];
-          var duration = arguments.length <= 2 || arguments[2] === undefined ? '' : arguments[2];
-
-          var msg = [];
-          for (var i = 0; i < chord.length; i++) {
-            track.midinote(chord[i]);
-            //msg.push( `${track.id} note ${chord[i]} ${velocity} ${duration}`.trimRight() )
-          }
-
-          //Gibber.Communication.send( msg )
-        },
-        stop: function stop() {
-          for (var key in this.sequences) {
-            var _iteratorNormalCompletion = true;
-            var _didIteratorError = false;
-            var _iteratorError = undefined;
-
-            try {
-              for (var _iterator = this.sequences[key][Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-                var seq = _step.value;
-
-                if (seq !== undefined) {
-                  seq.stop();
-                }
-              }
-            } catch (err) {
-              _didIteratorError = true;
-              _iteratorError = err;
-            } finally {
-              try {
-                if (!_iteratorNormalCompletion && _iterator.return) {
-                  _iterator.return();
-                }
-              } finally {
-                if (_didIteratorError) {
-                  throw _iteratorError;
-                }
-              }
-            }
-          }
-        },
-        start: function start() {
-          for (var key in this.sequences) {
-            var _iteratorNormalCompletion2 = true;
-            var _didIteratorError2 = false;
-            var _iteratorError2 = undefined;
-
-            try {
-              for (var _iterator2 = this.sequences[key][Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-                var seq = _step2.value;
-
-                if (seq !== undefined) {
-                  seq.start();
-                }
-              }
-            } catch (err) {
-              _didIteratorError2 = true;
-              _iteratorError2 = err;
-            } finally {
-              try {
-                if (!_iteratorNormalCompletion2 && _iterator2.return) {
-                  _iterator2.return();
-                }
-              } finally {
-                if (_didIteratorError2) {
-                  throw _iteratorError2;
-                }
-              }
-            }
-          }
-        },
-        select: function select() {
-          Gibber.Communication.send('select_track ' + track.id);
-        }
-      };
-
-      Gibber.Environment.codeMarkup.prepareObject(track);
-      Gibber.addSequencingToMethod(track, 'note');
-      Gibber.addSequencingToMethod(track, 'cc');
-      Gibber.addSequencingToMethod(track, 'chord');
-      Gibber.addSequencingToMethod(track, 'velocity', 1);
-      Gibber.addSequencingToMethod(track, 'duration', 1);
-      Gibber.addSequencingToMethod(track, 'midinote');
-      Gibber.addSequencingToMethod(track, 'midichord');
-      Gibber.addSequencingToMethod(track, 'mute');
-      Gibber.addSequencingToMethod(track, 'solo');
-
-      Gibber.addMethod(track, 'pan', spec.panning);
-      Gibber.addMethod(track, 'volume', spec.volume);
-
-      spec.sends.forEach(function (element, idx) {
-        Gibber.addMethod(track.sends, idx, element);
-      });
-
-      var proxy = new Proxy(track, {
-        // whenever a property on the namespace is accessed
-        get: function get(target, prop, receiver) {
-          var hasProp = true,
-              device = null,
-              upper = prop[0].toUpperCase() + prop.slice(1),
-              // convert lowercase to camelcase
-          useUpper = false;
-
-          // if the property is undefined...
-          if (target[prop] === undefined && target[upper] === undefined && prop !== 'markup' && prop !== 'seq' && prop !== 'sequences') {
-            //target[ prop ] = Max.namespace( prop, target )
-            //target[ prop ].address = addr + ' ' + prop
-            var _iteratorNormalCompletion3 = true;
-            var _didIteratorError3 = false;
-            var _iteratorError3 = undefined;
-
-            try {
-              for (var _iterator3 = target.devices[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
-                var __device = _step3.value;
-
-                if ((typeof __device === 'undefined' ? 'undefined' : _typeof(__device)) !== 'object') continue;
-
-                if (__device[prop] !== undefined) {
-                  device = __device;
-                  break;
-                } else if (__device[upper] !== undefined) {
-                  device = __device;
-                  useUpper = true;
-                  break;
-                }
-              }
-            } catch (err) {
-              _didIteratorError3 = true;
-              _iteratorError3 = err;
-            } finally {
-              try {
-                if (!_iteratorNormalCompletion3 && _iterator3.return) {
-                  _iterator3.return();
-                }
-              } finally {
-                if (_didIteratorError3) {
-                  throw _iteratorError3;
-                }
-              }
-            }
-
-            hasProp = false;
-          }
-
-          var propName = useUpper ? upper : prop;
-          return hasProp ? target[prop] : device[propName];
-        }
-      });
-
-      return proxy;
-    }
-  };
-
-  return Track.create.bind(Track);
-};
-},{}],22:[function(require,module,exports){
-'use strict';
-
-var Utility = {
-  elementArray: function elementArray(list) {
-    var out = [];
-
-    for (var i = 0; i < list.length; i++) {
-      out.push(list.item(i));
-    }
-
-    return out;
-  },
-
-  _classListMethods: ['toggle', 'add', 'remove'],
-
-  create: function create(query) {
-    var elementList = document.querySelectorAll(query),
-        arr = Utility.elementArray(elementList);
-
-    var _iteratorNormalCompletion = true;
-    var _didIteratorError = false;
-    var _iteratorError = undefined;
-
-    try {
-      var _loop = function _loop() {
-        var method = _step.value;
-
-        arr[method] = function (style) {
-          var _iteratorNormalCompletion2 = true;
-          var _didIteratorError2 = false;
-          var _iteratorError2 = undefined;
-
-          try {
-            for (var _iterator2 = arr[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-              var element = _step2.value;
-
-              element.classList[method](style);
-            }
-          } catch (err) {
-            _didIteratorError2 = true;
-            _iteratorError2 = err;
-          } finally {
-            try {
-              if (!_iteratorNormalCompletion2 && _iterator2.return) {
-                _iterator2.return();
-              }
-            } finally {
-              if (_didIteratorError2) {
-                throw _iteratorError2;
-              }
-            }
-          }
-        };
-      };
-
-      for (var _iterator = Utility._classListMethods[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-        _loop();
-      }
-    } catch (err) {
-      _didIteratorError = true;
-      _iteratorError = err;
-    } finally {
-      try {
-        if (!_iteratorNormalCompletion && _iterator.return) {
-          _iterator.return();
-        }
-      } finally {
-        if (_didIteratorError) {
-          throw _iteratorError;
-        }
-      }
-    }
-
-    return arr;
-  },
-  rndf: function rndf() {
-    var min = arguments.length <= 0 || arguments[0] === undefined ? 0 : arguments[0];
-    var max = arguments.length <= 1 || arguments[1] === undefined ? 1 : arguments[1];
-    var number = arguments[2];
-    var canRepeat = arguments.length <= 3 || arguments[3] === undefined ? true : arguments[3];
-
-    var out = 0;
-    if (number === undefined) {
-      var diff = max - min,
-          r = Math.random(),
-          rr = diff * r;
-
-      out = min + rr;
-    } else {
-      var output = [],
-          tmp = [];
-
-      for (var i = 0; i < number; i++) {
-        var num = void 0;
-        if (canRepeat) {
-          num = Utility.rndf(min, max);
-        } else {
-          num = Utility.rndf(min, max);
-          while (tmp.indexOf(num) > -1) {
-            num = Utility.rndf(min, max);
-          }
-          tmp.push(num);
-        }
-        output.push(num);
-      }
-
-      out = output;
-    }
-
-    return out;
-  },
-  Rndf: function Rndf() {
-    var _min = arguments.length <= 0 || arguments[0] === undefined ? 0 : arguments[0];
-
-    var _max = arguments.length <= 1 || arguments[1] === undefined ? 1 : arguments[1];
-
-    var quantity = arguments[2];
-    var canRepeat = arguments.length <= 3 || arguments[3] === undefined ? true : arguments[3];
-
-    return function () {
-      var value = void 0,
-          min = void 0,
-          max = void 0;
-
-      min = typeof _min === 'function' ? _min() : _min;
-      max = typeof _max === 'function' ? _max() : _max;
-
-      if (quantity === undefined) {
-        value = Utility.rndf(min, max);
-      } else {
-        value = Utility.rndf(min, max, quantity, canRepeat);
-      }
-
-      return value;
-    };
-  },
-  rndi: function rndi() {
-    var min = arguments.length <= 0 || arguments[0] === undefined ? 0 : arguments[0];
-    var max = arguments.length <= 1 || arguments[1] === undefined ? 1 : arguments[1];
-    var number = arguments[2];
-    var canRepeat = arguments.length <= 3 || arguments[3] === undefined ? true : arguments[3];
-
-    var range = max - min,
-        out = void 0;
-
-    if (range < number) canRepeat = true;
-
-    if (typeof number === 'undefined') {
-      range = max - min;
-      out = Math.round(min + Math.random() * range);
-    } else {
-      var output = [],
-          tmp = [];
-
-      for (var i = 0; i < number; i++) {
-        var num = void 0;
-        if (canRepeat) {
-          num = Utility.rndi(min, max);
-        } else {
-          num = Utility.rndi(min, max);
-          while (tmp.indexOf(num) > -1) {
-            num = Utility.rndi(min, max);
-          }
-          tmp.push(num);
-        }
-        output.push(num);
-      }
-      out = output;
-    }
-    return out;
-  },
-  Rndi: function Rndi() {
-    var _min = arguments.length <= 0 || arguments[0] === undefined ? 0 : arguments[0];
-
-    var _max = arguments.length <= 1 || arguments[1] === undefined ? 1 : arguments[1];
-
-    var quantity = arguments[2];
-    var canRepeat = arguments.length <= 3 || arguments[3] === undefined ? true : arguments[3];
-
-    var range = _max - _min;
-    if (typeof quantity === 'number' && range < quantity) canRepeat = true;
-
-    return function () {
-      var value = 0,
-          min = void 0,
-          max = void 0,
-          range = void 0;
-
-      min = typeof _min === 'function' ? _min() : _min;
-      max = typeof _max === 'function' ? _max() : _max;
-
-      if (quantity === undefined) {
-        value = Utility.rndi(min, max);
-      } else {
-        value = Utility.rndi(min, max, quantity, canRepeat);
-      }
-
-      return value;
-    };
-  },
-  random: function random() {
-    this.randomFlag = true;
-    this.randomArgs = Array.prototype.slice.call(arguments, 0);
-
-    return this;
-  },
-
-
-  shuffle: function shuffle(arr) {
-    for (var j, x, i = arr.length; i; j = parseInt(Math.random() * i), x = arr[--i], arr[i] = arr[j], arr[j] = x) {}
-  },
-
-  beatsToMs: function beatsToMs(beats) {
-    var bpm = arguments.length <= 1 || arguments[1] === undefined ? 120 : arguments[1];
-
-    var beatsPerSecond = bpm / 60;
-
-    return beats / beatsPerSecond * 1000;
-  },
-  future: function future(func, time) {
-    var msg = {
-      tick: function tick(scheduler, beat, beatOffset) {
-        func();
-      }
-    };
-
-    Gibber.Scheduler.addMessage(msg, time);
-  },
-  select: function select(trackNumber) {
-    Gibber.Communication.send('select_track ' + trackNumber);
-  },
-  export: function _export(destination) {
-    destination.rndf = Utility.rndf;
-    destination.rndi = Utility.rndi;
-    destination.Rndf = Utility.Rndf;
-    destination.Rndi = Utility.Rndi;
-    destination.future = Utility.future;
-    destination.select = Utility.select;
-
-    Array.prototype.random = Array.prototype.rnd = Utility.random;
-  }
-};
-
-module.exports = Utility;
-},{}],23:[function(require,module,exports){
-"use strict";
-
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj; };
-
+},{}],97:[function(require,module,exports){
 (function (root, factory) {
-	if (typeof define == 'function' && define.amd) {
-		define(factory);
-	} else {
-		root.VanillaTree = factory();
-	}
-})(window, function () {
+    if (typeof define == 'function' && define.amd) {
+        define( factory );
+    } else {
+        root.VanillaTree = factory();
+    }
+}(window, function () {
 	"use strict";
 	// Look at the Balalaika https://github.com/finom/balalaika
-
-	var $ = function (n, e, k, h, p, m, l, b, d, g, f, _c) {
-		_c = function c(a, b) {
-			return new _c.i(a, b);
-		};_c.i = function (a, d) {
-			k.push.apply(this, a ? a.nodeType || a == n ? [a] : "" + a === a ? /</.test(a) ? ((b = e.createElement(d || "q")).innerHTML = a, b.children) : (d && _c(d)[0] || e).querySelectorAll(a) : /f/.test(typeof a === "undefined" ? "undefined" : _typeof(a)) ? /c/.test(e.readyState) ? a() : _c(e).on("DOMContentLoaded", a) : a : k);
-		};_c.i[f = "prototype"] = (_c.extend = function (a) {
-			g = arguments;for (b = 1; b < g.length; b++) {
-				if (f = g[b]) for (d in f) {
-					a[d] = f[d];
+	var $=function(n,e,k,h,p,m,l,b,d,g,f,c){c=function(a,b){return new c.i(a,b)};c.i=function(a,d){k.push.apply(this,a?a.nodeType||a==n?[a]:""+a===a?/</.test(a)?((b=e.createElement(d||"q")).innerHTML=a,b.children):(d&&c(d)[0]||e).querySelectorAll(a):/f/.test(typeof a)?/c/.test(e.readyState)?a():c(e).on("DOMContentLoaded",a):a:k)};c.i[f="prototype"]=(c.extend=function(a){g=arguments;for(b=1;b<g.length;b++)if(f=g[b])for(d in f)a[d]=f[d];return a})(c.fn=c[f]=k,{on:function(a,d){a=a.split(h);this.map(function(c){(h[b=a[0]+(c.b$=c.b$||++p)]=h[b]||[]).push([d,a[1]]);c["add"+m](a[0],d)});return this},off:function(a,c){a=a.split(h);f="remove"+m;this.map(function(e){if(b=(g=h[a[0]+e.b$])&&g.length)for(;d=g[--b];)c&&c!=d[0]||a[1]&&a[1]!=d[1]||(e[f](a[0],d[0]),g.splice(b,1));else!a[1]&&e[f](a[0],c)});return this},is:function(a){d=(b=this[0])&&(b.matches||b["webkit"+l]||b["moz"+l]||b["ms"+l]);return!!d&&d.call(b,a)}});return c}(window,document,[],/\.(.+)/,0,"EventListener","MatchesSelector");
+	
+	var create = function( tagName, props ) {
+			return $.extend( document.createElement( tagName ), props );
+		},
+		Tree = function( s, options ) {
+			var _this = this,
+				container = _this.container = $( s )[ 0 ],
+				tree = _this.tree = container.appendChild( create( 'ul', {
+					className: 'vtree'
+				}) );
+			
+			_this.placeholder = options && options.placeholder;
+			_this._placeholder();
+			_this.leafs = {};
+			tree.addEventListener( 'click', function( evt ) {
+				if( $( evt.target ).is( '.vtree-leaf-label' ) ) {
+					_this.select( evt.target.parentNode.getAttribute('data-vtree-id') );
+				} else if( $( evt.target ).is( '.vtree-toggle' ) ) {
+					_this.toggle( evt.target.parentNode.getAttribute('data-vtree-id') );
 				}
-			}return a;
-		})(_c.fn = _c[f] = k, { on: function on(a, d) {
-				a = a.split(h);this.map(function (c) {
-					(h[b = a[0] + (c.b$ = c.b$ || ++p)] = h[b] || []).push([d, a[1]]);c["add" + m](a[0], d);
-				});return this;
-			}, off: function off(a, c) {
-				a = a.split(h);f = "remove" + m;this.map(function (e) {
-					if (b = (g = h[a[0] + e.b$]) && g.length) for (; d = g[--b];) {
-						c && c != d[0] || a[1] && a[1] != d[1] || (e[f](a[0], d[0]), g.splice(b, 1));
-					} else !a[1] && e[f](a[0], c);
-				});return this;
-			}, is: function is(a) {
-				d = (b = this[0]) && (b.matches || b["webkit" + l] || b["moz" + l] || b["ms" + l]);return !!d && d.call(b, a);
-			} });return _c;
-	}(window, document, [], /\.(.+)/, 0, "EventListener", "MatchesSelector");
-
-	var create = function create(tagName, props) {
-		return $.extend(document.createElement(tagName), props);
-	},
-	    Tree = function Tree(s, options) {
-		var _this = this,
-		    container = _this.container = $(s)[0],
-		    tree = _this.tree = container.appendChild(create('ul', {
-			className: 'vtree'
-		}));
-
-		_this.placeholder = options && options.placeholder;
-		_this._placeholder();
-		_this.leafs = {};
-		tree.addEventListener('click', function (evt) {
-			if ($(evt.target).is('.vtree-leaf-label')) {
-				_this.select(evt.target.parentNode.getAttribute('data-vtree-id'));
-			} else if ($(evt.target).is('.vtree-toggle')) {
-				_this.toggle(evt.target.parentNode.getAttribute('data-vtree-id'));
+			});
+			
+			if( options && options.contextmenu ) {
+				tree.addEventListener( 'contextmenu', function( evt ) {
+					var menu;
+					$( '.vtree-contextmenu' ).forEach( function( menu ) {
+						menu.parentNode.removeChild( menu );
+					});
+					if( $( evt.target ).is( '.vtree-leaf-label' ) ) {
+						evt.preventDefault();
+						evt.stopPropagation();
+						menu = create( 'menu', {
+							className: 'vtree-contextmenu'
+						});
+						
+						$.extend( menu.style, {
+							top: evt.offsetY,
+							left: evt.offsetX + 18,
+							display: 'block'
+						});
+						
+						options.contextmenu.forEach( function( item ) {
+							menu.appendChild( create( 'li', {
+								className: 'vtree-contextmenu-item',
+								innerHTML: item.label
+							}) ).addEventListener( 'click', item.action.bind( item, evt.target.parentNode.getAttribute('data-vtree-id') ) );
+						});
+						
+						evt.target.parentNode.appendChild( menu );
+					}
+				});
+				
+				document.addEventListener( 'click', function( evt ) {
+					$( '.vtree-contextmenu' ).forEach( function( menu ) {
+						menu.parentNode.removeChild( menu );
+					});
+				});
 			}
-		});
-
-		if (options && options.contextmenu) {
-			tree.addEventListener('contextmenu', function (evt) {
-				var menu;
-				$('.vtree-contextmenu').forEach(function (menu) {
-					menu.parentNode.removeChild(menu);
-				});
-				if ($(evt.target).is('.vtree-leaf-label')) {
-					evt.preventDefault();
-					evt.stopPropagation();
-					menu = create('menu', {
-						className: 'vtree-contextmenu'
-					});
-
-					$.extend(menu.style, {
-						top: evt.offsetY,
-						left: evt.offsetX + 18,
-						display: 'block'
-					});
-
-					options.contextmenu.forEach(function (item) {
-						menu.appendChild(create('li', {
-							className: 'vtree-contextmenu-item',
-							innerHTML: item.label
-						})).addEventListener('click', item.action.bind(item, evt.target.parentNode.getAttribute('data-vtree-id')));
-					});
-
-					evt.target.parentNode.appendChild(menu);
-				}
-			});
-
-			document.addEventListener('click', function (evt) {
-				$('.vtree-contextmenu').forEach(function (menu) {
-					menu.parentNode.removeChild(menu);
-				});
-			});
-		}
-	};
-
+		};
+	
 	Tree.prototype = {
 		constructor: Tree,
-		_dispatch: function _dispatch(name, id) {
+		_dispatch: function( name, id ) {
 			var event;
 			try {
-				event = new CustomEvent('vtree-' + name, {
+				event = new CustomEvent( 'vtree-' + name, {
 					bubbles: true,
 					cancelable: true,
 					detail: {
 						id: id
 					}
 				});
-			} catch (e) {
-				event = document.createEvent('CustomEvent');
-				event.initCustomEvent('vtree-' + name, true, true, { id: id });
+			} catch(e) {
+				event = document.createEvent( 'CustomEvent' );
+				event.initCustomEvent( 'vtree-' + name, true, true, { id: id });
 			}
-			(this.getLeaf(id, true) || this.tree).dispatchEvent(event);
+			( this.getLeaf( id, true ) || this.tree )
+				.dispatchEvent( event );
 			return this;
 		},
-		_placeholder: function _placeholder() {
+		_placeholder: function() {
 			var p;
-			if (!this.tree.children.length && this.placeholder) {
-				this.tree.innerHTML = '<li class="vtree-placeholder">' + this.placeholder + '</li>';
-			} else if (p = this.tree.querySelector('.vtree-placeholder')) {
-				this.tree.removeChild(p);
+			if( !this.tree.children.length && this.placeholder ) {
+				this.tree.innerHTML = '<li class="vtree-placeholder">' + this.placeholder + '</li>'
+			} else if( p = this.tree.querySelector( '.vtree-placeholder' ) ) {
+				this.tree.removeChild( p );
 			}
 			return this;
 		},
-		getLeaf: function getLeaf(id, notThrow) {
-			var leaf = $('[data-vtree-id="' + id + '"]', this.tree)[0];
-			if (!notThrow && !leaf) throw Error('No VanillaTree leaf with id "' + id + '"');
+		getLeaf: function( id, notThrow ) {
+			var leaf = $( '[data-vtree-id="' + id + '"]', this.tree )[ 0 ];
+			if( !notThrow && !leaf ) throw Error( 'No VanillaTree leaf with id "' + id + '"' )
 			return leaf;
 		},
-		getChildList: function getChildList(id) {
-			var list, parent;
-			if (id) {
-				parent = this.getLeaf(id);
-				if (!(list = $('ul', parent)[0])) {
-					list = parent.appendChild(create('ul', {
+		getChildList: function( id ) {
+			var list,
+				parent;
+			if( id ) {
+				parent = this.getLeaf( id );
+				if( !( list = $( 'ul', parent )[ 0 ] ) ) {
+					list = parent.appendChild( create( 'ul', {
 						className: 'vtree-subtree'
-					}));
+					}) );
 				}
 			} else {
 				list = this.tree;
@@ -5642,111 +10090,364 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
 
 			return list;
 		},
-		add: function add(options) {
+		add: function( options ) {
 			var id,
-			    leaf = create('li', {
-				className: 'vtree-leaf'
-			}),
-			    parentList = this.getChildList(options.parent);
+				leaf = create( 'li', {
+					className: 'vtree-leaf'
+				}),
+				parentList = this.getChildList( options.parent );
+      
+      leaf.name = options.parent ? this.getLeaf( options.parent ).name + ':::' + options.id : options.id
+      leaf.setAttribute( 'draggable', true )
 
-			leaf.name = options.parent ? this.getLeaf(options.parent).name + ':::' + options.id : options.id;
-			leaf.setAttribute('draggable', true);
+      leaf.getParent = function() {
+        return options.parent
+      }
+      leaf.addEventListener( 'dragstart', function( evt ) {
+        //tracks['1-Marimba Wood'].devices['Operator']['Device On']
+        let path = decodeURI( leaf.name ),
+            split = path.split(':::'),
+            txt = "tracks['" + split[0] + "'].devices['" + split[1] + "']['" + split[2] + "']"
 
-			leaf.getParent = function () {
-				return options.parent;
-			};
-			leaf.addEventListener('dragstart', function (evt) {
-				//tracks['1-Marimba Wood'].devices['Operator']['Device On']
-				var path = decodeURI(leaf.name),
-				    split = path.split(':::'),
-				    txt = "tracks['" + split[0] + "'].devices['" + split[1] + "']['" + split[2] + "']";
+        evt.dataTransfer.setData( "text/plain", txt );
+        return false
+      }, true )
 
-				evt.dataTransfer.setData("text/plain", txt);
-				return false;
-			}, true);
-
-			leaf.setAttribute('data-vtree-id', id = options.id || Math.random());
-
-			leaf.appendChild(create('span', {
+			leaf.setAttribute( 'data-vtree-id', id = options.id || Math.random() );
+			
+			leaf.appendChild( create( 'span', {
 				className: 'vtree-toggle'
-			}));
-
-			leaf.appendChild(create('a', {
+			}) );
+			
+			leaf.appendChild( create( 'a', {
 				className: 'vtree-leaf-label',
 				innerHTML: options.label
-			}));
-
-			parentList.appendChild(leaf);
-
-			if (parentList !== this.tree) {
-				parentList.parentNode.classList.add('vtree-has-children');
+			}) );
+						
+			parentList.appendChild( leaf );
+			
+			if( parentList !== this.tree ) {
+				parentList.parentNode.classList.add( 'vtree-has-children' );
 			}
-
-			this.leafs[id] = options;
-
-			if (!options.opened) {
-				this.close(id);
+			
+			this.leafs[ id ] = options;
+			
+			if( !options.opened ) {
+				this.close( id );
 			}
-
-			if (options.selected) {
-				this.select(id);
+			
+			if( options.selected ) {
+				this.select( id );
 			}
-
-			return this._placeholder()._dispatch('add', id);
+			
+			return this._placeholder()._dispatch( 'add', id );
 		},
-		move: function move(id, parentId) {
-			var leaf = this.getLeaf(id),
-			    oldParent = leaf.parentNode,
-			    newParent = this.getLeaf(parentId, true);
-
-			if (newParent) {
-				newParent.classList.add('vtree-has-children');
+		move: function( id, parentId ) {
+			var leaf = this.getLeaf( id ),
+				oldParent = leaf.parentNode,
+				newParent = this.getLeaf( parentId, true );
+				
+			if( newParent ) {
+				newParent.classList.add( 'vtree-has-children' );
 			}
-
-			this.getChildList(parentId).appendChild(leaf);
-			oldParent.parentNode.classList.toggle('vtree-has-children', !!oldParent.children.length);
-
-			return this._dispatch('move', id);
+			
+			this.getChildList( parentId ).appendChild( leaf );
+			oldParent.parentNode.classList.toggle( 'vtree-has-children', !!oldParent.children.length );
+			
+			return this._dispatch( 'move', id );
 		},
-		remove: function remove(id) {
-			var leaf = this.getLeaf(id),
-			    oldParent = leaf.parentNode;
-			oldParent.removeChild(leaf);
-			oldParent.parentNode.classList.toggle('vtree-has-children', !!oldParent.children.length);
-
-			return this._placeholder()._dispatch('remove', id);
+		remove: function( id ) {
+			var leaf = this.getLeaf( id ),
+				oldParent = leaf.parentNode;
+			oldParent.removeChild( leaf );
+			oldParent.parentNode.classList.toggle( 'vtree-has-children', !!oldParent.children.length );
+			
+			return this._placeholder()._dispatch( 'remove', id );
 		},
-		open: function open(id) {
-			this.getLeaf(id).classList.remove('closed');
-			return this._dispatch('open', id);
+		open: function( id ) {
+			this.getLeaf( id ).classList.remove( 'closed' );
+			return this._dispatch( 'open', id );
 		},
-		close: function close(id) {
-			this.getLeaf(id).classList.add('closed');
-			return this._dispatch('close', id);
+		close: function( id ) {
+			this.getLeaf( id ).classList.add( 'closed' );
+			return this._dispatch( 'close', id );
 		},
-		toggle: function toggle(id) {
-			return this[this.getLeaf(id).classList.contains('closed') ? 'open' : 'close'](id);
+		toggle: function( id ) {
+			return this[ this.getLeaf( id ).classList.contains( 'closed' ) ? 'open' : 'close' ]( id );
 		},
-		select: function select(id) {
-			var leaf = this.getLeaf(id);
-
-			if (!leaf.classList.contains('vtree-selected')) {
-				$('li.vtree-leaf', this.tree).forEach(function (leaf) {
-					leaf.classList.remove('vtree-selected');
+		select: function( id ) {
+			var leaf = this.getLeaf( id );
+			
+			if( !leaf.classList.contains( 'vtree-selected' ) ) {
+				$( 'li.vtree-leaf', this.tree ).forEach( function( leaf ) {
+					leaf.classList.remove( 'vtree-selected' );
 				});
-
-				leaf.classList.add('vtree-selected');
-				this._dispatch('select', id);
+				
+				leaf.classList.add( 'vtree-selected' );
+				this._dispatch( 'select', id );
 			}
-
+			
 			return this;
 		}
 	};
-
+	
 	return Tree;
 	// Look at the Balalaika https://github.com/finom/balalaika
-});
-},{}],24:[function(require,module,exports){
+}));
+
+},{}],98:[function(require,module,exports){
+const genish = require( 'genish.js' )
+
+module.exports = function( Gibber ) {
+
+'use strict'
+
+const WavePattern = {
+  create( abstractGraph, values ) {
+    // might change due to proxy functionality, so use 'let'
+    let graph = abstractGraph.render( 'genish' ) // convert abstraction to genish.js graph
+    let count = -1
+
+    
+
+    const patternOutputFnc = function( isViz = false ) {
+      if( isViz && pattern.vizinit === false ) {
+        return
+      } 
+      pattern.run( isViz )
+
+      let signalValue = pattern.signalOut()
+      // edge case... because adjust might lead to a value of 1
+      // which accum would wrap AFTER the obtaining the current value
+      // leading to an undefined value for the pattern output (e.g. pattern[ pattern.length ] )
+      if( signalValue === 1 ) signalValue = 0
+
+      let outputBeforeFilters = signalValue
+
+      // if there is an array of values to read from... (signal is a phasor indexing into a values array)
+      if( pattern.__usesValues === true ) {
+        const scaledSignalValue = signalValue * ( pattern._values.length )
+        const adjustedSignalValue = Math.abs( scaledSignalValue )//scaledSignalValue < 0 ? pattern._values.length + scaledSignalValue : scaledSignalValue
+        const roundedSignalValue  = Math.floor( adjustedSignalValue )
+        outputBeforeFilters = pattern._values[ roundedSignalValue ]
+      }
+
+      let output = outputBeforeFilters
+
+      // if we are running the pattern solely to visualize the waveform data...
+      if( isViz === true && pattern.vizinit && Gibber.Environment.annotations === true ) {
+        Gibber.Environment.codeMarkup.updateWidget( pattern.widget, signalValue )
+      }else if( Gibber.Environment.annotations === true ) {
+        // mark the last placed value by the visualization as having a "hit", 
+        // which will cause a dot to be drawn on the sparkline.
+        const idx = 60 + Math.round( pattern.nextTime * 12  )
+        const oldValue = pattern.widget.values[ idx ]
+
+        pattern.widget.values[ idx ] = { value: signalValue, type:'hit' }
+      }
+
+      if( output === pattern.DNR ) output = null
+
+      if( pattern.running === false ) { 
+        Gibber.Environment.animationScheduler.add( pattern.runVisualization, 1000/60 )
+        pattern.running = true
+      }
+
+      return output
+    }
+
+    patternOutputFnc.wavePattern = true
+
+    const pattern = Gibber.Pattern( patternOutputFnc )
+
+    patternOutputFnc.pattern = pattern
+
+    // check whether or not to use raw signal values
+    // or index into values array
+    pattern.__usesValues = values !== undefined
+
+    if( abstractGraph.patterns === undefined ) {
+      abstractGraph.patterns = []
+      abstractGraph.graphs = []
+    }
+    abstractGraph.patterns.push( pattern )
+    abstractGraph.graphs.push( graph )
+
+    if( abstractGraph.__listeners === undefined ) {
+      abstractGraph.__listeners = []
+    }
+
+    const proxyFunction = ( oldAbstractGraph, newAbstractGraph ) => {
+      graph = newAbstractGraph.render( 'genish' )
+
+      if( newAbstractGraph.patterns === undefined ) {
+        newAbstractGraph.patterns = []
+        newAbstractGraph.graphs = []
+      }
+      newAbstractGraph.patterns.push( pattern )
+      newAbstractGraph.graphs.push( graph )
+      newAbstractGraph.widget = oldAbstractGraph.widget
+
+      pattern.graph = graph
+      pattern.signalOut = genish.gen.createCallback( graph, mem, false, false, Float64Array ),
+      pattern.phase = 0
+      pattern.initialized = false
+      pattern.widget = newAbstractGraph.widget
+      // reset min and max values for sparkline in case amplitudes have changed
+      pattern.widget.min = Infinity 
+      pattern.widget.max = -Infinity
+
+      if( newAbstractGraph.__listeners === undefined ) {
+        newAbstractGraph.__listeners = []
+      }
+      newAbstractGraph.__listeners.push( proxyFunction ) 
+    }
+
+
+    abstractGraph.__listeners.push( proxyFunction )
+
+    pattern.clear = function() {
+      if( pattern.widget !== undefined ) { 
+        pattern.widget.clear()
+        pattern.running = false
+      }
+    }
+
+    // if memory block has not been defined, create new one by passing in an undefined value
+    // else reuse exisitng memory block
+    let mem = genish.gen.memory || 44100
+
+    Object.assign( pattern, {
+      type:'WavePattern',
+      graph,
+      abstractGraph,
+      paramID:Math.round( Math.random() * 100000 ),
+      _values:values,
+      signalOut: genish.gen.createCallback( graph, mem, false, false, Float64Array ), 
+      adjust: WavePattern.adjust.bind( pattern ),
+      phase:0,
+      run: WavePattern.run.bind( pattern ),
+      runVisualization: WavePattern.runVisualization.bind( patternOutputFnc ),
+      running: false,
+      initialized:false,
+      vizinit:true,
+      __listeners:[]
+    })
+
+    // for assigning an abstract graph to a variable
+    // and then passing that variable as a pattern to a sequence
+    if( abstractGraph.widget !== undefined ) {
+      pattern.widget = abstractGraph.widget
+      Gibber.Environment.codeMarkup.genWidgets[ pattern.paramID ] = pattern.widget
+    }
+
+    Gibber.Gen.connected.push( pattern )
+
+    return pattern
+  },
+
+  runVisualization() {
+    // pass true for visualization run as opposed to audio run
+    // this represents the patternOutputFunction, pass true to create sparkline
+    // without triggering output
+    
+    this( true ) // I LOVE JS
+
+    Gibber.Environment.animationScheduler.add( this.pattern.runVisualization, 1000 / 60 )
+  },
+
+  assignInputProperties( genishGraph, abstractGraph ) {
+
+    for( let input in abstractGraph.inputs ) {
+      if( typeof abstractGraph.inputs[ input ] === 'number' ) {
+        let __param = genishGraph.inputs[ input ] = genish.param( abstractGraph.inputs[ input ] )
+        abstractGraph[ input ] = v => {
+          __param.value = v
+        }
+      }
+    }
+  },
+
+  run( isViz = false ) {
+    let now 
+    if( isViz === true ) {
+      now = Gibber.Environment.animationScheduler.visualizationTime.base + Gibber.Environment.animationScheduler.visualizationTime.phase //+ 4
+    }else{
+      now = Gibber.Scheduler.currentTimeInMs 
+    }
+
+    if( this.initialized === true ) {
+      const adjustment =  now - this.phase 
+      this.adjust( this.graph, adjustment )
+    }else{
+      this.initialized = true
+    }
+
+    this.phase = now
+    //debugger;
+  },
+
+  adjust( ugen, ms ) {
+    // subtract one sample for the phase incremenet that occurs during
+    // the genish.js callback
+    const numberOfSamplesToAdvance = ( ms/1000 ) * (Gibber.__gen.genish.gen.samplerate  )
+
+
+    if( ugen.name !== undefined && ( ugen.name.indexOf( 'accum' ) > -1 || ugen.name.indexOf( 'phasor' ) > -1 ) )  {
+      if( ugen.name.indexOf( 'accum' ) > -1 ) {
+        ugen.value += typeof ugen.inputs[0] === 'object' 
+          ? numberOfSamplesToAdvance  * ugen.inputs[0].value 
+          : numberOfSamplesToAdvance * ugen.inputs[0]
+
+      }else{
+        const range = ugen.max - ugen.min
+        let __ugen = ugen
+
+        while( __ugen.inputs !== undefined ) {
+          __ugen = __ugen.inputs[0]
+        }
+
+        // needs .value because the result should be a param
+        const freq = __ugen.value
+        const incr = (freq * range ) / Gibber.__gen.genish.gen.samplerate
+        const adjustAmount = (numberOfSamplesToAdvance-1)  * incr 
+ 
+        ugen.value += adjustAmount
+      }
+
+      // wrap or clamp accum value manuallly
+      if( ugen.shouldWrap === true ) {
+        if( ugen.value > ugen.max ) {
+          while( ugen.value > ugen.max ) {
+            ugen.value -= ugen.max - ugen.min
+          }
+        } else if( ugen.value < ugen.min ) {
+          while( ugen.value < ugen.min ) {
+            ugen.value += ugen.max - ugen.min
+          }
+        } 
+      }else if( ugen.shouldClamp === true ) {
+        if( ugen.value > ugen.max ) { 
+          ugen.value = max
+        }else if( ugen.value < ugen.min ) {
+          ugen.value = min
+        }
+      }
+    }
+
+    if( typeof ugen.inputs !== 'undefined' ) {
+      ugen.inputs.forEach( u => WavePattern.adjust( u,ms ) ) 
+    }
+  }
+ 
+}
+
+return WavePattern.create
+
+}
+
+
+},{"genish.js":37}],99:[function(require,module,exports){
 (function (global){
 (function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.acorn = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(_dereq_,module,exports){
 // A recursive descent parser operates by defining functions for all
@@ -9089,7 +13790,7 @@ exports.nonASCIIwhitespace = nonASCIIwhitespace;
 },{}]},{},[3])(3)
 });
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],25:[function(require,module,exports){
+},{}],100:[function(require,module,exports){
 (function (global){
 "use strict";
 
@@ -9124,7 +13825,7 @@ define(String.prototype, "padRight", "".padEnd);
   [][key] && define(Array, key, Function.call.bind([][key]));
 });
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"core-js/fn/regexp/escape":33,"core-js/shim":326,"regenerator-runtime/runtime":328}],26:[function(require,module,exports){
+},{"core-js/fn/regexp/escape":107,"core-js/shim":400,"regenerator-runtime/runtime":402}],101:[function(require,module,exports){
 /* big.js v3.1.3 https://github.com/MikeMcl/big.js/LICENCE */
 ;(function (global) {
     'use strict';
@@ -10268,7 +14969,7 @@ define(String.prototype, "padRight", "".padEnd);
     }
 })(this);
 
-},{}],27:[function(require,module,exports){
+},{}],102:[function(require,module,exports){
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
 // Distributed under an MIT license: http://codemirror.net/LICENSE
 
@@ -10465,131 +15166,7 @@ define(String.prototype, "padRight", "".padEnd);
   }
 });
 
-},{"../../lib/codemirror":31}],28:[function(require,module,exports){
-// CodeMirror, copyright (c) by Marijn Haverbeke and others
-// Distributed under an MIT license: http://codemirror.net/LICENSE
-
-(function(mod) {
-  if (typeof exports == "object" && typeof module == "object") // CommonJS
-    mod(require("../../lib/codemirror"));
-  else if (typeof define == "function" && define.amd) // AMD
-    define(["../../lib/codemirror"], mod);
-  else // Plain browser env
-    mod(CodeMirror);
-})(function(CodeMirror) {
-  var ie_lt8 = /MSIE \d/.test(navigator.userAgent) &&
-    (document.documentMode == null || document.documentMode < 8);
-
-  var Pos = CodeMirror.Pos;
-
-  var matching = {"(": ")>", ")": "(<", "[": "]>", "]": "[<", "{": "}>", "}": "{<"};
-
-  function findMatchingBracket(cm, where, strict, config) {
-    var line = cm.getLineHandle(where.line), pos = where.ch - 1;
-    var match = (pos >= 0 && matching[line.text.charAt(pos)]) || matching[line.text.charAt(++pos)];
-    if (!match) return null;
-    var dir = match.charAt(1) == ">" ? 1 : -1;
-    if (strict && (dir > 0) != (pos == where.ch)) return null;
-    var style = cm.getTokenTypeAt(Pos(where.line, pos + 1));
-
-    var found = scanForBracket(cm, Pos(where.line, pos + (dir > 0 ? 1 : 0)), dir, style || null, config);
-    if (found == null) return null;
-    return {from: Pos(where.line, pos), to: found && found.pos,
-            match: found && found.ch == match.charAt(0), forward: dir > 0};
-  }
-
-  // bracketRegex is used to specify which type of bracket to scan
-  // should be a regexp, e.g. /[[\]]/
-  //
-  // Note: If "where" is on an open bracket, then this bracket is ignored.
-  //
-  // Returns false when no bracket was found, null when it reached
-  // maxScanLines and gave up
-  function scanForBracket(cm, where, dir, style, config) {
-    var maxScanLen = (config && config.maxScanLineLength) || 10000;
-    var maxScanLines = (config && config.maxScanLines) || 1000;
-
-    var stack = [];
-    var re = config && config.bracketRegex ? config.bracketRegex : /[(){}[\]]/;
-    var lineEnd = dir > 0 ? Math.min(where.line + maxScanLines, cm.lastLine() + 1)
-                          : Math.max(cm.firstLine() - 1, where.line - maxScanLines);
-    for (var lineNo = where.line; lineNo != lineEnd; lineNo += dir) {
-      var line = cm.getLine(lineNo);
-      if (!line) continue;
-      var pos = dir > 0 ? 0 : line.length - 1, end = dir > 0 ? line.length : -1;
-      if (line.length > maxScanLen) continue;
-      if (lineNo == where.line) pos = where.ch - (dir < 0 ? 1 : 0);
-      for (; pos != end; pos += dir) {
-        var ch = line.charAt(pos);
-        if (re.test(ch) && (style === undefined || cm.getTokenTypeAt(Pos(lineNo, pos + 1)) == style)) {
-          var match = matching[ch];
-          if ((match.charAt(1) == ">") == (dir > 0)) stack.push(ch);
-          else if (!stack.length) return {pos: Pos(lineNo, pos), ch: ch};
-          else stack.pop();
-        }
-      }
-    }
-    return lineNo - dir == (dir > 0 ? cm.lastLine() : cm.firstLine()) ? false : null;
-  }
-
-  function matchBrackets(cm, autoclear, config) {
-    // Disable brace matching in long lines, since it'll cause hugely slow updates
-    var maxHighlightLen = cm.state.matchBrackets.maxHighlightLineLength || 1000;
-    var marks = [], ranges = cm.listSelections();
-    for (var i = 0; i < ranges.length; i++) {
-      var match = ranges[i].empty() && findMatchingBracket(cm, ranges[i].head, false, config);
-      if (match && cm.getLine(match.from.line).length <= maxHighlightLen) {
-        var style = match.match ? "CodeMirror-matchingbracket" : "CodeMirror-nonmatchingbracket";
-        marks.push(cm.markText(match.from, Pos(match.from.line, match.from.ch + 1), {className: style}));
-        if (match.to && cm.getLine(match.to.line).length <= maxHighlightLen)
-          marks.push(cm.markText(match.to, Pos(match.to.line, match.to.ch + 1), {className: style}));
-      }
-    }
-
-    if (marks.length) {
-      // Kludge to work around the IE bug from issue #1193, where text
-      // input stops going to the textare whever this fires.
-      if (ie_lt8 && cm.state.focused) cm.focus();
-
-      var clear = function() {
-        cm.operation(function() {
-          for (var i = 0; i < marks.length; i++) marks[i].clear();
-        });
-      };
-      if (autoclear) setTimeout(clear, 800);
-      else return clear;
-    }
-  }
-
-  var currentlyHighlighted = null;
-  function doMatchBrackets(cm) {
-    cm.operation(function() {
-      if (currentlyHighlighted) {currentlyHighlighted(); currentlyHighlighted = null;}
-      currentlyHighlighted = matchBrackets(cm, false, cm.state.matchBrackets);
-    });
-  }
-
-  CodeMirror.defineOption("matchBrackets", false, function(cm, val, old) {
-    if (old && old != CodeMirror.Init) {
-      cm.off("cursorActivity", doMatchBrackets);
-      if (currentlyHighlighted) {currentlyHighlighted(); currentlyHighlighted = null;}
-    }
-    if (val) {
-      cm.state.matchBrackets = typeof val == "object" ? val : {};
-      cm.on("cursorActivity", doMatchBrackets);
-    }
-  });
-
-  CodeMirror.defineExtension("matchBrackets", function() {matchBrackets(this, true);});
-  CodeMirror.defineExtension("findMatchingBracket", function(pos, strict, config){
-    return findMatchingBracket(this, pos, strict, config);
-  });
-  CodeMirror.defineExtension("scanForBracket", function(pos, dir, style, config){
-    return scanForBracket(this, pos, dir, style, config);
-  });
-});
-
-},{"../../lib/codemirror":31}],29:[function(require,module,exports){
+},{"../../lib/codemirror":105}],103:[function(require,module,exports){
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
 // Distributed under an MIT license: http://codemirror.net/LICENSE
 
@@ -10746,7 +15323,7 @@ define(String.prototype, "padRight", "".padEnd);
   }
 });
 
-},{"../../lib/codemirror":31}],30:[function(require,module,exports){
+},{"../../lib/codemirror":105}],104:[function(require,module,exports){
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
 // Distributed under an MIT license: http://codemirror.net/LICENSE
 
@@ -11186,7 +15763,7 @@ define(String.prototype, "padRight", "".padEnd);
   CodeMirror.defineOption("hintOptions", null);
 });
 
-},{"../../lib/codemirror":31}],31:[function(require,module,exports){
+},{"../../lib/codemirror":105}],105:[function(require,module,exports){
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
 // Distributed under an MIT license: http://codemirror.net/LICENSE
 
@@ -20149,7 +24726,7 @@ define(String.prototype, "padRight", "".padEnd);
   return CodeMirror;
 });
 
-},{}],32:[function(require,module,exports){
+},{}],106:[function(require,module,exports){
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
 // Distributed under an MIT license: http://codemirror.net/LICENSE
 
@@ -20913,21 +25490,21 @@ CodeMirror.defineMIME("application/typescript", { name: "javascript", typescript
 
 });
 
-},{"../../lib/codemirror":31}],33:[function(require,module,exports){
+},{"../../lib/codemirror":105}],107:[function(require,module,exports){
 require('../../modules/core.regexp.escape');
 module.exports = require('../../modules/_core').RegExp.escape;
-},{"../../modules/_core":54,"../../modules/core.regexp.escape":150}],34:[function(require,module,exports){
+},{"../../modules/_core":128,"../../modules/core.regexp.escape":224}],108:[function(require,module,exports){
 module.exports = function(it){
   if(typeof it != 'function')throw TypeError(it + ' is not a function!');
   return it;
 };
-},{}],35:[function(require,module,exports){
+},{}],109:[function(require,module,exports){
 var cof = require('./_cof');
 module.exports = function(it, msg){
   if(typeof it != 'number' && cof(it) != 'Number')throw TypeError(msg);
   return +it;
 };
-},{"./_cof":49}],36:[function(require,module,exports){
+},{"./_cof":123}],110:[function(require,module,exports){
 // 22.1.3.31 Array.prototype[@@unscopables]
 var UNSCOPABLES = require('./_wks')('unscopables')
   , ArrayProto  = Array.prototype;
@@ -20935,19 +25512,19 @@ if(ArrayProto[UNSCOPABLES] == undefined)require('./_hide')(ArrayProto, UNSCOPABL
 module.exports = function(key){
   ArrayProto[UNSCOPABLES][key] = true;
 };
-},{"./_hide":71,"./_wks":148}],37:[function(require,module,exports){
+},{"./_hide":145,"./_wks":222}],111:[function(require,module,exports){
 module.exports = function(it, Constructor, name, forbiddenField){
   if(!(it instanceof Constructor) || (forbiddenField !== undefined && forbiddenField in it)){
     throw TypeError(name + ': incorrect invocation!');
   } return it;
 };
-},{}],38:[function(require,module,exports){
+},{}],112:[function(require,module,exports){
 var isObject = require('./_is-object');
 module.exports = function(it){
   if(!isObject(it))throw TypeError(it + ' is not an object!');
   return it;
 };
-},{"./_is-object":80}],39:[function(require,module,exports){
+},{"./_is-object":154}],113:[function(require,module,exports){
 // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
 'use strict';
 var toObject = require('./_to-object')
@@ -20974,7 +25551,7 @@ module.exports = [].copyWithin || function copyWithin(target/*= 0*/, start/*= 0,
     from += inc;
   } return O;
 };
-},{"./_to-index":136,"./_to-length":139,"./_to-object":140}],40:[function(require,module,exports){
+},{"./_to-index":210,"./_to-length":213,"./_to-object":214}],114:[function(require,module,exports){
 // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
 'use strict';
 var toObject = require('./_to-object')
@@ -20990,7 +25567,7 @@ module.exports = function fill(value /*, start = 0, end = @length */){
   while(endPos > index)O[index++] = value;
   return O;
 };
-},{"./_to-index":136,"./_to-length":139,"./_to-object":140}],41:[function(require,module,exports){
+},{"./_to-index":210,"./_to-length":213,"./_to-object":214}],115:[function(require,module,exports){
 var forOf = require('./_for-of');
 
 module.exports = function(iter, ITERATOR){
@@ -20999,7 +25576,7 @@ module.exports = function(iter, ITERATOR){
   return result;
 };
 
-},{"./_for-of":68}],42:[function(require,module,exports){
+},{"./_for-of":142}],116:[function(require,module,exports){
 // false -> Array#indexOf
 // true  -> Array#includes
 var toIObject = require('./_to-iobject')
@@ -21021,7 +25598,7 @@ module.exports = function(IS_INCLUDES){
     } return !IS_INCLUDES && -1;
   };
 };
-},{"./_to-index":136,"./_to-iobject":138,"./_to-length":139}],43:[function(require,module,exports){
+},{"./_to-index":210,"./_to-iobject":212,"./_to-length":213}],117:[function(require,module,exports){
 // 0 -> Array#forEach
 // 1 -> Array#map
 // 2 -> Array#filter
@@ -21066,7 +25643,7 @@ module.exports = function(TYPE, $create){
     return IS_FIND_INDEX ? -1 : IS_SOME || IS_EVERY ? IS_EVERY : result;
   };
 };
-},{"./_array-species-create":46,"./_ctx":56,"./_iobject":76,"./_to-length":139,"./_to-object":140}],44:[function(require,module,exports){
+},{"./_array-species-create":120,"./_ctx":130,"./_iobject":150,"./_to-length":213,"./_to-object":214}],118:[function(require,module,exports){
 var aFunction = require('./_a-function')
   , toObject  = require('./_to-object')
   , IObject   = require('./_iobject')
@@ -21095,7 +25672,7 @@ module.exports = function(that, callbackfn, aLen, memo, isRight){
   }
   return memo;
 };
-},{"./_a-function":34,"./_iobject":76,"./_to-length":139,"./_to-object":140}],45:[function(require,module,exports){
+},{"./_a-function":108,"./_iobject":150,"./_to-length":213,"./_to-object":214}],119:[function(require,module,exports){
 var isObject = require('./_is-object')
   , isArray  = require('./_is-array')
   , SPECIES  = require('./_wks')('species');
@@ -21112,14 +25689,14 @@ module.exports = function(original){
     }
   } return C === undefined ? Array : C;
 };
-},{"./_is-array":78,"./_is-object":80,"./_wks":148}],46:[function(require,module,exports){
+},{"./_is-array":152,"./_is-object":154,"./_wks":222}],120:[function(require,module,exports){
 // 9.4.2.3 ArraySpeciesCreate(originalArray, length)
 var speciesConstructor = require('./_array-species-constructor');
 
 module.exports = function(original, length){
   return new (speciesConstructor(original))(length);
 };
-},{"./_array-species-constructor":45}],47:[function(require,module,exports){
+},{"./_array-species-constructor":119}],121:[function(require,module,exports){
 'use strict';
 var aFunction  = require('./_a-function')
   , isObject   = require('./_is-object')
@@ -21144,7 +25721,7 @@ module.exports = Function.bind || function bind(that /*, args... */){
   if(isObject(fn.prototype))bound.prototype = fn.prototype;
   return bound;
 };
-},{"./_a-function":34,"./_invoke":75,"./_is-object":80}],48:[function(require,module,exports){
+},{"./_a-function":108,"./_invoke":149,"./_is-object":154}],122:[function(require,module,exports){
 // getting tag from 19.1.3.6 Object.prototype.toString()
 var cof = require('./_cof')
   , TAG = require('./_wks')('toStringTag')
@@ -21168,13 +25745,13 @@ module.exports = function(it){
     // ES3 arguments fallback
     : (B = cof(O)) == 'Object' && typeof O.callee == 'function' ? 'Arguments' : B;
 };
-},{"./_cof":49,"./_wks":148}],49:[function(require,module,exports){
+},{"./_cof":123,"./_wks":222}],123:[function(require,module,exports){
 var toString = {}.toString;
 
 module.exports = function(it){
   return toString.call(it).slice(8, -1);
 };
-},{}],50:[function(require,module,exports){
+},{}],124:[function(require,module,exports){
 'use strict';
 var dP          = require('./_object-dp').f
   , create      = require('./_object-create')
@@ -21317,7 +25894,7 @@ module.exports = {
     setSpecies(NAME);
   }
 };
-},{"./_an-instance":37,"./_ctx":56,"./_defined":58,"./_descriptors":59,"./_for-of":68,"./_iter-define":84,"./_iter-step":86,"./_meta":93,"./_object-create":97,"./_object-dp":98,"./_redefine-all":117,"./_set-species":122}],51:[function(require,module,exports){
+},{"./_an-instance":111,"./_ctx":130,"./_defined":132,"./_descriptors":133,"./_for-of":142,"./_iter-define":158,"./_iter-step":160,"./_meta":167,"./_object-create":171,"./_object-dp":172,"./_redefine-all":191,"./_set-species":196}],125:[function(require,module,exports){
 // https://github.com/DavidBruant/Map-Set.prototype.toJSON
 var classof = require('./_classof')
   , from    = require('./_array-from-iterable');
@@ -21327,7 +25904,7 @@ module.exports = function(NAME){
     return from(this);
   };
 };
-},{"./_array-from-iterable":41,"./_classof":48}],52:[function(require,module,exports){
+},{"./_array-from-iterable":115,"./_classof":122}],126:[function(require,module,exports){
 'use strict';
 var redefineAll       = require('./_redefine-all')
   , getWeak           = require('./_meta').getWeak
@@ -21411,7 +25988,7 @@ module.exports = {
   },
   ufstore: uncaughtFrozenStore
 };
-},{"./_an-instance":37,"./_an-object":38,"./_array-methods":43,"./_for-of":68,"./_has":70,"./_is-object":80,"./_meta":93,"./_redefine-all":117}],53:[function(require,module,exports){
+},{"./_an-instance":111,"./_an-object":112,"./_array-methods":117,"./_for-of":142,"./_has":144,"./_is-object":154,"./_meta":167,"./_redefine-all":191}],127:[function(require,module,exports){
 'use strict';
 var global            = require('./_global')
   , $export           = require('./_export')
@@ -21497,10 +26074,10 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
 
   return C;
 };
-},{"./_an-instance":37,"./_export":63,"./_fails":65,"./_for-of":68,"./_global":69,"./_inherit-if-required":74,"./_is-object":80,"./_iter-detect":85,"./_meta":93,"./_redefine":118,"./_redefine-all":117,"./_set-to-string-tag":123}],54:[function(require,module,exports){
+},{"./_an-instance":111,"./_export":137,"./_fails":139,"./_for-of":142,"./_global":143,"./_inherit-if-required":148,"./_is-object":154,"./_iter-detect":159,"./_meta":167,"./_redefine":192,"./_redefine-all":191,"./_set-to-string-tag":197}],128:[function(require,module,exports){
 var core = module.exports = {version: '2.4.0'};
 if(typeof __e == 'number')__e = core; // eslint-disable-line no-undef
-},{}],55:[function(require,module,exports){
+},{}],129:[function(require,module,exports){
 'use strict';
 var $defineProperty = require('./_object-dp')
   , createDesc      = require('./_property-desc');
@@ -21509,7 +26086,7 @@ module.exports = function(object, index, value){
   if(index in object)$defineProperty.f(object, index, createDesc(0, value));
   else object[index] = value;
 };
-},{"./_object-dp":98,"./_property-desc":116}],56:[function(require,module,exports){
+},{"./_object-dp":172,"./_property-desc":190}],130:[function(require,module,exports){
 // optional / simple context binding
 var aFunction = require('./_a-function');
 module.exports = function(fn, that, length){
@@ -21530,7 +26107,7 @@ module.exports = function(fn, that, length){
     return fn.apply(that, arguments);
   };
 };
-},{"./_a-function":34}],57:[function(require,module,exports){
+},{"./_a-function":108}],131:[function(require,module,exports){
 'use strict';
 var anObject    = require('./_an-object')
   , toPrimitive = require('./_to-primitive')
@@ -21540,18 +26117,18 @@ module.exports = function(hint){
   if(hint !== 'string' && hint !== NUMBER && hint !== 'default')throw TypeError('Incorrect hint');
   return toPrimitive(anObject(this), hint != NUMBER);
 };
-},{"./_an-object":38,"./_to-primitive":141}],58:[function(require,module,exports){
+},{"./_an-object":112,"./_to-primitive":215}],132:[function(require,module,exports){
 // 7.2.1 RequireObjectCoercible(argument)
 module.exports = function(it){
   if(it == undefined)throw TypeError("Can't call method on  " + it);
   return it;
 };
-},{}],59:[function(require,module,exports){
+},{}],133:[function(require,module,exports){
 // Thank's IE8 for his funny defineProperty
 module.exports = !require('./_fails')(function(){
   return Object.defineProperty({}, 'a', {get: function(){ return 7; }}).a != 7;
 });
-},{"./_fails":65}],60:[function(require,module,exports){
+},{"./_fails":139}],134:[function(require,module,exports){
 var isObject = require('./_is-object')
   , document = require('./_global').document
   // in old IE typeof document.createElement is 'object'
@@ -21559,12 +26136,12 @@ var isObject = require('./_is-object')
 module.exports = function(it){
   return is ? document.createElement(it) : {};
 };
-},{"./_global":69,"./_is-object":80}],61:[function(require,module,exports){
+},{"./_global":143,"./_is-object":154}],135:[function(require,module,exports){
 // IE 8- don't enum bug keys
 module.exports = (
   'constructor,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,toLocaleString,toString,valueOf'
 ).split(',');
-},{}],62:[function(require,module,exports){
+},{}],136:[function(require,module,exports){
 // all enumerable object keys, includes symbols
 var getKeys = require('./_object-keys')
   , gOPS    = require('./_object-gops')
@@ -21580,7 +26157,7 @@ module.exports = function(it){
     while(symbols.length > i)if(isEnum.call(it, key = symbols[i++]))result.push(key);
   } return result;
 };
-},{"./_object-gops":104,"./_object-keys":107,"./_object-pie":108}],63:[function(require,module,exports){
+},{"./_object-gops":178,"./_object-keys":181,"./_object-pie":182}],137:[function(require,module,exports){
 var global    = require('./_global')
   , core      = require('./_core')
   , hide      = require('./_hide')
@@ -21624,7 +26201,7 @@ $export.W = 32;  // wrap
 $export.U = 64;  // safe
 $export.R = 128; // real proto method for `library` 
 module.exports = $export;
-},{"./_core":54,"./_ctx":56,"./_global":69,"./_hide":71,"./_redefine":118}],64:[function(require,module,exports){
+},{"./_core":128,"./_ctx":130,"./_global":143,"./_hide":145,"./_redefine":192}],138:[function(require,module,exports){
 var MATCH = require('./_wks')('match');
 module.exports = function(KEY){
   var re = /./;
@@ -21637,7 +26214,7 @@ module.exports = function(KEY){
     } catch(f){ /* empty */ }
   } return true;
 };
-},{"./_wks":148}],65:[function(require,module,exports){
+},{"./_wks":222}],139:[function(require,module,exports){
 module.exports = function(exec){
   try {
     return !!exec();
@@ -21645,7 +26222,7 @@ module.exports = function(exec){
     return true;
   }
 };
-},{}],66:[function(require,module,exports){
+},{}],140:[function(require,module,exports){
 'use strict';
 var hide     = require('./_hide')
   , redefine = require('./_redefine')
@@ -21674,7 +26251,7 @@ module.exports = function(KEY, length, exec){
     );
   }
 };
-},{"./_defined":58,"./_fails":65,"./_hide":71,"./_redefine":118,"./_wks":148}],67:[function(require,module,exports){
+},{"./_defined":132,"./_fails":139,"./_hide":145,"./_redefine":192,"./_wks":222}],141:[function(require,module,exports){
 'use strict';
 // 21.2.5.3 get RegExp.prototype.flags
 var anObject = require('./_an-object');
@@ -21688,7 +26265,7 @@ module.exports = function(){
   if(that.sticky)     result += 'y';
   return result;
 };
-},{"./_an-object":38}],68:[function(require,module,exports){
+},{"./_an-object":112}],142:[function(require,module,exports){
 var ctx         = require('./_ctx')
   , call        = require('./_iter-call')
   , isArrayIter = require('./_is-array-iter')
@@ -21714,17 +26291,17 @@ var exports = module.exports = function(iterable, entries, fn, that, ITERATOR){
 };
 exports.BREAK  = BREAK;
 exports.RETURN = RETURN;
-},{"./_an-object":38,"./_ctx":56,"./_is-array-iter":77,"./_iter-call":82,"./_to-length":139,"./core.get-iterator-method":149}],69:[function(require,module,exports){
+},{"./_an-object":112,"./_ctx":130,"./_is-array-iter":151,"./_iter-call":156,"./_to-length":213,"./core.get-iterator-method":223}],143:[function(require,module,exports){
 // https://github.com/zloirock/core-js/issues/86#issuecomment-115759028
 var global = module.exports = typeof window != 'undefined' && window.Math == Math
   ? window : typeof self != 'undefined' && self.Math == Math ? self : Function('return this')();
 if(typeof __g == 'number')__g = global; // eslint-disable-line no-undef
-},{}],70:[function(require,module,exports){
+},{}],144:[function(require,module,exports){
 var hasOwnProperty = {}.hasOwnProperty;
 module.exports = function(it, key){
   return hasOwnProperty.call(it, key);
 };
-},{}],71:[function(require,module,exports){
+},{}],145:[function(require,module,exports){
 var dP         = require('./_object-dp')
   , createDesc = require('./_property-desc');
 module.exports = require('./_descriptors') ? function(object, key, value){
@@ -21733,13 +26310,13 @@ module.exports = require('./_descriptors') ? function(object, key, value){
   object[key] = value;
   return object;
 };
-},{"./_descriptors":59,"./_object-dp":98,"./_property-desc":116}],72:[function(require,module,exports){
+},{"./_descriptors":133,"./_object-dp":172,"./_property-desc":190}],146:[function(require,module,exports){
 module.exports = require('./_global').document && document.documentElement;
-},{"./_global":69}],73:[function(require,module,exports){
+},{"./_global":143}],147:[function(require,module,exports){
 module.exports = !require('./_descriptors') && !require('./_fails')(function(){
   return Object.defineProperty(require('./_dom-create')('div'), 'a', {get: function(){ return 7; }}).a != 7;
 });
-},{"./_descriptors":59,"./_dom-create":60,"./_fails":65}],74:[function(require,module,exports){
+},{"./_descriptors":133,"./_dom-create":134,"./_fails":139}],148:[function(require,module,exports){
 var isObject       = require('./_is-object')
   , setPrototypeOf = require('./_set-proto').set;
 module.exports = function(that, target, C){
@@ -21748,7 +26325,7 @@ module.exports = function(that, target, C){
     setPrototypeOf(that, P);
   } return that;
 };
-},{"./_is-object":80,"./_set-proto":121}],75:[function(require,module,exports){
+},{"./_is-object":154,"./_set-proto":195}],149:[function(require,module,exports){
 // fast apply, http://jsperf.lnkit.com/fast-apply/5
 module.exports = function(fn, args, that){
   var un = that === undefined;
@@ -21765,13 +26342,13 @@ module.exports = function(fn, args, that){
                       : fn.call(that, args[0], args[1], args[2], args[3]);
   } return              fn.apply(that, args);
 };
-},{}],76:[function(require,module,exports){
+},{}],150:[function(require,module,exports){
 // fallback for non-array-like ES3 and non-enumerable old V8 strings
 var cof = require('./_cof');
 module.exports = Object('z').propertyIsEnumerable(0) ? Object : function(it){
   return cof(it) == 'String' ? it.split('') : Object(it);
 };
-},{"./_cof":49}],77:[function(require,module,exports){
+},{"./_cof":123}],151:[function(require,module,exports){
 // check on default Array iterator
 var Iterators  = require('./_iterators')
   , ITERATOR   = require('./_wks')('iterator')
@@ -21780,24 +26357,24 @@ var Iterators  = require('./_iterators')
 module.exports = function(it){
   return it !== undefined && (Iterators.Array === it || ArrayProto[ITERATOR] === it);
 };
-},{"./_iterators":87,"./_wks":148}],78:[function(require,module,exports){
+},{"./_iterators":161,"./_wks":222}],152:[function(require,module,exports){
 // 7.2.2 IsArray(argument)
 var cof = require('./_cof');
 module.exports = Array.isArray || function isArray(arg){
   return cof(arg) == 'Array';
 };
-},{"./_cof":49}],79:[function(require,module,exports){
+},{"./_cof":123}],153:[function(require,module,exports){
 // 20.1.2.3 Number.isInteger(number)
 var isObject = require('./_is-object')
   , floor    = Math.floor;
 module.exports = function isInteger(it){
   return !isObject(it) && isFinite(it) && floor(it) === it;
 };
-},{"./_is-object":80}],80:[function(require,module,exports){
+},{"./_is-object":154}],154:[function(require,module,exports){
 module.exports = function(it){
   return typeof it === 'object' ? it !== null : typeof it === 'function';
 };
-},{}],81:[function(require,module,exports){
+},{}],155:[function(require,module,exports){
 // 7.2.8 IsRegExp(argument)
 var isObject = require('./_is-object')
   , cof      = require('./_cof')
@@ -21806,7 +26383,7 @@ module.exports = function(it){
   var isRegExp;
   return isObject(it) && ((isRegExp = it[MATCH]) !== undefined ? !!isRegExp : cof(it) == 'RegExp');
 };
-},{"./_cof":49,"./_is-object":80,"./_wks":148}],82:[function(require,module,exports){
+},{"./_cof":123,"./_is-object":154,"./_wks":222}],156:[function(require,module,exports){
 // call something on iterator step with safe closing on error
 var anObject = require('./_an-object');
 module.exports = function(iterator, fn, value, entries){
@@ -21819,7 +26396,7 @@ module.exports = function(iterator, fn, value, entries){
     throw e;
   }
 };
-},{"./_an-object":38}],83:[function(require,module,exports){
+},{"./_an-object":112}],157:[function(require,module,exports){
 'use strict';
 var create         = require('./_object-create')
   , descriptor     = require('./_property-desc')
@@ -21833,7 +26410,7 @@ module.exports = function(Constructor, NAME, next){
   Constructor.prototype = create(IteratorPrototype, {next: descriptor(1, next)});
   setToStringTag(Constructor, NAME + ' Iterator');
 };
-},{"./_hide":71,"./_object-create":97,"./_property-desc":116,"./_set-to-string-tag":123,"./_wks":148}],84:[function(require,module,exports){
+},{"./_hide":145,"./_object-create":171,"./_property-desc":190,"./_set-to-string-tag":197,"./_wks":222}],158:[function(require,module,exports){
 'use strict';
 var LIBRARY        = require('./_library')
   , $export        = require('./_export')
@@ -21904,7 +26481,7 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCED
   }
   return methods;
 };
-},{"./_export":63,"./_has":70,"./_hide":71,"./_iter-create":83,"./_iterators":87,"./_library":89,"./_object-gpo":105,"./_redefine":118,"./_set-to-string-tag":123,"./_wks":148}],85:[function(require,module,exports){
+},{"./_export":137,"./_has":144,"./_hide":145,"./_iter-create":157,"./_iterators":161,"./_library":163,"./_object-gpo":179,"./_redefine":192,"./_set-to-string-tag":197,"./_wks":222}],159:[function(require,module,exports){
 var ITERATOR     = require('./_wks')('iterator')
   , SAFE_CLOSING = false;
 
@@ -21926,13 +26503,13 @@ module.exports = function(exec, skipClosing){
   } catch(e){ /* empty */ }
   return safe;
 };
-},{"./_wks":148}],86:[function(require,module,exports){
+},{"./_wks":222}],160:[function(require,module,exports){
 module.exports = function(done, value){
   return {value: value, done: !!done};
 };
-},{}],87:[function(require,module,exports){
+},{}],161:[function(require,module,exports){
 module.exports = {};
-},{}],88:[function(require,module,exports){
+},{}],162:[function(require,module,exports){
 var getKeys   = require('./_object-keys')
   , toIObject = require('./_to-iobject');
 module.exports = function(object, el){
@@ -21943,9 +26520,9 @@ module.exports = function(object, el){
     , key;
   while(length > index)if(O[key = keys[index++]] === el)return key;
 };
-},{"./_object-keys":107,"./_to-iobject":138}],89:[function(require,module,exports){
+},{"./_object-keys":181,"./_to-iobject":212}],163:[function(require,module,exports){
 module.exports = false;
-},{}],90:[function(require,module,exports){
+},{}],164:[function(require,module,exports){
 // 20.2.2.14 Math.expm1(x)
 var $expm1 = Math.expm1;
 module.exports = (!$expm1
@@ -21956,17 +26533,17 @@ module.exports = (!$expm1
 ) ? function expm1(x){
   return (x = +x) == 0 ? x : x > -1e-6 && x < 1e-6 ? x + x * x / 2 : Math.exp(x) - 1;
 } : $expm1;
-},{}],91:[function(require,module,exports){
+},{}],165:[function(require,module,exports){
 // 20.2.2.20 Math.log1p(x)
 module.exports = Math.log1p || function log1p(x){
   return (x = +x) > -1e-8 && x < 1e-8 ? x - x * x / 2 : Math.log(1 + x);
 };
-},{}],92:[function(require,module,exports){
+},{}],166:[function(require,module,exports){
 // 20.2.2.28 Math.sign(x)
 module.exports = Math.sign || function sign(x){
   return (x = +x) == 0 || x != x ? x : x < 0 ? -1 : 1;
 };
-},{}],93:[function(require,module,exports){
+},{}],167:[function(require,module,exports){
 var META     = require('./_uid')('meta')
   , isObject = require('./_is-object')
   , has      = require('./_has')
@@ -22020,7 +26597,7 @@ var meta = module.exports = {
   getWeak:  getWeak,
   onFreeze: onFreeze
 };
-},{"./_fails":65,"./_has":70,"./_is-object":80,"./_object-dp":98,"./_uid":145}],94:[function(require,module,exports){
+},{"./_fails":139,"./_has":144,"./_is-object":154,"./_object-dp":172,"./_uid":219}],168:[function(require,module,exports){
 var Map     = require('./es6.map')
   , $export = require('./_export')
   , shared  = require('./_shared')('metadata')
@@ -22072,7 +26649,7 @@ module.exports = {
   key: toMetaKey,
   exp: exp
 };
-},{"./_export":63,"./_shared":125,"./es6.map":180,"./es6.weak-map":286}],95:[function(require,module,exports){
+},{"./_export":137,"./_shared":199,"./es6.map":254,"./es6.weak-map":360}],169:[function(require,module,exports){
 var global    = require('./_global')
   , macrotask = require('./_task').set
   , Observer  = global.MutationObserver || global.WebKitMutationObserver
@@ -22141,7 +26718,7 @@ module.exports = function(){
     } last = task;
   };
 };
-},{"./_cof":49,"./_global":69,"./_task":135}],96:[function(require,module,exports){
+},{"./_cof":123,"./_global":143,"./_task":209}],170:[function(require,module,exports){
 'use strict';
 // 19.1.2.1 Object.assign(target, source, ...)
 var getKeys  = require('./_object-keys')
@@ -22175,7 +26752,7 @@ module.exports = !$assign || require('./_fails')(function(){
     while(length > j)if(isEnum.call(S, key = keys[j++]))T[key] = S[key];
   } return T;
 } : $assign;
-},{"./_fails":65,"./_iobject":76,"./_object-gops":104,"./_object-keys":107,"./_object-pie":108,"./_to-object":140}],97:[function(require,module,exports){
+},{"./_fails":139,"./_iobject":150,"./_object-gops":178,"./_object-keys":181,"./_object-pie":182,"./_to-object":214}],171:[function(require,module,exports){
 // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
 var anObject    = require('./_an-object')
   , dPs         = require('./_object-dps')
@@ -22218,7 +26795,7 @@ module.exports = Object.create || function create(O, Properties){
   return Properties === undefined ? result : dPs(result, Properties);
 };
 
-},{"./_an-object":38,"./_dom-create":60,"./_enum-bug-keys":61,"./_html":72,"./_object-dps":99,"./_shared-key":124}],98:[function(require,module,exports){
+},{"./_an-object":112,"./_dom-create":134,"./_enum-bug-keys":135,"./_html":146,"./_object-dps":173,"./_shared-key":198}],172:[function(require,module,exports){
 var anObject       = require('./_an-object')
   , IE8_DOM_DEFINE = require('./_ie8-dom-define')
   , toPrimitive    = require('./_to-primitive')
@@ -22235,7 +26812,7 @@ exports.f = require('./_descriptors') ? Object.defineProperty : function defineP
   if('value' in Attributes)O[P] = Attributes.value;
   return O;
 };
-},{"./_an-object":38,"./_descriptors":59,"./_ie8-dom-define":73,"./_to-primitive":141}],99:[function(require,module,exports){
+},{"./_an-object":112,"./_descriptors":133,"./_ie8-dom-define":147,"./_to-primitive":215}],173:[function(require,module,exports){
 var dP       = require('./_object-dp')
   , anObject = require('./_an-object')
   , getKeys  = require('./_object-keys');
@@ -22249,7 +26826,7 @@ module.exports = require('./_descriptors') ? Object.defineProperties : function 
   while(length > i)dP.f(O, P = keys[i++], Properties[P]);
   return O;
 };
-},{"./_an-object":38,"./_descriptors":59,"./_object-dp":98,"./_object-keys":107}],100:[function(require,module,exports){
+},{"./_an-object":112,"./_descriptors":133,"./_object-dp":172,"./_object-keys":181}],174:[function(require,module,exports){
 // Forced replacement prototype accessors methods
 module.exports = require('./_library')|| !require('./_fails')(function(){
   var K = Math.random();
@@ -22257,7 +26834,7 @@ module.exports = require('./_library')|| !require('./_fails')(function(){
   __defineSetter__.call(null, K, function(){ /* empty */});
   delete require('./_global')[K];
 });
-},{"./_fails":65,"./_global":69,"./_library":89}],101:[function(require,module,exports){
+},{"./_fails":139,"./_global":143,"./_library":163}],175:[function(require,module,exports){
 var pIE            = require('./_object-pie')
   , createDesc     = require('./_property-desc')
   , toIObject      = require('./_to-iobject')
@@ -22274,7 +26851,7 @@ exports.f = require('./_descriptors') ? gOPD : function getOwnPropertyDescriptor
   } catch(e){ /* empty */ }
   if(has(O, P))return createDesc(!pIE.f.call(O, P), O[P]);
 };
-},{"./_descriptors":59,"./_has":70,"./_ie8-dom-define":73,"./_object-pie":108,"./_property-desc":116,"./_to-iobject":138,"./_to-primitive":141}],102:[function(require,module,exports){
+},{"./_descriptors":133,"./_has":144,"./_ie8-dom-define":147,"./_object-pie":182,"./_property-desc":190,"./_to-iobject":212,"./_to-primitive":215}],176:[function(require,module,exports){
 // fallback for IE11 buggy Object.getOwnPropertyNames with iframe and window
 var toIObject = require('./_to-iobject')
   , gOPN      = require('./_object-gopn').f
@@ -22295,7 +26872,7 @@ module.exports.f = function getOwnPropertyNames(it){
   return windowNames && toString.call(it) == '[object Window]' ? getWindowNames(it) : gOPN(toIObject(it));
 };
 
-},{"./_object-gopn":103,"./_to-iobject":138}],103:[function(require,module,exports){
+},{"./_object-gopn":177,"./_to-iobject":212}],177:[function(require,module,exports){
 // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
 var $keys      = require('./_object-keys-internal')
   , hiddenKeys = require('./_enum-bug-keys').concat('length', 'prototype');
@@ -22303,9 +26880,9 @@ var $keys      = require('./_object-keys-internal')
 exports.f = Object.getOwnPropertyNames || function getOwnPropertyNames(O){
   return $keys(O, hiddenKeys);
 };
-},{"./_enum-bug-keys":61,"./_object-keys-internal":106}],104:[function(require,module,exports){
+},{"./_enum-bug-keys":135,"./_object-keys-internal":180}],178:[function(require,module,exports){
 exports.f = Object.getOwnPropertySymbols;
-},{}],105:[function(require,module,exports){
+},{}],179:[function(require,module,exports){
 // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
 var has         = require('./_has')
   , toObject    = require('./_to-object')
@@ -22319,7 +26896,7 @@ module.exports = Object.getPrototypeOf || function(O){
     return O.constructor.prototype;
   } return O instanceof Object ? ObjectProto : null;
 };
-},{"./_has":70,"./_shared-key":124,"./_to-object":140}],106:[function(require,module,exports){
+},{"./_has":144,"./_shared-key":198,"./_to-object":214}],180:[function(require,module,exports){
 var has          = require('./_has')
   , toIObject    = require('./_to-iobject')
   , arrayIndexOf = require('./_array-includes')(false)
@@ -22337,7 +26914,7 @@ module.exports = function(object, names){
   }
   return result;
 };
-},{"./_array-includes":42,"./_has":70,"./_shared-key":124,"./_to-iobject":138}],107:[function(require,module,exports){
+},{"./_array-includes":116,"./_has":144,"./_shared-key":198,"./_to-iobject":212}],181:[function(require,module,exports){
 // 19.1.2.14 / 15.2.3.14 Object.keys(O)
 var $keys       = require('./_object-keys-internal')
   , enumBugKeys = require('./_enum-bug-keys');
@@ -22345,9 +26922,9 @@ var $keys       = require('./_object-keys-internal')
 module.exports = Object.keys || function keys(O){
   return $keys(O, enumBugKeys);
 };
-},{"./_enum-bug-keys":61,"./_object-keys-internal":106}],108:[function(require,module,exports){
+},{"./_enum-bug-keys":135,"./_object-keys-internal":180}],182:[function(require,module,exports){
 exports.f = {}.propertyIsEnumerable;
-},{}],109:[function(require,module,exports){
+},{}],183:[function(require,module,exports){
 // most Object methods by ES6 should accept primitives
 var $export = require('./_export')
   , core    = require('./_core')
@@ -22358,7 +26935,7 @@ module.exports = function(KEY, exec){
   exp[KEY] = exec(fn);
   $export($export.S + $export.F * fails(function(){ fn(1); }), 'Object', exp);
 };
-},{"./_core":54,"./_export":63,"./_fails":65}],110:[function(require,module,exports){
+},{"./_core":128,"./_export":137,"./_fails":139}],184:[function(require,module,exports){
 var getKeys   = require('./_object-keys')
   , toIObject = require('./_to-iobject')
   , isEnum    = require('./_object-pie').f;
@@ -22375,7 +26952,7 @@ module.exports = function(isEntries){
     } return result;
   };
 };
-},{"./_object-keys":107,"./_object-pie":108,"./_to-iobject":138}],111:[function(require,module,exports){
+},{"./_object-keys":181,"./_object-pie":182,"./_to-iobject":212}],185:[function(require,module,exports){
 // all object keys, includes non-enumerable and symbols
 var gOPN     = require('./_object-gopn')
   , gOPS     = require('./_object-gops')
@@ -22386,7 +26963,7 @@ module.exports = Reflect && Reflect.ownKeys || function ownKeys(it){
     , getSymbols = gOPS.f;
   return getSymbols ? keys.concat(getSymbols(it)) : keys;
 };
-},{"./_an-object":38,"./_global":69,"./_object-gopn":103,"./_object-gops":104}],112:[function(require,module,exports){
+},{"./_an-object":112,"./_global":143,"./_object-gopn":177,"./_object-gops":178}],186:[function(require,module,exports){
 var $parseFloat = require('./_global').parseFloat
   , $trim       = require('./_string-trim').trim;
 
@@ -22395,7 +26972,7 @@ module.exports = 1 / $parseFloat(require('./_string-ws') + '-0') !== -Infinity ?
     , result = $parseFloat(string);
   return result === 0 && string.charAt(0) == '-' ? -0 : result;
 } : $parseFloat;
-},{"./_global":69,"./_string-trim":133,"./_string-ws":134}],113:[function(require,module,exports){
+},{"./_global":143,"./_string-trim":207,"./_string-ws":208}],187:[function(require,module,exports){
 var $parseInt = require('./_global').parseInt
   , $trim     = require('./_string-trim').trim
   , ws        = require('./_string-ws')
@@ -22405,7 +26982,7 @@ module.exports = $parseInt(ws + '08') !== 8 || $parseInt(ws + '0x16') !== 22 ? f
   var string = $trim(String(str), 3);
   return $parseInt(string, (radix >>> 0) || (hex.test(string) ? 16 : 10));
 } : $parseInt;
-},{"./_global":69,"./_string-trim":133,"./_string-ws":134}],114:[function(require,module,exports){
+},{"./_global":143,"./_string-trim":207,"./_string-ws":208}],188:[function(require,module,exports){
 'use strict';
 var path      = require('./_path')
   , invoke    = require('./_invoke')
@@ -22429,9 +27006,9 @@ module.exports = function(/* ...pargs */){
     return invoke(fn, args, that);
   };
 };
-},{"./_a-function":34,"./_invoke":75,"./_path":115}],115:[function(require,module,exports){
+},{"./_a-function":108,"./_invoke":149,"./_path":189}],189:[function(require,module,exports){
 module.exports = require('./_global');
-},{"./_global":69}],116:[function(require,module,exports){
+},{"./_global":143}],190:[function(require,module,exports){
 module.exports = function(bitmap, value){
   return {
     enumerable  : !(bitmap & 1),
@@ -22440,13 +27017,13 @@ module.exports = function(bitmap, value){
     value       : value
   };
 };
-},{}],117:[function(require,module,exports){
+},{}],191:[function(require,module,exports){
 var redefine = require('./_redefine');
 module.exports = function(target, src, safe){
   for(var key in src)redefine(target, key, src[key], safe);
   return target;
 };
-},{"./_redefine":118}],118:[function(require,module,exports){
+},{"./_redefine":192}],192:[function(require,module,exports){
 var global    = require('./_global')
   , hide      = require('./_hide')
   , has       = require('./_has')
@@ -22479,7 +27056,7 @@ require('./_core').inspectSource = function(it){
 })(Function.prototype, TO_STRING, function toString(){
   return typeof this == 'function' && this[SRC] || $toString.call(this);
 });
-},{"./_core":54,"./_global":69,"./_has":70,"./_hide":71,"./_uid":145}],119:[function(require,module,exports){
+},{"./_core":128,"./_global":143,"./_has":144,"./_hide":145,"./_uid":219}],193:[function(require,module,exports){
 module.exports = function(regExp, replace){
   var replacer = replace === Object(replace) ? function(part){
     return replace[part];
@@ -22488,12 +27065,12 @@ module.exports = function(regExp, replace){
     return String(it).replace(regExp, replacer);
   };
 };
-},{}],120:[function(require,module,exports){
+},{}],194:[function(require,module,exports){
 // 7.2.9 SameValue(x, y)
 module.exports = Object.is || function is(x, y){
   return x === y ? x !== 0 || 1 / x === 1 / y : x != x && y != y;
 };
-},{}],121:[function(require,module,exports){
+},{}],195:[function(require,module,exports){
 // Works with __proto__ only. Old v8 can't work with null proto objects.
 /* eslint-disable no-proto */
 var isObject = require('./_is-object')
@@ -22519,7 +27096,7 @@ module.exports = {
     }({}, false) : undefined),
   check: check
 };
-},{"./_an-object":38,"./_ctx":56,"./_is-object":80,"./_object-gopd":101}],122:[function(require,module,exports){
+},{"./_an-object":112,"./_ctx":130,"./_is-object":154,"./_object-gopd":175}],196:[function(require,module,exports){
 'use strict';
 var global      = require('./_global')
   , dP          = require('./_object-dp')
@@ -22533,7 +27110,7 @@ module.exports = function(KEY){
     get: function(){ return this; }
   });
 };
-},{"./_descriptors":59,"./_global":69,"./_object-dp":98,"./_wks":148}],123:[function(require,module,exports){
+},{"./_descriptors":133,"./_global":143,"./_object-dp":172,"./_wks":222}],197:[function(require,module,exports){
 var def = require('./_object-dp').f
   , has = require('./_has')
   , TAG = require('./_wks')('toStringTag');
@@ -22541,20 +27118,20 @@ var def = require('./_object-dp').f
 module.exports = function(it, tag, stat){
   if(it && !has(it = stat ? it : it.prototype, TAG))def(it, TAG, {configurable: true, value: tag});
 };
-},{"./_has":70,"./_object-dp":98,"./_wks":148}],124:[function(require,module,exports){
+},{"./_has":144,"./_object-dp":172,"./_wks":222}],198:[function(require,module,exports){
 var shared = require('./_shared')('keys')
   , uid    = require('./_uid');
 module.exports = function(key){
   return shared[key] || (shared[key] = uid(key));
 };
-},{"./_shared":125,"./_uid":145}],125:[function(require,module,exports){
+},{"./_shared":199,"./_uid":219}],199:[function(require,module,exports){
 var global = require('./_global')
   , SHARED = '__core-js_shared__'
   , store  = global[SHARED] || (global[SHARED] = {});
 module.exports = function(key){
   return store[key] || (store[key] = {});
 };
-},{"./_global":69}],126:[function(require,module,exports){
+},{"./_global":143}],200:[function(require,module,exports){
 // 7.3.20 SpeciesConstructor(O, defaultConstructor)
 var anObject  = require('./_an-object')
   , aFunction = require('./_a-function')
@@ -22563,7 +27140,7 @@ module.exports = function(O, D){
   var C = anObject(O).constructor, S;
   return C === undefined || (S = anObject(C)[SPECIES]) == undefined ? D : aFunction(S);
 };
-},{"./_a-function":34,"./_an-object":38,"./_wks":148}],127:[function(require,module,exports){
+},{"./_a-function":108,"./_an-object":112,"./_wks":222}],201:[function(require,module,exports){
 var fails = require('./_fails');
 
 module.exports = function(method, arg){
@@ -22571,7 +27148,7 @@ module.exports = function(method, arg){
     arg ? method.call(null, function(){}, 1) : method.call(null);
   });
 };
-},{"./_fails":65}],128:[function(require,module,exports){
+},{"./_fails":139}],202:[function(require,module,exports){
 var toInteger = require('./_to-integer')
   , defined   = require('./_defined');
 // true  -> String#at
@@ -22589,7 +27166,7 @@ module.exports = function(TO_STRING){
       : TO_STRING ? s.slice(i, i + 2) : (a - 0xd800 << 10) + (b - 0xdc00) + 0x10000;
   };
 };
-},{"./_defined":58,"./_to-integer":137}],129:[function(require,module,exports){
+},{"./_defined":132,"./_to-integer":211}],203:[function(require,module,exports){
 // helper for String#{startsWith, endsWith, includes}
 var isRegExp = require('./_is-regexp')
   , defined  = require('./_defined');
@@ -22598,7 +27175,7 @@ module.exports = function(that, searchString, NAME){
   if(isRegExp(searchString))throw TypeError('String#' + NAME + " doesn't accept regex!");
   return String(defined(that));
 };
-},{"./_defined":58,"./_is-regexp":81}],130:[function(require,module,exports){
+},{"./_defined":132,"./_is-regexp":155}],204:[function(require,module,exports){
 var $export = require('./_export')
   , fails   = require('./_fails')
   , defined = require('./_defined')
@@ -22618,7 +27195,7 @@ module.exports = function(NAME, exec){
     return test !== test.toLowerCase() || test.split('"').length > 3;
   }), 'String', O);
 };
-},{"./_defined":58,"./_export":63,"./_fails":65}],131:[function(require,module,exports){
+},{"./_defined":132,"./_export":137,"./_fails":139}],205:[function(require,module,exports){
 // https://github.com/tc39/proposal-string-pad-start-end
 var toLength = require('./_to-length')
   , repeat   = require('./_string-repeat')
@@ -22636,7 +27213,7 @@ module.exports = function(that, maxLength, fillString, left){
   return left ? stringFiller + S : S + stringFiller;
 };
 
-},{"./_defined":58,"./_string-repeat":132,"./_to-length":139}],132:[function(require,module,exports){
+},{"./_defined":132,"./_string-repeat":206,"./_to-length":213}],206:[function(require,module,exports){
 'use strict';
 var toInteger = require('./_to-integer')
   , defined   = require('./_defined');
@@ -22649,7 +27226,7 @@ module.exports = function repeat(count){
   for(;n > 0; (n >>>= 1) && (str += str))if(n & 1)res += str;
   return res;
 };
-},{"./_defined":58,"./_to-integer":137}],133:[function(require,module,exports){
+},{"./_defined":132,"./_to-integer":211}],207:[function(require,module,exports){
 var $export = require('./_export')
   , defined = require('./_defined')
   , fails   = require('./_fails')
@@ -22680,10 +27257,10 @@ var trim = exporter.trim = function(string, TYPE){
 };
 
 module.exports = exporter;
-},{"./_defined":58,"./_export":63,"./_fails":65,"./_string-ws":134}],134:[function(require,module,exports){
+},{"./_defined":132,"./_export":137,"./_fails":139,"./_string-ws":208}],208:[function(require,module,exports){
 module.exports = '\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003' +
   '\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF';
-},{}],135:[function(require,module,exports){
+},{}],209:[function(require,module,exports){
 var ctx                = require('./_ctx')
   , invoke             = require('./_invoke')
   , html               = require('./_html')
@@ -22759,7 +27336,7 @@ module.exports = {
   set:   setTask,
   clear: clearTask
 };
-},{"./_cof":49,"./_ctx":56,"./_dom-create":60,"./_global":69,"./_html":72,"./_invoke":75}],136:[function(require,module,exports){
+},{"./_cof":123,"./_ctx":130,"./_dom-create":134,"./_global":143,"./_html":146,"./_invoke":149}],210:[function(require,module,exports){
 var toInteger = require('./_to-integer')
   , max       = Math.max
   , min       = Math.min;
@@ -22767,34 +27344,34 @@ module.exports = function(index, length){
   index = toInteger(index);
   return index < 0 ? max(index + length, 0) : min(index, length);
 };
-},{"./_to-integer":137}],137:[function(require,module,exports){
+},{"./_to-integer":211}],211:[function(require,module,exports){
 // 7.1.4 ToInteger
 var ceil  = Math.ceil
   , floor = Math.floor;
 module.exports = function(it){
   return isNaN(it = +it) ? 0 : (it > 0 ? floor : ceil)(it);
 };
-},{}],138:[function(require,module,exports){
+},{}],212:[function(require,module,exports){
 // to indexed object, toObject with fallback for non-array-like ES3 strings
 var IObject = require('./_iobject')
   , defined = require('./_defined');
 module.exports = function(it){
   return IObject(defined(it));
 };
-},{"./_defined":58,"./_iobject":76}],139:[function(require,module,exports){
+},{"./_defined":132,"./_iobject":150}],213:[function(require,module,exports){
 // 7.1.15 ToLength
 var toInteger = require('./_to-integer')
   , min       = Math.min;
 module.exports = function(it){
   return it > 0 ? min(toInteger(it), 0x1fffffffffffff) : 0; // pow(2, 53) - 1 == 9007199254740991
 };
-},{"./_to-integer":137}],140:[function(require,module,exports){
+},{"./_to-integer":211}],214:[function(require,module,exports){
 // 7.1.13 ToObject(argument)
 var defined = require('./_defined');
 module.exports = function(it){
   return Object(defined(it));
 };
-},{"./_defined":58}],141:[function(require,module,exports){
+},{"./_defined":132}],215:[function(require,module,exports){
 // 7.1.1 ToPrimitive(input [, PreferredType])
 var isObject = require('./_is-object');
 // instead of the ES6 spec version, we didn't implement @@toPrimitive case
@@ -22807,7 +27384,7 @@ module.exports = function(it, S){
   if(!S && typeof (fn = it.toString) == 'function' && !isObject(val = fn.call(it)))return val;
   throw TypeError("Can't convert object to primitive value");
 };
-},{"./_is-object":80}],142:[function(require,module,exports){
+},{"./_is-object":154}],216:[function(require,module,exports){
 'use strict';
 if(require('./_descriptors')){
   var LIBRARY             = require('./_library')
@@ -23287,7 +27864,7 @@ if(require('./_descriptors')){
     if(!LIBRARY && !CORRECT_ITER_NAME)hide(TypedArrayPrototype, ITERATOR, $iterator);
   };
 } else module.exports = function(){ /* empty */ };
-},{"./_an-instance":37,"./_array-copy-within":39,"./_array-fill":40,"./_array-includes":42,"./_array-methods":43,"./_classof":48,"./_ctx":56,"./_descriptors":59,"./_export":63,"./_fails":65,"./_global":69,"./_has":70,"./_hide":71,"./_is-array-iter":77,"./_is-object":80,"./_iter-detect":85,"./_iterators":87,"./_library":89,"./_object-create":97,"./_object-dp":98,"./_object-gopd":101,"./_object-gopn":103,"./_object-gpo":105,"./_property-desc":116,"./_redefine-all":117,"./_same-value":120,"./_set-species":122,"./_species-constructor":126,"./_to-index":136,"./_to-integer":137,"./_to-length":139,"./_to-object":140,"./_to-primitive":141,"./_typed":144,"./_typed-buffer":143,"./_uid":145,"./_wks":148,"./core.get-iterator-method":149,"./es6.array.iterator":161}],143:[function(require,module,exports){
+},{"./_an-instance":111,"./_array-copy-within":113,"./_array-fill":114,"./_array-includes":116,"./_array-methods":117,"./_classof":122,"./_ctx":130,"./_descriptors":133,"./_export":137,"./_fails":139,"./_global":143,"./_has":144,"./_hide":145,"./_is-array-iter":151,"./_is-object":154,"./_iter-detect":159,"./_iterators":161,"./_library":163,"./_object-create":171,"./_object-dp":172,"./_object-gopd":175,"./_object-gopn":177,"./_object-gpo":179,"./_property-desc":190,"./_redefine-all":191,"./_same-value":194,"./_set-species":196,"./_species-constructor":200,"./_to-index":210,"./_to-integer":211,"./_to-length":213,"./_to-object":214,"./_to-primitive":215,"./_typed":218,"./_typed-buffer":217,"./_uid":219,"./_wks":222,"./core.get-iterator-method":223,"./es6.array.iterator":235}],217:[function(require,module,exports){
 'use strict';
 var global         = require('./_global')
   , DESCRIPTORS    = require('./_descriptors')
@@ -23561,7 +28138,7 @@ setToStringTag($DataView, DATA_VIEW);
 hide($DataView[PROTOTYPE], $typed.VIEW, true);
 exports[ARRAY_BUFFER] = $ArrayBuffer;
 exports[DATA_VIEW] = $DataView;
-},{"./_an-instance":37,"./_array-fill":40,"./_descriptors":59,"./_fails":65,"./_global":69,"./_hide":71,"./_library":89,"./_object-dp":98,"./_object-gopn":103,"./_redefine-all":117,"./_set-to-string-tag":123,"./_to-integer":137,"./_to-length":139,"./_typed":144}],144:[function(require,module,exports){
+},{"./_an-instance":111,"./_array-fill":114,"./_descriptors":133,"./_fails":139,"./_global":143,"./_hide":145,"./_library":163,"./_object-dp":172,"./_object-gopn":177,"./_redefine-all":191,"./_set-to-string-tag":197,"./_to-integer":211,"./_to-length":213,"./_typed":218}],218:[function(require,module,exports){
 var global = require('./_global')
   , hide   = require('./_hide')
   , uid    = require('./_uid')
@@ -23588,13 +28165,13 @@ module.exports = {
   TYPED:  TYPED,
   VIEW:   VIEW
 };
-},{"./_global":69,"./_hide":71,"./_uid":145}],145:[function(require,module,exports){
+},{"./_global":143,"./_hide":145,"./_uid":219}],219:[function(require,module,exports){
 var id = 0
   , px = Math.random();
 module.exports = function(key){
   return 'Symbol('.concat(key === undefined ? '' : key, ')_', (++id + px).toString(36));
 };
-},{}],146:[function(require,module,exports){
+},{}],220:[function(require,module,exports){
 var global         = require('./_global')
   , core           = require('./_core')
   , LIBRARY        = require('./_library')
@@ -23604,9 +28181,9 @@ module.exports = function(name){
   var $Symbol = core.Symbol || (core.Symbol = LIBRARY ? {} : global.Symbol || {});
   if(name.charAt(0) != '_' && !(name in $Symbol))defineProperty($Symbol, name, {value: wksExt.f(name)});
 };
-},{"./_core":54,"./_global":69,"./_library":89,"./_object-dp":98,"./_wks-ext":147}],147:[function(require,module,exports){
+},{"./_core":128,"./_global":143,"./_library":163,"./_object-dp":172,"./_wks-ext":221}],221:[function(require,module,exports){
 exports.f = require('./_wks');
-},{"./_wks":148}],148:[function(require,module,exports){
+},{"./_wks":222}],222:[function(require,module,exports){
 var store      = require('./_shared')('wks')
   , uid        = require('./_uid')
   , Symbol     = require('./_global').Symbol
@@ -23618,7 +28195,7 @@ var $exports = module.exports = function(name){
 };
 
 $exports.store = store;
-},{"./_global":69,"./_shared":125,"./_uid":145}],149:[function(require,module,exports){
+},{"./_global":143,"./_shared":199,"./_uid":219}],223:[function(require,module,exports){
 var classof   = require('./_classof')
   , ITERATOR  = require('./_wks')('iterator')
   , Iterators = require('./_iterators');
@@ -23627,21 +28204,21 @@ module.exports = require('./_core').getIteratorMethod = function(it){
     || it['@@iterator']
     || Iterators[classof(it)];
 };
-},{"./_classof":48,"./_core":54,"./_iterators":87,"./_wks":148}],150:[function(require,module,exports){
+},{"./_classof":122,"./_core":128,"./_iterators":161,"./_wks":222}],224:[function(require,module,exports){
 // https://github.com/benjamingr/RexExp.escape
 var $export = require('./_export')
   , $re     = require('./_replacer')(/[\\^$*+?.()|[\]{}]/g, '\\$&');
 
 $export($export.S, 'RegExp', {escape: function escape(it){ return $re(it); }});
 
-},{"./_export":63,"./_replacer":119}],151:[function(require,module,exports){
+},{"./_export":137,"./_replacer":193}],225:[function(require,module,exports){
 // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
 var $export = require('./_export');
 
 $export($export.P, 'Array', {copyWithin: require('./_array-copy-within')});
 
 require('./_add-to-unscopables')('copyWithin');
-},{"./_add-to-unscopables":36,"./_array-copy-within":39,"./_export":63}],152:[function(require,module,exports){
+},{"./_add-to-unscopables":110,"./_array-copy-within":113,"./_export":137}],226:[function(require,module,exports){
 'use strict';
 var $export = require('./_export')
   , $every  = require('./_array-methods')(4);
@@ -23652,14 +28229,14 @@ $export($export.P + $export.F * !require('./_strict-method')([].every, true), 'A
     return $every(this, callbackfn, arguments[1]);
   }
 });
-},{"./_array-methods":43,"./_export":63,"./_strict-method":127}],153:[function(require,module,exports){
+},{"./_array-methods":117,"./_export":137,"./_strict-method":201}],227:[function(require,module,exports){
 // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
 var $export = require('./_export');
 
 $export($export.P, 'Array', {fill: require('./_array-fill')});
 
 require('./_add-to-unscopables')('fill');
-},{"./_add-to-unscopables":36,"./_array-fill":40,"./_export":63}],154:[function(require,module,exports){
+},{"./_add-to-unscopables":110,"./_array-fill":114,"./_export":137}],228:[function(require,module,exports){
 'use strict';
 var $export = require('./_export')
   , $filter = require('./_array-methods')(2);
@@ -23670,7 +28247,7 @@ $export($export.P + $export.F * !require('./_strict-method')([].filter, true), '
     return $filter(this, callbackfn, arguments[1]);
   }
 });
-},{"./_array-methods":43,"./_export":63,"./_strict-method":127}],155:[function(require,module,exports){
+},{"./_array-methods":117,"./_export":137,"./_strict-method":201}],229:[function(require,module,exports){
 'use strict';
 // 22.1.3.9 Array.prototype.findIndex(predicate, thisArg = undefined)
 var $export = require('./_export')
@@ -23685,7 +28262,7 @@ $export($export.P + $export.F * forced, 'Array', {
   }
 });
 require('./_add-to-unscopables')(KEY);
-},{"./_add-to-unscopables":36,"./_array-methods":43,"./_export":63}],156:[function(require,module,exports){
+},{"./_add-to-unscopables":110,"./_array-methods":117,"./_export":137}],230:[function(require,module,exports){
 'use strict';
 // 22.1.3.8 Array.prototype.find(predicate, thisArg = undefined)
 var $export = require('./_export')
@@ -23700,7 +28277,7 @@ $export($export.P + $export.F * forced, 'Array', {
   }
 });
 require('./_add-to-unscopables')(KEY);
-},{"./_add-to-unscopables":36,"./_array-methods":43,"./_export":63}],157:[function(require,module,exports){
+},{"./_add-to-unscopables":110,"./_array-methods":117,"./_export":137}],231:[function(require,module,exports){
 'use strict';
 var $export  = require('./_export')
   , $forEach = require('./_array-methods')(0)
@@ -23712,7 +28289,7 @@ $export($export.P + $export.F * !STRICT, 'Array', {
     return $forEach(this, callbackfn, arguments[1]);
   }
 });
-},{"./_array-methods":43,"./_export":63,"./_strict-method":127}],158:[function(require,module,exports){
+},{"./_array-methods":117,"./_export":137,"./_strict-method":201}],232:[function(require,module,exports){
 'use strict';
 var ctx            = require('./_ctx')
   , $export        = require('./_export')
@@ -23751,7 +28328,7 @@ $export($export.S + $export.F * !require('./_iter-detect')(function(iter){ Array
   }
 });
 
-},{"./_create-property":55,"./_ctx":56,"./_export":63,"./_is-array-iter":77,"./_iter-call":82,"./_iter-detect":85,"./_to-length":139,"./_to-object":140,"./core.get-iterator-method":149}],159:[function(require,module,exports){
+},{"./_create-property":129,"./_ctx":130,"./_export":137,"./_is-array-iter":151,"./_iter-call":156,"./_iter-detect":159,"./_to-length":213,"./_to-object":214,"./core.get-iterator-method":223}],233:[function(require,module,exports){
 'use strict';
 var $export       = require('./_export')
   , $indexOf      = require('./_array-includes')(false)
@@ -23767,12 +28344,12 @@ $export($export.P + $export.F * (NEGATIVE_ZERO || !require('./_strict-method')($
       : $indexOf(this, searchElement, arguments[1]);
   }
 });
-},{"./_array-includes":42,"./_export":63,"./_strict-method":127}],160:[function(require,module,exports){
+},{"./_array-includes":116,"./_export":137,"./_strict-method":201}],234:[function(require,module,exports){
 // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
 var $export = require('./_export');
 
 $export($export.S, 'Array', {isArray: require('./_is-array')});
-},{"./_export":63,"./_is-array":78}],161:[function(require,module,exports){
+},{"./_export":137,"./_is-array":152}],235:[function(require,module,exports){
 'use strict';
 var addToUnscopables = require('./_add-to-unscopables')
   , step             = require('./_iter-step')
@@ -23807,7 +28384,7 @@ Iterators.Arguments = Iterators.Array;
 addToUnscopables('keys');
 addToUnscopables('values');
 addToUnscopables('entries');
-},{"./_add-to-unscopables":36,"./_iter-define":84,"./_iter-step":86,"./_iterators":87,"./_to-iobject":138}],162:[function(require,module,exports){
+},{"./_add-to-unscopables":110,"./_iter-define":158,"./_iter-step":160,"./_iterators":161,"./_to-iobject":212}],236:[function(require,module,exports){
 'use strict';
 // 22.1.3.13 Array.prototype.join(separator)
 var $export   = require('./_export')
@@ -23820,7 +28397,7 @@ $export($export.P + $export.F * (require('./_iobject') != Object || !require('./
     return arrayJoin.call(toIObject(this), separator === undefined ? ',' : separator);
   }
 });
-},{"./_export":63,"./_iobject":76,"./_strict-method":127,"./_to-iobject":138}],163:[function(require,module,exports){
+},{"./_export":137,"./_iobject":150,"./_strict-method":201,"./_to-iobject":212}],237:[function(require,module,exports){
 'use strict';
 var $export       = require('./_export')
   , toIObject     = require('./_to-iobject')
@@ -23843,7 +28420,7 @@ $export($export.P + $export.F * (NEGATIVE_ZERO || !require('./_strict-method')($
     return -1;
   }
 });
-},{"./_export":63,"./_strict-method":127,"./_to-integer":137,"./_to-iobject":138,"./_to-length":139}],164:[function(require,module,exports){
+},{"./_export":137,"./_strict-method":201,"./_to-integer":211,"./_to-iobject":212,"./_to-length":213}],238:[function(require,module,exports){
 'use strict';
 var $export = require('./_export')
   , $map    = require('./_array-methods')(1);
@@ -23854,7 +28431,7 @@ $export($export.P + $export.F * !require('./_strict-method')([].map, true), 'Arr
     return $map(this, callbackfn, arguments[1]);
   }
 });
-},{"./_array-methods":43,"./_export":63,"./_strict-method":127}],165:[function(require,module,exports){
+},{"./_array-methods":117,"./_export":137,"./_strict-method":201}],239:[function(require,module,exports){
 'use strict';
 var $export        = require('./_export')
   , createProperty = require('./_create-property');
@@ -23874,7 +28451,7 @@ $export($export.S + $export.F * require('./_fails')(function(){
     return result;
   }
 });
-},{"./_create-property":55,"./_export":63,"./_fails":65}],166:[function(require,module,exports){
+},{"./_create-property":129,"./_export":137,"./_fails":139}],240:[function(require,module,exports){
 'use strict';
 var $export = require('./_export')
   , $reduce = require('./_array-reduce');
@@ -23885,7 +28462,7 @@ $export($export.P + $export.F * !require('./_strict-method')([].reduceRight, tru
     return $reduce(this, callbackfn, arguments.length, arguments[1], true);
   }
 });
-},{"./_array-reduce":44,"./_export":63,"./_strict-method":127}],167:[function(require,module,exports){
+},{"./_array-reduce":118,"./_export":137,"./_strict-method":201}],241:[function(require,module,exports){
 'use strict';
 var $export = require('./_export')
   , $reduce = require('./_array-reduce');
@@ -23896,7 +28473,7 @@ $export($export.P + $export.F * !require('./_strict-method')([].reduce, true), '
     return $reduce(this, callbackfn, arguments.length, arguments[1], false);
   }
 });
-},{"./_array-reduce":44,"./_export":63,"./_strict-method":127}],168:[function(require,module,exports){
+},{"./_array-reduce":118,"./_export":137,"./_strict-method":201}],242:[function(require,module,exports){
 'use strict';
 var $export    = require('./_export')
   , html       = require('./_html')
@@ -23925,7 +28502,7 @@ $export($export.P + $export.F * require('./_fails')(function(){
     return cloned;
   }
 });
-},{"./_cof":49,"./_export":63,"./_fails":65,"./_html":72,"./_to-index":136,"./_to-length":139}],169:[function(require,module,exports){
+},{"./_cof":123,"./_export":137,"./_fails":139,"./_html":146,"./_to-index":210,"./_to-length":213}],243:[function(require,module,exports){
 'use strict';
 var $export = require('./_export')
   , $some   = require('./_array-methods')(3);
@@ -23936,7 +28513,7 @@ $export($export.P + $export.F * !require('./_strict-method')([].some, true), 'Ar
     return $some(this, callbackfn, arguments[1]);
   }
 });
-},{"./_array-methods":43,"./_export":63,"./_strict-method":127}],170:[function(require,module,exports){
+},{"./_array-methods":117,"./_export":137,"./_strict-method":201}],244:[function(require,module,exports){
 'use strict';
 var $export   = require('./_export')
   , aFunction = require('./_a-function')
@@ -23960,14 +28537,14 @@ $export($export.P + $export.F * (fails(function(){
       : $sort.call(toObject(this), aFunction(comparefn));
   }
 });
-},{"./_a-function":34,"./_export":63,"./_fails":65,"./_strict-method":127,"./_to-object":140}],171:[function(require,module,exports){
+},{"./_a-function":108,"./_export":137,"./_fails":139,"./_strict-method":201,"./_to-object":214}],245:[function(require,module,exports){
 require('./_set-species')('Array');
-},{"./_set-species":122}],172:[function(require,module,exports){
+},{"./_set-species":196}],246:[function(require,module,exports){
 // 20.3.3.1 / 15.9.4.4 Date.now()
 var $export = require('./_export');
 
 $export($export.S, 'Date', {now: function(){ return new Date().getTime(); }});
-},{"./_export":63}],173:[function(require,module,exports){
+},{"./_export":137}],247:[function(require,module,exports){
 'use strict';
 // 20.3.4.36 / 15.9.5.43 Date.prototype.toISOString()
 var $export = require('./_export')
@@ -23996,7 +28573,7 @@ $export($export.P + $export.F * (fails(function(){
       ':' + lz(d.getUTCSeconds()) + '.' + (m > 99 ? m : '0' + lz(m)) + 'Z';
   }
 });
-},{"./_export":63,"./_fails":65}],174:[function(require,module,exports){
+},{"./_export":137,"./_fails":139}],248:[function(require,module,exports){
 'use strict';
 var $export     = require('./_export')
   , toObject    = require('./_to-object')
@@ -24011,12 +28588,12 @@ $export($export.P + $export.F * require('./_fails')(function(){
     return typeof pv == 'number' && !isFinite(pv) ? null : O.toISOString();
   }
 });
-},{"./_export":63,"./_fails":65,"./_to-object":140,"./_to-primitive":141}],175:[function(require,module,exports){
+},{"./_export":137,"./_fails":139,"./_to-object":214,"./_to-primitive":215}],249:[function(require,module,exports){
 var TO_PRIMITIVE = require('./_wks')('toPrimitive')
   , proto        = Date.prototype;
 
 if(!(TO_PRIMITIVE in proto))require('./_hide')(proto, TO_PRIMITIVE, require('./_date-to-primitive'));
-},{"./_date-to-primitive":57,"./_hide":71,"./_wks":148}],176:[function(require,module,exports){
+},{"./_date-to-primitive":131,"./_hide":145,"./_wks":222}],250:[function(require,module,exports){
 var DateProto    = Date.prototype
   , INVALID_DATE = 'Invalid Date'
   , TO_STRING    = 'toString'
@@ -24028,12 +28605,12 @@ if(new Date(NaN) + '' != INVALID_DATE){
     return value === value ? $toString.call(this) : INVALID_DATE;
   });
 }
-},{"./_redefine":118}],177:[function(require,module,exports){
+},{"./_redefine":192}],251:[function(require,module,exports){
 // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg, args...)
 var $export = require('./_export');
 
 $export($export.P, 'Function', {bind: require('./_bind')});
-},{"./_bind":47,"./_export":63}],178:[function(require,module,exports){
+},{"./_bind":121,"./_export":137}],252:[function(require,module,exports){
 'use strict';
 var isObject       = require('./_is-object')
   , getPrototypeOf = require('./_object-gpo')
@@ -24047,7 +28624,7 @@ if(!(HAS_INSTANCE in FunctionProto))require('./_object-dp').f(FunctionProto, HAS
   while(O = getPrototypeOf(O))if(this.prototype === O)return true;
   return false;
 }});
-},{"./_is-object":80,"./_object-dp":98,"./_object-gpo":105,"./_wks":148}],179:[function(require,module,exports){
+},{"./_is-object":154,"./_object-dp":172,"./_object-gpo":179,"./_wks":222}],253:[function(require,module,exports){
 var dP         = require('./_object-dp').f
   , createDesc = require('./_property-desc')
   , has        = require('./_has')
@@ -24073,7 +28650,7 @@ NAME in FProto || require('./_descriptors') && dP(FProto, NAME, {
     }
   }
 });
-},{"./_descriptors":59,"./_has":70,"./_object-dp":98,"./_property-desc":116}],180:[function(require,module,exports){
+},{"./_descriptors":133,"./_has":144,"./_object-dp":172,"./_property-desc":190}],254:[function(require,module,exports){
 'use strict';
 var strong = require('./_collection-strong');
 
@@ -24091,7 +28668,7 @@ module.exports = require('./_collection')('Map', function(get){
     return strong.def(this, key === 0 ? 0 : key, value);
   }
 }, strong, true);
-},{"./_collection":53,"./_collection-strong":50}],181:[function(require,module,exports){
+},{"./_collection":127,"./_collection-strong":124}],255:[function(require,module,exports){
 // 20.2.2.3 Math.acosh(x)
 var $export = require('./_export')
   , log1p   = require('./_math-log1p')
@@ -24110,7 +28687,7 @@ $export($export.S + $export.F * !($acosh
       : log1p(x - 1 + sqrt(x - 1) * sqrt(x + 1));
   }
 });
-},{"./_export":63,"./_math-log1p":91}],182:[function(require,module,exports){
+},{"./_export":137,"./_math-log1p":165}],256:[function(require,module,exports){
 // 20.2.2.5 Math.asinh(x)
 var $export = require('./_export')
   , $asinh  = Math.asinh;
@@ -24121,7 +28698,7 @@ function asinh(x){
 
 // Tor Browser bug: Math.asinh(0) -> -0 
 $export($export.S + $export.F * !($asinh && 1 / $asinh(0) > 0), 'Math', {asinh: asinh});
-},{"./_export":63}],183:[function(require,module,exports){
+},{"./_export":137}],257:[function(require,module,exports){
 // 20.2.2.7 Math.atanh(x)
 var $export = require('./_export')
   , $atanh  = Math.atanh;
@@ -24132,7 +28709,7 @@ $export($export.S + $export.F * !($atanh && 1 / $atanh(-0) < 0), 'Math', {
     return (x = +x) == 0 ? x : Math.log((1 + x) / (1 - x)) / 2;
   }
 });
-},{"./_export":63}],184:[function(require,module,exports){
+},{"./_export":137}],258:[function(require,module,exports){
 // 20.2.2.9 Math.cbrt(x)
 var $export = require('./_export')
   , sign    = require('./_math-sign');
@@ -24142,7 +28719,7 @@ $export($export.S, 'Math', {
     return sign(x = +x) * Math.pow(Math.abs(x), 1 / 3);
   }
 });
-},{"./_export":63,"./_math-sign":92}],185:[function(require,module,exports){
+},{"./_export":137,"./_math-sign":166}],259:[function(require,module,exports){
 // 20.2.2.11 Math.clz32(x)
 var $export = require('./_export');
 
@@ -24151,7 +28728,7 @@ $export($export.S, 'Math', {
     return (x >>>= 0) ? 31 - Math.floor(Math.log(x + 0.5) * Math.LOG2E) : 32;
   }
 });
-},{"./_export":63}],186:[function(require,module,exports){
+},{"./_export":137}],260:[function(require,module,exports){
 // 20.2.2.12 Math.cosh(x)
 var $export = require('./_export')
   , exp     = Math.exp;
@@ -24161,13 +28738,13 @@ $export($export.S, 'Math', {
     return (exp(x = +x) + exp(-x)) / 2;
   }
 });
-},{"./_export":63}],187:[function(require,module,exports){
+},{"./_export":137}],261:[function(require,module,exports){
 // 20.2.2.14 Math.expm1(x)
 var $export = require('./_export')
   , $expm1  = require('./_math-expm1');
 
 $export($export.S + $export.F * ($expm1 != Math.expm1), 'Math', {expm1: $expm1});
-},{"./_export":63,"./_math-expm1":90}],188:[function(require,module,exports){
+},{"./_export":137,"./_math-expm1":164}],262:[function(require,module,exports){
 // 20.2.2.16 Math.fround(x)
 var $export   = require('./_export')
   , sign      = require('./_math-sign')
@@ -24194,7 +28771,7 @@ $export($export.S, 'Math', {
     return $sign * result;
   }
 });
-},{"./_export":63,"./_math-sign":92}],189:[function(require,module,exports){
+},{"./_export":137,"./_math-sign":166}],263:[function(require,module,exports){
 // 20.2.2.17 Math.hypot([value1[, value2[, … ]]])
 var $export = require('./_export')
   , abs     = Math.abs;
@@ -24220,7 +28797,7 @@ $export($export.S, 'Math', {
     return larg === Infinity ? Infinity : larg * Math.sqrt(sum);
   }
 });
-},{"./_export":63}],190:[function(require,module,exports){
+},{"./_export":137}],264:[function(require,module,exports){
 // 20.2.2.18 Math.imul(x, y)
 var $export = require('./_export')
   , $imul   = Math.imul;
@@ -24238,7 +28815,7 @@ $export($export.S + $export.F * require('./_fails')(function(){
     return 0 | xl * yl + ((UINT16 & xn >>> 16) * yl + xl * (UINT16 & yn >>> 16) << 16 >>> 0);
   }
 });
-},{"./_export":63,"./_fails":65}],191:[function(require,module,exports){
+},{"./_export":137,"./_fails":139}],265:[function(require,module,exports){
 // 20.2.2.21 Math.log10(x)
 var $export = require('./_export');
 
@@ -24247,12 +28824,12 @@ $export($export.S, 'Math', {
     return Math.log(x) / Math.LN10;
   }
 });
-},{"./_export":63}],192:[function(require,module,exports){
+},{"./_export":137}],266:[function(require,module,exports){
 // 20.2.2.20 Math.log1p(x)
 var $export = require('./_export');
 
 $export($export.S, 'Math', {log1p: require('./_math-log1p')});
-},{"./_export":63,"./_math-log1p":91}],193:[function(require,module,exports){
+},{"./_export":137,"./_math-log1p":165}],267:[function(require,module,exports){
 // 20.2.2.22 Math.log2(x)
 var $export = require('./_export');
 
@@ -24261,12 +28838,12 @@ $export($export.S, 'Math', {
     return Math.log(x) / Math.LN2;
   }
 });
-},{"./_export":63}],194:[function(require,module,exports){
+},{"./_export":137}],268:[function(require,module,exports){
 // 20.2.2.28 Math.sign(x)
 var $export = require('./_export');
 
 $export($export.S, 'Math', {sign: require('./_math-sign')});
-},{"./_export":63,"./_math-sign":92}],195:[function(require,module,exports){
+},{"./_export":137,"./_math-sign":166}],269:[function(require,module,exports){
 // 20.2.2.30 Math.sinh(x)
 var $export = require('./_export')
   , expm1   = require('./_math-expm1')
@@ -24282,7 +28859,7 @@ $export($export.S + $export.F * require('./_fails')(function(){
       : (exp(x - 1) - exp(-x - 1)) * (Math.E / 2);
   }
 });
-},{"./_export":63,"./_fails":65,"./_math-expm1":90}],196:[function(require,module,exports){
+},{"./_export":137,"./_fails":139,"./_math-expm1":164}],270:[function(require,module,exports){
 // 20.2.2.33 Math.tanh(x)
 var $export = require('./_export')
   , expm1   = require('./_math-expm1')
@@ -24295,7 +28872,7 @@ $export($export.S, 'Math', {
     return a == Infinity ? 1 : b == Infinity ? -1 : (a - b) / (exp(x) + exp(-x));
   }
 });
-},{"./_export":63,"./_math-expm1":90}],197:[function(require,module,exports){
+},{"./_export":137,"./_math-expm1":164}],271:[function(require,module,exports){
 // 20.2.2.34 Math.trunc(x)
 var $export = require('./_export');
 
@@ -24304,7 +28881,7 @@ $export($export.S, 'Math', {
     return (it > 0 ? Math.floor : Math.ceil)(it);
   }
 });
-},{"./_export":63}],198:[function(require,module,exports){
+},{"./_export":137}],272:[function(require,module,exports){
 'use strict';
 var global            = require('./_global')
   , has               = require('./_has')
@@ -24374,12 +28951,12 @@ if(!$Number(' 0o1') || !$Number('0b1') || $Number('+0x1')){
   proto.constructor = $Number;
   require('./_redefine')(global, NUMBER, $Number);
 }
-},{"./_cof":49,"./_descriptors":59,"./_fails":65,"./_global":69,"./_has":70,"./_inherit-if-required":74,"./_object-create":97,"./_object-dp":98,"./_object-gopd":101,"./_object-gopn":103,"./_redefine":118,"./_string-trim":133,"./_to-primitive":141}],199:[function(require,module,exports){
+},{"./_cof":123,"./_descriptors":133,"./_fails":139,"./_global":143,"./_has":144,"./_inherit-if-required":148,"./_object-create":171,"./_object-dp":172,"./_object-gopd":175,"./_object-gopn":177,"./_redefine":192,"./_string-trim":207,"./_to-primitive":215}],273:[function(require,module,exports){
 // 20.1.2.1 Number.EPSILON
 var $export = require('./_export');
 
 $export($export.S, 'Number', {EPSILON: Math.pow(2, -52)});
-},{"./_export":63}],200:[function(require,module,exports){
+},{"./_export":137}],274:[function(require,module,exports){
 // 20.1.2.2 Number.isFinite(number)
 var $export   = require('./_export')
   , _isFinite = require('./_global').isFinite;
@@ -24389,12 +28966,12 @@ $export($export.S, 'Number', {
     return typeof it == 'number' && _isFinite(it);
   }
 });
-},{"./_export":63,"./_global":69}],201:[function(require,module,exports){
+},{"./_export":137,"./_global":143}],275:[function(require,module,exports){
 // 20.1.2.3 Number.isInteger(number)
 var $export = require('./_export');
 
 $export($export.S, 'Number', {isInteger: require('./_is-integer')});
-},{"./_export":63,"./_is-integer":79}],202:[function(require,module,exports){
+},{"./_export":137,"./_is-integer":153}],276:[function(require,module,exports){
 // 20.1.2.4 Number.isNaN(number)
 var $export = require('./_export');
 
@@ -24403,7 +28980,7 @@ $export($export.S, 'Number', {
     return number != number;
   }
 });
-},{"./_export":63}],203:[function(require,module,exports){
+},{"./_export":137}],277:[function(require,module,exports){
 // 20.1.2.5 Number.isSafeInteger(number)
 var $export   = require('./_export')
   , isInteger = require('./_is-integer')
@@ -24414,27 +28991,27 @@ $export($export.S, 'Number', {
     return isInteger(number) && abs(number) <= 0x1fffffffffffff;
   }
 });
-},{"./_export":63,"./_is-integer":79}],204:[function(require,module,exports){
+},{"./_export":137,"./_is-integer":153}],278:[function(require,module,exports){
 // 20.1.2.6 Number.MAX_SAFE_INTEGER
 var $export = require('./_export');
 
 $export($export.S, 'Number', {MAX_SAFE_INTEGER: 0x1fffffffffffff});
-},{"./_export":63}],205:[function(require,module,exports){
+},{"./_export":137}],279:[function(require,module,exports){
 // 20.1.2.10 Number.MIN_SAFE_INTEGER
 var $export = require('./_export');
 
 $export($export.S, 'Number', {MIN_SAFE_INTEGER: -0x1fffffffffffff});
-},{"./_export":63}],206:[function(require,module,exports){
+},{"./_export":137}],280:[function(require,module,exports){
 var $export     = require('./_export')
   , $parseFloat = require('./_parse-float');
 // 20.1.2.12 Number.parseFloat(string)
 $export($export.S + $export.F * (Number.parseFloat != $parseFloat), 'Number', {parseFloat: $parseFloat});
-},{"./_export":63,"./_parse-float":112}],207:[function(require,module,exports){
+},{"./_export":137,"./_parse-float":186}],281:[function(require,module,exports){
 var $export   = require('./_export')
   , $parseInt = require('./_parse-int');
 // 20.1.2.13 Number.parseInt(string, radix)
 $export($export.S + $export.F * (Number.parseInt != $parseInt), 'Number', {parseInt: $parseInt});
-},{"./_export":63,"./_parse-int":113}],208:[function(require,module,exports){
+},{"./_export":137,"./_parse-int":187}],282:[function(require,module,exports){
 'use strict';
 var $export      = require('./_export')
   , toInteger    = require('./_to-integer')
@@ -24548,7 +29125,7 @@ $export($export.P + $export.F * (!!$toFixed && (
     } return m;
   }
 });
-},{"./_a-number-value":35,"./_export":63,"./_fails":65,"./_string-repeat":132,"./_to-integer":137}],209:[function(require,module,exports){
+},{"./_a-number-value":109,"./_export":137,"./_fails":139,"./_string-repeat":206,"./_to-integer":211}],283:[function(require,module,exports){
 'use strict';
 var $export      = require('./_export')
   , $fails       = require('./_fails')
@@ -24567,24 +29144,24 @@ $export($export.P + $export.F * ($fails(function(){
     return precision === undefined ? $toPrecision.call(that) : $toPrecision.call(that, precision); 
   }
 });
-},{"./_a-number-value":35,"./_export":63,"./_fails":65}],210:[function(require,module,exports){
+},{"./_a-number-value":109,"./_export":137,"./_fails":139}],284:[function(require,module,exports){
 // 19.1.3.1 Object.assign(target, source)
 var $export = require('./_export');
 
 $export($export.S + $export.F, 'Object', {assign: require('./_object-assign')});
-},{"./_export":63,"./_object-assign":96}],211:[function(require,module,exports){
+},{"./_export":137,"./_object-assign":170}],285:[function(require,module,exports){
 var $export = require('./_export')
 // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
 $export($export.S, 'Object', {create: require('./_object-create')});
-},{"./_export":63,"./_object-create":97}],212:[function(require,module,exports){
+},{"./_export":137,"./_object-create":171}],286:[function(require,module,exports){
 var $export = require('./_export');
 // 19.1.2.3 / 15.2.3.7 Object.defineProperties(O, Properties)
 $export($export.S + $export.F * !require('./_descriptors'), 'Object', {defineProperties: require('./_object-dps')});
-},{"./_descriptors":59,"./_export":63,"./_object-dps":99}],213:[function(require,module,exports){
+},{"./_descriptors":133,"./_export":137,"./_object-dps":173}],287:[function(require,module,exports){
 var $export = require('./_export');
 // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
 $export($export.S + $export.F * !require('./_descriptors'), 'Object', {defineProperty: require('./_object-dp').f});
-},{"./_descriptors":59,"./_export":63,"./_object-dp":98}],214:[function(require,module,exports){
+},{"./_descriptors":133,"./_export":137,"./_object-dp":172}],288:[function(require,module,exports){
 // 19.1.2.5 Object.freeze(O)
 var isObject = require('./_is-object')
   , meta     = require('./_meta').onFreeze;
@@ -24594,7 +29171,7 @@ require('./_object-sap')('freeze', function($freeze){
     return $freeze && isObject(it) ? $freeze(meta(it)) : it;
   };
 });
-},{"./_is-object":80,"./_meta":93,"./_object-sap":109}],215:[function(require,module,exports){
+},{"./_is-object":154,"./_meta":167,"./_object-sap":183}],289:[function(require,module,exports){
 // 19.1.2.6 Object.getOwnPropertyDescriptor(O, P)
 var toIObject                 = require('./_to-iobject')
   , $getOwnPropertyDescriptor = require('./_object-gopd').f;
@@ -24604,12 +29181,12 @@ require('./_object-sap')('getOwnPropertyDescriptor', function(){
     return $getOwnPropertyDescriptor(toIObject(it), key);
   };
 });
-},{"./_object-gopd":101,"./_object-sap":109,"./_to-iobject":138}],216:[function(require,module,exports){
+},{"./_object-gopd":175,"./_object-sap":183,"./_to-iobject":212}],290:[function(require,module,exports){
 // 19.1.2.7 Object.getOwnPropertyNames(O)
 require('./_object-sap')('getOwnPropertyNames', function(){
   return require('./_object-gopn-ext').f;
 });
-},{"./_object-gopn-ext":102,"./_object-sap":109}],217:[function(require,module,exports){
+},{"./_object-gopn-ext":176,"./_object-sap":183}],291:[function(require,module,exports){
 // 19.1.2.9 Object.getPrototypeOf(O)
 var toObject        = require('./_to-object')
   , $getPrototypeOf = require('./_object-gpo');
@@ -24619,7 +29196,7 @@ require('./_object-sap')('getPrototypeOf', function(){
     return $getPrototypeOf(toObject(it));
   };
 });
-},{"./_object-gpo":105,"./_object-sap":109,"./_to-object":140}],218:[function(require,module,exports){
+},{"./_object-gpo":179,"./_object-sap":183,"./_to-object":214}],292:[function(require,module,exports){
 // 19.1.2.11 Object.isExtensible(O)
 var isObject = require('./_is-object');
 
@@ -24628,7 +29205,7 @@ require('./_object-sap')('isExtensible', function($isExtensible){
     return isObject(it) ? $isExtensible ? $isExtensible(it) : true : false;
   };
 });
-},{"./_is-object":80,"./_object-sap":109}],219:[function(require,module,exports){
+},{"./_is-object":154,"./_object-sap":183}],293:[function(require,module,exports){
 // 19.1.2.12 Object.isFrozen(O)
 var isObject = require('./_is-object');
 
@@ -24637,7 +29214,7 @@ require('./_object-sap')('isFrozen', function($isFrozen){
     return isObject(it) ? $isFrozen ? $isFrozen(it) : false : true;
   };
 });
-},{"./_is-object":80,"./_object-sap":109}],220:[function(require,module,exports){
+},{"./_is-object":154,"./_object-sap":183}],294:[function(require,module,exports){
 // 19.1.2.13 Object.isSealed(O)
 var isObject = require('./_is-object');
 
@@ -24646,11 +29223,11 @@ require('./_object-sap')('isSealed', function($isSealed){
     return isObject(it) ? $isSealed ? $isSealed(it) : false : true;
   };
 });
-},{"./_is-object":80,"./_object-sap":109}],221:[function(require,module,exports){
+},{"./_is-object":154,"./_object-sap":183}],295:[function(require,module,exports){
 // 19.1.3.10 Object.is(value1, value2)
 var $export = require('./_export');
 $export($export.S, 'Object', {is: require('./_same-value')});
-},{"./_export":63,"./_same-value":120}],222:[function(require,module,exports){
+},{"./_export":137,"./_same-value":194}],296:[function(require,module,exports){
 // 19.1.2.14 Object.keys(O)
 var toObject = require('./_to-object')
   , $keys    = require('./_object-keys');
@@ -24660,7 +29237,7 @@ require('./_object-sap')('keys', function(){
     return $keys(toObject(it));
   };
 });
-},{"./_object-keys":107,"./_object-sap":109,"./_to-object":140}],223:[function(require,module,exports){
+},{"./_object-keys":181,"./_object-sap":183,"./_to-object":214}],297:[function(require,module,exports){
 // 19.1.2.15 Object.preventExtensions(O)
 var isObject = require('./_is-object')
   , meta     = require('./_meta').onFreeze;
@@ -24670,7 +29247,7 @@ require('./_object-sap')('preventExtensions', function($preventExtensions){
     return $preventExtensions && isObject(it) ? $preventExtensions(meta(it)) : it;
   };
 });
-},{"./_is-object":80,"./_meta":93,"./_object-sap":109}],224:[function(require,module,exports){
+},{"./_is-object":154,"./_meta":167,"./_object-sap":183}],298:[function(require,module,exports){
 // 19.1.2.17 Object.seal(O)
 var isObject = require('./_is-object')
   , meta     = require('./_meta').onFreeze;
@@ -24680,11 +29257,11 @@ require('./_object-sap')('seal', function($seal){
     return $seal && isObject(it) ? $seal(meta(it)) : it;
   };
 });
-},{"./_is-object":80,"./_meta":93,"./_object-sap":109}],225:[function(require,module,exports){
+},{"./_is-object":154,"./_meta":167,"./_object-sap":183}],299:[function(require,module,exports){
 // 19.1.3.19 Object.setPrototypeOf(O, proto)
 var $export = require('./_export');
 $export($export.S, 'Object', {setPrototypeOf: require('./_set-proto').set});
-},{"./_export":63,"./_set-proto":121}],226:[function(require,module,exports){
+},{"./_export":137,"./_set-proto":195}],300:[function(require,module,exports){
 'use strict';
 // 19.1.3.6 Object.prototype.toString()
 var classof = require('./_classof')
@@ -24695,17 +29272,17 @@ if(test + '' != '[object z]'){
     return '[object ' + classof(this) + ']';
   }, true);
 }
-},{"./_classof":48,"./_redefine":118,"./_wks":148}],227:[function(require,module,exports){
+},{"./_classof":122,"./_redefine":192,"./_wks":222}],301:[function(require,module,exports){
 var $export     = require('./_export')
   , $parseFloat = require('./_parse-float');
 // 18.2.4 parseFloat(string)
 $export($export.G + $export.F * (parseFloat != $parseFloat), {parseFloat: $parseFloat});
-},{"./_export":63,"./_parse-float":112}],228:[function(require,module,exports){
+},{"./_export":137,"./_parse-float":186}],302:[function(require,module,exports){
 var $export   = require('./_export')
   , $parseInt = require('./_parse-int');
 // 18.2.5 parseInt(string, radix)
 $export($export.G + $export.F * (parseInt != $parseInt), {parseInt: $parseInt});
-},{"./_export":63,"./_parse-int":113}],229:[function(require,module,exports){
+},{"./_export":137,"./_parse-int":187}],303:[function(require,module,exports){
 'use strict';
 var LIBRARY            = require('./_library')
   , global             = require('./_global')
@@ -25005,7 +29582,7 @@ $export($export.S + $export.F * !(USE_NATIVE && require('./_iter-detect')(functi
     return capability.promise;
   }
 });
-},{"./_a-function":34,"./_an-instance":37,"./_classof":48,"./_core":54,"./_ctx":56,"./_export":63,"./_for-of":68,"./_global":69,"./_is-object":80,"./_iter-detect":85,"./_library":89,"./_microtask":95,"./_redefine-all":117,"./_set-species":122,"./_set-to-string-tag":123,"./_species-constructor":126,"./_task":135,"./_wks":148}],230:[function(require,module,exports){
+},{"./_a-function":108,"./_an-instance":111,"./_classof":122,"./_core":128,"./_ctx":130,"./_export":137,"./_for-of":142,"./_global":143,"./_is-object":154,"./_iter-detect":159,"./_library":163,"./_microtask":169,"./_redefine-all":191,"./_set-species":196,"./_set-to-string-tag":197,"./_species-constructor":200,"./_task":209,"./_wks":222}],304:[function(require,module,exports){
 // 26.1.1 Reflect.apply(target, thisArgument, argumentsList)
 var $export   = require('./_export')
   , aFunction = require('./_a-function')
@@ -25022,7 +29599,7 @@ $export($export.S + $export.F * !require('./_fails')(function(){
     return rApply ? rApply(T, thisArgument, L) : fApply.call(T, thisArgument, L);
   }
 });
-},{"./_a-function":34,"./_an-object":38,"./_export":63,"./_fails":65,"./_global":69}],231:[function(require,module,exports){
+},{"./_a-function":108,"./_an-object":112,"./_export":137,"./_fails":139,"./_global":143}],305:[function(require,module,exports){
 // 26.1.2 Reflect.construct(target, argumentsList [, newTarget])
 var $export    = require('./_export')
   , create     = require('./_object-create')
@@ -25070,7 +29647,7 @@ $export($export.S + $export.F * (NEW_TARGET_BUG || ARGS_BUG), 'Reflect', {
     return isObject(result) ? result : instance;
   }
 });
-},{"./_a-function":34,"./_an-object":38,"./_bind":47,"./_export":63,"./_fails":65,"./_global":69,"./_is-object":80,"./_object-create":97}],232:[function(require,module,exports){
+},{"./_a-function":108,"./_an-object":112,"./_bind":121,"./_export":137,"./_fails":139,"./_global":143,"./_is-object":154,"./_object-create":171}],306:[function(require,module,exports){
 // 26.1.3 Reflect.defineProperty(target, propertyKey, attributes)
 var dP          = require('./_object-dp')
   , $export     = require('./_export')
@@ -25093,7 +29670,7 @@ $export($export.S + $export.F * require('./_fails')(function(){
     }
   }
 });
-},{"./_an-object":38,"./_export":63,"./_fails":65,"./_object-dp":98,"./_to-primitive":141}],233:[function(require,module,exports){
+},{"./_an-object":112,"./_export":137,"./_fails":139,"./_object-dp":172,"./_to-primitive":215}],307:[function(require,module,exports){
 // 26.1.4 Reflect.deleteProperty(target, propertyKey)
 var $export  = require('./_export')
   , gOPD     = require('./_object-gopd').f
@@ -25105,7 +29682,7 @@ $export($export.S, 'Reflect', {
     return desc && !desc.configurable ? false : delete target[propertyKey];
   }
 });
-},{"./_an-object":38,"./_export":63,"./_object-gopd":101}],234:[function(require,module,exports){
+},{"./_an-object":112,"./_export":137,"./_object-gopd":175}],308:[function(require,module,exports){
 'use strict';
 // 26.1.5 Reflect.enumerate(target)
 var $export  = require('./_export')
@@ -25132,7 +29709,7 @@ $export($export.S, 'Reflect', {
     return new Enumerate(target);
   }
 });
-},{"./_an-object":38,"./_export":63,"./_iter-create":83}],235:[function(require,module,exports){
+},{"./_an-object":112,"./_export":137,"./_iter-create":157}],309:[function(require,module,exports){
 // 26.1.7 Reflect.getOwnPropertyDescriptor(target, propertyKey)
 var gOPD     = require('./_object-gopd')
   , $export  = require('./_export')
@@ -25143,7 +29720,7 @@ $export($export.S, 'Reflect', {
     return gOPD.f(anObject(target), propertyKey);
   }
 });
-},{"./_an-object":38,"./_export":63,"./_object-gopd":101}],236:[function(require,module,exports){
+},{"./_an-object":112,"./_export":137,"./_object-gopd":175}],310:[function(require,module,exports){
 // 26.1.8 Reflect.getPrototypeOf(target)
 var $export  = require('./_export')
   , getProto = require('./_object-gpo')
@@ -25154,7 +29731,7 @@ $export($export.S, 'Reflect', {
     return getProto(anObject(target));
   }
 });
-},{"./_an-object":38,"./_export":63,"./_object-gpo":105}],237:[function(require,module,exports){
+},{"./_an-object":112,"./_export":137,"./_object-gpo":179}],311:[function(require,module,exports){
 // 26.1.6 Reflect.get(target, propertyKey [, receiver])
 var gOPD           = require('./_object-gopd')
   , getPrototypeOf = require('./_object-gpo')
@@ -25176,7 +29753,7 @@ function get(target, propertyKey/*, receiver*/){
 }
 
 $export($export.S, 'Reflect', {get: get});
-},{"./_an-object":38,"./_export":63,"./_has":70,"./_is-object":80,"./_object-gopd":101,"./_object-gpo":105}],238:[function(require,module,exports){
+},{"./_an-object":112,"./_export":137,"./_has":144,"./_is-object":154,"./_object-gopd":175,"./_object-gpo":179}],312:[function(require,module,exports){
 // 26.1.9 Reflect.has(target, propertyKey)
 var $export = require('./_export');
 
@@ -25185,7 +29762,7 @@ $export($export.S, 'Reflect', {
     return propertyKey in target;
   }
 });
-},{"./_export":63}],239:[function(require,module,exports){
+},{"./_export":137}],313:[function(require,module,exports){
 // 26.1.10 Reflect.isExtensible(target)
 var $export       = require('./_export')
   , anObject      = require('./_an-object')
@@ -25197,12 +29774,12 @@ $export($export.S, 'Reflect', {
     return $isExtensible ? $isExtensible(target) : true;
   }
 });
-},{"./_an-object":38,"./_export":63}],240:[function(require,module,exports){
+},{"./_an-object":112,"./_export":137}],314:[function(require,module,exports){
 // 26.1.11 Reflect.ownKeys(target)
 var $export = require('./_export');
 
 $export($export.S, 'Reflect', {ownKeys: require('./_own-keys')});
-},{"./_export":63,"./_own-keys":111}],241:[function(require,module,exports){
+},{"./_export":137,"./_own-keys":185}],315:[function(require,module,exports){
 // 26.1.12 Reflect.preventExtensions(target)
 var $export            = require('./_export')
   , anObject           = require('./_an-object')
@@ -25219,7 +29796,7 @@ $export($export.S, 'Reflect', {
     }
   }
 });
-},{"./_an-object":38,"./_export":63}],242:[function(require,module,exports){
+},{"./_an-object":112,"./_export":137}],316:[function(require,module,exports){
 // 26.1.14 Reflect.setPrototypeOf(target, proto)
 var $export  = require('./_export')
   , setProto = require('./_set-proto');
@@ -25235,7 +29812,7 @@ if(setProto)$export($export.S, 'Reflect', {
     }
   }
 });
-},{"./_export":63,"./_set-proto":121}],243:[function(require,module,exports){
+},{"./_export":137,"./_set-proto":195}],317:[function(require,module,exports){
 // 26.1.13 Reflect.set(target, propertyKey, V [, receiver])
 var dP             = require('./_object-dp')
   , gOPD           = require('./_object-gopd')
@@ -25267,7 +29844,7 @@ function set(target, propertyKey, V/*, receiver*/){
 }
 
 $export($export.S, 'Reflect', {set: set});
-},{"./_an-object":38,"./_export":63,"./_has":70,"./_is-object":80,"./_object-dp":98,"./_object-gopd":101,"./_object-gpo":105,"./_property-desc":116}],244:[function(require,module,exports){
+},{"./_an-object":112,"./_export":137,"./_has":144,"./_is-object":154,"./_object-dp":172,"./_object-gopd":175,"./_object-gpo":179,"./_property-desc":190}],318:[function(require,module,exports){
 var global            = require('./_global')
   , inheritIfRequired = require('./_inherit-if-required')
   , dP                = require('./_object-dp').f
@@ -25311,13 +29888,13 @@ if(require('./_descriptors') && (!CORRECT_NEW || require('./_fails')(function(){
 }
 
 require('./_set-species')('RegExp');
-},{"./_descriptors":59,"./_fails":65,"./_flags":67,"./_global":69,"./_inherit-if-required":74,"./_is-regexp":81,"./_object-dp":98,"./_object-gopn":103,"./_redefine":118,"./_set-species":122,"./_wks":148}],245:[function(require,module,exports){
+},{"./_descriptors":133,"./_fails":139,"./_flags":141,"./_global":143,"./_inherit-if-required":148,"./_is-regexp":155,"./_object-dp":172,"./_object-gopn":177,"./_redefine":192,"./_set-species":196,"./_wks":222}],319:[function(require,module,exports){
 // 21.2.5.3 get RegExp.prototype.flags()
 if(require('./_descriptors') && /./g.flags != 'g')require('./_object-dp').f(RegExp.prototype, 'flags', {
   configurable: true,
   get: require('./_flags')
 });
-},{"./_descriptors":59,"./_flags":67,"./_object-dp":98}],246:[function(require,module,exports){
+},{"./_descriptors":133,"./_flags":141,"./_object-dp":172}],320:[function(require,module,exports){
 // @@match logic
 require('./_fix-re-wks')('match', 1, function(defined, MATCH, $match){
   // 21.1.3.11 String.prototype.match(regexp)
@@ -25328,7 +29905,7 @@ require('./_fix-re-wks')('match', 1, function(defined, MATCH, $match){
     return fn !== undefined ? fn.call(regexp, O) : new RegExp(regexp)[MATCH](String(O));
   }, $match];
 });
-},{"./_fix-re-wks":66}],247:[function(require,module,exports){
+},{"./_fix-re-wks":140}],321:[function(require,module,exports){
 // @@replace logic
 require('./_fix-re-wks')('replace', 2, function(defined, REPLACE, $replace){
   // 21.1.3.14 String.prototype.replace(searchValue, replaceValue)
@@ -25341,7 +29918,7 @@ require('./_fix-re-wks')('replace', 2, function(defined, REPLACE, $replace){
       : $replace.call(String(O), searchValue, replaceValue);
   }, $replace];
 });
-},{"./_fix-re-wks":66}],248:[function(require,module,exports){
+},{"./_fix-re-wks":140}],322:[function(require,module,exports){
 // @@search logic
 require('./_fix-re-wks')('search', 1, function(defined, SEARCH, $search){
   // 21.1.3.15 String.prototype.search(regexp)
@@ -25352,7 +29929,7 @@ require('./_fix-re-wks')('search', 1, function(defined, SEARCH, $search){
     return fn !== undefined ? fn.call(regexp, O) : new RegExp(regexp)[SEARCH](String(O));
   }, $search];
 });
-},{"./_fix-re-wks":66}],249:[function(require,module,exports){
+},{"./_fix-re-wks":140}],323:[function(require,module,exports){
 // @@split logic
 require('./_fix-re-wks')('split', 2, function(defined, SPLIT, $split){
   'use strict';
@@ -25423,7 +30000,7 @@ require('./_fix-re-wks')('split', 2, function(defined, SPLIT, $split){
     return fn !== undefined ? fn.call(separator, O, limit) : $split.call(String(O), separator, limit);
   }, $split];
 });
-},{"./_fix-re-wks":66,"./_is-regexp":81}],250:[function(require,module,exports){
+},{"./_fix-re-wks":140,"./_is-regexp":155}],324:[function(require,module,exports){
 'use strict';
 require('./es6.regexp.flags');
 var anObject    = require('./_an-object')
@@ -25449,7 +30026,7 @@ if(require('./_fails')(function(){ return $toString.call({source: 'a', flags: 'b
     return $toString.call(this);
   });
 }
-},{"./_an-object":38,"./_descriptors":59,"./_fails":65,"./_flags":67,"./_redefine":118,"./es6.regexp.flags":245}],251:[function(require,module,exports){
+},{"./_an-object":112,"./_descriptors":133,"./_fails":139,"./_flags":141,"./_redefine":192,"./es6.regexp.flags":319}],325:[function(require,module,exports){
 'use strict';
 var strong = require('./_collection-strong');
 
@@ -25462,7 +30039,7 @@ module.exports = require('./_collection')('Set', function(get){
     return strong.def(this, value = value === 0 ? 0 : value, value);
   }
 }, strong);
-},{"./_collection":53,"./_collection-strong":50}],252:[function(require,module,exports){
+},{"./_collection":127,"./_collection-strong":124}],326:[function(require,module,exports){
 'use strict';
 // B.2.3.2 String.prototype.anchor(name)
 require('./_string-html')('anchor', function(createHTML){
@@ -25470,7 +30047,7 @@ require('./_string-html')('anchor', function(createHTML){
     return createHTML(this, 'a', 'name', name);
   }
 });
-},{"./_string-html":130}],253:[function(require,module,exports){
+},{"./_string-html":204}],327:[function(require,module,exports){
 'use strict';
 // B.2.3.3 String.prototype.big()
 require('./_string-html')('big', function(createHTML){
@@ -25478,7 +30055,7 @@ require('./_string-html')('big', function(createHTML){
     return createHTML(this, 'big', '', '');
   }
 });
-},{"./_string-html":130}],254:[function(require,module,exports){
+},{"./_string-html":204}],328:[function(require,module,exports){
 'use strict';
 // B.2.3.4 String.prototype.blink()
 require('./_string-html')('blink', function(createHTML){
@@ -25486,7 +30063,7 @@ require('./_string-html')('blink', function(createHTML){
     return createHTML(this, 'blink', '', '');
   }
 });
-},{"./_string-html":130}],255:[function(require,module,exports){
+},{"./_string-html":204}],329:[function(require,module,exports){
 'use strict';
 // B.2.3.5 String.prototype.bold()
 require('./_string-html')('bold', function(createHTML){
@@ -25494,7 +30071,7 @@ require('./_string-html')('bold', function(createHTML){
     return createHTML(this, 'b', '', '');
   }
 });
-},{"./_string-html":130}],256:[function(require,module,exports){
+},{"./_string-html":204}],330:[function(require,module,exports){
 'use strict';
 var $export = require('./_export')
   , $at     = require('./_string-at')(false);
@@ -25504,7 +30081,7 @@ $export($export.P, 'String', {
     return $at(this, pos);
   }
 });
-},{"./_export":63,"./_string-at":128}],257:[function(require,module,exports){
+},{"./_export":137,"./_string-at":202}],331:[function(require,module,exports){
 // 21.1.3.6 String.prototype.endsWith(searchString [, endPosition])
 'use strict';
 var $export   = require('./_export')
@@ -25525,7 +30102,7 @@ $export($export.P + $export.F * require('./_fails-is-regexp')(ENDS_WITH), 'Strin
       : that.slice(end - search.length, end) === search;
   }
 });
-},{"./_export":63,"./_fails-is-regexp":64,"./_string-context":129,"./_to-length":139}],258:[function(require,module,exports){
+},{"./_export":137,"./_fails-is-regexp":138,"./_string-context":203,"./_to-length":213}],332:[function(require,module,exports){
 'use strict';
 // B.2.3.6 String.prototype.fixed()
 require('./_string-html')('fixed', function(createHTML){
@@ -25533,7 +30110,7 @@ require('./_string-html')('fixed', function(createHTML){
     return createHTML(this, 'tt', '', '');
   }
 });
-},{"./_string-html":130}],259:[function(require,module,exports){
+},{"./_string-html":204}],333:[function(require,module,exports){
 'use strict';
 // B.2.3.7 String.prototype.fontcolor(color)
 require('./_string-html')('fontcolor', function(createHTML){
@@ -25541,7 +30118,7 @@ require('./_string-html')('fontcolor', function(createHTML){
     return createHTML(this, 'font', 'color', color);
   }
 });
-},{"./_string-html":130}],260:[function(require,module,exports){
+},{"./_string-html":204}],334:[function(require,module,exports){
 'use strict';
 // B.2.3.8 String.prototype.fontsize(size)
 require('./_string-html')('fontsize', function(createHTML){
@@ -25549,7 +30126,7 @@ require('./_string-html')('fontsize', function(createHTML){
     return createHTML(this, 'font', 'size', size);
   }
 });
-},{"./_string-html":130}],261:[function(require,module,exports){
+},{"./_string-html":204}],335:[function(require,module,exports){
 var $export        = require('./_export')
   , toIndex        = require('./_to-index')
   , fromCharCode   = String.fromCharCode
@@ -25573,7 +30150,7 @@ $export($export.S + $export.F * (!!$fromCodePoint && $fromCodePoint.length != 1)
     } return res.join('');
   }
 });
-},{"./_export":63,"./_to-index":136}],262:[function(require,module,exports){
+},{"./_export":137,"./_to-index":210}],336:[function(require,module,exports){
 // 21.1.3.7 String.prototype.includes(searchString, position = 0)
 'use strict';
 var $export  = require('./_export')
@@ -25586,7 +30163,7 @@ $export($export.P + $export.F * require('./_fails-is-regexp')(INCLUDES), 'String
       .indexOf(searchString, arguments.length > 1 ? arguments[1] : undefined);
   }
 });
-},{"./_export":63,"./_fails-is-regexp":64,"./_string-context":129}],263:[function(require,module,exports){
+},{"./_export":137,"./_fails-is-regexp":138,"./_string-context":203}],337:[function(require,module,exports){
 'use strict';
 // B.2.3.9 String.prototype.italics()
 require('./_string-html')('italics', function(createHTML){
@@ -25594,7 +30171,7 @@ require('./_string-html')('italics', function(createHTML){
     return createHTML(this, 'i', '', '');
   }
 });
-},{"./_string-html":130}],264:[function(require,module,exports){
+},{"./_string-html":204}],338:[function(require,module,exports){
 'use strict';
 var $at  = require('./_string-at')(true);
 
@@ -25612,7 +30189,7 @@ require('./_iter-define')(String, 'String', function(iterated){
   this._i += point.length;
   return {value: point, done: false};
 });
-},{"./_iter-define":84,"./_string-at":128}],265:[function(require,module,exports){
+},{"./_iter-define":158,"./_string-at":202}],339:[function(require,module,exports){
 'use strict';
 // B.2.3.10 String.prototype.link(url)
 require('./_string-html')('link', function(createHTML){
@@ -25620,7 +30197,7 @@ require('./_string-html')('link', function(createHTML){
     return createHTML(this, 'a', 'href', url);
   }
 });
-},{"./_string-html":130}],266:[function(require,module,exports){
+},{"./_string-html":204}],340:[function(require,module,exports){
 var $export   = require('./_export')
   , toIObject = require('./_to-iobject')
   , toLength  = require('./_to-length');
@@ -25639,14 +30216,14 @@ $export($export.S, 'String', {
     } return res.join('');
   }
 });
-},{"./_export":63,"./_to-iobject":138,"./_to-length":139}],267:[function(require,module,exports){
+},{"./_export":137,"./_to-iobject":212,"./_to-length":213}],341:[function(require,module,exports){
 var $export = require('./_export');
 
 $export($export.P, 'String', {
   // 21.1.3.13 String.prototype.repeat(count)
   repeat: require('./_string-repeat')
 });
-},{"./_export":63,"./_string-repeat":132}],268:[function(require,module,exports){
+},{"./_export":137,"./_string-repeat":206}],342:[function(require,module,exports){
 'use strict';
 // B.2.3.11 String.prototype.small()
 require('./_string-html')('small', function(createHTML){
@@ -25654,7 +30231,7 @@ require('./_string-html')('small', function(createHTML){
     return createHTML(this, 'small', '', '');
   }
 });
-},{"./_string-html":130}],269:[function(require,module,exports){
+},{"./_string-html":204}],343:[function(require,module,exports){
 // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
 'use strict';
 var $export     = require('./_export')
@@ -25673,7 +30250,7 @@ $export($export.P + $export.F * require('./_fails-is-regexp')(STARTS_WITH), 'Str
       : that.slice(index, index + search.length) === search;
   }
 });
-},{"./_export":63,"./_fails-is-regexp":64,"./_string-context":129,"./_to-length":139}],270:[function(require,module,exports){
+},{"./_export":137,"./_fails-is-regexp":138,"./_string-context":203,"./_to-length":213}],344:[function(require,module,exports){
 'use strict';
 // B.2.3.12 String.prototype.strike()
 require('./_string-html')('strike', function(createHTML){
@@ -25681,7 +30258,7 @@ require('./_string-html')('strike', function(createHTML){
     return createHTML(this, 'strike', '', '');
   }
 });
-},{"./_string-html":130}],271:[function(require,module,exports){
+},{"./_string-html":204}],345:[function(require,module,exports){
 'use strict';
 // B.2.3.13 String.prototype.sub()
 require('./_string-html')('sub', function(createHTML){
@@ -25689,7 +30266,7 @@ require('./_string-html')('sub', function(createHTML){
     return createHTML(this, 'sub', '', '');
   }
 });
-},{"./_string-html":130}],272:[function(require,module,exports){
+},{"./_string-html":204}],346:[function(require,module,exports){
 'use strict';
 // B.2.3.14 String.prototype.sup()
 require('./_string-html')('sup', function(createHTML){
@@ -25697,7 +30274,7 @@ require('./_string-html')('sup', function(createHTML){
     return createHTML(this, 'sup', '', '');
   }
 });
-},{"./_string-html":130}],273:[function(require,module,exports){
+},{"./_string-html":204}],347:[function(require,module,exports){
 'use strict';
 // 21.1.3.25 String.prototype.trim()
 require('./_string-trim')('trim', function($trim){
@@ -25705,7 +30282,7 @@ require('./_string-trim')('trim', function($trim){
     return $trim(this, 3);
   };
 });
-},{"./_string-trim":133}],274:[function(require,module,exports){
+},{"./_string-trim":207}],348:[function(require,module,exports){
 'use strict';
 // ECMAScript 6 symbols shim
 var global         = require('./_global')
@@ -25941,7 +30518,7 @@ setToStringTag($Symbol, 'Symbol');
 setToStringTag(Math, 'Math', true);
 // 24.3.3 JSON[@@toStringTag]
 setToStringTag(global.JSON, 'JSON', true);
-},{"./_an-object":38,"./_descriptors":59,"./_enum-keys":62,"./_export":63,"./_fails":65,"./_global":69,"./_has":70,"./_hide":71,"./_is-array":78,"./_keyof":88,"./_library":89,"./_meta":93,"./_object-create":97,"./_object-dp":98,"./_object-gopd":101,"./_object-gopn":103,"./_object-gopn-ext":102,"./_object-gops":104,"./_object-keys":107,"./_object-pie":108,"./_property-desc":116,"./_redefine":118,"./_set-to-string-tag":123,"./_shared":125,"./_to-iobject":138,"./_to-primitive":141,"./_uid":145,"./_wks":148,"./_wks-define":146,"./_wks-ext":147}],275:[function(require,module,exports){
+},{"./_an-object":112,"./_descriptors":133,"./_enum-keys":136,"./_export":137,"./_fails":139,"./_global":143,"./_has":144,"./_hide":145,"./_is-array":152,"./_keyof":162,"./_library":163,"./_meta":167,"./_object-create":171,"./_object-dp":172,"./_object-gopd":175,"./_object-gopn":177,"./_object-gopn-ext":176,"./_object-gops":178,"./_object-keys":181,"./_object-pie":182,"./_property-desc":190,"./_redefine":192,"./_set-to-string-tag":197,"./_shared":199,"./_to-iobject":212,"./_to-primitive":215,"./_uid":219,"./_wks":222,"./_wks-define":220,"./_wks-ext":221}],349:[function(require,module,exports){
 'use strict';
 var $export      = require('./_export')
   , $typed       = require('./_typed')
@@ -25988,66 +30565,66 @@ $export($export.P + $export.U + $export.F * require('./_fails')(function(){
 });
 
 require('./_set-species')(ARRAY_BUFFER);
-},{"./_an-object":38,"./_export":63,"./_fails":65,"./_global":69,"./_is-object":80,"./_set-species":122,"./_species-constructor":126,"./_to-index":136,"./_to-length":139,"./_typed":144,"./_typed-buffer":143}],276:[function(require,module,exports){
+},{"./_an-object":112,"./_export":137,"./_fails":139,"./_global":143,"./_is-object":154,"./_set-species":196,"./_species-constructor":200,"./_to-index":210,"./_to-length":213,"./_typed":218,"./_typed-buffer":217}],350:[function(require,module,exports){
 var $export = require('./_export');
 $export($export.G + $export.W + $export.F * !require('./_typed').ABV, {
   DataView: require('./_typed-buffer').DataView
 });
-},{"./_export":63,"./_typed":144,"./_typed-buffer":143}],277:[function(require,module,exports){
+},{"./_export":137,"./_typed":218,"./_typed-buffer":217}],351:[function(require,module,exports){
 require('./_typed-array')('Float32', 4, function(init){
   return function Float32Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":142}],278:[function(require,module,exports){
+},{"./_typed-array":216}],352:[function(require,module,exports){
 require('./_typed-array')('Float64', 8, function(init){
   return function Float64Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":142}],279:[function(require,module,exports){
+},{"./_typed-array":216}],353:[function(require,module,exports){
 require('./_typed-array')('Int16', 2, function(init){
   return function Int16Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":142}],280:[function(require,module,exports){
+},{"./_typed-array":216}],354:[function(require,module,exports){
 require('./_typed-array')('Int32', 4, function(init){
   return function Int32Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":142}],281:[function(require,module,exports){
+},{"./_typed-array":216}],355:[function(require,module,exports){
 require('./_typed-array')('Int8', 1, function(init){
   return function Int8Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":142}],282:[function(require,module,exports){
+},{"./_typed-array":216}],356:[function(require,module,exports){
 require('./_typed-array')('Uint16', 2, function(init){
   return function Uint16Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":142}],283:[function(require,module,exports){
+},{"./_typed-array":216}],357:[function(require,module,exports){
 require('./_typed-array')('Uint32', 4, function(init){
   return function Uint32Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":142}],284:[function(require,module,exports){
+},{"./_typed-array":216}],358:[function(require,module,exports){
 require('./_typed-array')('Uint8', 1, function(init){
   return function Uint8Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":142}],285:[function(require,module,exports){
+},{"./_typed-array":216}],359:[function(require,module,exports){
 require('./_typed-array')('Uint8', 1, function(init){
   return function Uint8ClampedArray(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 }, true);
-},{"./_typed-array":142}],286:[function(require,module,exports){
+},{"./_typed-array":216}],360:[function(require,module,exports){
 'use strict';
 var each         = require('./_array-methods')(0)
   , redefine     = require('./_redefine')
@@ -26104,7 +30681,7 @@ if(new $WeakMap().set((Object.freeze || Object)(tmp), 7).get(tmp) != 7){
     });
   });
 }
-},{"./_array-methods":43,"./_collection":53,"./_collection-weak":52,"./_is-object":80,"./_meta":93,"./_object-assign":96,"./_redefine":118}],287:[function(require,module,exports){
+},{"./_array-methods":117,"./_collection":127,"./_collection-weak":126,"./_is-object":154,"./_meta":167,"./_object-assign":170,"./_redefine":192}],361:[function(require,module,exports){
 'use strict';
 var weak = require('./_collection-weak');
 
@@ -26117,7 +30694,7 @@ require('./_collection')('WeakSet', function(get){
     return weak.def(this, value, true);
   }
 }, weak, false, true);
-},{"./_collection":53,"./_collection-weak":52}],288:[function(require,module,exports){
+},{"./_collection":127,"./_collection-weak":126}],362:[function(require,module,exports){
 'use strict';
 // https://github.com/tc39/Array.prototype.includes
 var $export   = require('./_export')
@@ -26130,7 +30707,7 @@ $export($export.P, 'Array', {
 });
 
 require('./_add-to-unscopables')('includes');
-},{"./_add-to-unscopables":36,"./_array-includes":42,"./_export":63}],289:[function(require,module,exports){
+},{"./_add-to-unscopables":110,"./_array-includes":116,"./_export":137}],363:[function(require,module,exports){
 // https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-09/sept-25.md#510-globalasap-for-enqueuing-a-microtask
 var $export   = require('./_export')
   , microtask = require('./_microtask')()
@@ -26143,7 +30720,7 @@ $export($export.G, {
     microtask(domain ? domain.bind(fn) : fn);
   }
 });
-},{"./_cof":49,"./_export":63,"./_global":69,"./_microtask":95}],290:[function(require,module,exports){
+},{"./_cof":123,"./_export":137,"./_global":143,"./_microtask":169}],364:[function(require,module,exports){
 // https://github.com/ljharb/proposal-is-error
 var $export = require('./_export')
   , cof     = require('./_cof');
@@ -26153,12 +30730,12 @@ $export($export.S, 'Error', {
     return cof(it) === 'Error';
   }
 });
-},{"./_cof":49,"./_export":63}],291:[function(require,module,exports){
+},{"./_cof":123,"./_export":137}],365:[function(require,module,exports){
 // https://github.com/DavidBruant/Map-Set.prototype.toJSON
 var $export  = require('./_export');
 
 $export($export.P + $export.R, 'Map', {toJSON: require('./_collection-to-json')('Map')});
-},{"./_collection-to-json":51,"./_export":63}],292:[function(require,module,exports){
+},{"./_collection-to-json":125,"./_export":137}],366:[function(require,module,exports){
 // https://gist.github.com/BrendanEich/4294d5c212a6d2254703
 var $export = require('./_export');
 
@@ -26170,7 +30747,7 @@ $export($export.S, 'Math', {
     return $x1 + (y1 >>> 0) + (($x0 & $y0 | ($x0 | $y0) & ~($x0 + $y0 >>> 0)) >>> 31) | 0;
   }
 });
-},{"./_export":63}],293:[function(require,module,exports){
+},{"./_export":137}],367:[function(require,module,exports){
 // https://gist.github.com/BrendanEich/4294d5c212a6d2254703
 var $export = require('./_export');
 
@@ -26187,7 +30764,7 @@ $export($export.S, 'Math', {
     return u1 * v1 + (t >> 16) + ((u0 * v1 >>> 0) + (t & UINT16) >> 16);
   }
 });
-},{"./_export":63}],294:[function(require,module,exports){
+},{"./_export":137}],368:[function(require,module,exports){
 // https://gist.github.com/BrendanEich/4294d5c212a6d2254703
 var $export = require('./_export');
 
@@ -26199,7 +30776,7 @@ $export($export.S, 'Math', {
     return $x1 - (y1 >>> 0) - ((~$x0 & $y0 | ~($x0 ^ $y0) & $x0 - $y0 >>> 0) >>> 31) | 0;
   }
 });
-},{"./_export":63}],295:[function(require,module,exports){
+},{"./_export":137}],369:[function(require,module,exports){
 // https://gist.github.com/BrendanEich/4294d5c212a6d2254703
 var $export = require('./_export');
 
@@ -26216,7 +30793,7 @@ $export($export.S, 'Math', {
     return u1 * v1 + (t >>> 16) + ((u0 * v1 >>> 0) + (t & UINT16) >>> 16);
   }
 });
-},{"./_export":63}],296:[function(require,module,exports){
+},{"./_export":137}],370:[function(require,module,exports){
 'use strict';
 var $export         = require('./_export')
   , toObject        = require('./_to-object')
@@ -26229,7 +30806,7 @@ require('./_descriptors') && $export($export.P + require('./_object-forced-pam')
     $defineProperty.f(toObject(this), P, {get: aFunction(getter), enumerable: true, configurable: true});
   }
 });
-},{"./_a-function":34,"./_descriptors":59,"./_export":63,"./_object-dp":98,"./_object-forced-pam":100,"./_to-object":140}],297:[function(require,module,exports){
+},{"./_a-function":108,"./_descriptors":133,"./_export":137,"./_object-dp":172,"./_object-forced-pam":174,"./_to-object":214}],371:[function(require,module,exports){
 'use strict';
 var $export         = require('./_export')
   , toObject        = require('./_to-object')
@@ -26242,7 +30819,7 @@ require('./_descriptors') && $export($export.P + require('./_object-forced-pam')
     $defineProperty.f(toObject(this), P, {set: aFunction(setter), enumerable: true, configurable: true});
   }
 });
-},{"./_a-function":34,"./_descriptors":59,"./_export":63,"./_object-dp":98,"./_object-forced-pam":100,"./_to-object":140}],298:[function(require,module,exports){
+},{"./_a-function":108,"./_descriptors":133,"./_export":137,"./_object-dp":172,"./_object-forced-pam":174,"./_to-object":214}],372:[function(require,module,exports){
 // https://github.com/tc39/proposal-object-values-entries
 var $export  = require('./_export')
   , $entries = require('./_object-to-array')(true);
@@ -26252,7 +30829,7 @@ $export($export.S, 'Object', {
     return $entries(it);
   }
 });
-},{"./_export":63,"./_object-to-array":110}],299:[function(require,module,exports){
+},{"./_export":137,"./_object-to-array":184}],373:[function(require,module,exports){
 // https://github.com/tc39/proposal-object-getownpropertydescriptors
 var $export        = require('./_export')
   , ownKeys        = require('./_own-keys')
@@ -26272,7 +30849,7 @@ $export($export.S, 'Object', {
     return result;
   }
 });
-},{"./_create-property":55,"./_export":63,"./_object-gopd":101,"./_own-keys":111,"./_to-iobject":138}],300:[function(require,module,exports){
+},{"./_create-property":129,"./_export":137,"./_object-gopd":175,"./_own-keys":185,"./_to-iobject":212}],374:[function(require,module,exports){
 'use strict';
 var $export                  = require('./_export')
   , toObject                 = require('./_to-object')
@@ -26291,7 +30868,7 @@ require('./_descriptors') && $export($export.P + require('./_object-forced-pam')
     } while(O = getPrototypeOf(O));
   }
 });
-},{"./_descriptors":59,"./_export":63,"./_object-forced-pam":100,"./_object-gopd":101,"./_object-gpo":105,"./_to-object":140,"./_to-primitive":141}],301:[function(require,module,exports){
+},{"./_descriptors":133,"./_export":137,"./_object-forced-pam":174,"./_object-gopd":175,"./_object-gpo":179,"./_to-object":214,"./_to-primitive":215}],375:[function(require,module,exports){
 'use strict';
 var $export                  = require('./_export')
   , toObject                 = require('./_to-object')
@@ -26310,7 +30887,7 @@ require('./_descriptors') && $export($export.P + require('./_object-forced-pam')
     } while(O = getPrototypeOf(O));
   }
 });
-},{"./_descriptors":59,"./_export":63,"./_object-forced-pam":100,"./_object-gopd":101,"./_object-gpo":105,"./_to-object":140,"./_to-primitive":141}],302:[function(require,module,exports){
+},{"./_descriptors":133,"./_export":137,"./_object-forced-pam":174,"./_object-gopd":175,"./_object-gpo":179,"./_to-object":214,"./_to-primitive":215}],376:[function(require,module,exports){
 // https://github.com/tc39/proposal-object-values-entries
 var $export = require('./_export')
   , $values = require('./_object-to-array')(false);
@@ -26320,7 +30897,7 @@ $export($export.S, 'Object', {
     return $values(it);
   }
 });
-},{"./_export":63,"./_object-to-array":110}],303:[function(require,module,exports){
+},{"./_export":137,"./_object-to-array":184}],377:[function(require,module,exports){
 'use strict';
 // https://github.com/zenparsing/es-observable
 var $export     = require('./_export')
@@ -26520,7 +31097,7 @@ hide($Observable.prototype, OBSERVABLE, function(){ return this; });
 $export($export.G, {Observable: $Observable});
 
 require('./_set-species')('Observable');
-},{"./_a-function":34,"./_an-instance":37,"./_an-object":38,"./_core":54,"./_export":63,"./_for-of":68,"./_global":69,"./_hide":71,"./_microtask":95,"./_redefine-all":117,"./_set-species":122,"./_wks":148}],304:[function(require,module,exports){
+},{"./_a-function":108,"./_an-instance":111,"./_an-object":112,"./_core":128,"./_export":137,"./_for-of":142,"./_global":143,"./_hide":145,"./_microtask":169,"./_redefine-all":191,"./_set-species":196,"./_wks":222}],378:[function(require,module,exports){
 var metadata                  = require('./_metadata')
   , anObject                  = require('./_an-object')
   , toMetaKey                 = metadata.key
@@ -26529,7 +31106,7 @@ var metadata                  = require('./_metadata')
 metadata.exp({defineMetadata: function defineMetadata(metadataKey, metadataValue, target, targetKey){
   ordinaryDefineOwnMetadata(metadataKey, metadataValue, anObject(target), toMetaKey(targetKey));
 }});
-},{"./_an-object":38,"./_metadata":94}],305:[function(require,module,exports){
+},{"./_an-object":112,"./_metadata":168}],379:[function(require,module,exports){
 var metadata               = require('./_metadata')
   , anObject               = require('./_an-object')
   , toMetaKey              = metadata.key
@@ -26545,7 +31122,7 @@ metadata.exp({deleteMetadata: function deleteMetadata(metadataKey, target /*, ta
   targetMetadata['delete'](targetKey);
   return !!targetMetadata.size || store['delete'](target);
 }});
-},{"./_an-object":38,"./_metadata":94}],306:[function(require,module,exports){
+},{"./_an-object":112,"./_metadata":168}],380:[function(require,module,exports){
 var Set                     = require('./es6.set')
   , from                    = require('./_array-from-iterable')
   , metadata                = require('./_metadata')
@@ -26565,7 +31142,7 @@ var ordinaryMetadataKeys = function(O, P){
 metadata.exp({getMetadataKeys: function getMetadataKeys(target /*, targetKey */){
   return ordinaryMetadataKeys(anObject(target), arguments.length < 2 ? undefined : toMetaKey(arguments[1]));
 }});
-},{"./_an-object":38,"./_array-from-iterable":41,"./_metadata":94,"./_object-gpo":105,"./es6.set":251}],307:[function(require,module,exports){
+},{"./_an-object":112,"./_array-from-iterable":115,"./_metadata":168,"./_object-gpo":179,"./es6.set":325}],381:[function(require,module,exports){
 var metadata               = require('./_metadata')
   , anObject               = require('./_an-object')
   , getPrototypeOf         = require('./_object-gpo')
@@ -26583,7 +31160,7 @@ var ordinaryGetMetadata = function(MetadataKey, O, P){
 metadata.exp({getMetadata: function getMetadata(metadataKey, target /*, targetKey */){
   return ordinaryGetMetadata(metadataKey, anObject(target), arguments.length < 3 ? undefined : toMetaKey(arguments[2]));
 }});
-},{"./_an-object":38,"./_metadata":94,"./_object-gpo":105}],308:[function(require,module,exports){
+},{"./_an-object":112,"./_metadata":168,"./_object-gpo":179}],382:[function(require,module,exports){
 var metadata                = require('./_metadata')
   , anObject                = require('./_an-object')
   , ordinaryOwnMetadataKeys = metadata.keys
@@ -26592,7 +31169,7 @@ var metadata                = require('./_metadata')
 metadata.exp({getOwnMetadataKeys: function getOwnMetadataKeys(target /*, targetKey */){
   return ordinaryOwnMetadataKeys(anObject(target), arguments.length < 2 ? undefined : toMetaKey(arguments[1]));
 }});
-},{"./_an-object":38,"./_metadata":94}],309:[function(require,module,exports){
+},{"./_an-object":112,"./_metadata":168}],383:[function(require,module,exports){
 var metadata               = require('./_metadata')
   , anObject               = require('./_an-object')
   , ordinaryGetOwnMetadata = metadata.get
@@ -26602,7 +31179,7 @@ metadata.exp({getOwnMetadata: function getOwnMetadata(metadataKey, target /*, ta
   return ordinaryGetOwnMetadata(metadataKey, anObject(target)
     , arguments.length < 3 ? undefined : toMetaKey(arguments[2]));
 }});
-},{"./_an-object":38,"./_metadata":94}],310:[function(require,module,exports){
+},{"./_an-object":112,"./_metadata":168}],384:[function(require,module,exports){
 var metadata               = require('./_metadata')
   , anObject               = require('./_an-object')
   , getPrototypeOf         = require('./_object-gpo')
@@ -26619,7 +31196,7 @@ var ordinaryHasMetadata = function(MetadataKey, O, P){
 metadata.exp({hasMetadata: function hasMetadata(metadataKey, target /*, targetKey */){
   return ordinaryHasMetadata(metadataKey, anObject(target), arguments.length < 3 ? undefined : toMetaKey(arguments[2]));
 }});
-},{"./_an-object":38,"./_metadata":94,"./_object-gpo":105}],311:[function(require,module,exports){
+},{"./_an-object":112,"./_metadata":168,"./_object-gpo":179}],385:[function(require,module,exports){
 var metadata               = require('./_metadata')
   , anObject               = require('./_an-object')
   , ordinaryHasOwnMetadata = metadata.has
@@ -26629,7 +31206,7 @@ metadata.exp({hasOwnMetadata: function hasOwnMetadata(metadataKey, target /*, ta
   return ordinaryHasOwnMetadata(metadataKey, anObject(target)
     , arguments.length < 3 ? undefined : toMetaKey(arguments[2]));
 }});
-},{"./_an-object":38,"./_metadata":94}],312:[function(require,module,exports){
+},{"./_an-object":112,"./_metadata":168}],386:[function(require,module,exports){
 var metadata                  = require('./_metadata')
   , anObject                  = require('./_an-object')
   , aFunction                 = require('./_a-function')
@@ -26645,12 +31222,12 @@ metadata.exp({metadata: function metadata(metadataKey, metadataValue){
     );
   };
 }});
-},{"./_a-function":34,"./_an-object":38,"./_metadata":94}],313:[function(require,module,exports){
+},{"./_a-function":108,"./_an-object":112,"./_metadata":168}],387:[function(require,module,exports){
 // https://github.com/DavidBruant/Map-Set.prototype.toJSON
 var $export  = require('./_export');
 
 $export($export.P + $export.R, 'Set', {toJSON: require('./_collection-to-json')('Set')});
-},{"./_collection-to-json":51,"./_export":63}],314:[function(require,module,exports){
+},{"./_collection-to-json":125,"./_export":137}],388:[function(require,module,exports){
 'use strict';
 // https://github.com/mathiasbynens/String.prototype.at
 var $export = require('./_export')
@@ -26661,7 +31238,7 @@ $export($export.P, 'String', {
     return $at(this, pos);
   }
 });
-},{"./_export":63,"./_string-at":128}],315:[function(require,module,exports){
+},{"./_export":137,"./_string-at":202}],389:[function(require,module,exports){
 'use strict';
 // https://tc39.github.io/String.prototype.matchAll/
 var $export     = require('./_export')
@@ -26692,7 +31269,7 @@ $export($export.P, 'String', {
     return new $RegExpStringIterator(rx, S);
   }
 });
-},{"./_defined":58,"./_export":63,"./_flags":67,"./_is-regexp":81,"./_iter-create":83,"./_to-length":139}],316:[function(require,module,exports){
+},{"./_defined":132,"./_export":137,"./_flags":141,"./_is-regexp":155,"./_iter-create":157,"./_to-length":213}],390:[function(require,module,exports){
 'use strict';
 // https://github.com/tc39/proposal-string-pad-start-end
 var $export = require('./_export')
@@ -26703,7 +31280,7 @@ $export($export.P, 'String', {
     return $pad(this, maxLength, arguments.length > 1 ? arguments[1] : undefined, false);
   }
 });
-},{"./_export":63,"./_string-pad":131}],317:[function(require,module,exports){
+},{"./_export":137,"./_string-pad":205}],391:[function(require,module,exports){
 'use strict';
 // https://github.com/tc39/proposal-string-pad-start-end
 var $export = require('./_export')
@@ -26714,7 +31291,7 @@ $export($export.P, 'String', {
     return $pad(this, maxLength, arguments.length > 1 ? arguments[1] : undefined, true);
   }
 });
-},{"./_export":63,"./_string-pad":131}],318:[function(require,module,exports){
+},{"./_export":137,"./_string-pad":205}],392:[function(require,module,exports){
 'use strict';
 // https://github.com/sebmarkbage/ecmascript-string-left-right-trim
 require('./_string-trim')('trimLeft', function($trim){
@@ -26722,7 +31299,7 @@ require('./_string-trim')('trimLeft', function($trim){
     return $trim(this, 1);
   };
 }, 'trimStart');
-},{"./_string-trim":133}],319:[function(require,module,exports){
+},{"./_string-trim":207}],393:[function(require,module,exports){
 'use strict';
 // https://github.com/sebmarkbage/ecmascript-string-left-right-trim
 require('./_string-trim')('trimRight', function($trim){
@@ -26730,16 +31307,16 @@ require('./_string-trim')('trimRight', function($trim){
     return $trim(this, 2);
   };
 }, 'trimEnd');
-},{"./_string-trim":133}],320:[function(require,module,exports){
+},{"./_string-trim":207}],394:[function(require,module,exports){
 require('./_wks-define')('asyncIterator');
-},{"./_wks-define":146}],321:[function(require,module,exports){
+},{"./_wks-define":220}],395:[function(require,module,exports){
 require('./_wks-define')('observable');
-},{"./_wks-define":146}],322:[function(require,module,exports){
+},{"./_wks-define":220}],396:[function(require,module,exports){
 // https://github.com/ljharb/proposal-global
 var $export = require('./_export');
 
 $export($export.S, 'System', {global: require('./_global')});
-},{"./_export":63,"./_global":69}],323:[function(require,module,exports){
+},{"./_export":137,"./_global":143}],397:[function(require,module,exports){
 var $iterators    = require('./es6.array.iterator')
   , redefine      = require('./_redefine')
   , global        = require('./_global')
@@ -26762,14 +31339,14 @@ for(var collections = ['NodeList', 'DOMTokenList', 'MediaList', 'StyleSheetList'
     for(key in $iterators)if(!proto[key])redefine(proto, key, $iterators[key], true);
   }
 }
-},{"./_global":69,"./_hide":71,"./_iterators":87,"./_redefine":118,"./_wks":148,"./es6.array.iterator":161}],324:[function(require,module,exports){
+},{"./_global":143,"./_hide":145,"./_iterators":161,"./_redefine":192,"./_wks":222,"./es6.array.iterator":235}],398:[function(require,module,exports){
 var $export = require('./_export')
   , $task   = require('./_task');
 $export($export.G + $export.B, {
   setImmediate:   $task.set,
   clearImmediate: $task.clear
 });
-},{"./_export":63,"./_task":135}],325:[function(require,module,exports){
+},{"./_export":137,"./_task":209}],399:[function(require,module,exports){
 // ie9- setTimeout & setInterval additional parameters fix
 var global     = require('./_global')
   , $export    = require('./_export')
@@ -26790,7 +31367,7 @@ $export($export.G + $export.B + $export.F * MSIE, {
   setTimeout:  wrap(global.setTimeout),
   setInterval: wrap(global.setInterval)
 });
-},{"./_export":63,"./_global":69,"./_invoke":75,"./_partial":114}],326:[function(require,module,exports){
+},{"./_export":137,"./_global":143,"./_invoke":149,"./_partial":188}],400:[function(require,module,exports){
 require('./modules/es6.symbol');
 require('./modules/es6.object.create');
 require('./modules/es6.object.define-property');
@@ -26967,7 +31544,7 @@ require('./modules/web.timers');
 require('./modules/web.immediate');
 require('./modules/web.dom.iterable');
 module.exports = require('./modules/_core');
-},{"./modules/_core":54,"./modules/es6.array.copy-within":151,"./modules/es6.array.every":152,"./modules/es6.array.fill":153,"./modules/es6.array.filter":154,"./modules/es6.array.find":156,"./modules/es6.array.find-index":155,"./modules/es6.array.for-each":157,"./modules/es6.array.from":158,"./modules/es6.array.index-of":159,"./modules/es6.array.is-array":160,"./modules/es6.array.iterator":161,"./modules/es6.array.join":162,"./modules/es6.array.last-index-of":163,"./modules/es6.array.map":164,"./modules/es6.array.of":165,"./modules/es6.array.reduce":167,"./modules/es6.array.reduce-right":166,"./modules/es6.array.slice":168,"./modules/es6.array.some":169,"./modules/es6.array.sort":170,"./modules/es6.array.species":171,"./modules/es6.date.now":172,"./modules/es6.date.to-iso-string":173,"./modules/es6.date.to-json":174,"./modules/es6.date.to-primitive":175,"./modules/es6.date.to-string":176,"./modules/es6.function.bind":177,"./modules/es6.function.has-instance":178,"./modules/es6.function.name":179,"./modules/es6.map":180,"./modules/es6.math.acosh":181,"./modules/es6.math.asinh":182,"./modules/es6.math.atanh":183,"./modules/es6.math.cbrt":184,"./modules/es6.math.clz32":185,"./modules/es6.math.cosh":186,"./modules/es6.math.expm1":187,"./modules/es6.math.fround":188,"./modules/es6.math.hypot":189,"./modules/es6.math.imul":190,"./modules/es6.math.log10":191,"./modules/es6.math.log1p":192,"./modules/es6.math.log2":193,"./modules/es6.math.sign":194,"./modules/es6.math.sinh":195,"./modules/es6.math.tanh":196,"./modules/es6.math.trunc":197,"./modules/es6.number.constructor":198,"./modules/es6.number.epsilon":199,"./modules/es6.number.is-finite":200,"./modules/es6.number.is-integer":201,"./modules/es6.number.is-nan":202,"./modules/es6.number.is-safe-integer":203,"./modules/es6.number.max-safe-integer":204,"./modules/es6.number.min-safe-integer":205,"./modules/es6.number.parse-float":206,"./modules/es6.number.parse-int":207,"./modules/es6.number.to-fixed":208,"./modules/es6.number.to-precision":209,"./modules/es6.object.assign":210,"./modules/es6.object.create":211,"./modules/es6.object.define-properties":212,"./modules/es6.object.define-property":213,"./modules/es6.object.freeze":214,"./modules/es6.object.get-own-property-descriptor":215,"./modules/es6.object.get-own-property-names":216,"./modules/es6.object.get-prototype-of":217,"./modules/es6.object.is":221,"./modules/es6.object.is-extensible":218,"./modules/es6.object.is-frozen":219,"./modules/es6.object.is-sealed":220,"./modules/es6.object.keys":222,"./modules/es6.object.prevent-extensions":223,"./modules/es6.object.seal":224,"./modules/es6.object.set-prototype-of":225,"./modules/es6.object.to-string":226,"./modules/es6.parse-float":227,"./modules/es6.parse-int":228,"./modules/es6.promise":229,"./modules/es6.reflect.apply":230,"./modules/es6.reflect.construct":231,"./modules/es6.reflect.define-property":232,"./modules/es6.reflect.delete-property":233,"./modules/es6.reflect.enumerate":234,"./modules/es6.reflect.get":237,"./modules/es6.reflect.get-own-property-descriptor":235,"./modules/es6.reflect.get-prototype-of":236,"./modules/es6.reflect.has":238,"./modules/es6.reflect.is-extensible":239,"./modules/es6.reflect.own-keys":240,"./modules/es6.reflect.prevent-extensions":241,"./modules/es6.reflect.set":243,"./modules/es6.reflect.set-prototype-of":242,"./modules/es6.regexp.constructor":244,"./modules/es6.regexp.flags":245,"./modules/es6.regexp.match":246,"./modules/es6.regexp.replace":247,"./modules/es6.regexp.search":248,"./modules/es6.regexp.split":249,"./modules/es6.regexp.to-string":250,"./modules/es6.set":251,"./modules/es6.string.anchor":252,"./modules/es6.string.big":253,"./modules/es6.string.blink":254,"./modules/es6.string.bold":255,"./modules/es6.string.code-point-at":256,"./modules/es6.string.ends-with":257,"./modules/es6.string.fixed":258,"./modules/es6.string.fontcolor":259,"./modules/es6.string.fontsize":260,"./modules/es6.string.from-code-point":261,"./modules/es6.string.includes":262,"./modules/es6.string.italics":263,"./modules/es6.string.iterator":264,"./modules/es6.string.link":265,"./modules/es6.string.raw":266,"./modules/es6.string.repeat":267,"./modules/es6.string.small":268,"./modules/es6.string.starts-with":269,"./modules/es6.string.strike":270,"./modules/es6.string.sub":271,"./modules/es6.string.sup":272,"./modules/es6.string.trim":273,"./modules/es6.symbol":274,"./modules/es6.typed.array-buffer":275,"./modules/es6.typed.data-view":276,"./modules/es6.typed.float32-array":277,"./modules/es6.typed.float64-array":278,"./modules/es6.typed.int16-array":279,"./modules/es6.typed.int32-array":280,"./modules/es6.typed.int8-array":281,"./modules/es6.typed.uint16-array":282,"./modules/es6.typed.uint32-array":283,"./modules/es6.typed.uint8-array":284,"./modules/es6.typed.uint8-clamped-array":285,"./modules/es6.weak-map":286,"./modules/es6.weak-set":287,"./modules/es7.array.includes":288,"./modules/es7.asap":289,"./modules/es7.error.is-error":290,"./modules/es7.map.to-json":291,"./modules/es7.math.iaddh":292,"./modules/es7.math.imulh":293,"./modules/es7.math.isubh":294,"./modules/es7.math.umulh":295,"./modules/es7.object.define-getter":296,"./modules/es7.object.define-setter":297,"./modules/es7.object.entries":298,"./modules/es7.object.get-own-property-descriptors":299,"./modules/es7.object.lookup-getter":300,"./modules/es7.object.lookup-setter":301,"./modules/es7.object.values":302,"./modules/es7.observable":303,"./modules/es7.reflect.define-metadata":304,"./modules/es7.reflect.delete-metadata":305,"./modules/es7.reflect.get-metadata":307,"./modules/es7.reflect.get-metadata-keys":306,"./modules/es7.reflect.get-own-metadata":309,"./modules/es7.reflect.get-own-metadata-keys":308,"./modules/es7.reflect.has-metadata":310,"./modules/es7.reflect.has-own-metadata":311,"./modules/es7.reflect.metadata":312,"./modules/es7.set.to-json":313,"./modules/es7.string.at":314,"./modules/es7.string.match-all":315,"./modules/es7.string.pad-end":316,"./modules/es7.string.pad-start":317,"./modules/es7.string.trim-left":318,"./modules/es7.string.trim-right":319,"./modules/es7.symbol.async-iterator":320,"./modules/es7.symbol.observable":321,"./modules/es7.system.global":322,"./modules/web.dom.iterable":323,"./modules/web.immediate":324,"./modules/web.timers":325}],327:[function(require,module,exports){
+},{"./modules/_core":128,"./modules/es6.array.copy-within":225,"./modules/es6.array.every":226,"./modules/es6.array.fill":227,"./modules/es6.array.filter":228,"./modules/es6.array.find":230,"./modules/es6.array.find-index":229,"./modules/es6.array.for-each":231,"./modules/es6.array.from":232,"./modules/es6.array.index-of":233,"./modules/es6.array.is-array":234,"./modules/es6.array.iterator":235,"./modules/es6.array.join":236,"./modules/es6.array.last-index-of":237,"./modules/es6.array.map":238,"./modules/es6.array.of":239,"./modules/es6.array.reduce":241,"./modules/es6.array.reduce-right":240,"./modules/es6.array.slice":242,"./modules/es6.array.some":243,"./modules/es6.array.sort":244,"./modules/es6.array.species":245,"./modules/es6.date.now":246,"./modules/es6.date.to-iso-string":247,"./modules/es6.date.to-json":248,"./modules/es6.date.to-primitive":249,"./modules/es6.date.to-string":250,"./modules/es6.function.bind":251,"./modules/es6.function.has-instance":252,"./modules/es6.function.name":253,"./modules/es6.map":254,"./modules/es6.math.acosh":255,"./modules/es6.math.asinh":256,"./modules/es6.math.atanh":257,"./modules/es6.math.cbrt":258,"./modules/es6.math.clz32":259,"./modules/es6.math.cosh":260,"./modules/es6.math.expm1":261,"./modules/es6.math.fround":262,"./modules/es6.math.hypot":263,"./modules/es6.math.imul":264,"./modules/es6.math.log10":265,"./modules/es6.math.log1p":266,"./modules/es6.math.log2":267,"./modules/es6.math.sign":268,"./modules/es6.math.sinh":269,"./modules/es6.math.tanh":270,"./modules/es6.math.trunc":271,"./modules/es6.number.constructor":272,"./modules/es6.number.epsilon":273,"./modules/es6.number.is-finite":274,"./modules/es6.number.is-integer":275,"./modules/es6.number.is-nan":276,"./modules/es6.number.is-safe-integer":277,"./modules/es6.number.max-safe-integer":278,"./modules/es6.number.min-safe-integer":279,"./modules/es6.number.parse-float":280,"./modules/es6.number.parse-int":281,"./modules/es6.number.to-fixed":282,"./modules/es6.number.to-precision":283,"./modules/es6.object.assign":284,"./modules/es6.object.create":285,"./modules/es6.object.define-properties":286,"./modules/es6.object.define-property":287,"./modules/es6.object.freeze":288,"./modules/es6.object.get-own-property-descriptor":289,"./modules/es6.object.get-own-property-names":290,"./modules/es6.object.get-prototype-of":291,"./modules/es6.object.is":295,"./modules/es6.object.is-extensible":292,"./modules/es6.object.is-frozen":293,"./modules/es6.object.is-sealed":294,"./modules/es6.object.keys":296,"./modules/es6.object.prevent-extensions":297,"./modules/es6.object.seal":298,"./modules/es6.object.set-prototype-of":299,"./modules/es6.object.to-string":300,"./modules/es6.parse-float":301,"./modules/es6.parse-int":302,"./modules/es6.promise":303,"./modules/es6.reflect.apply":304,"./modules/es6.reflect.construct":305,"./modules/es6.reflect.define-property":306,"./modules/es6.reflect.delete-property":307,"./modules/es6.reflect.enumerate":308,"./modules/es6.reflect.get":311,"./modules/es6.reflect.get-own-property-descriptor":309,"./modules/es6.reflect.get-prototype-of":310,"./modules/es6.reflect.has":312,"./modules/es6.reflect.is-extensible":313,"./modules/es6.reflect.own-keys":314,"./modules/es6.reflect.prevent-extensions":315,"./modules/es6.reflect.set":317,"./modules/es6.reflect.set-prototype-of":316,"./modules/es6.regexp.constructor":318,"./modules/es6.regexp.flags":319,"./modules/es6.regexp.match":320,"./modules/es6.regexp.replace":321,"./modules/es6.regexp.search":322,"./modules/es6.regexp.split":323,"./modules/es6.regexp.to-string":324,"./modules/es6.set":325,"./modules/es6.string.anchor":326,"./modules/es6.string.big":327,"./modules/es6.string.blink":328,"./modules/es6.string.bold":329,"./modules/es6.string.code-point-at":330,"./modules/es6.string.ends-with":331,"./modules/es6.string.fixed":332,"./modules/es6.string.fontcolor":333,"./modules/es6.string.fontsize":334,"./modules/es6.string.from-code-point":335,"./modules/es6.string.includes":336,"./modules/es6.string.italics":337,"./modules/es6.string.iterator":338,"./modules/es6.string.link":339,"./modules/es6.string.raw":340,"./modules/es6.string.repeat":341,"./modules/es6.string.small":342,"./modules/es6.string.starts-with":343,"./modules/es6.string.strike":344,"./modules/es6.string.sub":345,"./modules/es6.string.sup":346,"./modules/es6.string.trim":347,"./modules/es6.symbol":348,"./modules/es6.typed.array-buffer":349,"./modules/es6.typed.data-view":350,"./modules/es6.typed.float32-array":351,"./modules/es6.typed.float64-array":352,"./modules/es6.typed.int16-array":353,"./modules/es6.typed.int32-array":354,"./modules/es6.typed.int8-array":355,"./modules/es6.typed.uint16-array":356,"./modules/es6.typed.uint32-array":357,"./modules/es6.typed.uint8-array":358,"./modules/es6.typed.uint8-clamped-array":359,"./modules/es6.weak-map":360,"./modules/es6.weak-set":361,"./modules/es7.array.includes":362,"./modules/es7.asap":363,"./modules/es7.error.is-error":364,"./modules/es7.map.to-json":365,"./modules/es7.math.iaddh":366,"./modules/es7.math.imulh":367,"./modules/es7.math.isubh":368,"./modules/es7.math.umulh":369,"./modules/es7.object.define-getter":370,"./modules/es7.object.define-setter":371,"./modules/es7.object.entries":372,"./modules/es7.object.get-own-property-descriptors":373,"./modules/es7.object.lookup-getter":374,"./modules/es7.object.lookup-setter":375,"./modules/es7.object.values":376,"./modules/es7.observable":377,"./modules/es7.reflect.define-metadata":378,"./modules/es7.reflect.delete-metadata":379,"./modules/es7.reflect.get-metadata":381,"./modules/es7.reflect.get-metadata-keys":380,"./modules/es7.reflect.get-own-metadata":383,"./modules/es7.reflect.get-own-metadata-keys":382,"./modules/es7.reflect.has-metadata":384,"./modules/es7.reflect.has-own-metadata":385,"./modules/es7.reflect.metadata":386,"./modules/es7.set.to-json":387,"./modules/es7.string.at":388,"./modules/es7.string.match-all":389,"./modules/es7.string.pad-end":390,"./modules/es7.string.pad-start":391,"./modules/es7.string.trim-left":392,"./modules/es7.string.trim-right":393,"./modules/es7.symbol.async-iterator":394,"./modules/es7.symbol.observable":395,"./modules/es7.system.global":396,"./modules/web.dom.iterable":397,"./modules/web.immediate":398,"./modules/web.timers":399}],401:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -27129,7 +31706,7 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],328:[function(require,module,exports){
+},{}],402:[function(require,module,exports){
 (function (process,global){
 /**
  * Copyright (c) 2014, Facebook, Inc.
@@ -27801,4 +32378,109 @@ process.umask = function() { return 0; };
 );
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"_process":327}]},{},[11]);
+},{"_process":401}],403:[function(require,module,exports){
+'use strict'
+
+let MemoryHelper = {
+  create( sizeOrBuffer=4096, memtype=Float32Array ) {
+    let helper = Object.create( this )
+
+    // conveniently, buffer constructors accept either a size or an array buffer to use...
+    // so, no matter which is passed to sizeOrBuffer it should work.
+    Object.assign( helper, {
+      heap: new memtype( sizeOrBuffer ),
+      list: {},
+      freeList: {}
+    })
+
+    return helper
+  },
+
+  alloc( size, immutable ) {
+    let idx = -1
+
+    if( size > this.heap.length ) {
+      throw Error( 'Allocation request is larger than heap size of ' + this.heap.length )
+    }
+
+    for( let key in this.freeList ) {
+      let candidate = this.freeList[ key ]
+
+      if( candidate.size >= size ) {
+        idx = key
+
+        this.list[ idx ] = { size, immutable, references:1 }
+
+        if( candidate.size !== size ) {
+          let newIndex = idx + size,
+              newFreeSize
+
+          for( let key in this.list ) {
+            if( key > newIndex ) {
+              newFreeSize = key - newIndex
+              this.freeList[ newIndex ] = newFreeSize
+            }
+          }
+        }
+
+        break
+      }
+    }
+
+    if( idx !== -1 ) delete this.freeList[ idx ]
+
+    if( idx === -1 ) {
+      let keys = Object.keys( this.list ),
+          lastIndex
+
+      if( keys.length ) { // if not first allocation...
+        lastIndex = parseInt( keys[ keys.length - 1 ] )
+
+        idx = lastIndex + this.list[ lastIndex ].size
+      }else{
+        idx = 0
+      }
+
+      this.list[ idx ] = { size, immutable, references:1 }
+    }
+
+    if( idx + size >= this.heap.length ) {
+      throw Error( 'No available blocks remain sufficient for allocation request.' )
+    }
+    return idx
+  },
+
+  addReference( index ) {
+    if( this.list[ index ] !== undefined ) { 
+      this.list[ index ].references++
+    }
+  },
+
+  free( index ) {
+    if( this.list[ index ] === undefined ) {
+      throw Error( 'Calling free() on non-existing block.' )
+    }
+
+    let slot = this.list[ index ]
+    if( slot === 0 ) return
+    slot.references--
+
+    if( slot.references === 0 && slot.immutable !== true ) {    
+      this.list[ index ] = 0
+
+      let freeBlockSize = 0
+      for( let key in this.list ) {
+        if( key > index ) {
+          freeBlockSize = key - index
+          break
+        }
+      }
+
+      this.freeList[ index ] = freeBlockSize
+    }
+  },
+}
+
+module.exports = MemoryHelper
+
+},{}]},{},[85]);

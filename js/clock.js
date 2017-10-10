@@ -11,6 +11,7 @@ let Scheduler = {
   mockInterval: null,
   currentBeat: 1,
   currentTime: Big(0),
+  currentTimeInMs:0,
 
   queue: new Queue( ( a, b ) => {
     if( a.time.eq( b.time ) ) {
@@ -42,8 +43,8 @@ let Scheduler = {
       // remove tick
       this.queue.pop()
 
-      
       this.currentTime = nextTick.time
+      this.currentTimeInMs = Gibber.Utility.beatsToMs( this.currentTime )
 
       // execute callback function for tick passing schedule, time and beatOffset
       // console.log( 'next tick', nextTick.shouldExecute )
@@ -59,6 +60,8 @@ let Scheduler = {
 
       this.phase += advanceAmount   // increment phase
       this.currentTime = this.phase
+      this.currentTimeInMs = Gibber.Utility.beatsToMs( this.currentTime )
+      Gibber.Environment.animationScheduler.updateVisualizationTime( Gibber.Utility.beatsToMs( advanceAmount ) )
     }
   },
 

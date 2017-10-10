@@ -140,7 +140,7 @@ let Utility = {
   beatsToMs( beats, bpm=120 ) {
     const beatsPerSecond = bpm / 60
 
-    return (beats / beatsPerSecond ) * 1000
+    return ( beats / beatsPerSecond ) * 1000
   },
 
   future( func, time ) {
@@ -157,6 +157,22 @@ let Utility = {
     Gibber.Communication.send( `select_track ${ trackNumber }` )
   },
 
+  range( min=0,max=100 ) {
+    const arr = []
+    for( let i = min; i<=max; i++ ) arr.push( i )
+
+    return arr
+  },
+
+  // NOTE: when using genish.js, the phase of ugens is automatically 
+  // adjusted at a variable rate depending on the current bpm, making
+  // using values other than 120 bpm yield inaccurate results.
+  beatsToFrequency( beats, __bpm ) {
+    const bpm = __bpm || Gibber.Scheduler.bpm
+
+    return 1 / ( beats * ( 60 / bpm ) ) 
+  },
+
   export( destination ) {
     destination.rndf = Utility.rndf
     destination.rndi = Utility.rndi
@@ -164,6 +180,8 @@ let Utility = {
     destination.Rndi = Utility.Rndi
     destination.future = Utility.future
     destination.select = Utility.select
+    destination.btof = Utility.beatsToFrequency
+    destination.range = Utility.range
 
     Array.prototype.random = Array.prototype.rnd = Utility.random
   }

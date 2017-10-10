@@ -3,7 +3,7 @@ let Gibber = null,
     CodeMirror = require( 'codemirror' )
 
 require( '../node_modules/codemirror/mode/javascript/javascript.js' )
-require( '../node_modules/codemirror/addon/edit/matchbrackets.js' )
+//require( '../node_modules/codemirror/addon/edit/matchbrackets.js' )
 require( '../node_modules/codemirror/addon/edit/closebrackets.js' )
 require( '../node_modules/codemirror/addon/hint/show-hint.js' )
 require( '../node_modules/codemirror/addon/hint/javascript-hint.js' )
@@ -18,6 +18,7 @@ let Environment = {
   lomView: require( './lomView.js' ),
   consoleDiv:null,
   consoleList:null,
+  annotations:true,
 
   init( gibber ) {
     Gibber = gibber
@@ -163,28 +164,30 @@ let Environment = {
 
     'Ctrl-Enter'( cm ) {
       try {
-        let selectedCode = Environment.getSelectionCodeColumn( cm, false )
+        const selectedCode = Environment.getSelectionCodeColumn( cm, false )
 
         Environment.flash( cm, selectedCode.selection )
         
-        let func = new Function( selectedCode.code ).bind( Gibber.currentTrack ),
-            markupFunction = () => { 
-              Environment.codeMarkup.process( 
-                selectedCode.code, 
-                selectedCode.selection, 
-                cm, 
-                Gibber.currentTrack 
-              ) 
-            }
+        const func = new Function( selectedCode.code ).bind( Gibber.currentTrack ),
+              markupFunction = () => { 
+                Environment.codeMarkup.process( 
+                  selectedCode.code, 
+                  selectedCode.selection, 
+                  cm, 
+                  Gibber.currentTrack 
+                ) 
+              }
         
         markupFunction.origin  = func
 
         if( !Environment.debug ) {
-          Gibber.Scheduler.functionsToExecute.push( func );
-          Gibber.Scheduler.functionsToExecute.push( markupFunction  )
+          Gibber.Scheduler.functionsToExecute.push( func )
+          if( Environment.annotations === true )
+            Gibber.Scheduler.functionsToExecute.push( markupFunction  )
         }else{
           func()
-          markupFunction()
+          if( Environment.annotations === true )
+            markupFunction()
         }
       } catch (e) {
         console.log( e )
@@ -211,10 +214,14 @@ let Environment = {
 
         if( !Environment.debug ) {
           Gibber.Scheduler.functionsToExecute.push( func );
-          Gibber.Scheduler.functionsToExecute.push( markupFunction  )
+
+          if( Environment.annotations === true )
+            Gibber.Scheduler.functionsToExecute.push( markupFunction  )
         }else{
           func()
-          markupFunction()
+
+          if( Environment.annotations === true )
+            markupFunction()
         }
       } catch (e) {
         console.log( e )

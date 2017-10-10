@@ -31,10 +31,22 @@ Object.assign( PatternProto, {
   },
 
   checkForUpdateFunction( name, ...args ) {
-    if( this.listeners[ name ] ) {
-      this.listeners[ name ].apply( this, args )
-    }else if( Pattern.listeners[ name ] ) {
-      Pattern.listeners[ name ].apply( this, args )
+    console.log( 'check:', this )
+    if( this.__delayAnnotations === true ) {
+      console.log( 'delayed', this.__delayAnnotations )
+      setTimeout( ()=> {
+        if( this.listeners[ name ] ) {
+          this.listeners[ name ].apply( this, args )
+        }else if( Pattern.listeners[ name ] ) {
+          Pattern.listeners[ name ].apply( this, args )
+        }
+      }, 5 )
+    }else{
+      if( this.listeners[ name ] ) {
+        this.listeners[ name ].apply( this, args )
+      }else if( Pattern.listeners[ name ] ) {
+        Pattern.listeners[ name ].apply( this, args )
+      }
     }
   },
 
@@ -49,6 +61,7 @@ let Pattern = function( ...args ) {
    *  return Gibber.construct( Pattern, args )
    *}
    */
+
   let isFunction = args.length === 1 && typeof args[0] === 'function'
 
   let fnc = function() {
@@ -101,12 +114,15 @@ let Pattern = function( ...args ) {
     end   : 0,
     phase : 0,
     values : args, 
+    // wrap annotation update in setTimeout( func, 0 )
+    __delayAnnotations:false,
     //values : typeof arguments[0] !== 'string' || arguments.length > 1 ? Array.prototype.slice.call( arguments, 0 ) : arguments[0].split(''),    
     original : null,
     storage : [],
     stepSize : 1,
     integersOnly : false,
     filters : [],
+    __listeners: [],
     onchange : null,
 
     range() {
@@ -368,6 +384,7 @@ let Pattern = function( ...args ) {
     }
   })
   
+  fnc.filters.pattern = fnc
   fnc.retrograde = fnc.reverse.bind( fnc )
   
   fnc.end = fnc.values.length - 1
