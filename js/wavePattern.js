@@ -6,7 +6,6 @@ module.exports = function( Gibber ) {
 
 const WavePattern = {
   create( abstractGraph, values ) {
-
     // might change due to proxy functionality, so use 'let'
     let graph = abstractGraph.render( 'genish' ) // convert abstraction to genish.js graph
     let count = -1
@@ -97,7 +96,7 @@ const WavePattern = {
       pattern.initialized = false
       pattern.widget = newAbstractGraph.widget
       // reset min and max values for sparkline in case amplitudes have changed
-      pattern.widget.min = Infinity
+      pattern.widget.min = Infinity 
       pattern.widget.max = -Infinity
 
       if( newAbstractGraph.__listeners === undefined ) {
@@ -105,6 +104,7 @@ const WavePattern = {
       }
       newAbstractGraph.__listeners.push( proxyFunction ) 
     }
+
 
     abstractGraph.__listeners.push( proxyFunction )
 
