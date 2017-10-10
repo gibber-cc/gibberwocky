@@ -11,6 +11,8 @@ const WavePattern = {
     let graph = abstractGraph.render( 'genish' ) // convert abstraction to genish.js graph
     let count = -1
 
+    
+
     const patternOutputFnc = function( isViz = false ) {
       if( isViz && pattern.vizinit === false ) {
         return
@@ -87,11 +89,16 @@ const WavePattern = {
       }
       newAbstractGraph.patterns.push( pattern )
       newAbstractGraph.graphs.push( graph )
+      newAbstractGraph.widget = oldAbstractGraph.widget
 
       pattern.graph = graph
       pattern.signalOut = genish.gen.createCallback( graph, mem, false, false, Float64Array ),
       pattern.phase = 0
       pattern.initialized = false
+      pattern.widget = newAbstractGraph.widget
+      // reset min and max values for sparkline in case amplitudes have changed
+      pattern.widget.min = Infinity
+      pattern.widget.max = -Infinity
 
       if( newAbstractGraph.__listeners === undefined ) {
         newAbstractGraph.__listeners = []

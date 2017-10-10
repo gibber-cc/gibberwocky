@@ -95,7 +95,18 @@ let Marker = {
   
   processGen( node, cm, track ) {
     let ch = node.end, line = node.verticalOffset, start = ch - 1, end = node.end 
-    
+
+    // check to see if a given object is a proxy that already has
+    // a widget created; if so, don't make another one!
+    if( node.expression.type === 'AssignmentExpression' ) {
+      const __obj = window[ node.expression.left.name ]
+      if( __obj !== undefined ) {
+        if( __obj.widget !== undefined ) {
+          return
+        }
+      }
+    }
+
     cm.replaceRange( ') ', { line, ch:start }, { line, ch } )
 
     const widget = document.createElement( 'canvas' )
@@ -118,12 +129,13 @@ let Marker = {
     widget.max = -10000
 
     let isAssignment = false
-    
+
     if( widget.gen === null || widget.gen === undefined ) {
       if( node.expression.type === 'AssignmentExpression' ) {
         isAssignment = true
         
         widget.gen = window[ node.expression.left.name ]
+
         if( widget.gen.widget !== undefined ) {
           widget.gen.widget.parentNode.removeChild( widget.gen.widget )
         }
@@ -141,7 +153,6 @@ let Marker = {
     for( let i = 0; i < 120; i++ ) widget.values[ i ] = 0
 
     if( isAssignment === false ) {
-      console.log( 'not an assignment' )
       let oldWidget = Marker.genWidgets[ widget.gen.paramID ] 
 
       if( oldWidget !== undefined ) {
@@ -436,7 +447,7 @@ let Marker = {
         lastBorder = null,
         lastClassName = null
     
-    let cycle = function() {
+    let cycle = function( isArray = false ) {
       let className = '.' + classNamePrefix + '_' +  patternObject.update.currentIndex,
           border = 'top'
 
@@ -447,12 +458,48 @@ let Marker = {
       }
 
 
-      $( className ).remove( 'annotation-' + border + '-border' )
-      $( className ).add( 'annotation-' + border + '-border-cycle' )
-      
-      if( lastBorder !== null ) {
-        $( className ).remove( 'annotation-' + lastBorder + '-border-cycle' )
-        $( className ).add( 'annotation-' + lastBorder + '-border' )
+      // for a pattern holding arrays... like for chord()
+      if( isArray === true ) {
+        switch( border ) {
+          case 'left':
+            $( className ).remove( 'annotation-' + lastBorder + '-border-cycle' )
+            $( className + '_start' ).add( 'annotation-left-border-cycle' )
+
+            break;
+          case 'right':
+            $( className ).remove( 'annotation-' + lastBorder + '-border-cycle' ) 
+            $( className + '_end' ).add( 'annotation-right-border-cycle' )
+ 
+            break;
+          case 'top':
+            $( className ).add( 'annotation-top-border-cycle' )
+            $( className+'_start' ).remove( 'annotation-left-border-cycle' )
+            $( className+'_start' ).add( 'annotation-top-border-cycle' )
+            $( className+'_end' ).add( 'annotation-top-border-cycle' )
+
+            break;
+          case 'bottom':
+            $( className ).add( 'annotation-bottom-border-cycle' )
+            $( className+'_end' ).remove( 'annotation-right-border-cycle' )
+            $( className+'_end' ).add( 'annotation-bottom-border-cycle' )
+            $( className+'_start' ).add( 'annotation-bottom-border-cycle' )
+
+            break;
+          default:
+            $( className ).add( 'annotation-' + border + '-border-cycle' )
+            $( className+'_start' ).remove( 'annotation-' + border + '-border-cycle' )
+            $( className+'_end' ).remove( 'annotation-' + border + '-border-cycle' )
+            break;
+        }
+
+      }else{
+        $( className ).remove( 'annotation-' + border + '-border' )
+        $( className ).add( 'annotation-' + border + '-border-cycle' )
+        
+        if( lastBorder !== null ) {
+          $( className ).remove( 'annotation-' + lastBorder + '-border-cycle' )
+          $( className ).add( 'annotation-' + lastBorder + '-border' )
+        }
       }
       
       lastBorder = border
@@ -750,9 +797,9 @@ let Marker = {
 
           highlighted.className = className
 
-          cycle.clear()
+          //cycle.clear()
         }else{
-          cycle()
+          cycle( true ) // pass true for arrays
         }
       }
 

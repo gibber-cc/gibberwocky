@@ -45,14 +45,12 @@ let seqclosure = function( Gibber ) {
     },
 
     __noteFilter( args ) {
-      const seq = this
-
       args[ 0 ] = Theory.Note.convertToMIDI( args[ 0 ] )
-      if( seq.octave !== 0 || seq.object.octave !== 0 ) {
-        if( seq.octave !== 0 )
-          args[0] += seq.octave * 12
+      if( this.octave !== 0 || this.object.octave !== 0 ) {
+        if( this.octave !== 0 )
+          args[0] += this.octave * 12
         else
-          args[0] += seq.object.octave * 12
+          args[0] += this.object.octave * 12
       }
 
       return args
@@ -78,13 +76,11 @@ let seqclosure = function( Gibber ) {
         this.values = valuesPattern
       }
 
-      let seq = this
-
       if( this.key === 'note' ) {
         if( this.values.filters.findIndex( v => v.type === 'note' ) === -1 ) {
           // round the values for transformation to midinotes... XXX what about for Max version?
           this.values.filters.push( args => { args[0] = Math.round( args[0] ); return args })
-          const noteFilter = this.__noteFilter.bind( seq ) 
+          const noteFilter = this.__noteFilter.bind( this ) 
           noteFilter.type = 'note'
           this.values.filters.push( noteFilter )
         }
