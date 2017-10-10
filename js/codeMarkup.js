@@ -152,6 +152,8 @@ let Marker = {
 
     for( let i = 0; i < 120; i++ ) widget.values[ i ] = 0
 
+    debugger
+
     if( isAssignment === false ) {
       let oldWidget = Marker.genWidgets[ widget.gen.paramID ] 
 
