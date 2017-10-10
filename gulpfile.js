@@ -6,6 +6,7 @@ var watchify = require( 'watchify' )
 var babel    = require( 'babelify' )
 var gutil = require( 'gulp-util' )
 const through = require('through2')
+const sourcemaps = require( 'gulp-sourcemaps' )
 
 gulp.task('build', function () {
   
@@ -18,9 +19,12 @@ gulp.task('build', function () {
 });
 
 watchify.args.entries = './js/index.js'
-watchify.args.debug = true
+//watchify.args.debug = true
 
-var b = watchify( browserify( watchify.args ).transform( babel.configure({ sourceMaps:false, presets:['es2015']} ) ) )
+var b = watchify( 
+  browserify( watchify.args )
+  //.transform( babel.configure({ sourceMaps:true, presets:['es2015']} ) ) 
+)
 b.on( 'update', bundle )
 b.on( 'log', gutil.log )
 
@@ -31,15 +35,15 @@ function bundle() {
     .pipe( source('index.js') )
     .pipe( gulp.dest( './dist/' ) )
     .pipe( through.obj((chunk, enc, cb) => {
-      generateHTML()
+      generateHTML( cb )
 
-      cb(null, chunk)
+      //cb(null, chunk)
     }))
 
   return stream
 }
 
-const generateHTML = function() { 
+const generateHTML = function( cb ) { 
   const fs = require("fs")
 
   const readfilename  = 'index_template.html'
@@ -95,4 +99,6 @@ const generateHTML = function() {
 
     fs.writeFileSync( writefilename, output )
   }
+
+  cb( null, null )
 }

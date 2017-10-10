@@ -170,7 +170,7 @@ let Gibber = {
       // setup code annotations to place values and widget onto pattern object
       // not gen~ object
       if( typeof values === 'object' && values.isGen ) {
-        //Gibber.Gen.lastConnected = seq.values 
+        Gibber.Gen.lastConnected = seq.values 
       }
       
       // XXX THIS WILL BREAK IF THERE ARE WAVE PATTERNS FOR BOTH VALUES AND TIMINGS
