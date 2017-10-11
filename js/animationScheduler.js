@@ -31,6 +31,7 @@ let Scheduler = {
       try{
         nextEvent.func()
       }catch( e ) {
+        console.log( e )
         Gibber.Environment.error( 'annotation error:', e.toString() )
       }
       

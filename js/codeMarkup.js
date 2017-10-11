@@ -893,7 +893,7 @@ let Marker = {
       
       let mark = () => {
         // first time through, use the position given to us by the parser
-        let start, end
+        let range,start, end
         if( initialized === false ) {
           memberAnnotationStart.ch = annotationStartCh
           memberAnnotationEnd.ch   = annotationEndCh
@@ -902,9 +902,10 @@ let Marker = {
           // after the first time through, every update to the pattern store the current
           // position of the first element (in markStart) before replacing. Use this to generate position
           // info. REPLACING TEXT REMOVES TEXT MARKERS.
-          start = markStart
-          memberAnnotationStart.ch = start.from.ch
-          memberAnnotationEnd.ch = start.from.ch + 1 
+          range = markStart
+          start = range.from
+          memberAnnotationStart.ch = start.ch
+          memberAnnotationEnd.ch = start.ch + 1 
         }
 
         for( let i = 0; i < patternObject.values.length; i++ ) {
@@ -919,7 +920,7 @@ let Marker = {
         
         if( start !== undefined ) {
           start.ch -= 3
-          end = Object.assign({}, start)
+          end = Object.assign({}, start )
           end.ch = memberAnnotationEnd.ch + 3
           patternObject.commentMarker = cm.markText( start, end, { className, atomic:true })
         }
