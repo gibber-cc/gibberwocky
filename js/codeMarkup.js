@@ -18,7 +18,7 @@ const trackNames = [ 'this', 'tracks', 'master', 'returns' ]
 
 const COLORS = {
   FILL:'rgba(46,50,53,1)',
-  STROKE:'#eee',
+  STROKE:'#aaa',
   DOT:'rgba(89, 151, 198, 1)'//'rgba(0,0,255,1)'
 }
 
@@ -154,7 +154,7 @@ let Marker = {
     widget.setAttribute( 'height', 13 )
     widget.ctx.fillStyle = COLORS.FILL 
     widget.ctx.strokeStyle = COLORS.STROKE
-    widget.ctx.lineWidtcloseParenStart5
+    widget.ctx.lineWidth = .5
     widget.gen = Gibber.__gen.gen.lastConnected
     widget.values = []
     widget.min = 10000
