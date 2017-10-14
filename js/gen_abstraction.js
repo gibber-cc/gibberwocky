@@ -136,11 +136,11 @@ module.exports = function( Gibber ) {
       return ugen
     },
 
-    isGen:true
+    isGen:true,
   }
 
-
   const __gen = {
+    __hasGen: true, // is Gen licensed on this machine? true by default
     gen,
     genish,
     Gibber,
@@ -153,8 +153,19 @@ module.exports = function( Gibber ) {
       'min','max',
       'gt','lt','ltp','gtp','samplerate','rate'
     ],
-
     ugens:{},
+ 
+    assignTrackAndParamID: function( track, id ) {
+      this.paramID = id
+      this.track = track
+
+      let count = 0, param
+      while( param = this[ count++ ] ) {
+        if( typeof param() === 'object' ) {
+          param().assignTrackAndParamID( track, id )
+        }
+      }
+    },
 
     init() {
       for( let name of this.ugenNames ) {

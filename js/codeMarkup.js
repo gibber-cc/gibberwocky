@@ -22,6 +22,21 @@ const COLORS = {
   DOT:'rgba(89, 151, 198, 1)'//'rgba(0,0,255,1)'
 }
 
+const findGen = function( code ) {
+  const found = Gibber.__gen.gen.names.reduce( (r,v) => {
+    const idx = code.indexOf( v )
+    if( idx !== -1 ){
+      if( v === 'eq' && code[ idx - 1 ] !== 's' ) return r 
+      if( code[ idx + v.length ] !== '(' || code[ idx + v.length + 1 ] !== '(' ) return r
+
+      r = true
+    }
+    return r
+  }, false )
+  
+  return found 
+} 
+
 const Utility = require( './utility.js' )
 const $ = Utility.create
 
@@ -42,17 +57,8 @@ let Marker = {
         shouldParseGen = true,
         isGen = false
 
-    if( shouldParseGen ) { // check for gen~ assignment
-      const found = Gibber.__gen.gen.names.reduce( (r,v) => {
-        const idx = code.indexOf( v )
-        if( idx !== -1 ){
-          if( v === 'eq' && code[ idx - 1 ] !== 's' ) return r 
-          if( code[ idx + v.length ] !== '(' || code[ idx + v.length + 1 ] !== '(' ) return r
-
-          r = true
-        }
-        return r
-      }, false )
+    if( shouldParseGen ) { // check for gen~ assignment XXX check not currently needed
+      const found = findGen( code ) 
 
       if( found === true ) {
         shouldParse = true
@@ -94,7 +100,11 @@ let Marker = {
   },
   
   processGen( node, cm, track ) {
-    let ch = node.end, line = node.verticalOffset, start = ch - 1, end = node.end 
+    let ch = node.end, 
+        line = node.verticalOffset, 
+        closeParenStart = ch - 1, 
+        end = node.end,
+        isAssignment = true 
 
     // check to see if a given object is a proxy that already has
     // a widget created; if so, don't make another one!
@@ -105,9 +115,31 @@ let Marker = {
           return
         }
       }
+    }else if( node.expression.type === 'CallExpression' ) {
+      const seqExpression = node.expression
+
+      console.log( seqExpression )
+      // check each node in calls to .seq for genish functions
+      // XXX CURRENTLY ONLY CHECKS FOR ONE GENISH FUNCTION
+      seqExpression.arguments.forEach( function( seqArgument ) {
+      
+        if( seqArgument.type === 'CallExpression' ) {
+
+          console.log( seqArgument, seqArgument.callee )
+          const idx = Gibber.__gen.ugenNames.indexOf( seqArgument.callee.name )
+
+          //if( idx === -1 ) continue
+          
+          console.log( 'idx:' , idx )
+          ch = seqArgument.end
+          closeParenStart = ch - 1
+          isAssignment = false
+        }
+      })
+
     }
 
-    cm.replaceRange( ') ', { line, ch:start }, { line, ch } )
+    cm.replaceRange( ') ', { line, ch:closeParenStart }, { line, ch } )
 
     const widget = document.createElement( 'canvas' )
     widget.ctx = widget.getContext('2d')
@@ -122,13 +154,11 @@ let Marker = {
     widget.setAttribute( 'height', 13 )
     widget.ctx.fillStyle = COLORS.FILL 
     widget.ctx.strokeStyle = COLORS.STROKE
-    widget.ctx.lineWidth = .5
+    widget.ctx.lineWidtcloseParenStart5
     widget.gen = Gibber.__gen.gen.lastConnected
     widget.values = []
     widget.min = 10000
     widget.max = -10000
-
-    let isAssignment = false
 
     if( widget.gen === null || widget.gen === undefined ) {
       if( node.expression.type === 'AssignmentExpression' ) {
@@ -162,7 +192,7 @@ let Marker = {
     Marker.genWidgets[ widget.gen.paramID ] = widget
     widget.gen.widget = widget
 
-    widget.mark = cm.markText({ line, ch }, { line, ch:end+1 }, { replacedWith:widget })
+    widget.mark = cm.markText({ line, ch }, { line, ch:ch+1 }, { replacedWith:widget })
     widget.mark.__clear = widget.mark.clear
     widget.clear = ()=> widget.mark.clear()
     widget.mark.clear = function() {

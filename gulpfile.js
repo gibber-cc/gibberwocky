@@ -12,13 +12,21 @@ gulp.task('build', function () {
   
   var b = browserify({
     entries: './js/index.js'
-  }).transform( babel.configure({ sourceMaps:false, presets:['es2015']}) ).bundle()
+  })//.transform( babel.configure({ sourceMaps:false, presets:['es2015']}) ).bundle()
 
-  b.pipe( source('index.js') ).pipe( gulp.dest( './dist/' ) )
+  b.bundle()
+    .pipe( source('index.js') )
+    .pipe( gulp.dest( './dist/' ) )
+    .pipe( through.obj((chunk, enc, cb) => {
+      generateHTML( cb )
+
+      //cb(null, chunk)
+    }))
   //b.pipe( source('index.js') ).pipe( gulp.dest( './' ) )
 });
 
 watchify.args.entries = './js/index.js'
+watchify.args.debug = true
 //watchify.args.debug = true
 
 var b = watchify( 
@@ -32,6 +40,9 @@ gulp.task('default', bundle)
 
 function bundle() {
   const stream = b.bundle()
+    .on("error", function(err) {
+      gutil.log("Browserify error:", err);
+    })
     .pipe( source('index.js') )
     .pipe( gulp.dest( './dist/' ) )
     .pipe( through.obj((chunk, enc, cb) => {

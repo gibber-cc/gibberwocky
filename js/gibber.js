@@ -240,28 +240,38 @@ let Gibber = {
       let msg = `add ${beat} set ${parameter.id} ${value}` 
       return msg
     }
-    
+
     obj[ methodName ] = p = ( _v ) => {
       if( p.properties.quantized === 1 ) _v = Math.round( _v )
 
+      const hasGen = Gibber.__gen.__hasGen
+
       if( _v !== undefined ) {
         if( typeof _v === 'object' && _v.isGen ) {
-          const __v = _v.render( 'gen' )
-          __v.assignTrackAndParamID( trackID, parameter.id )
+          const __v = hasGen === true ? _v.render( 'gen' ) : _v.render( 'genish' )
+
+          if( hasGen ) {
+            __v.assignTrackAndParamID( trackID, parameter.id )
+          }else{
+            Gibber.__gen.assignTrackAndParamID.call( __v, trackID, parameter.id )
+          }
           
           // if a gen is not already connected to this parameter, push
           if( Gibber.Gen.connected.find( e => e.paramID === parameter.id ) === undefined ) {
             Gibber.Gen.connected.push( __v )
           }
 
-          //Gibber.Gen.lastConnected = __v
+          if( hasGen === true ) { 
+            Gibber.Communication.send( `gen ${parameter.id} "${__v.out()}"` )
+          }
 
-
-          Gibber.Communication.send( `gen ${parameter.id} "${__v.out()}"` )
           Gibber.Communication.send( `select_track ${ trackID }` )
+
+          Gibber.__gen.gen.lastConnected = __v
           
           // disconnects for fades etc.
-          if( typeof __v.shouldKill === 'object' ) {
+          // XXX reconfigure for hasGen === false
+          if( typeof __v.shouldKill === 'object' && hasGen === true ) {
             Gibber.Utility.future( ()=> {
               Gibber.Communication.send( `ungen ${parameter.id}` )
               Gibber.Communication.send( `set ${parameter.id} ${__v.shouldKill.final}` )
@@ -277,7 +287,10 @@ let Gibber = {
           v = __v
         }else{
           if( v.isGen ) {
-            Gibber.Communication.send( `ungen ${parameter.id}` )
+            if( hasGen ) {
+              Gibber.Communication.send( `ungen ${parameter.id}` )
+            }
+
             let widget = Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
             if( widget !== undefined && widget.mark !== undefined ) {
               widget.mark.clear()
@@ -285,8 +298,10 @@ let Gibber = {
             delete Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
           }
 
-          v = typeof _v === 'object' && _v.isGen ? _v.render( 'gen' ) : _v
-          Gibber.Communication.send( `set ${parameter.id} ${v}` )
+          v = typeof _v === 'object' && _v.isGen ? ( hasGen === true ? _v.render( 'gen' ) : _v.render('genish') ) : _v
+
+          if( hasGen )
+            Gibber.Communication.send( `set ${parameter.id} ${v}` )
         }
       }else{
         return v
