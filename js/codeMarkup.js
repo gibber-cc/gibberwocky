@@ -1,4 +1,5 @@
 const acorn = require( 'acorn' )
+const walk  = require( 'acorn/dist/walk' )
 
 const callDepths = [
   'SCORE',
@@ -45,6 +46,8 @@ let Marker = {
   _patternTypes: [ 'values', 'timings', 'index' ],
   globalIdentifiers:{},
 
+  acorn, walk,
+
   prepareObject( obj ) {
     obj.markup = {
       textMarkers: {},
@@ -87,11 +90,11 @@ let Marker = {
         node.verticalOffset  = position.start.line
         node.horizontalOffset = position.horizontalOffset === undefined ? 0 : position.horizontalOffset
         try {
-          if( isGen ) {
-            this.processGen( node, codemirror, track )
-          }else{ 
+          //if( isGen ) {
+            //this.processGen( node, codemirror, track )
+          //}else{ 
             this._process[ node.type ]( node, codemirror, track )
-          }
+          //}
         } catch( error ) {
           console.log( 'error processing annotation for', node.expression.type, error )
         }
@@ -99,7 +102,7 @@ let Marker = {
     }
   },
   
-  processGen( node, cm, track ) {
+  processGen( node, cm, track, patternObject=null ) {
     let ch = node.end, 
         line = node.verticalOffset, 
         closeParenStart = ch - 1, 
@@ -114,31 +117,35 @@ let Marker = {
         if( __obj.widget !== undefined ) {
           return
         }
+
+        Marker.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, __obj )
       }
     }else if( node.expression.type === 'CallExpression' ) {
       const seqExpression = node.expression
 
-      console.log( seqExpression )
       // check each node in calls to .seq for genish functions
       // XXX CURRENTLY ONLY CHECKS FOR ONE GENISH FUNCTION
       seqExpression.arguments.forEach( function( seqArgument ) {
-      
         if( seqArgument.type === 'CallExpression' ) {
-
-          console.log( seqArgument, seqArgument.callee )
           const idx = Gibber.__gen.ugenNames.indexOf( seqArgument.callee.name )
-
-          //if( idx === -1 ) continue
           
-          console.log( 'idx:' , idx )
+          // not a gen, markup will happen elsewhere
+          if( idx === -1 ) return
+
           ch = seqArgument.end
           closeParenStart = ch - 1
           isAssignment = false
+          node.processed = true
+          Marker.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject )
         }
       })
 
     }
 
+    
+  },
+
+  createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject ) {
     cm.replaceRange( ') ', { line, ch:closeParenStart }, { line, ch } )
 
     const widget = document.createElement( 'canvas' )
@@ -155,7 +162,7 @@ let Marker = {
     widget.ctx.fillStyle = COLORS.FILL 
     widget.ctx.strokeStyle = COLORS.STROKE
     widget.ctx.lineWidth = .5
-    widget.gen = Gibber.__gen.gen.lastConnected
+    widget.gen = patternObject !== null ? patternObject : Gibber.__gen.gen.lastConnected
     widget.values = []
     widget.min = 10000
     widget.max = -10000
@@ -174,7 +181,7 @@ let Marker = {
     }else{
       if( widget.gen.widget !== undefined && widget.gen.widget !== widget ) {
         isAssignment = true
-        widget.gen = window[ node.expression.left.name ]
+        //widget.gen = window[ node.expression.left.name ]
       }
     }
     Gibber.__gen.gen.lastConnected = null
@@ -182,22 +189,29 @@ let Marker = {
     for( let i = 0; i < 120; i++ ) widget.values[ i ] = 0
 
     if( isAssignment === false ) {
-      let oldWidget = Marker.genWidgets[ widget.gen.paramID ] 
+      if( widget.gen !== null ) {
+        let oldWidget = Marker.genWidgets[ widget.gen.paramID ] 
 
-      if( oldWidget !== undefined ) {
-        oldWidget.parentNode.removeChild( oldWidget )
-      } 
+        if( oldWidget !== undefined ) {
+          oldWidget.parentNode.removeChild( oldWidget )
+        } 
+      }
     }
     
-    Marker.genWidgets[ widget.gen.paramID ] = widget
-    widget.gen.widget = widget
+    if( widget.gen !== null ) {
+      Marker.genWidgets[ widget.gen.paramID ] = widget
+      widget.gen.widget = widget
+    }
 
-    widget.mark = cm.markText({ line, ch }, { line, ch:ch+1 }, { replacedWith:widget })
+    //debugger
+    widget.mark = cm.markText({ line, ch:ch }, { line, ch:ch+1 }, { replacedWith:widget })
     widget.mark.__clear = widget.mark.clear
     widget.clear = ()=> widget.mark.clear()
     widget.mark.clear = function() {
       widget.mark.__clear()
     }
+
+    
   },
 
   // currently called when a network snapshot message is received providing ugen state..
@@ -295,6 +309,10 @@ let Marker = {
         const right= expressionNode.expression.right
         
         Marker.globalIdentifiers[ left.name ] = right
+
+        
+        console.log( 'assignment expression for gen~' )
+        Marker.processGen( expressionNode, codemirror, track )
       }
     },
 
@@ -365,7 +383,7 @@ let Marker = {
            }
 
            valuesPattern =  target === null ? track[ components[2] ][ index ].values : target[ components[2] ].values
-           timingsPattern = target === null ? track[ components[2] ][ index ].timings : target[ components[2] ].timings //track[ components[2] ][ index ].timings
+           timingsPattern = target === null ? track[ components[2] ][ index ].timings : target[ components[2] ].timings 
            valuesNode = args[0]
            timingsNode = args[1]
 
@@ -593,6 +611,7 @@ let Marker = {
 
   _markPattern: {
     Literal( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) {
+      if( patternNode.processed === true ) return 
        let [ className, start, end ] = Marker._getNamesAndPosition( patternNode, containerNode, components, index, patternType ),
            cssName = className + '_0',
            marker = cm.markText( start, end, { 
@@ -615,6 +634,8 @@ let Marker = {
     },
 
     UnaryExpression( patternNode, containerNode, components, cm, channel, index=0, patternType, patternObject ) { // -1 etc.
+
+      if( patternNode.processed === true ) return 
       let [ className, start, end ] = Marker._getNamesAndPosition( patternNode, containerNode, components, index, patternType ),
           cssName = className + '_0',
           marker = cm.markText( start, end, { 
@@ -651,6 +672,8 @@ let Marker = {
     },
 
     BinaryExpression( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) { // TODO: same as literal, refactor?
+
+      if( patternNode.processed === true ) return 
        let [ className, start, end ] = Marker._getNamesAndPosition( patternNode, containerNode, components, index, patternType ),
            cssName = className + '_0',
            marker = cm.markText(
@@ -687,6 +710,8 @@ let Marker = {
     },
 
     ArrayExpression( patternNode, containerNode, components, cm, channel, index=0, patternType, patternObject ) {
+
+      if( patternNode.processed === true ) return 
       let [ patternName, start, end ] = Marker._getNamesAndPosition( 
         patternNode, 
         containerNode, 
@@ -844,6 +869,8 @@ let Marker = {
     // CallExpression denotes an array (or other object) that calls a method, like .rnd()
     // could also represent an anonymous function call, like Rndi(19,40)
     CallExpression( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) {
+
+      if( patternNode.processed === true ) return 
       var args = Array.prototype.slice.call( arguments, 0 )
       // console.log( patternNode.callee.type, patternObject )
 
@@ -852,49 +879,59 @@ let Marker = {
 
         Marker._markPattern.ArrayExpression.apply( null, args )
       } else if (patternNode.callee.type === 'Identifier' ) {
-        // function like Euclid
+        // function like Euclid or gen~d
         Marker._markPattern.Identifier.apply( null, args )
       }
     },
 
     FunctionExpression( patternNode, containerNode, components, cm, channel, index=0, patternType, patternObject ) {
+
+      if( patternNode.processed === true ) return 
       const args = Array.prototype.slice.call( arguments, 0 )
       Marker._markPattern.Identifier( ...args )
     },
 
     ArrowFunctionExpression( patternNode, containerNode, components, cm, channel, index=0, patternType, patternObject ) {
+
+      if( patternNode.processed === true ) return 
       const args = Array.prototype.slice.call( arguments, 0 )
       Marker._markPattern.Identifier( ...args )
     },
 
     Identifier( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) {
-      // mark up anonymous functions with comments here... 
-      let [ className, start, end ] = Marker._getNamesAndPosition( patternNode, containerNode, components, index, patternType ),
-          commentStart = end,
-          commentEnd = {},
-          marker = null
-      
-      Object.assign( commentEnd, commentStart )
-      
-      commentEnd.ch += 1
 
-      marker = cm.markText( commentStart, commentEnd, { className })
-       
-      //  if( track.markup.textMarkers[ className  ] === undefined ) track.markup.textMarkers[ className ] = []
-      //  track.markup.textMarkers[ className ][ 0 ] = marker
-      //  console.log( 'name', patternNode.callee.name )
-      let updateName = typeof patternNode.callee !== 'undefined' ? patternNode.callee.name : patternNode.name 
-      if( Marker.patternUpdates[ updateName ] ) {
-        patternObject.update = Marker.patternUpdates[ updateName ]( patternObject, marker, className, cm, track )
-      } else {
-        patternObject.update = Marker.patternUpdates.anonymousFunction( patternObject, marker, className, cm, track )
+      if( patternObject.type === 'WavePattern' || patternObject.isGen ) {
+        Marker.processGen( containerNode, cm, track, patternObject )
+      }else{
+        // mark up anonymous functions with comments here... 
+        let [ className, start, end ] = Marker._getNamesAndPosition( patternNode, containerNode, components, index, patternType ),
+            commentStart = end,
+            commentEnd = {},
+            marker = null
+        
+        Object.assign( commentEnd, commentStart )
+        
+        commentEnd.ch += 1
+        //commentStart.ch += 1
+
+        marker = cm.markText( commentStart, commentEnd, { className })
+         
+        //  if( track.markup.textMarkers[ className  ] === undefined ) track.markup.textMarkers[ className ] = []
+        //  track.markup.textMarkers[ className ][ 0 ] = marker
+        //  console.log( 'name', patternNode.callee.name )
+        let updateName = typeof patternNode.callee !== 'undefined' ? patternNode.callee.name : patternNode.name 
+        if( Marker.patternUpdates[ updateName ] ) {
+          patternObject.update = Marker.patternUpdates[ updateName ]( patternObject, marker, className, cm, track )
+        } else {
+          patternObject.update = Marker.patternUpdates.anonymousFunction( patternObject, marker, className, cm, track )
+        }
+        
+        patternObject.patternName = className
+        // store value changes in array and then pop them every time the annotation is updated
+        patternObject.update.value = []
+
+        Marker._addPatternFilter( patternObject )
       }
-      
-      patternObject.patternName = className
-      // store value changes in array and then pop them every time the annotation is updated
-      patternObject.update.value = []
-
-      Marker._addPatternFilter( patternObject )
     }, 
   },
 
