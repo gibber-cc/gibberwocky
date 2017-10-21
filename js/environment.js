@@ -30,6 +30,7 @@ let Environment = {
     this.sidebar.isVisible = 1
     //this.lomView.init( Gibber )
     this.animationScheduler.init()
+    this.codeMarkup.init()
     this.editorWidth = document.querySelector( '#editor' ).style.width
   },
 
