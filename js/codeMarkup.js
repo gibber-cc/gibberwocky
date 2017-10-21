@@ -41,6 +41,17 @@ const findGen = function( code ) {
 const Utility = require( './utility.js' )
 const $ = Utility.create
 
+const __getObj = ( name, state ) => {
+  let obj
+  if( state.length === 0 ) {
+    obj = window[ name ]
+  }else{
+    obj = state[ state.length - 1][ name ]
+  }
+
+  return obj
+}
+
 let Marker = {
   genWidgets: { dirty:false },
   _patternTypes: [ 'values', 'timings', 'index' ],
@@ -55,8 +66,72 @@ let Marker = {
     }  
   },
 
+  getObj( path, findSeq = false ) {
+    let obj = window[ path[0] ]
+
+    for( let i = 1; i < path.length; i++ ) {
+      const key = path[ i ]
+      if( key !== undefined ) {
+        obj = obj[ key ]
+      }else{
+        break;
+      }
+    }
+
+    if( findSeq === true ) {
+      if( obj.type !== 'sequence' ) {
+        obj = obj[ 0 ]
+      } 
+    }
+
+    return obj
+  },
+
   process( code, position, codemirror, track ) {
-    let shouldParse = code.includes( '.seq' ) || code.includes( 'Steps(' ) || code.includes( 'Score(' ),
+
+    walk.recursive( acorn.parse( code ), [], {
+      Literal( node, state, cb ) {
+        state.push( node.value )
+      },
+      Identifier( node, state, cb ) {
+        state.push( node.name )
+      },
+      AssignmentExpression( node ) {
+        console.log( 'assignment:', node )
+      },
+      CallExpression( node, state, cb ) {
+        cb( node.callee, state )
+        const endIdx = state.length - 1
+        const end = state[ endIdx ]
+        const foundSequence = end === 'seq'
+
+        node.arguments.forEach( v => cb( v, state ) )
+
+        if( foundSequence === true ){
+          const obj = Marker.getObj( state.slice( 0, endIdx ), true )
+
+          console.log( 'seq:', obj )
+        }
+
+        console.log( 'call state:', state )
+      },
+      MemberExpression( node, state, cb ) {
+        if( node.object.type !== 'Identifier' ) {
+          if( node.property ) {
+            state.unshift( node.property.type === 'Identifier' ? node.property.name : node.property.raw )
+          }
+          cb( node.object, state )
+        }else{
+          if( node.property !== undefined ) { // if the objects is an array member, e.g. tracks[0]
+            state.unshift( node.property.raw )
+          }
+          state.unshift( node.object.name )
+
+          console.log( 'member state:', state ) 
+        }
+      }
+    })
+    /*let shouldParse = code.includes( '.seq' ) || code.includes( 'Steps(' ) || code.includes( 'Score(' ),
         shouldParseGen = true,
         isGen = false
 
@@ -99,7 +174,7 @@ let Marker = {
           console.log( 'error processing annotation for', node.expression.type, error )
         }
       }
-    }
+    }*/
   },
   
   processGen( node, cm, track, patternObject=null ) {
