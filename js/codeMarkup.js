@@ -708,6 +708,11 @@ let Marker = {
     }
   },
 
+  // Patterns can have *filters* which are functions
+  // that can modify the final output of a pattern and carry out
+  // other miscellaneous tasks. Here we add a filter that schedules
+  // updates for annotations everytime the target pattern outputs
+  // a value.
   _addPatternFilter( patternObject ) {
     patternObject.filters.push( args => {
       const wait = Utility.beatsToMs( patternObject.nextTime + .5,  Gibber.Scheduler.bpm ),
@@ -733,65 +738,27 @@ let Marker = {
     }) 
   },
 
-  //_getNamesAndPosition( patternNode, state, patternType, index = 0 ) {
+  // FunctionExpression and ArrowFunctionExpression are small enough to
+  // include here, as they're simply wrappers for Identifier. All other
+  // pattern markup functions are in their own files.
   patternMarkupFunctions: {
 
     __Literal:          require( './annotations/literal.js' ),
+    __Identifier:       require( './annotations/identifier.js'   ),
     __UnaryExpression:  require( './annotations/unaryExpression.js'  ),
     __BinaryExpression: require( './annotations/binaryExpression.js' ),
     __ArrayExpression:  require( './annotations/arrayExpression.js'  ),
     __CallExpression:   require( './annotations/callExpression.js'   ),
 
-
-    FunctionExpression( patternNode, containerNode, components, cm, channel, index=0, patternType, patternObject ) {
-
+    FunctionExpression( ...args ) { 
       if( patternNode.processed === true ) return 
-      const args = Array.prototype.slice.call( arguments, 0 )
       Marker._markPattern.Identifier( ...args )
     },
 
-    ArrowFunctionExpression( patternNode, containerNode, components, cm, channel, index=0, patternType, patternObject ) {
-
+    ArrowFunctionExpression( ...args ) { 
       if( patternNode.processed === true ) return 
-      const args = Array.prototype.slice.call( arguments, 0 )
       Marker._markPattern.Identifier( ...args )
-    },
-
-    Identifier( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) {
-
-      if( patternObject.type === 'WavePattern' || patternObject.isGen ) {
-        Marker.processGen( containerNode, cm, track, patternObject )
-      }else{
-        // mark up anonymous functions with comments here... 
-        let [ className, start, end ] = Marker._getNamesAndPosition( patternNode, containerNode, components, index, patternType ),
-            commentStart = end,
-            commentEnd = {},
-            marker = null
-        
-        Object.assign( commentEnd, commentStart )
-        
-        commentEnd.ch += 1
-        //commentStart.ch += 1
-
-        marker = cm.markText( commentStart, commentEnd, { className })
-         
-        //  if( track.markup.textMarkers[ className  ] === undefined ) track.markup.textMarkers[ className ] = []
-        //  track.markup.textMarkers[ className ][ 0 ] = marker
-        //  console.log( 'name', patternNode.callee.name )
-        let updateName = typeof patternNode.callee !== 'undefined' ? patternNode.callee.name : patternNode.name 
-        if( Marker.patternUpdates[ updateName ] ) {
-          patternObject.update = Marker.patternUpdates[ updateName ]( patternObject, marker, className, cm, track )
-        } else {
-          patternObject.update = Marker.patternUpdates.anonymousFunction( patternObject, marker, className, cm, track )
-        }
-        
-        patternObject.patternName = className
-        // store value changes in array and then pop them every time the annotation is updated
-        patternObject.update.value = []
-
-        Marker._addPatternFilter( patternObject )
-      }
-    }, 
+    }
   },
 
   patternUpdates: {

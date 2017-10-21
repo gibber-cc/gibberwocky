@@ -12,10 +12,10 @@ module.exports = function( Marker ) {
       args[ 0 ] = patternNode.callee.object
       args[ 0 ].offset = Marker.offset
 
-      Marker.patternMarkupFunctions.ArrayExpression.apply( null, args )
+      Marker.patternMarkupFunctions.ArrayExpression( ...args )
     } else if (patternNode.callee.type === 'Identifier' ) {
       // function like Euclid or gen~d
-      Marker.patternMarkupFunction.Identifier.apply( null, args )
+      Marker.patternMarkupFunctions.Identifier( ...args )
     }
   }
 
