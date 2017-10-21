@@ -141,10 +141,9 @@ let Marker = {
         state.unshift( node.object.name )
       }
     },
-
   },
 
-  parsingOptions: { locations:true },
+  parsingOptions: { locations:true, ecmaVersion:7 },
   process( code, position, codemirror, track ) {
     // store position offset from top of code editor
     // to use when marking patterns, since acorn will produce
@@ -750,14 +749,15 @@ let Marker = {
     __ArrayExpression:  require( './annotations/arrayExpression.js'  ),
     __CallExpression:   require( './annotations/callExpression.js'   ),
 
+    // args[ 0 ] is the pattern node
     FunctionExpression( ...args ) { 
-      if( patternNode.processed === true ) return 
-      Marker._markPattern.Identifier( ...args )
+      if( args[ 0 ].processed === true ) return 
+      Marker.patternMarkupFunctions.Identifier( ...args )
     },
 
     ArrowFunctionExpression( ...args ) { 
-      if( patternNode.processed === true ) return 
-      Marker._markPattern.Identifier( ...args )
+      if( args[ 0 ].processed === true ) return 
+      Marker.patternMarkupFunctions.Identifier( ...args )
     }
   },
 
