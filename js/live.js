@@ -43,9 +43,10 @@ let Live = {
     Gibber.Environment.lomView.init( Gibber )
   },
 
-  processTrack( spec ) {
+  processTrack( spec, index  ) {
     let track = Gibber.Track( spec )
     track.devices = []
+    track.index = index
 
     spec.devices.forEach( (val, idx ) => {
       Live.processDevice( val, idx, track ) 

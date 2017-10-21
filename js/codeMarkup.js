@@ -66,7 +66,7 @@ let Marker = {
     }  
   },
 
-  getObj( path, findSeq = false ) {
+  getObj( path, findSeq = false, seqNumber = 0 ) {
     let obj = window[ path[0] ]
 
     for( let i = 1; i < path.length; i++ ) {
@@ -80,57 +80,97 @@ let Marker = {
 
     if( findSeq === true ) {
       if( obj.type !== 'sequence' ) {
-        obj = obj[ 0 ]
+        obj = obj[ seqNumber ]
       } 
     }
 
     return obj
   },
+  
+  visitors: {
+    Literal( node, state, cb ) {
+      state.push( node.value )
+    },
+    Identifier( node, state, cb ) {
+      state.push( node.name )
+    },
+    AssignmentExpression( node ) {
+      console.log( 'assignment:', node )
+    },
+    CallExpression( node, state, cb ) {
+      cb( node.callee, state )
+      const endIdx = state.length - 1
+      const end = state[ endIdx ]
+      const foundSequence = end === 'seq'
 
-  process( code, position, codemirror, track ) {
+     // node.arguments.forEach( v => cb( v, state ) )
 
-    walk.recursive( acorn.parse( code ), [], {
-      Literal( node, state, cb ) {
-        state.push( node.value )
-      },
-      Identifier( node, state, cb ) {
-        state.push( node.name )
-      },
-      AssignmentExpression( node ) {
-        console.log( 'assignment:', node )
-      },
-      CallExpression( node, state, cb ) {
-        cb( node.callee, state )
-        const endIdx = state.length - 1
-        const end = state[ endIdx ]
-        const foundSequence = end === 'seq'
-
-        node.arguments.forEach( v => cb( v, state ) )
-
-        if( foundSequence === true ){
-          const obj = Marker.getObj( state.slice( 0, endIdx ), true )
-
-          console.log( 'seq:', obj )
+      if( foundSequence === true ){
+        const hasSeqNumber = node.arguments.length > 2
+        
+        let seqNumber = 0
+        if( hasSeqNumber === true ) {
+          seqNumber = node.arguments[2].raw
         }
 
-        console.log( 'call state:', state )
-      },
-      MemberExpression( node, state, cb ) {
-        if( node.object.type !== 'Identifier' ) {
-          if( node.property ) {
-            state.unshift( node.property.type === 'Identifier' ? node.property.name : node.property.raw )
-          }
-          cb( node.object, state )
-        }else{
-          if( node.property !== undefined ) { // if the objects is an array member, e.g. tracks[0]
-            state.unshift( node.property.raw )
-          }
-          state.unshift( node.object.name )
+        const seq = Marker.getObj( state.slice( 0, endIdx ), true, seqNumber )
+        console.log( 'seq:', seq )
 
-          console.log( 'member state:', state ) 
-        }
+        Marker.markPatternsForSeq( seq, node.arguments, state, cb )
       }
-    })
+    },
+    MemberExpression( node, state, cb ) {
+      if( node.object.type !== 'Identifier' ) {
+        if( node.property ) {
+          state.unshift( node.property.type === 'Identifier' ? node.property.name : node.property.raw )
+        }
+        cb( node.object, state )
+      }else{
+        if( node.property !== undefined ) { // if the objects is an array member, e.g. tracks[0]
+          state.unshift( node.property.raw )
+        }
+        state.unshift( node.object.name )
+      }
+    },
+
+  },
+
+  parsingOptions: { locations:true },
+  process( code, position, codemirror, track ) {
+    // store position offset from top of code editor
+    // to use when marking patterns, since acorn will produce
+    // relative offsets 
+    Marker.offset = {
+      vertical:   position.start.line,
+      horizontal: position.horizontalOffset === undefined ? 0 : position.horizontalOffset
+    }
+
+    const state = []
+    state.cm = codemirror
+
+    walk.recursive( acorn.parse( code, Marker.parsingOptions ), state, Marker.visitors )
+  },
+
+  markPatternsForSeq( seq, nodes, state, cb ) {
+    const valuesNode = nodes[0]
+    valuesNode.offset = Marker.offset
+
+    Marker.patternMarkupFunctions[ valuesNode.type ]( valuesNode, state, seq, 'values' )
+
+    if( nodes[1] !== undefined ) {
+      const timingsNode = nodes[1] 
+      timingsNode.offset = Marker.offset
+      Marker.patternMarkupFunctions[ timingsNode.type ]( timingsNode, state, seq, 'timings' )
+    }
+  },
+
+  markPatternForSeq( seq, key, node, state, cb ) {
+    if( key === 'values' ) {
+      
+    }
+  },
+
+
     /*let shouldParse = code.includes( '.seq' ) || code.includes( 'Steps(' ) || code.includes( 'Score(' ),
         shouldParseGen = true,
         isGen = false
@@ -174,8 +214,8 @@ let Marker = {
           console.log( 'error processing annotation for', node.expression.type, error )
         }
       }
-    }*/
-  },
+    }
+  },*/
   
   processGen( node, cm, track, patternObject=null ) {
     let ch = node.end, 
@@ -684,28 +724,40 @@ let Marker = {
     }) 
   },
 
-  _markPattern: {
-    Literal( patternNode, containerNode, components, cm, track, index=0, patternType, patternObject ) {
-      if( patternNode.processed === true ) return 
-       let [ className, start, end ] = Marker._getNamesAndPosition( patternNode, containerNode, components, index, patternType ),
-           cssName = className + '_0',
-           marker = cm.markText( start, end, { 
-             'className': cssName + ' annotation-border', 
-             inclusiveLeft: true,
-             inclusiveRight: true
-           })
-       
-       track.markup.textMarkers[ className ] = marker
-       
-       if( track.markup.cssClasses[ className ] === undefined ) track.markup.cssClasses[ className ] = []
+  //_getNamesAndPosition( patternNode, state, patternType, index = 0 ) {
+  patternMarkupFunctions: {
 
-       track.markup.cssClasses[ className ][ index ] = cssName    
+    Literal( patternNode, state, seq, patternType, index=0 ) {
+      //Literal( patternNode, state, cm, track, index=0, patternType, patternObject ) {
+      const cm = state.cm
+      const track = seq.object
+      const patternObject = seq[ patternType ]
+
+      console.log( 'patternNode', patternNode )
+
+      if( patternNode.processed === true ) return 
+      let [ className, start, end ] = Marker._getNamesAndPosition( patternNode, state, patternType ),
+          cssName = className + '_0'
+
+      console.log( 'className:', className, 'start:', start, 'end:', end )
+
+      const marker = cm.markText( start, end, { 
+         'className': cssName + ' annotation-border', 
+         inclusiveLeft: true,
+         inclusiveRight: true
+      })
        
-       Marker._addPatternUpdates( patternObject, className )
-       Marker._addPatternFilter( patternObject )
+      track.markup.textMarkers[ className ] = marker
        
-       patternObject.patternName = className
-       patternObject._onchange = () => { Marker._updatePatternContents( patternObject, className, track ) }
+      if( track.markup.cssClasses[ className ] === undefined ) track.markup.cssClasses[ className ] = []
+
+      track.markup.cssClasses[ className ][ index ] = cssName    
+       
+      Marker._addPatternUpdates( patternObject, className )
+      Marker._addPatternFilter( patternObject )
+       
+      patternObject.patternName = className
+      patternObject._onchange = () => { Marker._updatePatternContents( patternObject, className, track ) }
     },
 
     UnaryExpression( patternNode, containerNode, components, cm, channel, index=0, patternType, patternObject ) { // -1 etc.
@@ -1291,25 +1343,25 @@ let Marker = {
     }
   },
 
-  _getNamesAndPosition( patternNode, containerNode, components, index=0, patternType ) {
+  _getNamesAndPosition( patternNode, state, patternType, index = 0 ) {
     let start   = patternNode.loc.start,
         end     = patternNode.loc.end,
-        className = components.slice( 0 ),
+        className = state.slice( 0 ), 
         cssName   = null,
         marker
 
-     if( className.includes( 'this' ) ) className.shift()
+     //if( className.includes( 'this' ) ) className.shift()
 
-     if( className.includes( 'tracks' ) ) {
-       //className = [ 'tracks', components[1] ].concat( components.slice( 2, components.length - 1 ) )
-       if( index !== 0 ) {
-         className.splice( 3, 0, index )
-       }
-     }else{
-       if( index !== 0 ) {
-         className.splice( 1, 0, index ) // insert index into array
-       }
-     }
+     //if( className.includes( 'tracks' ) ) {
+     //  //className = [ 'tracks', components[1] ].concat( components.slice( 2, components.length - 1 ) )
+     //  if( index !== 0 ) {
+     //    className.splice( 3, 0, index )
+     //  }
+     //}else{
+     //  if( index !== 0 ) {
+     //    className.splice( 1, 0, index ) // insert index into array
+     //  }
+     //}
 
      className.push( patternType )
      className = className.join( '_' )
@@ -1323,10 +1375,10 @@ let Marker = {
      expr = /\ /gi
      className = className.replace( expr, '_' )
 
-     start.line += containerNode.verticalOffset - 1
-     end.line   += containerNode.verticalOffset - 1
-     start.ch   = start.column + containerNode.horizontalOffset
-     end.ch     = end.column + containerNode.horizontalOffset
+     start.line += patternNode.offset.vertical - 1
+     end.line   += patternNode.offset.vertical - 1
+     start.ch   = start.column + patternNode.offset.horizontal 
+     end.ch     = end.column + patternNode.offset.horizontal 
 
      return [ className, start, end ]
   },

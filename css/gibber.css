@@ -98,6 +98,8 @@ span.cm-string {color: rgb(225, 225, 225) !important }
 .annotation-border { 
   /* border-color:#999 !important; */
   border-color:#999;
+  border-width:1px;
+  border-style:solid
 }
 
 .annotation-right-border    { border-right-color:#999 }
