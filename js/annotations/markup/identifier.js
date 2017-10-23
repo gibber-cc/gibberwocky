@@ -3,7 +3,7 @@ module.exports = function( Marker ) {
   // Typically this is used with named functions. For example, if you store an
   // Arp in the variable 'a' and pass 'a' into a sequence, 'a' is the Identifier
   // and this function will be called to mark up the associated pattern.
-  const Identifier = function( patternNode, state, seq, patternType, index=0 ) {
+  const Identifier = function( patternNode, state, seq, patternType, containerNode ) {
     if( patternNode.processed === true ) return 
     const cm = state.cm
     const track = seq.object

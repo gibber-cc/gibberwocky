@@ -103,16 +103,38 @@ let Marker = {
     Identifier( node, state, cb ) {
       state.push( node.name )
     },
-    AssignmentExpression( node ) {
-      console.log( 'assignment:', node )
+    AssignmentExpression( expression, state, cb ) {
+      //cb( expression, state )
+      
+      if( expression.right.type !== 'Literal' && Marker.standalone[ expression.right.callee.name ] ) {
+
+        Marker.standalone[ expression.right.callee.name ]( 
+          expression.right, 
+          state.cm,
+          track,
+          expression.left.name,
+          state,
+          cb
+        )            
+      }else{
+        // if it's a gen~ object we need to store a reference so that we can create wavepattern
+        // annotations when appropriate.
+        const left = expression.left
+        const right= expression.right
+        
+        Marker.globalIdentifiers[ left.name ] = right
+
+        // XXX does this need a track object? passing null...
+        Marker.processGen( expression, state.cm, null)
+
+      }
     },
     CallExpression( node, state, cb ) {
       cb( node.callee, state )
+
       const endIdx = state.length - 1
       const end = state[ endIdx ]
       const foundSequence = end === 'seq'
-
-     // node.arguments.forEach( v => cb( v, state ) )
 
       if( foundSequence === true ){
         const hasSeqNumber = node.arguments.length > 2
@@ -123,9 +145,9 @@ let Marker = {
         }
 
         const seq = Marker.getObj( state.slice( 0, endIdx ), true, seqNumber )
-        console.log( 'seq:', seq )
+        //console.log( 'seq:', seq )
 
-        Marker.markPatternsForSeq( seq, node.arguments, state, cb )
+        Marker.markPatternsForSeq( seq, node.arguments, state, cb, node )
       }
     },
     MemberExpression( node, state, cb ) {
@@ -143,7 +165,9 @@ let Marker = {
     },
   },
 
+  // need ecmaVersion 7 for arrow functions to work correctly
   parsingOptions: { locations:true, ecmaVersion:7 },
+
   process( code, position, codemirror, track ) {
     // store position offset from top of code editor
     // to use when marking patterns, since acorn will produce
@@ -159,25 +183,18 @@ let Marker = {
     walk.recursive( acorn.parse( code, Marker.parsingOptions ), state, Marker.visitors )
   },
 
-  markPatternsForSeq( seq, nodes, state, cb ) {
+  markPatternsForSeq( seq, nodes, state, cb, container ) {
     const valuesNode = nodes[0]
     valuesNode.offset = Marker.offset
 
-    Marker.patternMarkupFunctions[ valuesNode.type ]( valuesNode, state, seq, 'values' )
+    Marker.patternMarkupFunctions[ valuesNode.type ]( valuesNode, state, seq, 'values', container )
 
     if( nodes[1] !== undefined ) {
       const timingsNode = nodes[1] 
       timingsNode.offset = Marker.offset
-      Marker.patternMarkupFunctions[ timingsNode.type ]( timingsNode, state, seq, 'timings' )
+      Marker.patternMarkupFunctions[ timingsNode.type ]( timingsNode, state, seq, 'timings', container )
     }
   },
-
-  markPatternForSeq( seq, key, node, state, cb ) {
-    if( key === 'values' ) {
-      
-    }
-  },
-
 
     /*let shouldParse = code.includes( '.seq' ) || code.includes( 'Steps(' ) || code.includes( 'Score(' ),
         shouldParseGen = true,
@@ -227,24 +244,28 @@ let Marker = {
   
   processGen( node, cm, track, patternObject=null ) {
     let ch = node.end, 
-        line = node.verticalOffset, 
+        line = Marker.offset.vertical, 
         closeParenStart = ch - 1, 
         end = node.end,
         isAssignment = true 
 
     // check to see if a given object is a proxy that already has
     // a widget created; if so, don't make another one!
-    if( node.expression.type === 'AssignmentExpression' ) {
-      const __obj = window[ node.expression.left.name ]
+    if( node.type === 'AssignmentExpression' ) {
+      const __obj = window[ node.left.name ]
+      console.log( 'obj:', __obj )
+
       if( __obj !== undefined ) {
         if( __obj.widget !== undefined ) {
           return
         }
 
+        console.log( 'making widget...' )
+
         Marker.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, __obj )
       }
-    }else if( node.expression.type === 'CallExpression' ) {
-      const seqExpression = node.expression
+    }else if( node.type === 'CallExpression' ) {
+      const seqExpression = node
 
       // check each node in calls to .seq for genish functions
       // XXX CURRENTLY ONLY CHECKS FOR ONE GENISH FUNCTION
@@ -269,7 +290,8 @@ let Marker = {
   },
 
   createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject ) {
-    cm.replaceRange( ') ', { line, ch:closeParenStart }, { line, ch } )
+
+    cm.replaceRange( ' ', { line, ch:ch+1 })// { line, ch:ch + 1  } )
 
     const widget = document.createElement( 'canvas' )
     widget.ctx = widget.getContext('2d')
@@ -307,6 +329,7 @@ let Marker = {
         //widget.gen = window[ node.expression.left.name ]
       }
     }
+
     Gibber.__gen.gen.lastConnected = null
 
     for( let i = 0; i < 120; i++ ) widget.values[ i ] = 0
@@ -415,9 +438,9 @@ let Marker = {
 
     AssignmentExpression: function( expressionNode, codemirror, track ) {
       // if the right-hand op is not a literal and we have a defined annotation for it (in Marker.functions)
-      if( expressionNode.expression.right.type !== 'Literal' && Marker.functions[ expressionNode.expression.right.callee.name ] ) {
+      if( expressionNode.expression.right.type !== 'Literal' && Marker.standalone[ expressionNode.expression.right.callee.name ] ) {
 
-        Marker.functions[ expressionNode.expression.right.callee.name ]( 
+        Marker.standalone[ expressionNode.expression.right.callee.name ]( 
           expressionNode.expression.right, 
           codemirror,
           track,
@@ -722,10 +745,10 @@ let Marker = {
       // because changing the mark of the values pattern messes up the mark of the timings
       // pattern; reversing their order of execution fixes this.  
       if( patternObject.__delayAnnotations === true ) {
-          Gibber.Environment.animationScheduler.add( () => {
-            patternObject.update.currentIndex = idx
-            patternObject.update()
-          }, wait + 1 )
+        Gibber.Environment.animationScheduler.add( () => {
+          patternObject.update.currentIndex = idx
+          patternObject.update()
+        }, wait + 1 )
       }else{
         Gibber.Environment.animationScheduler.add( () => {
           patternObject.update.currentIndex = idx
@@ -742,12 +765,12 @@ let Marker = {
   // pattern markup functions are in their own files.
   patternMarkupFunctions: {
 
-    __Literal:          require( './annotations/literal.js' ),
-    __Identifier:       require( './annotations/identifier.js'   ),
-    __UnaryExpression:  require( './annotations/unaryExpression.js'  ),
-    __BinaryExpression: require( './annotations/binaryExpression.js' ),
-    __ArrayExpression:  require( './annotations/arrayExpression.js'  ),
-    __CallExpression:   require( './annotations/callExpression.js'   ),
+    __Literal:          require( './annotations/markup/literal.js' ),
+    __Identifier:       require( './annotations/markup/identifier.js'   ),
+    __UnaryExpression:  require( './annotations/markup/unaryExpression.js'  ),
+    __BinaryExpression: require( './annotations/markup/binaryExpression.js' ),
+    __ArrayExpression:  require( './annotations/markup/arrayExpression.js'  ),
+    __CallExpression:   require( './annotations/markup/callExpression.js'   ),
 
     // args[ 0 ] is the pattern node
     FunctionExpression( ...args ) { 
@@ -876,6 +899,7 @@ let Marker = {
 
       return update 
     },
+
     anonymousFunction: ( patternObject, marker, className, cm ) => {
       patternObject.commentMarker = marker
       let update = () => {
@@ -908,11 +932,12 @@ let Marker = {
           delete patternObject.commentMarker
         } catch( e ) {} // yes, I just did that XXX 
       }
+
       return update
     }
   },
 
-  functions:{
+  standalone: {
     Score( node, cm, track, objectName, vOffset=0 ) {
       let timelineNodes = node.arguments[ 0 ].elements
       //console.log( timelineNodes )
@@ -942,7 +967,7 @@ let Marker = {
       }
     },
 
-    Steps( node, cm, track, objectName, vOffset=0 ) {
+    Steps( node, cm, track, objectName, state, cb ) {
       let steps = node.arguments[ 0 ].properties
 
       track.markup.textMarkers[ 'step' ] = []
@@ -964,8 +989,8 @@ let Marker = {
         let step = steps[ key ].value
 
         if( step && step.value ) { // ensure it is a correctly formed step
-          step.loc.start.line += vOffset - 1
-          step.loc.end.line   += vOffset - 1
+          step.loc.start.line += Marker.offset.vertical - 1
+          step.loc.end.line   += Marker.offset.vertical - 1
           step.loc.start.ch   = step.loc.start.column + 1
           step.loc.end.ch     = step.loc.end.column - 1
           

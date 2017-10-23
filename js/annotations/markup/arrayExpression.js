@@ -1,4 +1,4 @@
-const Utility = require( '../utility.js' )
+const Utility = require( '../../utility.js' )
 const $ = Utility.create
 
 module.exports = function( Marker ) {
@@ -11,6 +11,8 @@ module.exports = function( Marker ) {
     const patternObject = seq[ patternType ]
     const [ patternName, start, end ] = Marker._getNamesAndPosition( patternNode, state, patternType )
     const cssName = patternName + '_0'
+
+    if( track.markup === undefined ) Marker.prepareObject( track )
 
     let count = 0
 
