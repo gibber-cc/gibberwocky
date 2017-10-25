@@ -12,6 +12,10 @@ let Scheduler = {
   init() {
     window.requestAnimationFrame( this.onAnimationFrame ) 
   },
+
+  clear() {
+    this.queue.data.length = 0
+  },
   
   add( func, offset, idx ) {
     let time = this.currentTime + offset
@@ -22,8 +26,9 @@ let Scheduler = {
 
   run( timestamp, dt ) {
     let nextEvent = this.queue.peek()
+    if( nextEvent === undefined ) return
     
-    if( this.queue.length && nextEvent.time <= timestamp ) {
+    if( this.queue.length > 0 && nextEvent.time <= timestamp ) {
 
       // remove event
       this.queue.pop()

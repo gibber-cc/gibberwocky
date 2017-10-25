@@ -88,16 +88,17 @@ const WavePattern = {
       }
       newAbstractGraph.patterns.push( pattern )
       newAbstractGraph.graphs.push( graph )
-      newAbstractGraph.widget = oldAbstractGraph.widget
+      //newAbstractGraph.widget = oldAbstractGraph.widget
 
       pattern.graph = graph
       pattern.signalOut = genish.gen.createCallback( graph, mem, false, false, Float64Array ),
       pattern.phase = 0
       pattern.initialized = false
-      pattern.widget = newAbstractGraph.widget
+      //pattern.widget = newAbstractGraph.widget
+
       // reset min and max values for sparkline in case amplitudes have changed
-      pattern.widget.min = Infinity 
-      pattern.widget.max = -Infinity
+      //pattern.widget.min = Infinity 
+      //pattern.widget.max = -Infinity
 
       if( newAbstractGraph.__listeners === undefined ) {
         newAbstractGraph.__listeners = []
@@ -110,10 +111,16 @@ const WavePattern = {
 
     pattern.clear = function() {
       if( pattern.widget !== undefined ) { 
+        if( abstractGraph.widget !== undefined ) {
+          delete abstractGraph.widget
+        }
         pattern.widget.clear()
+        delete pattern.widget
         pattern.running = false
       }
     }
+
+    Gibber.subscribe( 'clear', pattern.clear )
 
     // if memory block has not been defined, create new one by passing in an undefined value
     // else reuse exisitng memory block

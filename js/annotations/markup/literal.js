@@ -23,16 +23,10 @@ module.exports = function( Marker ) {
 
     track.markup.cssClasses[ className ][ index ] = cssName    
     
-    if(  patternObject.__delayAnnotations === true ) {
-      Gibber.Environment.animationScheduler.add( () => {
-        Marker._addPatternUpdates( patternObject, className )
-        Marker._addPatternFilter( patternObject )
-      }, 5 )
-    }else{
-      Marker._addPatternUpdates( patternObject, className )
-      Marker._addPatternFilter( patternObject )
-    }
 
+    Marker.finalizePatternAnnotation( patternObject, className, patternTarget )
+
+    patternObject.marker = marker
     patternObject.patternName = className
     patternObject._onchange = () => { Marker._updatePatternContents( patternObject, className, track ) }
   }

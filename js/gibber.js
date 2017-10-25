@@ -44,6 +44,8 @@ let Gibber = {
     this.max = window.max
     this.$   = Gibber.Utility.create
 
+    this.createPubSub()
+
     this.Environment.init( Gibber )
     this.Theory.init( Gibber )
     this.log = this.Environment.log
@@ -77,6 +79,7 @@ let Gibber = {
 
     let proxy = null
     Object.defineProperty( target, key, {
+      configurable:true,
       get() { return proxy },
       set(v) {
         if( proxy !== null && proxy.clear ) {
@@ -134,7 +137,35 @@ let Gibber = {
     }, 250 )
 
     Gibber.Gen.clear()
-    Gibber.Environment.codeMarkup.clear()
+    Gibber.Environment.clear()
+    Gibber.publish( 'clear' )
+    Gibber.initSingletons( window )
+  },
+
+  createPubSub() {
+    const events = {}
+    this.subscribe = function( key, fcn ) {
+      if( typeof events[ key ] === 'undefined' ) {
+        events[ key ] = []
+      }
+      events[ key ].push( fcn )
+    }
+
+    this.unsubscribe = function( key, fcn ) {
+      if( typeof events[ key ] !== 'undefined' ) {
+        const arr = events[ key ]
+
+        arr.splice( arr.indexOf( fcn ), 1 )
+      }
+    }
+
+    this.publish = function( key, data ) {
+      if( typeof events[ key ] !== 'undefined' ) {
+        const arr = events[ key ]
+
+        arr.forEach( v => v( data ) )
+      }
+    }
   },
 
   addSequencingToMethod( obj, methodName, priority, overrideName ) {

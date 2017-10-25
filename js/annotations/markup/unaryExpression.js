@@ -35,11 +35,8 @@ module.exports = function( Marker ) {
       inclusiveRight: true
     })
 
-    Marker._addPatternUpdates( patternObject, className )
-    Marker._addPatternFilter( patternObject )
 
-    patternObject.patternName = className
-    patternObject._onchange = () => { Marker._updatePatternContents( patternObject, className, track ) }
+    Marker.finalizePatternAnnotation( patternObject, className )
   }
 
   return UnaryExpression

@@ -40,6 +40,11 @@ let Environment = {
     this.createConsole()
     this.createDemoList()
   },
+
+  clear() {
+    this.codeMarkup.clear()
+    this.animationScheduler.clear()
+  },
   
   setupSplit() {
     let splitDiv = document.querySelector( '#splitBar' ),

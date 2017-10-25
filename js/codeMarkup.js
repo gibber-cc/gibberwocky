@@ -59,6 +59,7 @@ let Marker = {
 
   acorn, walk,
 
+  __visitors:require( './annotations/visitors.js' ),
   // pass Marker object to patternMarkupFunctions as a closure
   init() { 
     for( let key in this.patternMarkupFunctions ) {
@@ -66,6 +67,7 @@ let Marker = {
         this.patternMarkupFunctions[ key.slice(2) ] = this.patternMarkupFunctions[ key ]( this )
       }
     }
+    this.visitors = this.__visitors( this )
   },
 
   prepareObject( obj ) {
@@ -96,74 +98,6 @@ let Marker = {
     return obj
   },
   
-  visitors: {
-    Literal( node, state, cb ) {
-      state.push( node.value )
-    },
-    Identifier( node, state, cb ) {
-      state.push( node.name )
-    },
-    AssignmentExpression( expression, state, cb ) {
-      //cb( expression, state )
-      
-      if( expression.right.type !== 'Literal' && Marker.standalone[ expression.right.callee.name ] ) {
-
-        Marker.standalone[ expression.right.callee.name ]( 
-          expression.right, 
-          state.cm,
-          track,
-          expression.left.name,
-          state,
-          cb
-        )            
-      }else{
-        // if it's a gen~ object we need to store a reference so that we can create wavepattern
-        // annotations when appropriate.
-        const left = expression.left
-        const right= expression.right
-        
-        Marker.globalIdentifiers[ left.name ] = right
-
-        // XXX does this need a track object? passing null...
-        Marker.processGen( expression, state.cm, null)
-
-      }
-    },
-    CallExpression( node, state, cb ) {
-      cb( node.callee, state )
-
-      const endIdx = state.length - 1
-      const end = state[ endIdx ]
-      const foundSequence = end === 'seq'
-
-      if( foundSequence === true ){
-        const hasSeqNumber = node.arguments.length > 2
-        
-        let seqNumber = 0
-        if( hasSeqNumber === true ) {
-          seqNumber = node.arguments[2].raw
-        }
-
-        const seq = Marker.getObj( state.slice( 0, endIdx ), true, seqNumber )
-        //console.log( 'seq:', seq )
-
-        Marker.markPatternsForSeq( seq, node.arguments, state, cb, node )
-      }
-    },
-    MemberExpression( node, state, cb ) {
-      if( node.object.type !== 'Identifier' ) {
-        if( node.property ) {
-          state.unshift( node.property.type === 'Identifier' ? node.property.name : node.property.raw )
-        }
-        cb( node.object, state )
-      }else{
-        if( node.property !== undefined ) { // if the objects is an array member, e.g. tracks[0]
-          state.unshift( node.property.raw )
-        }
-        state.unshift( node.object.name )
-      }
-    },
-  },
 
   // need ecmaVersion 7 for arrow functions to work correctly
   parsingOptions: { locations:true, ecmaVersion:7 },
@@ -186,63 +120,24 @@ let Marker = {
   markPatternsForSeq( seq, nodes, state, cb, container ) {
     const valuesNode = nodes[0]
     valuesNode.offset = Marker.offset
-
-    Marker.patternMarkupFunctions[ valuesNode.type ]( valuesNode, state, seq, 'values', container )
-
+    
+    // XXX We have to markup the timings node first, as there is the potential for 
+    // markup on the value node to insert text that will alter the range of the timings node.
+    // If the timings node is already marked up, the mark will simply move with the text addition.
+    // However, if the timing mode is marked up after, the position information provided by the parser
+    // will be off and not valid.
+    
     if( nodes[1] !== undefined ) {
       const timingsNode = nodes[1] 
       timingsNode.offset = Marker.offset
       Marker.patternMarkupFunctions[ timingsNode.type ]( timingsNode, state, seq, 'timings', container )
     }
+
+    Marker.patternMarkupFunctions[ valuesNode.type ]( valuesNode, state, seq, 'values', container )
   },
 
-    /*let shouldParse = code.includes( '.seq' ) || code.includes( 'Steps(' ) || code.includes( 'Score(' ),
-        shouldParseGen = true,
-        isGen = false
-
-    if( shouldParseGen ) { // check for gen~ assignment XXX check not currently needed
-      const found = findGen( code ) 
-
-      if( found === true ) {
-        shouldParse = true
-        isGen = true
-      }
-
-      if( isGen === false ) {
-        for( let ugen of Gibber.__gen.ugenNames ) {
-          let idx = code.indexOf( ugen )
-          if( idx !== -1 && code.charAt( idx + ugen.length ) === '('  ) {
-            shouldParse = true
-            isGen = true
-
-            break;
-          }
-        }
-      }
-    }
-
-    if( !shouldParse ) return
-
-    const tree = acorn.parse( code, { locations:true, ecmaVersion:6 } ).body
-    
-    for( let node of tree ) {
-      if( node.type === 'ExpressionStatement' ) { // not control flow
-        node.verticalOffset  = position.start.line
-        node.horizontalOffset = position.horizontalOffset === undefined ? 0 : position.horizontalOffset
-        try {
-          //if( isGen ) {
-            //this.processGen( node, codemirror, track )
-          //}else{ 
-            this._process[ node.type ]( node, codemirror, track )
-          //}
-        } catch( error ) {
-          console.log( 'error processing annotation for', node.expression.type, error )
-        }
-      }
-    }
-  },*/
   
-  processGen( node, cm, track, patternObject=null ) {
+  processGen( node, cm, track, patternObject=null, seq=null ) {
     let ch = node.end, 
         line = Marker.offset.vertical, 
         closeParenStart = ch - 1, 
@@ -262,7 +157,7 @@ let Marker = {
 
         console.log( 'making widget...' )
 
-        Marker.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, __obj )
+        Marker.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, __obj, track )
       }
     }else if( node.type === 'CallExpression' ) {
       const seqExpression = node
@@ -280,7 +175,7 @@ let Marker = {
           closeParenStart = ch - 1
           isAssignment = false
           node.processed = true
-          Marker.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject )
+          Marker.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject, track )
         }
       })
 
@@ -289,9 +184,18 @@ let Marker = {
     
   },
 
-  createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject ) {
+  createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject, track ) {
 
-    cm.replaceRange( ' ', { line, ch:ch+1 })// { line, ch:ch + 1  } )
+    const lineTxt = cm.getLine( line )
+
+    // different replacements are used for use in sequencers, when a callexpression
+    // creating a wavepattern is often followed by a comma, vs when a wavepattern is
+    // assigned to a variable, when no comma is present
+    if( lineTxt[ ch ] !== ',' ) {
+      cm.replaceRange( ' ', { line, ch:ch }, { line, ch:ch + 1  } )
+    }else{
+      cm.replaceRange( ' ,', { line, ch:ch }, { line, ch:ch + 1  } )
+    }
 
     const widget = document.createElement( 'canvas' )
     widget.ctx = widget.getContext('2d')
@@ -351,12 +255,12 @@ let Marker = {
 
     //debugger
     widget.mark = cm.markText({ line, ch:ch }, { line, ch:ch+1 }, { replacedWith:widget })
+    patternObject.mark = widget.mark
     widget.mark.__clear = widget.mark.clear
     widget.clear = ()=> widget.mark.clear()
     widget.mark.clear = function() {
       widget.mark.__clear()
     }
-
     
   },
 
@@ -429,210 +333,6 @@ let Marker = {
     }
 
     Marker.genWidgets = { dirty:false }
-  },
-
-  _process: {
-    ExpressionStatement( expressionNode, codemirror, track ){ 
-      Marker._process[ expressionNode.expression.type ]( expressionNode, codemirror, track )
-    },
-
-    AssignmentExpression: function( expressionNode, codemirror, track ) {
-      // if the right-hand op is not a literal and we have a defined annotation for it (in Marker.functions)
-      if( expressionNode.expression.right.type !== 'Literal' && Marker.standalone[ expressionNode.expression.right.callee.name ] ) {
-
-        Marker.standalone[ expressionNode.expression.right.callee.name ]( 
-          expressionNode.expression.right, 
-          codemirror,
-          track,
-          expressionNode.expression.left.name,
-          expressionNode.verticalOffset,
-          expressionNode.horizontalOffset
-        )            
-      }else{
-        // if it's a gen~ object we need to store a reference so that we can create wavepattern
-        // annotations when appropriate.
-        const left = expressionNode.expression.left
-        const right= expressionNode.expression.right
-        
-        Marker.globalIdentifiers[ left.name ] = right
-
-        
-        console.log( 'assignment expression for gen~' )
-        Marker.processGen( expressionNode, codemirror, track )
-      }
-    },
-
-    CallExpression( expressionNode, codemirror, track  ) {
-      let [ components, depthOfCall, index ] = Marker._getCallExpressionHierarchy( expressionNode.expression ),
-        args = expressionNode.expression.arguments,
-        usesThis, targetPattern, isTrack, method, target
-
-      // if index is passed as argument to .seq call...
-      if( args.length > 2 ) { index = args[ 2 ].value }
-      
-      //console.log( "depth of call", depthOfCall, components, index )
-      let valuesPattern, timingsPattern, valuesNode, timingsNode
-
-      switch( callDepths[ depthOfCall ] ) {
-         case 'SCORE':
-           //console.log( 'score no assignment?', components, expressionNode.expression )
-           if( Marker.functions[ expressionNode.expression.callee.name ] ) {
-             Marker.functions[ expressionNode.expression.callee.name ]( expressionNode.expression, codemirror, track, expressionNode.verticalOffset )            
-           }
-           break;
-
-         case 'THIS.METHOD': // also for calls to Score([]).start() 
-           break;
-
-         case 'THIS.METHOD.SEQ':
-           if( components.includes( 'tracks' ) ) { //expressionNode.expression.callee.object.object.type !== 'ThisExpression' ) {
-             let objName = expressionNode.expression.callee.object.object.name
-
-             track = window[ objName ]
-             method = track[ components[ 1 ] ][ index ]
-           }else if( components.includes( 'this' ) ){
-             track = Gibber.currentTrack
-             method = track[ components[ 1 ] ][ index ]
-           }else{
-             let objName = expressionNode.expression.callee.object.object.name
-
-             track = window[ components[0] ]
-             method = track[ components[ 1 ] ][ index ] 
-           }
-
-           if( !track.markup ) { Marker.prepareObject( track ) }
-
-           valuesPattern =  method.values
-           timingsPattern = method.timings
-           valuesNode = args[ 0 ]
-           timingsNode= args[ 1 ]
-
-           valuesPattern.codemirror = timingsPattern.codemirror = codemirror 
-          
-           if( valuesNode ) {
-             Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
-           }  
-           if( timingsNode ) {
-             Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern )  
-           }
-
-           break;
-
-         case 'THIS.METHOD[ 0 ].SEQ': // will this ever happen??? I guess after it has been sequenced once?
-           isTrack  = trackNames.includes( components[0] )
-           target = null
-           track = window[ components[0] ][ components[1] ]
-           
-           if( !isTrack ) { // not a track! XXX please, please get a better parsing method / rules...
-             target = track
-             track = Gibber.currentTrack
-           }
-
-           valuesPattern =  target === null ? track[ components[2] ][ index ].values : target[ components[2] ].values
-           timingsPattern = target === null ? track[ components[2] ][ index ].timings : target[ components[2] ].timings 
-           valuesNode = args[0]
-           timingsNode = args[1]
-
-           valuesPattern.codemirror = codemirror
-           if( timingsPattern !== undefined ) timingsPattern.codemirror = codemirror
-
-           if( valuesNode ) { 
-             Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
-           }
-           if( timingsNode ) {
-             Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern )  
-           }
-
-           break;
-
-         case 'THIS.METHOD.VALUES.REVERSE.SEQ':
-           usesThis = components.includes( 'this' )
-           isTrack  = components.includes( 'tracks' )
-
-           if( isTrack ) { // XXX this won't ever get called here, right?
-             track = window[ components[0] ][ components[1] ] 
-             targetPattern = track[ components[2] ][ components[3] ]
-             method = targetPattern[ components[4] ]
-
-           }else{
-             track = usesThis ? Gibber.currentTrack : window[ components[0] ],
-             targetPattern = track[ components[1] ][ components[2] ],
-             method = targetPattern[ components[3] ]
-           }
-        
-            
-           valuesPattern = method.values
-           timingsPattern = method.timings
-           valuesNode = args[0]
-           timingsNode = args[1]
-
-           valuesPattern.codemirror = timingsPattern.codemirror = codemirror
-           
-           if( valuesNode ) {
-             Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
-           }  
-           if( timingsNode ) {
-             Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern )  
-           }
-
-           break;
-
-         case 'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ': // most useful?
-           usesThis = components.includes( 'this' )
-           isTrack  = components.includes( 'tracks' )
-           // tracks['1-Impulse 606'].devices['Impulse']['Global Time']
-           
-           if( isTrack ) {
-             track = window[ components[0] ][ components[1] ] 
-             targetPattern = track[ components[2] ][ components[3] ]
-             method = targetPattern[ components[4] ]
-
-           }else{
-             track = usesThis ? Gibber.currentTrack : window[ components[0] ],
-             targetPattern = track[ components[1] ][ index ][ components[3] ],
-             method = targetPattern[ components[4] ]
-           }
-
-           valuesPattern =  method.values
-           timingsPattern = method.timings
-           valuesNode = args[ 0 ]
-           timingsNode= args[ 1 ]
-          
-           valuesPattern.codemirror = timingsPattern.codemirror = codemirror
-
-           if( !isTrack ) components.splice( 2,index )
-          
-           if( valuesNode ) {
-             Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
-           }
-           if( timingsNode ) {
-             Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern )  
-           }
-           break;
-         case 'TRACKS[0].METHOD[ 0 ].VALUES.REVERSE.SEQ':
-           track = window[ 'tracks' ][ components[ 1 ] ]
-
-           components[3] = components[3]
-           valuesPattern =  track[ components[ 2 ] ][ components[3] ][ components[4] ][ components[5] ].values
-           timingsPattern = track[ components[ 2 ] ][ components[3] ][ components[4] ][ components[5] ].timings
-           valuesNode = args[ 0 ]
-           timingsNode= args[ 1 ]
-          
-           valuesPattern.codemirror = timingsPattern.codemirror = codemirror
-
-           if( valuesNode ) {
-             Marker._markPattern[ valuesNode.type ]( valuesNode, expressionNode, components, codemirror, track, index, 'values', valuesPattern ) 
-           }  
-           if( timingsNode ) {
-             Marker._markPattern[ timingsNode.type ]( timingsNode, expressionNode, components, codemirror, track, index, 'timings', timingsPattern )  
-           }
-           break;
-
-         default:
-           console.log( 'default annotation error' )
-           break;
-      }
-    },
   },
 
   _createBorderCycleFunction( classNamePrefix, patternObject ) {
@@ -721,6 +421,19 @@ let Marker = {
     return cycle
   },
 
+  finalizePatternAnnotation( patternObject, className, seqTarget ) {
+    Marker._addPatternUpdates( patternObject, className )
+    Marker._addPatternFilter( patternObject )
+
+    patternObject.marker = marker
+    patternObject.patternName = className
+    patternObject._onchange = () => { Marker._updatePatternContents( patternObject, className, seqTarget ) }
+
+    patternObject.clear = () => {
+      patternObject.marker.clear()
+    }
+  },
+
   _addPatternUpdates( patternObject, className ) {
     let cycle = Marker._createBorderCycleFunction( className, patternObject )
     
@@ -728,6 +441,8 @@ let Marker = {
       // if( !patternObject.update.shouldUpdate ) return 
       cycle() 
     }
+
+
   },
 
   // Patterns can have *filters* which are functions
@@ -903,6 +618,7 @@ let Marker = {
     anonymousFunction: ( patternObject, marker, className, cm ) => {
       patternObject.commentMarker = marker
       let update = () => {
+        console.log( 'calling pattern update...' )
         if( !patternObject.commentMarker ) return
         let patternValue = '' + patternObject.update.value.pop()
         

@@ -35,19 +35,7 @@ module.exports = function( Marker ) {
     if( track.markup.cssClasses[ className ] === undefined ) track.markup.cssClasses[ className ] = []
     track.markup.cssClasses[ className ][ index ] = cssName
 
-    patternObject.patternName = className
 
-    if( patternObject.__delayAnnotations === true ) {
-      Gibber.Environment.animationScheduler.add( () => {
-        Marker._addPatternUpdates( patternObject, className )
-        Marker._addPatternFilter( patternObject )
-      }, 0 )
-    }else{
-      Marker._addPatternUpdates( patternObject, className )
-      Marker._addPatternFilter( patternObject )
-    }
-    //Marker._addPatternUpdates( patternObject, className )
-    //Marker._addPatternFilter( patternObject )
   }
 
   return BinaryExpression 
