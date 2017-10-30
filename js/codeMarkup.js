@@ -1,19 +1,7 @@
 const acorn = require( 'acorn' )
 const walk  = require( 'acorn/dist/walk' )
-
-const callDepths = [
-  'SCORE',
-  'THIS.METHOD',
-  'THIS.METHOD.SEQ',
-  'THIS.METHOD[ 0 ].SEQ',
-  'THIS.METHOD.VALUES.REVERSE.SEQ',
-  'THIS.METHOD[ 0 ].VALUES.REVERSE.SEQ',
-  'TRACKS[0].METHOD[ 0 ].VALUES.REVERSE.SEQ',  
-  'TRACKS[0].METHOD.SEQ',
-  'TRACKS[0].METHOD[0].SEQ',
-  'TRACKS[0].METHOD.VALUES.REVERSE.SEQ',
-  'TRACKS[0].METHOD[0].VALUES.REVERSE.SEQ'
-]
+const Utility = require( './utility.js' )
+const $ = Utility.create
 
 const trackNames = [ 'this', 'tracks', 'master', 'returns' ]
 
@@ -38,9 +26,6 @@ const findGen = function( code ) {
   return found 
 } 
 
-const Utility = require( './utility.js' )
-const $ = Utility.create
-
 const __getObj = ( name, state ) => {
   let obj
   if( state.length === 0 ) {
@@ -52,7 +37,7 @@ const __getObj = ( name, state ) => {
   return obj
 }
 
-let Marker = {
+const Marker = {
   genWidgets: { dirty:false },
   _patternTypes: [ 'values', 'timings', 'index' ],
   globalIdentifiers:{},
@@ -60,6 +45,7 @@ let Marker = {
   acorn, walk,
 
   __visitors:require( './annotations/visitors.js' ),
+
   // pass Marker object to patternMarkupFunctions as a closure
   init() { 
     for( let key in this.patternMarkupFunctions ) {
@@ -148,14 +134,11 @@ let Marker = {
     // a widget created; if so, don't make another one!
     if( node.type === 'AssignmentExpression' ) {
       const __obj = window[ node.left.name ]
-      console.log( 'obj:', __obj )
 
       if( __obj !== undefined ) {
         if( __obj.widget !== undefined ) {
           return
         }
-
-        console.log( 'making widget...' )
 
         Marker.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, __obj, track )
       }
@@ -180,7 +163,6 @@ let Marker = {
       })
 
     }
-
     
   },
 
@@ -255,22 +237,25 @@ let Marker = {
 
     //debugger
     widget.mark = cm.markText({ line, ch:ch }, { line, ch:ch+1 }, { replacedWith:widget })
-    patternObject.mark = widget.mark
+    if( patternObject !== null ) patternObject.mark = widget.mark
     widget.mark.__clear = widget.mark.clear
     widget.clear = ()=> widget.mark.clear()
     widget.mark.clear = function() {
       widget.mark.__clear()
     }
-    
+
   },
 
   // currently called when a network snapshot message is received providing ugen state..
   // needs to also be called for wavepatterns.
-  updateWidget( id, __value ) {
+  updateWidget( id, __value, isFromMax = true ) {
     const widget = typeof id !== 'object' ? Marker.genWidgets[ id ] : id
     if( widget === undefined ) return 
 
-    const value = parseFloat( __value )
+    let value = parseFloat( __value )
+
+    // XXX why does beats generate a downward ramp?
+    if( isFromMax ) value = 1 - value
 
     if( typeof widget.values[72] !== 'object' ) {
       widget.values[ 72 ] = value
@@ -283,6 +268,7 @@ let Marker = {
     } 
 
     widget.values.shift()
+
     Marker.genWidgets.dirty = true
   },
 
@@ -301,7 +287,7 @@ let Marker = {
         widget.ctx.moveTo( 0,  widget.height / 2 + 1 )
 
         const range = widget.max - widget.min
-        const wHeight = widget.height * .9 + .5
+        const wHeight = widget.height * .9 + .45
 
         for( let i = 0, len = widget.width; i < len; i++ ) {
           const data = widget.values[ i ]
@@ -618,7 +604,6 @@ let Marker = {
     anonymousFunction: ( patternObject, marker, className, cm ) => {
       patternObject.commentMarker = marker
       let update = () => {
-        console.log( 'calling pattern update...' )
         if( !patternObject.commentMarker ) return
         let patternValue = '' + patternObject.update.value.pop()
         

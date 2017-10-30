@@ -10,8 +10,6 @@ const WavePattern = {
     let graph = abstractGraph.render( 'genish' ) // convert abstraction to genish.js graph
     let count = -1
 
-    
-
     const patternOutputFnc = function( isViz = false ) {
       if( isViz && pattern.vizinit === false ) {
         return
@@ -38,7 +36,7 @@ const WavePattern = {
 
       // if we are running the pattern solely to visualize the waveform data...
       if( isViz === true && pattern.vizinit && Gibber.Environment.annotations === true ) {
-        Gibber.Environment.codeMarkup.updateWidget( pattern.widget, signalValue )
+        Gibber.Environment.codeMarkup.updateWidget( pattern.widget, signalValue, false )
       }else if( Gibber.Environment.annotations === true ) {
         // mark the last placed value by the visualization as having a "hit", 
         // which will cause a dot to be drawn on the sparkline.
@@ -88,13 +86,13 @@ const WavePattern = {
       }
       newAbstractGraph.patterns.push( pattern )
       newAbstractGraph.graphs.push( graph )
-      //newAbstractGraph.widget = oldAbstractGraph.widget
+      newAbstractGraph.widget = oldAbstractGraph.widget
 
       pattern.graph = graph
       pattern.signalOut = genish.gen.createCallback( graph, mem, false, false, Float64Array ),
       pattern.phase = 0
       pattern.initialized = false
-      //pattern.widget = newAbstractGraph.widget
+      pattern.widget = newAbstractGraph.widget
 
       // reset min and max values for sparkline in case amplitudes have changed
       //pattern.widget.min = Infinity 

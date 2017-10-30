@@ -26,9 +26,9 @@ let Scheduler = {
 
   run( timestamp, dt ) {
     let nextEvent = this.queue.peek()
-    if( nextEvent === undefined ) return
-    
-    if( this.queue.length > 0 && nextEvent.time <= timestamp ) {
+    //if( nextEvent === undefined ) return
+
+    if( nextEvent !== undefined && this.queue.length > 0 && nextEvent.time <= timestamp ) {
 
       // remove event
       this.queue.pop()

@@ -278,9 +278,11 @@ let seqclosure = function( Gibber ) {
           }
 
           if( this.key === 'note' || this.key === 'midinote' ) {
-            if( Array.isArray( this.object.autorun ) ) {
-              for( let seq of this.object.autorun ) {
-                seq.tick( scheduler, beat, beatOffset )
+            if( this.object !== undefined && this.object !== null ) {
+              if( Array.isArray( this.object.autorun ) ) {
+                for( let seq of this.object.autorun ) {
+                  seq.tick( scheduler, beat, beatOffset )
+                }
               }
             }
           }

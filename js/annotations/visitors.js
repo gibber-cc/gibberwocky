@@ -9,10 +9,13 @@ module.exports = function( Marker ) {
     AssignmentExpression( expression, state, cb ) {
       if( expression.right.type !== 'Literal' && Marker.standalone[ expression.right.callee.name ] ) {
 
+        const obj = window[ expression.left.name ]
+        if( obj.markup === undefined ) Marker.prepareObject( obj )
+
         Marker.standalone[ expression.right.callee.name ]( 
           expression.right, 
           state.cm,
-          track,
+          obj,
           expression.left.name,
           state,
           cb
@@ -48,6 +51,8 @@ module.exports = function( Marker ) {
         const seq = Marker.getObj( state.slice( 0, endIdx ), true, seqNumber )
 
         Marker.markPatternsForSeq( seq, node.arguments, state, cb, node )
+      }else{
+        Marker.processGen( node, state.cm, null )
       }
     },
     MemberExpression( node, state, cb ) {

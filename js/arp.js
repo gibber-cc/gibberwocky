@@ -22,7 +22,8 @@ let Arp = function( chord = [0,2,4,6], octaves = 1, pattern = 'updown2' ) {
       arp.phase = 0
     }
 
-    if( arp.phase % notes.values.length === 0 ) {
+    const range = arp.notes.end - arp.notes.start
+    if( arp.phase !== 0 && arp.phase % range === 0 ) {
       if( dir === 'up' ) {
         if( arp.octave < octaves ) {
           arp.octave += 1 

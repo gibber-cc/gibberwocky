@@ -138,7 +138,17 @@ let Track = {
 
 
         let propName = useUpper ? upper : prop
-        return hasProp ? target[ prop ] : device[ propName ]
+
+        let property = null
+        if( hasProp ) {
+          property = target[ prop ]
+        }else{
+          if( device !== null ) {
+            property = device[ propName ]
+          }
+        }
+
+        return property 
       }
     })
 
