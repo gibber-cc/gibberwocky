@@ -4790,6 +4790,8 @@ module.exports = function( Marker ) {
       }
     )
 
+    console.log( 'target:', seqTarget, seq )
+    if( seqTarget.markup === undefined ) Marker.prepareObject( seqTarget )
     seqTarget.markup.textMarkers[ className ] = marker
 
     const divStart = Object.assign( {}, start )
@@ -4944,7 +4946,7 @@ module.exports = function( Marker ) {
   const UnaryExpression = function( patternNode, state, seq, patternType, index=0 ) {
     if( patternNode.processed === true ) return 
     const cm = state.cm
-    const track = seq.object
+    const seqTarget = seq.object
     const patternObject = seq[ patternType ]
     const [ className, start, end ] = Marker._getNamesAndPosition( patternNode, state, patternType )
     const cssName = className + '_0'
@@ -4955,11 +4957,12 @@ module.exports = function( Marker ) {
       inclusiveRight: true
     })
 
-    track.markup.textMarkers[ className ] = marker
+    if( seqTarget.markup === undefined ) Marker.prepareObject( seqTarget )
+    seqTarget.markup.textMarkers[ className ] = marker
 
-    if( track.markup.cssClasses[ className ] === undefined ) track.markup.cssClasses[ className ] = []
+    if( seqTarget.markup.cssClasses[ className ] === undefined ) seqTarget.markup.cssClasses[ className ] = []
 
-    track.markup.cssClasses[ className ][ index ] = cssName    
+    seqTarget.markup.cssClasses[ className ][ index ] = cssName    
 
     let start2 = Object.assign( {}, start )
     start2.ch += 1
@@ -4994,30 +4997,39 @@ module.exports = function( Marker ) {
       state.push( node.name )
     },
     AssignmentExpression( expression, state, cb ) {
-      if( expression.right.type !== 'Literal' && Marker.standalone[ expression.right.callee.name ] ) {
+      // the only assignments we're interested in for annotation purposes are
+      // wavepatterns / gen(ish) expressions, and standalone objects like
+      // Steps / Arp / Scores. Everything else we can ignore e.g. bass = tracks[0]
 
-        const obj = window[ expression.left.name ]
-        if( obj.markup === undefined ) Marker.prepareObject( obj )
+      // first check to see if the right operand is a callexpression
+      if( expression.right.type === 'CallExpression' ) {
 
-        Marker.standalone[ expression.right.callee.name ]( 
-          expression.right, 
-          state.cm,
-          obj,
-          expression.left.name,
-          state,
-          cb
-        )            
-      }else{
-        // if it's a gen~ object we need to store a reference so that we can create wavepattern
-        // annotations when appropriate.
-        const left = expression.left
-        const right= expression.right
-        
-        Marker.globalIdentifiers[ left.name ] = right
+        // if standalone object (Steps, Arp, Score etc.)
+        if( Marker.standalone[ expression.right.callee.name ] ) {
 
-        // XXX does this need a track object? passing null...
-        Marker.processGen( expression, state.cm, null)
+          const obj = window[ expression.left.name ]
+          if( obj.markup === undefined ) Marker.prepareObject( obj )
 
+          Marker.standalone[ expression.right.callee.name ]( 
+            expression.right, 
+            state.cm,
+            obj,
+            expression.left.name,
+            state,
+            cb
+          )            
+        }else{
+          // if it's a gen~ object we need to store a reference so that we can create wavepattern
+          // annotations when appropriate.
+          const left = expression.left
+          const right= expression.right
+          
+          Marker.globalIdentifiers[ left.name ] = right
+
+          // XXX does this need a track object? passing null...
+          Marker.processGen( expression, state.cm, null)
+
+        }
       }
     },
     CallExpression( node, state, cb ) {
@@ -5364,6 +5376,7 @@ const Marker = {
 
     if( findSeq === true ) {
       if( obj.type !== 'sequence' ) {
+        console.log( 'not sequence:', obj, seqNumber, obj[ seqNumber ] )
         obj = obj[ seqNumber ]
       } 
     }
@@ -9759,7 +9772,12 @@ let seqclosure = function( Gibber ) {
       if( this.key === 'note' ) {
         if( this.values.filters.findIndex( v => v.type === 'note' ) === -1 ) {
           // round the values for transformation to midinotes... XXX what about for Max version?
-          this.values.filters.push( args => { args[0] = Math.round( args[0] ); return args })
+          this.values.filters.push( args => { 
+            if( typeof args[0] !== 'string' ) args[0] = Math.round( args[0] )
+
+            return args 
+          })
+
           const noteFilter = this.__noteFilter.bind( this ) 
           noteFilter.type = 'note'
           this.values.filters.push( noteFilter )

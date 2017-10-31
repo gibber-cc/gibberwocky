@@ -7,30 +7,39 @@ module.exports = function( Marker ) {
       state.push( node.name )
     },
     AssignmentExpression( expression, state, cb ) {
-      if( expression.right.type !== 'Literal' && Marker.standalone[ expression.right.callee.name ] ) {
+      // the only assignments we're interested in for annotation purposes are
+      // wavepatterns / gen(ish) expressions, and standalone objects like
+      // Steps / Arp / Scores. Everything else we can ignore e.g. bass = tracks[0]
 
-        const obj = window[ expression.left.name ]
-        if( obj.markup === undefined ) Marker.prepareObject( obj )
+      // first check to see if the right operand is a callexpression
+      if( expression.right.type === 'CallExpression' ) {
 
-        Marker.standalone[ expression.right.callee.name ]( 
-          expression.right, 
-          state.cm,
-          obj,
-          expression.left.name,
-          state,
-          cb
-        )            
-      }else{
-        // if it's a gen~ object we need to store a reference so that we can create wavepattern
-        // annotations when appropriate.
-        const left = expression.left
-        const right= expression.right
-        
-        Marker.globalIdentifiers[ left.name ] = right
+        // if standalone object (Steps, Arp, Score etc.)
+        if( Marker.standalone[ expression.right.callee.name ] ) {
 
-        // XXX does this need a track object? passing null...
-        Marker.processGen( expression, state.cm, null)
+          const obj = window[ expression.left.name ]
+          if( obj.markup === undefined ) Marker.prepareObject( obj )
 
+          Marker.standalone[ expression.right.callee.name ]( 
+            expression.right, 
+            state.cm,
+            obj,
+            expression.left.name,
+            state,
+            cb
+          )            
+        }else{
+          // if it's a gen~ object we need to store a reference so that we can create wavepattern
+          // annotations when appropriate.
+          const left = expression.left
+          const right= expression.right
+          
+          Marker.globalIdentifiers[ left.name ] = right
+
+          // XXX does this need a track object? passing null...
+          Marker.processGen( expression, state.cm, null)
+
+        }
       }
     },
     CallExpression( node, state, cb ) {

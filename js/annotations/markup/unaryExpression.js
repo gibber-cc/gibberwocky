@@ -4,7 +4,7 @@ module.exports = function( Marker ) {
   const UnaryExpression = function( patternNode, state, seq, patternType, index=0 ) {
     if( patternNode.processed === true ) return 
     const cm = state.cm
-    const track = seq.object
+    const seqTarget = seq.object
     const patternObject = seq[ patternType ]
     const [ className, start, end ] = Marker._getNamesAndPosition( patternNode, state, patternType )
     const cssName = className + '_0'
@@ -15,11 +15,12 @@ module.exports = function( Marker ) {
       inclusiveRight: true
     })
 
-    track.markup.textMarkers[ className ] = marker
+    if( seqTarget.markup === undefined ) Marker.prepareObject( seqTarget )
+    seqTarget.markup.textMarkers[ className ] = marker
 
-    if( track.markup.cssClasses[ className ] === undefined ) track.markup.cssClasses[ className ] = []
+    if( seqTarget.markup.cssClasses[ className ] === undefined ) seqTarget.markup.cssClasses[ className ] = []
 
-    track.markup.cssClasses[ className ][ index ] = cssName    
+    seqTarget.markup.cssClasses[ className ][ index ] = cssName    
 
     let start2 = Object.assign( {}, start )
     start2.ch += 1

@@ -80,7 +80,12 @@ let seqclosure = function( Gibber ) {
       if( this.key === 'note' ) {
         if( this.values.filters.findIndex( v => v.type === 'note' ) === -1 ) {
           // round the values for transformation to midinotes... XXX what about for Max version?
-          this.values.filters.push( args => { args[0] = Math.round( args[0] ); return args })
+          this.values.filters.push( args => { 
+            if( typeof args[0] !== 'string' ) args[0] = Math.round( args[0] )
+
+            return args 
+          })
+
           const noteFilter = this.__noteFilter.bind( this ) 
           noteFilter.type = 'note'
           this.values.filters.push( noteFilter )
