@@ -411,7 +411,6 @@ const Marker = {
     Marker._addPatternUpdates( patternObject, className )
     Marker._addPatternFilter( patternObject )
 
-    patternObject.marker = marker
     patternObject.patternName = className
     patternObject._onchange = () => { Marker._updatePatternContents( patternObject, className, seqTarget ) }
 

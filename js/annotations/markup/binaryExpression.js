@@ -5,7 +5,7 @@ module.exports = function( Marker ) {
   const BinaryExpression = function( patternNode, state, seq, patternType, index=0 ) {
     if( patternNode.processed === true ) return 
     const cm = state.cm
-    const track = seq.object
+    const seqTarget = seq.object
     const patternObject = seq[ patternType ]
     const [ className, start, end ] = Marker._getNamesAndPosition( patternNode, state, patternType )
     const cssName = className + '_0'
@@ -22,7 +22,7 @@ module.exports = function( Marker ) {
       }
     )
 
-    track.markup.textMarkers[ className ] = marker
+    seqTarget.markup.textMarkers[ className ] = marker
 
     const divStart = Object.assign( {}, start )
     const divEnd   = Object.assign( {}, end )
@@ -32,10 +32,12 @@ module.exports = function( Marker ) {
 
     const marker2 = cm.markText( divStart, divEnd, { className:'annotation-binop-border' })     
 
-    if( track.markup.cssClasses[ className ] === undefined ) track.markup.cssClasses[ className ] = []
-    track.markup.cssClasses[ className ][ index ] = cssName
+    if( seqTarget.markup.cssClasses[ className ] === undefined ) seqTarget.markup.cssClasses[ className ] = []
+    seqTarget.markup.cssClasses[ className ][ index ] = cssName
 
+    patternObject.marker = marker
 
+    Marker.finalizePatternAnnotation( patternObject, className, seqTarget, marker )
   }
 
   return BinaryExpression 

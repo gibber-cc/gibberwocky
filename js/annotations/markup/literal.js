@@ -4,7 +4,7 @@ module.exports = function( Marker ) {
     if( patternNode.processed === true ) return 
 
     const cm = state.cm
-    const track = seq.object
+    const seqTarget = seq.object
     const patternObject = seq[ patternType ]
     const [ className, start, end ] = Marker._getNamesAndPosition( patternNode, state, patternType )
     const cssName = className + '_0'
@@ -15,20 +15,17 @@ module.exports = function( Marker ) {
       inclusiveRight: true
     })
 
-    if( track.markup === undefined ) Marker.prepareObject( track )
+    if( seqTarget.markup === undefined ) Marker.prepareObject( seqTarget )
 
-    track.markup.textMarkers[ className ] = marker
+    seqTarget.markup.textMarkers[ className ] = marker
 
-    if( track.markup.cssClasses[ className ] === undefined ) track.markup.cssClasses[ className ] = []
+    if( seqTarget.markup.cssClasses[ className ] === undefined ) seqTarget.markup.cssClasses[ className ] = []
 
-    track.markup.cssClasses[ className ][ index ] = cssName    
+    seqTarget.markup.cssClasses[ className ][ index ] = cssName    
     
-
-    Marker.finalizePatternAnnotation( patternObject, className, patternTarget )
-
     patternObject.marker = marker
-    patternObject.patternName = className
-    patternObject._onchange = () => { Marker._updatePatternContents( patternObject, className, track ) }
+    Marker.finalizePatternAnnotation( patternObject, className, seqTarget, marker )
+
   }
 
   return Literal 

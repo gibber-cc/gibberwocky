@@ -36,6 +36,7 @@ module.exports = function( Marker ) {
     })
 
 
+    patternObject.marker = marker
     Marker.finalizePatternAnnotation( patternObject, className )
   }
 

@@ -54,7 +54,10 @@ module.exports = function( Marker ) {
 
       Marker._addPatternFilter( patternObject )
     }
+
+    patternObject.marker = marker
   }
+
 
   return Identifier
 }
