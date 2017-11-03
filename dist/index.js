@@ -3980,7 +3980,6 @@ module.exports = function( Marker ) {
       }
     )
 
-    console.log( 'target:', seqTarget, seq )
     if( seqTarget.markup === undefined ) Marker.prepareObject( seqTarget )
     seqTarget.markup.textMarkers[ className ] = marker
 
@@ -4252,7 +4251,7 @@ module.exports = function( Marker ) {
         cb( node.object, state )
       }else{
         if( node.property !== undefined ) { // if the objects is an array member, e.g. tracks[0]
-          state.unshift( node.property.raw )
+          state.unshift( node.property.raw || node.property.name )
         }
         state.unshift( node.object.name )
       }
@@ -4566,7 +4565,6 @@ const Marker = {
 
     if( findSeq === true ) {
       if( obj.type !== 'sequence' ) {
-        console.log( 'not sequence:', obj, seqNumber, obj[ seqNumber ] )
         obj = obj[ seqNumber ]
       } 
     }
@@ -6748,13 +6746,13 @@ module.exports = function( Gibber ) {
 const binops = [ 
   'min','max','add','sub','mul','div','rdiv','mod','rsub','rmod','absdiff',
   'and','or','gt','eq','eqp','gte','gtep','gtp','lt','lte','ltep','ltp','neq',
-  'step', 'rate'
+  'step' 
 ]
 
 const monops = [
   'abs','acos','acosh','asin','asinh','atan','atan2','atanh','cos','cosh','degrees',
   'fastcos','fastsin','fasttan','hypot','radians','sin','sinh','tan','tanh', 'floor',
-  'ceil', 'sign', 'trunc', 'fract'
+  'ceil', 'sign', 'trunc', 'fract', 'param'
 ]
 
 const noops = [
@@ -6784,9 +6782,14 @@ let Gen  = {
 
   // if property is !== ugen (it's a number) a Param must be made using a default
   create( name ) {
+    // rate needs custom function to skip sequencing input and only sequence rate adjustment
+
+    const params = Array.prototype.slice.call( arguments, 1 )
+
+    if( name === 'rate' ) return Gen.createRate( name, ...params )
+
     let obj = Object.create( this ),
-        count = 0,
-        params = Array.prototype.slice.call( arguments, 1 )
+        count = 0
     
     obj.name = name
     obj.active = false
@@ -6811,7 +6814,36 @@ let Gen  = {
 
     return obj
   },
-  
+
+  createRate( name ) {
+    let obj = Object.create( this ),
+        count = 0,
+        param = arguments[1] 
+    
+    obj.name = 'rate' 
+    obj.active = false
+    
+    let value = param
+    //console.log( 'value:', value, 'args:', arguments )
+    obj[ 0 ] = v => {
+      if( v === undefined ) {
+        return value
+      }else{
+        value = v
+        if( obj.active ) {
+          Gibber.Communication.send( `genp ${obj.paramID} ${obj[ 0 ].uid} ${v}` ) 
+        }
+      }
+    }
+
+    Gen.getUID() // leave 0 behind...
+    obj[ 0 ].uid = Gen.getUID()
+
+    Gibber.addSequencingToMethod( obj, '0' )
+
+    return obj
+  },
+ 
   createBinopFunctions() {
     for( let key of binops ) {
       Gen.functions[ key ] = {
@@ -6868,7 +6900,7 @@ let Gen  = {
   functions: {
     phasor: { properties:[ '0' ],  str:'phasor' },
     cycle:  { properties:[ '0' ],  str:'cycle' },
-    rate:   { properties:[ '0','1' ], str:'rate' },
+    rate:   { properties:[ '0' ], str:'rate' },
     noise:  { properties:[], str:'noise' },
     accum:  { properties:[ '0','1' ], str:'accum' },
     counter:{ properties:[ '0','1' ], str:'counter' },
@@ -6909,32 +6941,39 @@ let Gen  = {
         str = def.str + '(',
         count = 0
     
-
     // tell Gibber that this gen object is part of an active gen graph
     // so that changes to it are forwarded to m4l
     this.active = true
 
-    for( let property of def.properties ) {
-      let p = this[ property ](),
-          uid = this[ property ].uid
-      
-      //console.log( this.name, property, def.properties, uid )
-      if( Gen.isPrototypeOf( p ) ) {
-        str += p.gen( paramArray )
-      }else if( typeof p === 'number' ) {
-        let pName = uid
-        str += pName
-        paramArray.push( `Param ${pName}(${p})` )
-      }else if( p === Gen.time ) {
-        str += p
-      }else if( typeof p === 'string' ) {
-        str += p
-      }else{
-        console.log( 'CODEGEN ERROR:', p )
-      }
+    if( this.name === 'rate' ) {
+      str += 'in1, '
+      let pName = this[ 0 ].uid
+      str += pName
+      paramArray.push( `Param ${pName}(${this[0]()})` )
+    }else{
+      for( let property of def.properties ) {
+        let p = this[ property ](),
+            uid = this[ property ].uid
+        
+        //console.log( this.name, property, def.properties, uid )
+        if( Gen.isPrototypeOf( p ) ) {
+          str += p.gen( paramArray )
+        }else if( typeof p === 'number' ) {
+          let pName = uid
+          str += pName
+          paramArray.push( `Param ${pName}(${p})` )
+        }else if( p === Gen.time ) {
+          str += p
+        }else if( typeof p === 'string' ) {
+          str += p
+        }else{
+          console.log( 'CODEGEN ERROR:', p )
+        }
 
-      if( count++ < def.properties.length - 1 ) str += ','
+        if( count++ < def.properties.length - 1 ) str += ','
+      }
     }
+    
     str += ')'
 
     return str
@@ -7003,7 +7042,7 @@ let Gen  = {
     },
     
     beats( num ) {
-      return Gen.ugens.rate( 'in1', num )
+      return Gen.ugens.rate( num )
       // beat( n ) => rate(in1, n)
       // final string should be rate( in1, num )
     }
@@ -7085,7 +7124,6 @@ const defineMethod = function( obj, methodName, param, priority=0 ) {
     // else, set the value
     param.value = v
   }
-
   
   if( !obj.sequences ) obj.sequences = {}
 
@@ -7149,6 +7187,8 @@ module.exports = function( Gibber ) {
     render( mode ) {
       let inputs = [], inputNum = 0
 
+      this.mode = mode
+
       if( this.name === 'phasor' ) {
         if( this.inputs[2] === undefined ) {
           this.inputs[2] = { min:0 }
@@ -7166,7 +7206,11 @@ module.exports = function( Gibber ) {
 
             inputs.push( _input )
           }else{
-            inputs.push( input )
+            let _input = input
+            //if( typeof input === 'number' ) {
+            //  _input = genfunctions.param( input )
+            //}
+            inputs.push( _input )
           }
         }
 
@@ -7176,6 +7220,8 @@ module.exports = function( Gibber ) {
       const ugen = mode === 'genish' ? genish[ this.name ]( ...inputs ) : genfunctions[ this.name ]( ...inputs )
 
       if( typeof this.__onrender === 'function' ) { this.__onrender() }
+
+      this.rendered = ugen
 
       return ugen
     },
@@ -7219,29 +7265,66 @@ module.exports = function( Gibber ) {
           ugen.name = name
           ugen.inputs = inputs
 
+          for( let i = 0; i < inputs.length; i++ ) {
+            ugen[ i ] = v => {
+              if( ugen.rendered !== undefined ) {
+                return ugen.rendered[ i ]( v )
+              }
+            }
+            Gibber.addSequencingToMethod( ugen, i )
+          }
+
           return ugen
         }
       }
+         
+      this.ugens.lfo = function( ...inputs ) {
+        const ugen = Object.create( __ugenproto__ )
 
-      this.ugens[ 'beats' ] = ( num ) => {
-        const frequency = Gibber.Utility.beatsToFrequency( num, 120 )
+        ugen.name = 'lfo'
+        ugen.inputs = inputs
 
-        const ugen = this.ugens[ 'phasor' ]( frequency, 0, { min:0, max:1 } )
-        const storedAssignmentFunction = ugen[0]
-
-        ugen[0] = v => {
-          if( v === undefined ) {
-            return storedAssignmentFunction()
-          }else{
-            const freq = Gibber.Utility.beatsToFrequency( v )
-            storedAssignmentFunction( freq )
+        ugen.frequency = v => {
+          if( ugen.rendered !== undefined ) {
+            return ugen.rendered.frequency( v )
+          }
+        }
+        ugen.amp = v => {
+          if( ugen.rendered !== undefined ) {
+            return ugen.rendered.amp( v )
+          }
+        }
+        ugen.center = v => {
+          if( ugen.rendered !== undefined ) {
+            return ugen.rendered.center( v )
           }
         }
 
-        Gibber.addSequencingToMethod( ugen, '0' )
+        Gibber.addSequencingToMethod( ugen, 'frequency' )
+        Gibber.addSequencingToMethod( ugen, 'amp' )
+        Gibber.addSequencingToMethod( ugen, 'center' )
 
         return ugen
       }
+      //this.ugens[ 'beats' ] = ( num ) => {
+      //  const frequency = Gibber.Utility.beatsToFrequency( num, 120 )
+
+      //  const ugen = this.ugens[ 'phasor' ]( frequency, 0, { min:0, max:1 } )
+      //  const storedAssignmentFunction = ugen[0]
+
+      //  ugen[0] = v => {
+      //    if( v === undefined ) {
+      //      return storedAssignmentFunction()
+      //    }else{
+      //      const freq = Gibber.Utility.beatsToFrequency( v )
+      //      storedAssignmentFunction( freq )
+      //    }
+      //  }
+
+      //  Gibber.addSequencingToMethod( ugen, '0' )
+
+      //  return ugen
+      //}
 
       this.ugens[ 'sine' ] = ( beats=4, center=0, amp=7 ) => {
         const freq = btof( beats, 120 )

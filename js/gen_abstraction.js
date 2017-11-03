@@ -41,7 +41,6 @@ const defineMethod = function( obj, methodName, param, priority=0 ) {
     // else, set the value
     param.value = v
   }
-
   
   if( !obj.sequences ) obj.sequences = {}
 
@@ -105,6 +104,8 @@ module.exports = function( Gibber ) {
     render( mode ) {
       let inputs = [], inputNum = 0
 
+      this.mode = mode
+
       if( this.name === 'phasor' ) {
         if( this.inputs[2] === undefined ) {
           this.inputs[2] = { min:0 }
@@ -122,7 +123,11 @@ module.exports = function( Gibber ) {
 
             inputs.push( _input )
           }else{
-            inputs.push( input )
+            let _input = input
+            //if( typeof input === 'number' ) {
+            //  _input = genfunctions.param( input )
+            //}
+            inputs.push( _input )
           }
         }
 
@@ -132,6 +137,8 @@ module.exports = function( Gibber ) {
       const ugen = mode === 'genish' ? genish[ this.name ]( ...inputs ) : genfunctions[ this.name ]( ...inputs )
 
       if( typeof this.__onrender === 'function' ) { this.__onrender() }
+
+      this.rendered = ugen
 
       return ugen
     },
@@ -175,29 +182,66 @@ module.exports = function( Gibber ) {
           ugen.name = name
           ugen.inputs = inputs
 
+          for( let i = 0; i < inputs.length; i++ ) {
+            ugen[ i ] = v => {
+              if( ugen.rendered !== undefined ) {
+                return ugen.rendered[ i ]( v )
+              }
+            }
+            Gibber.addSequencingToMethod( ugen, i )
+          }
+
           return ugen
         }
       }
+         
+      this.ugens.lfo = function( ...inputs ) {
+        const ugen = Object.create( __ugenproto__ )
 
-      this.ugens[ 'beats' ] = ( num ) => {
-        const frequency = Gibber.Utility.beatsToFrequency( num, 120 )
+        ugen.name = 'lfo'
+        ugen.inputs = inputs
 
-        const ugen = this.ugens[ 'phasor' ]( frequency, 0, { min:0, max:1 } )
-        const storedAssignmentFunction = ugen[0]
-
-        ugen[0] = v => {
-          if( v === undefined ) {
-            return storedAssignmentFunction()
-          }else{
-            const freq = Gibber.Utility.beatsToFrequency( v )
-            storedAssignmentFunction( freq )
+        ugen.frequency = v => {
+          if( ugen.rendered !== undefined ) {
+            return ugen.rendered.frequency( v )
+          }
+        }
+        ugen.amp = v => {
+          if( ugen.rendered !== undefined ) {
+            return ugen.rendered.amp( v )
+          }
+        }
+        ugen.center = v => {
+          if( ugen.rendered !== undefined ) {
+            return ugen.rendered.center( v )
           }
         }
 
-        Gibber.addSequencingToMethod( ugen, '0' )
+        Gibber.addSequencingToMethod( ugen, 'frequency' )
+        Gibber.addSequencingToMethod( ugen, 'amp' )
+        Gibber.addSequencingToMethod( ugen, 'center' )
 
         return ugen
       }
+      //this.ugens[ 'beats' ] = ( num ) => {
+      //  const frequency = Gibber.Utility.beatsToFrequency( num, 120 )
+
+      //  const ugen = this.ugens[ 'phasor' ]( frequency, 0, { min:0, max:1 } )
+      //  const storedAssignmentFunction = ugen[0]
+
+      //  ugen[0] = v => {
+      //    if( v === undefined ) {
+      //      return storedAssignmentFunction()
+      //    }else{
+      //      const freq = Gibber.Utility.beatsToFrequency( v )
+      //      storedAssignmentFunction( freq )
+      //    }
+      //  }
+
+      //  Gibber.addSequencingToMethod( ugen, '0' )
+
+      //  return ugen
+      //}
 
       this.ugens[ 'sine' ] = ( beats=4, center=0, amp=7 ) => {
         const freq = btof( beats, 120 )

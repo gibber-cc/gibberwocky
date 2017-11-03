@@ -77,7 +77,6 @@ const Marker = {
 
     if( findSeq === true ) {
       if( obj.type !== 'sequence' ) {
-        console.log( 'not sequence:', obj, seqNumber, obj[ seqNumber ] )
         obj = obj[ seqNumber ]
       } 
     }

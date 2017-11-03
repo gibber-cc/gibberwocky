@@ -72,7 +72,7 @@ module.exports = function( Marker ) {
         cb( node.object, state )
       }else{
         if( node.property !== undefined ) { // if the objects is an array member, e.g. tracks[0]
-          state.unshift( node.property.raw )
+          state.unshift( node.property.raw || node.property.name )
         }
         state.unshift( node.object.name )
       }

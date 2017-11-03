@@ -3,13 +3,13 @@ module.exports = function( Gibber ) {
 const binops = [ 
   'min','max','add','sub','mul','div','rdiv','mod','rsub','rmod','absdiff',
   'and','or','gt','eq','eqp','gte','gtep','gtp','lt','lte','ltep','ltp','neq',
-  'step', 'rate'
+  'step' 
 ]
 
 const monops = [
   'abs','acos','acosh','asin','asinh','atan','atan2','atanh','cos','cosh','degrees',
   'fastcos','fastsin','fasttan','hypot','radians','sin','sinh','tan','tanh', 'floor',
-  'ceil', 'sign', 'trunc', 'fract'
+  'ceil', 'sign', 'trunc', 'fract', 'param'
 ]
 
 const noops = [
@@ -39,9 +39,14 @@ let Gen  = {
 
   // if property is !== ugen (it's a number) a Param must be made using a default
   create( name ) {
+    // rate needs custom function to skip sequencing input and only sequence rate adjustment
+
+    const params = Array.prototype.slice.call( arguments, 1 )
+
+    if( name === 'rate' ) return Gen.createRate( name, ...params )
+
     let obj = Object.create( this ),
-        count = 0,
-        params = Array.prototype.slice.call( arguments, 1 )
+        count = 0
     
     obj.name = name
     obj.active = false
@@ -66,7 +71,36 @@ let Gen  = {
 
     return obj
   },
-  
+
+  createRate( name ) {
+    let obj = Object.create( this ),
+        count = 0,
+        param = arguments[1] 
+    
+    obj.name = 'rate' 
+    obj.active = false
+    
+    let value = param
+    //console.log( 'value:', value, 'args:', arguments )
+    obj[ 0 ] = v => {
+      if( v === undefined ) {
+        return value
+      }else{
+        value = v
+        if( obj.active ) {
+          Gibber.Communication.send( `genp ${obj.paramID} ${obj[ 0 ].uid} ${v}` ) 
+        }
+      }
+    }
+
+    Gen.getUID() // leave 0 behind...
+    obj[ 0 ].uid = Gen.getUID()
+
+    Gibber.addSequencingToMethod( obj, '0' )
+
+    return obj
+  },
+ 
   createBinopFunctions() {
     for( let key of binops ) {
       Gen.functions[ key ] = {
@@ -123,7 +157,7 @@ let Gen  = {
   functions: {
     phasor: { properties:[ '0' ],  str:'phasor' },
     cycle:  { properties:[ '0' ],  str:'cycle' },
-    rate:   { properties:[ '0','1' ], str:'rate' },
+    rate:   { properties:[ '0' ], str:'rate' },
     noise:  { properties:[], str:'noise' },
     accum:  { properties:[ '0','1' ], str:'accum' },
     counter:{ properties:[ '0','1' ], str:'counter' },
@@ -164,32 +198,39 @@ let Gen  = {
         str = def.str + '(',
         count = 0
     
-
     // tell Gibber that this gen object is part of an active gen graph
     // so that changes to it are forwarded to m4l
     this.active = true
 
-    for( let property of def.properties ) {
-      let p = this[ property ](),
-          uid = this[ property ].uid
-      
-      //console.log( this.name, property, def.properties, uid )
-      if( Gen.isPrototypeOf( p ) ) {
-        str += p.gen( paramArray )
-      }else if( typeof p === 'number' ) {
-        let pName = uid
-        str += pName
-        paramArray.push( `Param ${pName}(${p})` )
-      }else if( p === Gen.time ) {
-        str += p
-      }else if( typeof p === 'string' ) {
-        str += p
-      }else{
-        console.log( 'CODEGEN ERROR:', p )
-      }
+    if( this.name === 'rate' ) {
+      str += 'in1, '
+      let pName = this[ 0 ].uid
+      str += pName
+      paramArray.push( `Param ${pName}(${this[0]()})` )
+    }else{
+      for( let property of def.properties ) {
+        let p = this[ property ](),
+            uid = this[ property ].uid
+        
+        //console.log( this.name, property, def.properties, uid )
+        if( Gen.isPrototypeOf( p ) ) {
+          str += p.gen( paramArray )
+        }else if( typeof p === 'number' ) {
+          let pName = uid
+          str += pName
+          paramArray.push( `Param ${pName}(${p})` )
+        }else if( p === Gen.time ) {
+          str += p
+        }else if( typeof p === 'string' ) {
+          str += p
+        }else{
+          console.log( 'CODEGEN ERROR:', p )
+        }
 
-      if( count++ < def.properties.length - 1 ) str += ','
+        if( count++ < def.properties.length - 1 ) str += ','
+      }
     }
+    
     str += ')'
 
     return str
@@ -258,7 +299,7 @@ let Gen  = {
     },
     
     beats( num ) {
-      return Gen.ugens.rate( 'in1', num )
+      return Gen.ugens.rate( num )
       // beat( n ) => rate(in1, n)
       // final string should be rate( in1, num )
     }

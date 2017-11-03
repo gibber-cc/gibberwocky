@@ -22,7 +22,6 @@ module.exports = function( Marker ) {
       }
     )
 
-    console.log( 'target:', seqTarget, seq )
     if( seqTarget.markup === undefined ) Marker.prepareObject( seqTarget )
     seqTarget.markup.textMarkers[ className ] = marker
 
