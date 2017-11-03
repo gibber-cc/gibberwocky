@@ -5,12 +5,6 @@ const $ = Utility.create
 
 const trackNames = [ 'this', 'tracks', 'master', 'returns' ]
 
-const COLORS = {
-  FILL:'rgba(46,50,53,1)',
-  STROKE:'#aaa',
-  DOT:'rgba(89, 151, 198, 1)'//'rgba(0,0,255,1)'
-}
-
 const findGen = function( code ) {
   const found = Gibber.__gen.gen.names.reduce( (r,v) => {
     const idx = code.indexOf( v )
@@ -37,12 +31,16 @@ const __getObj = ( name, state ) => {
   return obj
 }
 
+module.exports = function( Gibber ) {
 const Marker = {
-  genWidgets: { dirty:false },
+  waveform: require( './annotations/waveform.js' )( Gibber ),
   _patternTypes: [ 'values', 'timings', 'index' ],
   globalIdentifiers:{},
 
   acorn, walk,
+
+  // need ecmaVersion 7 for arrow functions to work correctly
+  parsingOptions: { locations:true, ecmaVersion:7 },
 
   __visitors:require( './annotations/visitors.js' ),
 
@@ -56,6 +54,8 @@ const Marker = {
     this.visitors = this.__visitors( this )
   },
 
+  clear() { Marker.waveform.clear() },
+  
   prepareObject( obj ) {
     obj.markup = {
       textMarkers: {},
@@ -84,9 +84,6 @@ const Marker = {
     return obj
   },
   
-
-  // need ecmaVersion 7 for arrow functions to work correctly
-  parsingOptions: { locations:true, ecmaVersion:7 },
 
   process( code, position, codemirror, track ) {
     // store position offset from top of code editor
@@ -140,7 +137,7 @@ const Marker = {
           return
         }
 
-        Marker.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, __obj, track )
+        Marker.waveform.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, __obj, track )
       }
     }else if( node.type === 'CallExpression' ) {
       const seqExpression = node
@@ -158,167 +155,12 @@ const Marker = {
           closeParenStart = ch - 1
           isAssignment = false
           node.processed = true
-          Marker.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject, track )
+          Marker.waveform.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject, track )
         }
       })
 
     }
     
-  },
-
-  createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject, track ) {
-
-    const lineTxt = cm.getLine( line )
-
-    // different replacements are used for use in sequencers, when a callexpression
-    // creating a wavepattern is often followed by a comma, vs when a wavepattern is
-    // assigned to a variable, when no comma is present
-    if( lineTxt[ ch ] !== ',' ) {
-      cm.replaceRange( ' ', { line, ch:ch }, { line, ch:ch + 1  } )
-    }else{
-      cm.replaceRange( ' ,', { line, ch:ch }, { line, ch:ch + 1  } )
-    }
-
-    const widget = document.createElement( 'canvas' )
-    widget.ctx = widget.getContext('2d')
-    widget.style.display = 'inline-block'
-    widget.style.verticalAlign = 'middle'
-    widget.style.height = '1.1em'
-    widget.style.width = '60px'
-    widget.style.backgroundColor = 'transparent'
-    widget.style.borderLeft = '1px solid #666'
-    widget.style.borderRight = '1px solid #666'
-    widget.setAttribute( 'width', 60 )
-    widget.setAttribute( 'height', 13 )
-    widget.ctx.fillStyle = COLORS.FILL 
-    widget.ctx.strokeStyle = COLORS.STROKE
-    widget.ctx.lineWidth = .5
-    widget.gen = patternObject !== null ? patternObject : Gibber.__gen.gen.lastConnected
-    widget.values = []
-    widget.min = 10000
-    widget.max = -10000
-
-    if( widget.gen === null || widget.gen === undefined ) {
-      if( node.expression.type === 'AssignmentExpression' ) {
-        isAssignment = true
-        
-        widget.gen = window[ node.expression.left.name ]
-
-        if( widget.gen.widget !== undefined ) {
-          widget.gen.widget.parentNode.removeChild( widget.gen.widget )
-        }
-        widget.gen.widget = widget
-      }
-    }else{
-      if( widget.gen.widget !== undefined && widget.gen.widget !== widget ) {
-        isAssignment = true
-        //widget.gen = window[ node.expression.left.name ]
-      }
-    }
-
-    Gibber.__gen.gen.lastConnected = null
-
-    for( let i = 0; i < 120; i++ ) widget.values[ i ] = 0
-
-    if( isAssignment === false ) {
-      if( widget.gen !== null ) {
-        let oldWidget = Marker.genWidgets[ widget.gen.paramID ] 
-
-        if( oldWidget !== undefined ) {
-          oldWidget.parentNode.removeChild( oldWidget )
-        } 
-      }
-    }
-    
-    if( widget.gen !== null ) {
-      Marker.genWidgets[ widget.gen.paramID ] = widget
-      widget.gen.widget = widget
-    }
-
-    //debugger
-    widget.mark = cm.markText({ line, ch:ch }, { line, ch:ch+1 }, { replacedWith:widget })
-    if( patternObject !== null ) patternObject.mark = widget.mark
-    widget.mark.__clear = widget.mark.clear
-    widget.clear = ()=> widget.mark.clear()
-    widget.mark.clear = function() {
-      widget.mark.__clear()
-    }
-
-  },
-
-  // currently called when a network snapshot message is received providing ugen state..
-  // needs to also be called for wavepatterns.
-  updateWidget( id, __value, isFromMax = true ) {
-    const widget = typeof id !== 'object' ? Marker.genWidgets[ id ] : id
-    if( widget === undefined ) return 
-
-    let value = parseFloat( __value )
-
-    // XXX why does beats generate a downward ramp?
-    if( isFromMax ) value = 1 - value
-
-    if( typeof widget.values[72] !== 'object' ) {
-      widget.values[ 72 ] = value
-    }
-    
-    if( value > widget.max ) {
-      widget.max = value
-    }else if( value < widget.min ) {
-      widget.min = value
-    } 
-
-    widget.values.shift()
-
-    Marker.genWidgets.dirty = true
-  },
-
-  // called by animation scheduler if Marker.genWidgets.dirty === true
-  drawWidgets() {
-    
-    Marker.genWidgets.dirty = false
-
-    for( let key in Marker.genWidgets ) {
-      let widget = Marker.genWidgets[ key ]
-      if( typeof widget === 'object' && widget.ctx !== undefined ) {
-
-        widget.ctx.fillStyle = COLORS.FILL
-        widget.ctx.fillRect( 0,0, widget.width, widget.height )
-        widget.ctx.beginPath()
-        widget.ctx.moveTo( 0,  widget.height / 2 + 1 )
-
-        const range = widget.max - widget.min
-        const wHeight = widget.height * .9 + .45
-
-        for( let i = 0, len = widget.width; i < len; i++ ) {
-          const data = widget.values[ i ]
-          const shouldDrawDot = typeof data === 'object'
-          const value = shouldDrawDot ? data.value : data
-          const scaledValue = ( value - widget.min ) / range
-
-          const yValue = scaledValue * wHeight - .5 
-          
-          if( shouldDrawDot === true ) {
-            widget.ctx.fillStyle = COLORS.DOT
-            widget.ctx.fillRect( i-1, wHeight - yValue - 1, 2, 2)
-          }else{
-            widget.ctx.lineTo( i, wHeight - yValue )
-          }
-        }
-        widget.ctx.stroke()
-      }
-    }
-  },
-
-  clear() {
-    for( let key in Marker.genWidgets ) {
-      let widget = Marker.genWidgets[ key ]
-      if( typeof widget === 'object' ) {
-        widget.mark.clear()
-        //widget.parentNode.removeChild( widget )
-      }
-    }
-
-    Marker.genWidgets = { dirty:false }
   },
 
   _createBorderCycleFunction( classNamePrefix, patternObject ) {
@@ -846,4 +688,6 @@ const Marker = {
 
 }
 
-module.exports = Marker
+return Marker
+}
+//module.exports = Marker

@@ -96,7 +96,7 @@ let Communication = {
           param_value = 1
         }
           
-        Gibber.Environment.codeMarkup.updateWidget( param_id, 1 - param_value )
+        Gibber.Environment.codeMarkup.waveform.updateWidget( param_id, 1 - param_value )
       }
 
       return

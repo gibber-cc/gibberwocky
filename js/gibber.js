@@ -133,7 +133,7 @@ let Gibber = {
         }else{
           if( marker.clear ) marker.clear() 
         }
-        }
+      }
     }, 250 )
 
     Gibber.Gen.clear()

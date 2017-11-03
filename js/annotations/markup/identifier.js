@@ -34,7 +34,6 @@ module.exports = function( Marker ) {
       if( patternObject.widget === undefined ) { // if wavepattern is inlined to .seq call
         Marker.processGen( containerNode, cm, track, patternObject, seq )
       }else{
-        console.log( 'anonymous wavepattern' )
         patternObject.update = Marker.patternUpdates.anonymousFunction( patternObject, marker, className, cm, track )
       }
     }else{

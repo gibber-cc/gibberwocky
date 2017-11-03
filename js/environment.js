@@ -23,6 +23,8 @@ let Environment = {
   init( gibber ) {
     Gibber = gibber
 
+    this.codeMarkup = this.codeMarkup( Gibber )
+
     this.createCodeMirror()   
     this.createSidePanel()
     this.setupSplit()

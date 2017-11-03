@@ -44,8 +44,8 @@ let Scheduler = {
       this.run( timestamp )
     }
 
-    if( Gibber.Environment.codeMarkup.genWidgets.dirty === true ) {
-      Gibber.Environment.codeMarkup.drawWidgets()
+    if( Gibber.Environment.codeMarkup.waveform.widgets.dirty === true ) {
+      Gibber.Environment.codeMarkup.waveform.drawWidgets()
     }
   },
 
