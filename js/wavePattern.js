@@ -93,10 +93,12 @@ const WavePattern = {
       pattern.phase = 0
       pattern.initialized = false
       pattern.widget = newAbstractGraph.widget
-
+      
       // reset min and max values for sparkline in case amplitudes have changed
-      //pattern.widget.min = Infinity 
-      //pattern.widget.max = -Infinity
+      pattern.widget.min = Infinity 
+      pattern.widget.max = -Infinity
+      pattern.widget.values.length = 0
+      pattern.widget.storage.length = 0
 
       if( newAbstractGraph.__listeners === undefined ) {
         newAbstractGraph.__listeners = []

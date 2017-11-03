@@ -100,7 +100,7 @@ const Marker = {
     walk.recursive( acorn.parse( code, Marker.parsingOptions ), state, Marker.visitors )
   },
 
-  markPatternsForSeq( seq, nodes, state, cb, container ) {
+  markPatternsForSeq( seq, nodes, state, cb, container, seqNumber = 0 ) {
     const valuesNode = nodes[0]
     valuesNode.offset = Marker.offset
     
@@ -113,10 +113,10 @@ const Marker = {
     if( nodes[1] !== undefined ) {
       const timingsNode = nodes[1] 
       timingsNode.offset = Marker.offset
-      Marker.patternMarkupFunctions[ timingsNode.type ]( timingsNode, state, seq, 'timings', container )
+      Marker.patternMarkupFunctions[ timingsNode.type ]( timingsNode, state, seq, 'timings', container, seqNumber )
     }
 
-    Marker.patternMarkupFunctions[ valuesNode.type ]( valuesNode, state, seq, 'values', container )
+    Marker.patternMarkupFunctions[ valuesNode.type ]( valuesNode, state, seq, 'values', container, seqNumber )
   },
 
   
@@ -630,6 +630,7 @@ const Marker = {
      //}
 
      className.push( patternType )
+     className.push( index )
      className = className.join( '_' )
 
      let expr = /\[\]/gi

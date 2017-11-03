@@ -1,8 +1,8 @@
 module.exports = function( Marker ) {
 
 
-  const mark = function( node, state, patternType ) {
-    const [ className, start, end ] = Marker._getNamesAndPosition( node, state, patternType )
+  const mark = function( node, state, patternType, seqNumber ) {
+    const [ className, start, end ] = Marker._getNamesAndPosition( node, state, patternType, seqNumber )
     const cssName = className + '_0'
     const commentStart = end
     const commentEnd = {}
@@ -19,13 +19,13 @@ module.exports = function( Marker ) {
   // Typically this is used with named functions. For example, if you store an
   // Arp in the variable 'a' and pass 'a' into a sequence, 'a' is the Identifier
   // and this function will be called to mark up the associated pattern.
-  const Identifier = function( patternNode, state, seq, patternType, containerNode ) {
+  const Identifier = function( patternNode, state, seq, patternType, containerNode, seqNumber ) {
     if( patternNode.processed === true ) return 
 
     const cm = state.cm
     const track = seq.object
     const patternObject = seq[ patternType ]
-    const [ marker, className ] = mark( patternNode, state, patternType )
+    const [ marker, className ] = mark( patternNode, state, patternType, seqNumber )
 
     // WavePatterns can also be passed as named functions; make sure we forward
     // these to the appropriate markup functions

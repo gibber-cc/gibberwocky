@@ -9,8 +9,8 @@ module.exports = function( Marker ) {
     const cm = state.cm
     const track = seq.object
     const patternObject = seq[ patternType ]
-    const [ patternName, start, end ] = Marker._getNamesAndPosition( patternNode, state, patternType )
-    const cssName = patternName + '_0'
+    const [ patternName, start, end ] = Marker._getNamesAndPosition( patternNode, state, patternType, index )
+    const cssName = patternName 
 
     if( track.markup === undefined ) Marker.prepareObject( track )
 

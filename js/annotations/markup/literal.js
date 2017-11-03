@@ -6,8 +6,8 @@ module.exports = function( Marker ) {
     const cm = state.cm
     const seqTarget = seq.object
     const patternObject = seq[ patternType ]
-    const [ className, start, end ] = Marker._getNamesAndPosition( patternNode, state, patternType )
-    const cssName = className + '_0'
+    const [ className, start, end ] = Marker._getNamesAndPosition( patternNode, state, patternType, index )
+    const cssName = className
 
     const marker = cm.markText( start, end, { 
       'className': cssName + ' annotation-border', 

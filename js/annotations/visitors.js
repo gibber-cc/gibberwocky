@@ -59,10 +59,11 @@ module.exports = function( Marker ) {
 
         const seq = Marker.getObj( state.slice( 0, endIdx ), true, seqNumber )
 
-        Marker.markPatternsForSeq( seq, node.arguments, state, cb, node )
+        Marker.markPatternsForSeq( seq, node.arguments, state, cb, node, seqNumber )
       }else{
         Marker.processGen( node, state.cm, null )
       }
+      //console.log( 'call:', state )
     },
     MemberExpression( node, state, cb ) {
       if( node.object.type !== 'Identifier' ) {
@@ -76,6 +77,7 @@ module.exports = function( Marker ) {
         }
         state.unshift( node.object.name )
       }
+      //console.log( 'member: ', state ) 
     },
   }
 }
