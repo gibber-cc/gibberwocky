@@ -95,7 +95,7 @@ const Marker = {
   
   processGen( node, cm, track, patternObject=null, seq=null ) {
     let ch = node.end, 
-        line = Marker.offset.vertical, 
+        line = Marker.offset.vertical + node.loc.start.line, 
         closeParenStart = ch - 1, 
         end = node.end,
         isAssignment = true 
@@ -115,8 +115,6 @@ const Marker = {
     }else if( node.type === 'CallExpression' ) {
       const seqExpression = node
 
-      // check each node in calls to .seq for genish functions
-      // XXX CURRENTLY ONLY CHECKS FOR ONE GENISH FUNCTION
       seqExpression.arguments.forEach( function( seqArgument ) {
         if( seqArgument.type === 'CallExpression' ) {
           const idx = Gibber.__gen.ugenNames.indexOf( seqArgument.callee.name )
@@ -126,7 +124,8 @@ const Marker = {
 
           
           ch = seqArgument.loc.end.ch
-          line = Marker.offset.vertical + seqArgument.loc.end.line
+          // XXX why don't I need the Marker offset here?
+          line = /*Marker.offset.vertical +*/ seqArgument.loc.end.line
           closeParenStart = ch - 1
           isAssignment = false
           node.processed = true

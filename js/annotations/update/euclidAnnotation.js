@@ -105,13 +105,13 @@ module.exports = ( patternObject, marker, className, cm, track ) => {
   }
 
   patternObject.clear = () => {
-    try{
-      let commentPos = patternObject.commentMarker.find()
-      cm.replaceRange( '', commentPos.from, commentPos.to )
-      patternObject.commentMarker.clear()
-    } catch( e ) {
-      console.log( 'euclid annotation error:', e )
-    } // yes, I just did that XXX 
+    const commentPos = patternObject.commentMarker.find()
+
+    // if this gets called twice...
+    if( commentPos === undefined ) return
+
+    cm.replaceRange( '', commentPos.from, { line:commentPos.to.line, ch:commentPos.to.ch+1 } )
+    patternObject.commentMarker.clear()
   }
 
   return update 

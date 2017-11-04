@@ -1,8 +1,5 @@
 const __Identifier = function( Marker ) {
 
-  // XXX FIGURE OUT WHERE TO INSERT A SPACE 
-  // FOR COMMENTS / WAVEPATTERN INSERTION
-
   const mark = function( node, state, patternType, seqNumber ) {
     const [ className, start, end ] = Marker._getNamesAndPosition( node, state, patternType, seqNumber )
     const cssName = className + '_0'
@@ -27,7 +24,7 @@ const __Identifier = function( Marker ) {
     if( lastChar === ',' ) {
       state.cm.replaceRange( ' ,', { line, ch:ch }, { line, ch:ch + 1 } ) 
     }else if( lastChar === ')' ){
-      state.cm.replaceRange( ') ', { line, ch:ch-1 }, { line, ch:ch } )
+      state.cm.replaceRange( ') ', { line, ch:ch }, { line, ch:ch + 1 } )
     }
     // else we assume it's a space character?
 

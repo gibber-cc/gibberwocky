@@ -10,16 +10,6 @@ const Waveform = {
   widgets: { dirty:false },
   
   createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject, track ) {
-    const lineTxt = cm.getLine( line )
-
-    // different replacements are used for use in sequencers, when a callexpression
-    // creating a wavepattern is often followed by a comma, vs when a wavepattern is
-    // assigned to a variable, when no comma is present
-    //if( lineTxt[ ch ] !== ',' ) {
-    //  cm.replaceRange( ' ', { line, ch:ch }, { line, ch:ch + 1  } )
-    //}else{
-    //  cm.replaceRange( ' ,', { line, ch:ch }, { line, ch:ch + 1  } )
-    //}
 
     const widget = document.createElement( 'canvas' )
     widget.padding = 40
@@ -77,6 +67,7 @@ const Waveform = {
       }
     }
     
+
     if( widget.gen !== null ) {
       Waveform.widgets[ widget.gen.paramID ] = widget
       widget.gen.widget = widget
@@ -87,8 +78,12 @@ const Waveform = {
     if( patternObject !== null ) patternObject.mark = widget.mark
     widget.mark.__clear = widget.mark.clear
     widget.clear = ()=> widget.mark.clear()
-    widget.mark.clear = function() {
+    widget.mark.clear = function() { 
+      const pos = widget.mark.find()
+      if( pos === undefined ) return
       widget.mark.__clear()
+      cm.replaceRange( '', { line:pos.from.line, ch:pos.to.ch-1 }, { line:pos.from.line, ch:pos.to.ch } ) 
+
     }
 
     widget.onclick = ()=> {
