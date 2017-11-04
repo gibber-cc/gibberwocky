@@ -34,6 +34,8 @@ let Environment = {
     this.animationScheduler.init()
     this.codeMarkup.init()
     this.editorWidth = document.querySelector( '#editor' ).style.width
+
+    this.toggleSidebar()
   },
 
   createSidePanel() {
@@ -241,17 +243,22 @@ let Environment = {
       Gibber.log( 'All sequencers stopped.' )
     },
     'Shift-Ctrl-C'( cm ) {
-      Environment.sidebar.isVisible = !Environment.sidebar.isVisible
-      let editor = document.querySelector( '#editor' )
-      if( !Environment.sidebar.isVisible ) {
-        Environment.editorWidth = editor.style.width
-        editor.style.width = '100%'
-      }else{
-        editor.style.width = Environment.editorWidth
-      }
-
-      Environment.sidebar.style.display = Environment.sidebar.isVisible ? 'block' : 'none'
+      toggleSidebar()
     }
+  },
+
+  toggleSidebar() {
+    Environment.sidebar.isVisible = !Environment.sidebar.isVisible
+    let editor = document.querySelector( '#editor' )
+    if( !Environment.sidebar.isVisible ) {
+      Environment.editorWidth = editor.style.width
+      editor.style.width = '100%'
+    }else{
+      editor.style.width = Environment.editorWidth
+    }
+
+    Environment.sidebar.style.display = Environment.sidebar.isVisible ? 'block' : 'none'
+
   },
 
  	getSelectionCodeColumn( cm, findBlock ) {

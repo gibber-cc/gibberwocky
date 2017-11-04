@@ -1,5 +1,7 @@
-module.exports = function( Marker ) {
+const __Identifier = function( Marker ) {
 
+  // XXX FIGURE OUT WHERE TO INSERT A SPACE 
+  // FOR COMMENTS / WAVEPATTERN INSERTION
 
   const mark = function( node, state, patternType, seqNumber ) {
     const [ className, start, end ] = Marker._getNamesAndPosition( node, state, patternType, seqNumber )
@@ -8,7 +10,28 @@ module.exports = function( Marker ) {
     const commentEnd = {}
 
     Object.assign( commentEnd, commentStart )
+    const line = end.line
+    const lineTxt = state.cm.getLine( line )
+    let ch = end.ch
 
+    // different replacements are used for use in sequencers, when a callexpression
+    // creating a wavepattern is often followed by a comma, vs when a wavepattern is
+    // assigned to a variable, when no comma is present
+
+    let lastChar = lineTxt[ ch ]
+    while( lastChar === undefined ) {
+      ch--
+      lastChar = lineTxt[ ch ]
+    }
+    
+    if( lastChar === ',' ) {
+      state.cm.replaceRange( ' ,', { line, ch:ch }, { line, ch:ch + 1 } ) 
+    }else if( lastChar === ')' ){
+      state.cm.replaceRange( ') ', { line, ch:ch-1 }, { line, ch:ch } )
+    }
+    // else we assume it's a space character?
+
+    //commentStart.ch -= 1
     commentEnd.ch += 1
 
     const marker = state.cm.markText( commentStart, commentEnd, { className })
@@ -60,3 +83,5 @@ module.exports = function( Marker ) {
 
   return Identifier
 }
+
+module.exports = __Identifier

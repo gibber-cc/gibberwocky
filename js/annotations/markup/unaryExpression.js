@@ -1,7 +1,7 @@
 module.exports = function( Marker ) {
   
   // for negative literals e.g. -10
-  const UnaryExpression = function( patternNode, state, seq, patternType, index=0 ) {
+  const UnaryExpression = function( patternNode, state, seq, patternType, container=null, index=0 ) {
     if( patternNode.processed === true ) return 
     const cm = state.cm
     const seqTarget = seq.object

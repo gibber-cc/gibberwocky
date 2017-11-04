@@ -8,7 +8,12 @@ let Track = {
       spec,
 		  sequences:{},
       sends:[],
-      octave:0,
+      __octave:0,
+      octave( v ) {
+        if( v===undefined ) return this.__octave
+
+        this.__octave = v
+      },
       note( ...args ) {
         args[0] = Gibber.Theory.Note.convertToMIDI( args[0] )
         
@@ -99,6 +104,7 @@ let Track = {
     Gibber.addSequencingToMethod( track, 'midichord' )
     Gibber.addSequencingToMethod( track, 'mute' )
     Gibber.addSequencingToMethod( track, 'solo' )
+    Gibber.addSequencingToMethod( track, 'octave' )
 
     Gibber.addMethod( track, 'pan', spec.panning )
     Gibber.addMethod( track, 'volume', spec.volume )

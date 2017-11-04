@@ -47,11 +47,11 @@ let seqclosure = function( Gibber ) {
 
     __noteFilter( args ) {
       args[ 0 ] = Theory.Note.convertToMIDI( args[ 0 ] )
-      if( this.octave !== 0 || this.object.octave !== 0 ) {
+      if( this.octave !== 0 || this.object.octave() !== 0 ) {
         if( this.octave !== 0 )
           args[0] += this.octave * 12
         else
-          args[0] += this.object.octave * 12
+          args[0] += this.object.octave() * 12
       }
 
       return args
@@ -102,8 +102,8 @@ let seqclosure = function( Gibber ) {
           }else{
             if( typeof chord === 'function' ) chord = chord()
             out = chord.map( Gibber.Theory.Note.convertToMIDI )
-            if( this.octave !== 0 || this.object.octave !== 0 ) {
-              out = this.octave !== 0 ? out.map( v => v + ( this.octave * 12 ) ) : out.map( v=> v + ( this.object.octave * 12 ) )
+            if( this.octave !== 0 || this.object.octave() !== 0 ) {
+              out = this.octave !== 0 ? out.map( v => v + ( this.octave * 12 ) ) : out.map( v=> v + ( this.object.octave() * 12 ) )
             }
           }
 

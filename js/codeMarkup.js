@@ -3,35 +3,8 @@ const walk  = require( 'acorn/dist/walk' )
 const Utility = require( './utility.js' )
 const $ = Utility.create
 
-const trackNames = [ 'this', 'tracks', 'master', 'returns' ]
-
-const findGen = function( code ) {
-  const found = Gibber.__gen.gen.names.reduce( (r,v) => {
-    const idx = code.indexOf( v )
-    if( idx !== -1 ){
-      if( v === 'eq' && code[ idx - 1 ] !== 's' ) return r 
-      if( code[ idx + v.length ] !== '(' || code[ idx + v.length + 1 ] !== '(' ) return r
-
-      r = true
-    }
-    return r
-  }, false )
-  
-  return found 
-} 
-
-const __getObj = ( name, state ) => {
-  let obj
-  if( state.length === 0 ) {
-    obj = window[ name ]
-  }else{
-    obj = state[ state.length - 1][ name ]
-  }
-
-  return obj
-}
-
 module.exports = function( Gibber ) {
+
 const Marker = {
   waveform: require( './annotations/waveform.js' )( Gibber ),
   _patternTypes: [ 'values', 'timings', 'index' ],
@@ -99,7 +72,7 @@ const Marker = {
 
     walk.recursive( acorn.parse( code, Marker.parsingOptions ), state, Marker.visitors )
   },
-
+  
   markPatternsForSeq( seq, nodes, state, cb, container, seqNumber = 0 ) {
     const valuesNode = nodes[0]
     valuesNode.offset = Marker.offset
@@ -151,10 +124,13 @@ const Marker = {
           // not a gen, markup will happen elsewhere
           if( idx === -1 ) return
 
-          ch = seqArgument.end
+          
+          ch = seqArgument.loc.end.ch
+          line = Marker.offset.vertical + seqArgument.loc.end.line
           closeParenStart = ch - 1
           isAssignment = false
           node.processed = true
+          //debugger
           Marker.waveform.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject, track )
         }
       })
@@ -163,94 +139,11 @@ const Marker = {
     
   },
 
-  _createBorderCycleFunction( classNamePrefix, patternObject ) {
-    let modCount = 0,
-        lastBorder = null,
-        lastClassName = null
-    
-    let cycle = function( isArray = false ) {
-      let className = '.' + classNamePrefix + '_' +  patternObject.update.currentIndex,
-          border = 'top'
-
-      switch( modCount++ % 4 ) {
-        case 1: border = 'right'; break;
-        case 2: border = 'bottom'; break;
-        case 3: border = 'left'; break;
-      }
-
-
-      // for a pattern holding arrays... like for chord()
-      if( isArray === true ) {
-        switch( border ) {
-          case 'left':
-            $( className ).remove( 'annotation-' + lastBorder + '-border-cycle' )
-            $( className + '_start' ).add( 'annotation-left-border-cycle' )
-
-            break;
-          case 'right':
-            $( className ).remove( 'annotation-' + lastBorder + '-border-cycle' ) 
-            $( className + '_end' ).add( 'annotation-right-border-cycle' )
- 
-            break;
-          case 'top':
-            $( className ).add( 'annotation-top-border-cycle' )
-            $( className+'_start' ).remove( 'annotation-left-border-cycle' )
-            $( className+'_start' ).add( 'annotation-top-border-cycle' )
-            $( className+'_end' ).add( 'annotation-top-border-cycle' )
-
-            break;
-          case 'bottom':
-            $( className ).add( 'annotation-bottom-border-cycle' )
-            $( className+'_end' ).remove( 'annotation-right-border-cycle' )
-            $( className+'_end' ).add( 'annotation-bottom-border-cycle' )
-            $( className+'_start' ).add( 'annotation-bottom-border-cycle' )
-
-            break;
-          default:
-            $( className ).add( 'annotation-' + border + '-border-cycle' )
-            $( className+'_start' ).remove( 'annotation-' + border + '-border-cycle' )
-            $( className+'_end' ).remove( 'annotation-' + border + '-border-cycle' )
-            break;
-        }
-
-      }else{
-        $( className ).remove( 'annotation-' + border + '-border' )
-        $( className ).add( 'annotation-' + border + '-border-cycle' )
-        
-        if( lastBorder !== null ) {
-          $( className ).remove( 'annotation-' + lastBorder + '-border-cycle' )
-          $( className ).add( 'annotation-' + lastBorder + '-border' )
-        }
-      }
-      
-      lastBorder = border
-      lastClassName = className
-
-      //console.log( 'cycle idx:', patternObject.idx )
-    }
-
-    cycle.clear = function() {
-      modCount = 1
-      
-      if( lastClassName !== null ) {
-        $( lastClassName ).remove( 'annotation-left-border' )
-        $( lastClassName ).remove( 'annotation-left-border-cycle' )
-        $( lastClassName ).remove( 'annotation-right-border' )
-        $( lastClassName ).remove( 'annotation-right-border-cycle' )
-        $( lastClassName ).remove( 'annotation-top-border' )
-        $( lastClassName ).remove( 'annotation-top-border-cycle' )
-        $( lastClassName ).remove( 'annotation-bottom-border' )
-        $( lastClassName ).remove( 'annotation-bottom-border-cycle' )
-      }
-
-      lastBorder = null
-    }
-
-    return cycle
-  },
+  _createBorderCycleFunction: require( './annotations/update/createBorderCycle.js' ),
 
   finalizePatternAnnotation( patternObject, className, seqTarget ) {
-    Marker._addPatternUpdates( patternObject, className )
+    patternObject.update =  Marker._createBorderCycleFunction( className, patternObject )
+    //Marker._addPatternUpdates( patternObject, className )
     Marker._addPatternFilter( patternObject )
 
     patternObject.patternName = className
@@ -259,17 +152,6 @@ const Marker = {
     patternObject.clear = () => {
       patternObject.marker.clear()
     }
-  },
-
-  _addPatternUpdates( patternObject, className ) {
-    let cycle = Marker._createBorderCycleFunction( className, patternObject )
-    
-    patternObject.update = () => {
-      // if( !patternObject.update.shouldUpdate ) return 
-      cycle() 
-    }
-
-
   },
 
   // Patterns can have *filters* which are functions
@@ -327,263 +209,13 @@ const Marker = {
   },
 
   patternUpdates: {
-    Euclid: ( patternObject, marker, className, cm, track ) => {
-      let val ='/* ' + patternObject.values.join('')  + ' */',
-          pos = marker.find(),
-          end = Object.assign( {}, pos.to ),
-          annotationStartCh = pos.from.ch + 3,
-          annotationEndCh   = annotationStartCh + 1,
-          memberAnnotationStart   = Object.assign( {}, pos.from ),
-          memberAnnotationEnd     = Object.assign( {}, pos.to ),
-          initialized = false,
-          markStart = null,
-          commentMarker,
-          currentMarker, chEnd
-
-      end.ch = pos.from.ch + val.length
-
-      pos.to.ch -= 1
-      cm.replaceRange( val, pos.from, pos.to )
-
-      patternObject.commentMarker = cm.markText( pos.from, end, { className, atomic:false}) //replacedWith:element })
-
-      track.markup.textMarkers[ className ] = {}
-      
-      let mark = () => {
-        // first time through, use the position given to us by the parser
-        let range,start, end
-        if( initialized === false ) {
-          memberAnnotationStart.ch = annotationStartCh
-          memberAnnotationEnd.ch   = annotationEndCh
-          initialized = true
-        }else{
-          // after the first time through, every update to the pattern store the current
-          // position of the first element (in markStart) before replacing. Use this to generate position
-          // info. REPLACING TEXT REMOVES TEXT MARKERS.
-          range = markStart
-          start = range.from
-          memberAnnotationStart.ch = start.ch
-          memberAnnotationEnd.ch = start.ch + 1 
-        }
-
-        for( let i = 0; i < patternObject.values.length; i++ ) {
-          track.markup.textMarkers[ className ][ i ] = cm.markText(
-            memberAnnotationStart,  memberAnnotationEnd,
-            { 'className': `${className}_${i}` }
-          )
-
-          memberAnnotationStart.ch += 1
-          memberAnnotationEnd.ch   += 1
-        }
-        
-        if( start !== undefined ) {
-          start.ch -= 3
-          end = Object.assign({}, start )
-          end.ch = memberAnnotationEnd.ch + 3
-          patternObject.commentMarker = cm.markText( start, end, { className, atomic:true })
-        }
-      }
-      
-      mark()
-
-      // XXX: there's a bug when you sequence pattern transformations, and then insert newlines ABOVE the annotation
-      let count = 0, span, update, activeSpans = []
-
-      update = () => {
-        let currentIdx = count++ % patternObject.values.length
-        
-        if( span !== undefined ) {
-          span.remove( 'euclid0' )
-        }
-
-        let spanName = `.${className}_${currentIdx}`,
-            currentValue = patternObject.values[ currentIdx ]
- 
-        span = $( spanName )
-
-        if( currentValue === 1 ) {
-          span.add( 'euclid1' )
-          activeSpans.push( span )
-          setTimeout( ()=> { 
-            activeSpans.forEach( _span => _span.remove( 'euclid1' ) )
-            activeSpans.length = 0 
-          }, 50 )
-        }else{
-          span.add( 'euclid0' )
-        }
-      }
-
-      patternObject._onchange = () => {
-        let delay = Utility.beatsToMs( 1,  Gibber.Scheduler.bpm )
-        markStart = track.markup.textMarkers[ className ][ 0 ].find()
-
-        Gibber.Environment.animationScheduler.add( () => {
-          for( let i = 0; i < patternObject.values.length; i++ ) {
-   
-            let markerCh = track.markup.textMarkers[ className ][ i ],
-                pos = markerCh.find()
-            
-            marker.doc.replaceRange( '' + patternObject.values[ i ], pos.from, pos.to )
-          }
-          mark()
-        }, delay ) 
-      }
-
-      patternObject.clear = () => {
-        try{
-          let commentPos = patternObject.commentMarker.find()
-          cm.replaceRange( '', commentPos.from, commentPos.to )
-          patternObject.commentMarker.clear()
-        } catch( e ) {
-          console.log( 'euclid annotation error:', e )
-        } // yes, I just did that XXX 
-      }
-
-      return update 
-    },
-
-    anonymousFunction: ( patternObject, marker, className, cm ) => {
-      patternObject.commentMarker = marker
-      let update = () => {
-        if( !patternObject.commentMarker ) return
-        let patternValue = '' + patternObject.update.value.pop()
-        
-        if( patternValue.length > 8 ) patternValue = patternValue.slice(0,8) 
-
-        let val ='/* ' + patternValue + ' */,',
-            pos = patternObject.commentMarker.find(),
-            end = Object.assign( {}, pos.to )
-         
-        //pos.from.ch += 1
-        end.ch = pos.from.ch + val.length 
-        //pos.from.ch += 1
-
-        cm.replaceRange( val, pos.from, pos.to )
-        
-        if( patternObject.commentMarker ) patternObject.commentMarker.clear()
-
-        patternObject.commentMarker = cm.markText( pos.from, end, { className, atomic:false })
-      }
-
-      patternObject.clear = () => {
-        try{
-          let commentPos = patternObject.commentMarker.find()
-          commentPos.to.ch -= 1 // XXX wish I didn't have to do this
-          cm.replaceRange( '', commentPos.from, commentPos.to )
-          patternObject.commentMarker.clear()
-          delete patternObject.commentMarker
-        } catch( e ) {} // yes, I just did that XXX 
-      }
-
-      return update
-    }
+    Euclid: require( './annotations/update/euclidAnnotation.js' ),
+    anonymousFunction: require( './annotations/update/anonymousAnnotation.js' ),
   },
 
   standalone: {
-    Score( node, cm, track, objectName, vOffset=0 ) {
-      let timelineNodes = node.arguments[ 0 ].elements
-      //console.log( timelineNodes )
-      track.markup.textMarkers[ 'score' ] = []
-
-      for( let i = 0; i < timelineNodes.length; i+=2 ) {
-        let timeNode = timelineNodes[ i ],
-            functionNode = timelineNodes[ i + 1 ]
-            
-        functionNode.loc.start.line += vOffset - 1
-        functionNode.loc.end.line   += vOffset - 1
-        functionNode.loc.start.ch = functionNode.loc.start.column
-        functionNode.loc.end.ch = functionNode.loc.end.column
-
-        let marker = cm.markText( functionNode.loc.start, functionNode.loc.end, { className:`score${i/2}` } )
-        track.markup.textMarkers[ 'score' ][ i/2 ] = marker
-
-      }
-
-      let lastClass = 'score0'
-      $( '.' + lastClass ).add( 'scoreCurrentIndex' )
-      // TODO: global object usage is baaaad methinks?
-      window[ objectName ].onadvance = ( idx ) => {
-        $( '.' + lastClass ).remove( 'scoreCurrentIndex' )
-        lastClass = `score${idx}`
-        $( '.' + lastClass ).add( 'scoreCurrentIndex' ) 
-      }
-    },
-
-    Steps( node, cm, track, objectName, state, cb ) {
-      let steps = node.arguments[ 0 ].properties
-
-      track.markup.textMarkers[ 'step' ] = []
-      track.markup.textMarkers[ 'step' ].children = []
-
-      let mark = ( _step, _key, _cm, _track ) => {
-        for( let i = 0; i < _step.value.length; i++ ) {
-          let pos = { loc:{ start:{}, end:{}} }
-          Object.assign( pos.loc.start, _step.loc.start )
-          Object.assign( pos.loc.end  , _step.loc.end   )
-          pos.loc.start.ch += i
-          pos.loc.end.ch = pos.loc.start.ch + 1
-          let posMark = _cm.markText( pos.loc.start, pos.loc.end, { className:`step_${_key}_${i}` })
-          _track.markup.textMarkers.step[ _key ].pattern[ i ] = posMark
-        }
-      }
-
-      for( let key in steps ) {
-        let step = steps[ key ].value
-
-        if( step && step.value ) { // ensure it is a correctly formed step
-          step.loc.start.line += Marker.offset.vertical - 1
-          step.loc.end.line   += Marker.offset.vertical - 1
-          step.loc.start.ch   = step.loc.start.column + 1
-          step.loc.end.ch     = step.loc.end.column - 1
-          
-          let marker = cm.markText( step.loc.start, step.loc.end, { className:`step${key}` } )
-          track.markup.textMarkers.step[ key ] = marker
-
-          track.markup.textMarkers.step[ key ].pattern = []
-          
-          mark( step, key, cm, track )
-
-          let count = 0, span, update,
-              _key = steps[ key ].key.value,
-              patternObject = window[ objectName ].seqs[ _key ].values
-
-          update = () => {
-            let currentIdx = update.currentIndex // count++ % step.value.length
-            
-            if( span !== undefined ) {
-              span.remove( 'euclid0' )
-              span.remove( 'euclid1' )
-            }
-            
-            let spanName = `.step_${key}_${currentIdx}`,
-                currentValue = patternObject.update.value.pop() //step.value[ currentIdx ]
-            
-            span = $( spanName )
-
-            if( currentValue !== Gibber.Seq.DO_NOT_OUTPUT ) {
-              span.add( 'euclid1' )
-              setTimeout( ()=> { span.remove( 'euclid1' ) }, 50 )
-            }
-            
-            span.add( 'euclid0' )
-          }
-
-          patternObject._onchange = () => {
-            let delay = Utility.beatsToMs( 1,  Gibber.Scheduler.bpm )
-            Gibber.Environment.animationScheduler.add( () => {
-              marker.doc.replaceRange( patternObject.values.join(''), step.loc.start, step.loc.end )
-              mark( step, key, cm, track )
-            }, delay ) 
-          }
-
-          patternObject.update = update
-          patternObject.update.value = []
-
-          Marker._addPatternFilter( patternObject )
-        }
-      }
-
-    },  
+    Score: require( './annotations/standalone/scoreAnnotation.js' ),
+    Steps: require( './annotations/standalone/stepsAnnotation.js' )
   },
 
 
@@ -615,19 +247,6 @@ const Marker = {
         className = state.slice( 0 ), 
         cssName   = null,
         marker
-
-     //if( className.includes( 'this' ) ) className.shift()
-
-     //if( className.includes( 'tracks' ) ) {
-     //  //className = [ 'tracks', components[1] ].concat( components.slice( 2, components.length - 1 ) )
-     //  if( index !== 0 ) {
-     //    className.splice( 3, 0, index )
-     //  }
-     //}else{
-     //  if( index !== 0 ) {
-     //    className.splice( 1, 0, index ) // insert index into array
-     //  }
-     //}
 
      className.push( patternType )
      className.push( index )
@@ -690,5 +309,5 @@ const Marker = {
 }
 
 return Marker
+
 }
-//module.exports = Marker

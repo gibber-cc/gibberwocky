@@ -2,7 +2,7 @@ module.exports = function( Marker ) {
   'use strict'
 
   // 1/4, 1/8 etc.
-  const BinaryExpression = function( patternNode, state, seq, patternType, index=0 ) {
+  const BinaryExpression = function( patternNode, state, seq, patternType,container=null, index=0 ) {
     if( patternNode.processed === true ) return 
     const cm = state.cm
     const seqTarget = seq.object

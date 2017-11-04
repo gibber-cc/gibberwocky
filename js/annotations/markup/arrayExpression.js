@@ -4,7 +4,7 @@ const $ = Utility.create
 module.exports = function( Marker ) {
   'use strict'
 
-  const ArrayExpression = function( patternNode, state, seq, patternType, index=0 ) {
+  const ArrayExpression = function( patternNode, state, seq, patternType, container=null, index=0 ) {
     if( patternNode.processed === true ) return 
     const cm = state.cm
     const track = seq.object

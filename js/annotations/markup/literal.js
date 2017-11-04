@@ -1,11 +1,13 @@
 module.exports = function( Marker ) {
+  // Marker.patternMarkupFunctions[ valuesNode.type ]( valuesNode, state, seq, 'values', container, seqNumber )
 
-  const Literal = function( patternNode, state, seq, patternType, index=0 ) {
+  const Literal = function( patternNode, state, seq, patternType, container=null, index=0 ) {
     if( patternNode.processed === true ) return 
 
     const cm = state.cm
     const seqTarget = seq.object
     const patternObject = seq[ patternType ]
+
     const [ className, start, end ] = Marker._getNamesAndPosition( patternNode, state, patternType, index )
     const cssName = className
 
