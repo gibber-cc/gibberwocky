@@ -6,6 +6,7 @@ module.exports = function( Marker ) {
 
   const ArrayExpression = function( patternNode, state, seq, patternType, container=null, index=0 ) {
     if( patternNode.processed === true ) return 
+    console.log( 'array' )
     const cm = state.cm
     const track = seq.object
     const patternObject = seq[ patternType ]

@@ -11,7 +11,7 @@ const Waveform = {
   
   createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject, track, isSeq=true ) {
 
-    const widget = document.createElement( 'canvas' )
+    let widget = document.createElement( 'canvas' )
     widget.padding = 40
     widget.waveWidth = 60
     widget.ctx = widget.getContext('2d')
@@ -55,37 +55,44 @@ const Waveform = {
 
     Gibber.__gen.gen.lastConnected = null
 
-    for( let i = 0; i < 120; i++ ) widget.values[ i ] = 0
+    //for( let i = 0; i < 120; i++ ) widget.values[ i ] = 0
 
+    let replaced = false
     if( isAssignment === false ) {
       if( widget.gen !== null ) {
         let oldWidget = Waveform.widgets[ widget.gen.paramID ] 
 
         if( oldWidget !== undefined ) {
-          oldWidget.parentNode.removeChild( oldWidget )
+          //oldWidget.parentNode.removeChild( oldWidget )
+          widget = oldWidget
+          replaced = true
         } 
       }
     }
-    
+
+    if( replaced === false ) {
+      widget.mark = cm.markText({ line, ch:ch }, { line, ch:ch+1 }, { replacedWith:widget })
+      widget.mark.__clear = widget.mark.clear
+
+      widget.mark.clear = function() { 
+        const pos = widget.mark.find()
+        if( pos === undefined ) return
+        widget.mark.__clear()
+
+        if( isSeq === true ) { // only replace for waveforms inside of a .seq() call
+          cm.replaceRange( '', { line:pos.from.line, ch:pos.from.ch }, { line:pos.from.line, ch:pos.to.ch } ) 
+        }
+      }
+    }
+
+    widget.clear = ()=> widget.mark.clear() 
 
     if( widget.gen !== null ) {
       Waveform.widgets[ widget.gen.paramID ] = widget
       widget.gen.widget = widget
     }
-
-    widget.mark = cm.markText({ line, ch:ch }, { line, ch:ch+1 }, { replacedWith:widget })
+    
     if( patternObject !== null ) patternObject.mark = widget.mark
-    widget.mark.__clear = widget.mark.clear
-    widget.clear = ()=> widget.mark.clear()
-    widget.mark.clear = function() { 
-      const pos = widget.mark.find()
-      if( pos === undefined ) return
-      widget.mark.__clear()
-
-      if( isSeq === true ) { // only replace for waveforms inside of a .seq() call
-        cm.replaceRange( '', { line:pos.from.line, ch:pos.from.ch }, { line:pos.from.line, ch:pos.to.ch } ) 
-      }
-    }
 
     widget.onclick = ()=> {
       widget.min = Infinity

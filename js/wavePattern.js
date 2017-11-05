@@ -124,7 +124,7 @@ const WavePattern = {
 
     // if memory block has not been defined, create new one by passing in an undefined value
     // else reuse exisitng memory block
-    let mem = genish.gen.memory || 44100
+    let mem = genish.gen.memory || 44100 * 2
 
     Object.assign( pattern, {
       type:'WavePattern',
@@ -197,6 +197,10 @@ const WavePattern = {
   },
 
   adjust( ugen, ms ) {
+    if( ugen.shouldNotAdjust === true ) {
+      ugen.shouldNotAdjust = false
+      return
+    }
     // subtract one sample for the phase incremenet that occurs during
     // the genish.js callback
     const numberOfSamplesToAdvance = ( ms/1000 ) * (Gibber.__gen.genish.gen.samplerate  )

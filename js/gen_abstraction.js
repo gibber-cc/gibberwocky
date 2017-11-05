@@ -120,25 +120,39 @@ module.exports = function( Gibber ) {
           if( mode === 'genish' && typeof input === 'number' ) { // replace numbers with params
             let _input =  genish.param( input )
             defineMethod( this, inputNum, _input )
-
             inputs.push( _input )
           }else{
             let _input = input
-            //if( typeof input === 'number' ) {
-            //  _input = genfunctions.param( input )
-            //}
+            if( typeof input === 'number' ) {
+              _input = genfunctions.param( input )
+            }
             inputs.push( _input )
           }
         }
 
         inputNum++
       }
-      
-      const ugen = mode === 'genish' ? genish[ this.name ]( ...inputs ) : genfunctions[ this.name ]( ...inputs )
-
-      if( typeof this.__onrender === 'function' ) { this.__onrender() }
+      let ugen
+      if( mode === 'genish' ) {
+        //if( this.name === 'beats' ) {
+          //ugen = __gen.ugens.beats( ...inputs )
+        //}else{
+          ugen = genish[ this.name ]( ...inputs ) 
+        //}
+      }else{
+        ugen = genfunctions[ this.name ]( ...inputs )
+      }
+      //const ugen = mode === 'genish' ? genish[ this.name ]( ...inputs ) : genfunctions[ this.name ]( ...inputs )
 
       this.rendered = ugen
+      if( typeof this.__onrender === 'function' ) { this.__onrender() }
+
+
+      //if( this.subname === 'beats' || this.subname === 'lfo' ) {
+      //  for( let input of this.inputs ) {
+      //    this[ input ] = this.rendered[ input ]
+      //  }
+      //}
 
       return ugen
     },
@@ -175,6 +189,9 @@ module.exports = function( Gibber ) {
     },
 
     init() {
+      genish.gen.memory = genish.gen.createMemory( 88200, Float64Array )
+
+
       for( let name of this.ugenNames ) {
         this.ugens[ name ] = function( ...inputs ) {
           const ugen = Object.create( __ugenproto__ )
@@ -223,32 +240,44 @@ module.exports = function( Gibber ) {
 
         return ugen
       }
-      //this.ugens[ 'beats' ] = ( num ) => {
-      //  const frequency = Gibber.Utility.beatsToFrequency( num, 120 )
 
-      //  const ugen = this.ugens[ 'phasor' ]( frequency, 0, { min:0, max:1 } )
-      //  const storedAssignmentFunction = ugen[0]
+      this.ugens[ 'beats' ] = function( ...inputs ) {
+        const ugen = Object.create( __ugenproto__ )
+        ugen.name = 'phasor'
+        ugen.inputs = inputs
+        ugen.inputs[0] = Gibber.Utility.beatsToFrequency( inputs[0] )
+        inputs[2] = {min:0} 
 
-      //  ugen[0] = v => {
-      //    if( v === undefined ) {
-      //      return storedAssignmentFunction()
-      //    }else{
-      //      const freq = Gibber.Utility.beatsToFrequency( v )
-      //      storedAssignmentFunction( freq )
-      //    }
-      //  }
+        ugen.__onrender = ()=> {
+          // store original param change function for wrapping with btof value
+          ugen.__frequency = ugen[0]
 
-      //  Gibber.addSequencingToMethod( ugen, '0' )
+          ugen[0] = v => {
+            if( ugen.rendered !== undefined ) {
+              const frequency = Gibber.Utility.beatsToFrequency( v, 120 )
+              
+              // reset phase
+              ugen.rendered.value = 0
 
-      //  return ugen
-      //}
+              // pass btof value to phasor frequency via stored reference
+              return ugen.__frequency( frequency )
+            }
+          }
 
-      this.ugens[ 'sine' ] = ( beats=4, center=0, amp=7 ) => {
+          Gibber.addSequencingToMethod( ugen, '0' )
+        }
+
+        return ugen
+      }
+
+      this.ugens[ 'sine' ] = ( beats=4, center=0, amp=7, phase=0 ) => {
         const freq = btof( beats, 120 )
-        const __cycle = this.ugens.cycle( freq )
+        const initPhase = phase
+        const __cycle = this.ugens.cycle( freq,0,{initialValue:phase} )
 
         const sine = __cycle 
         const ugen = this.ugens.add( center, this.ugens.mul( sine, amp ) )
+        ugen.__phase = initPhase
 
         ugen.__onrender = ()=> {
 
@@ -257,12 +286,26 @@ module.exports = function( Gibber ) {
               return beats
             }else{
               beats = v
-              __cycle[0]( btof( beats, 120 ) )
+              const freq = btof( beats, 120 ) 
+              __cycle[0]( freq )
+              ugen.phase( initPhase )
             }
           }
 
           Gibber.addSequencingToMethod( ugen, '0' )
         }
+
+        ugen.phase = (value) => {
+          if( value === undefined ) return ugen.__phase
+
+          ugen.__phase = value
+          if( ugen.rendered !== undefined ) { 
+            ugen.rendered.inputs[1].inputs[0].inputs[0].value = ugen.__phase
+            ugen.rendered.shouldNotAdjust = true
+          }
+        }
+
+        Gibber.addSequencingToMethod( ugen, 'phase' )
 
         return ugen
       }
