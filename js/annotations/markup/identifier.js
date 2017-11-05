@@ -25,6 +25,8 @@ const __Identifier = function( Marker ) {
       state.cm.replaceRange( ' ,', { line, ch:ch }, { line, ch:ch + 1 } ) 
     }else if( lastChar === ')' ){
       state.cm.replaceRange( ') ', { line, ch:ch }, { line, ch:ch + 1 } )
+    }else{
+      state.cm.replaceRange( lastChar + ' ', { line, ch:ch }, { line, ch:ch + 1 } )
     }
     // else we assume it's a space character?
 

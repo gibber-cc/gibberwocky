@@ -307,11 +307,11 @@ let Gibber = {
               Gibber.Communication.send( `ungen ${parameter.id}` )
               Gibber.Communication.send( `set ${parameter.id} ${__v.shouldKill.final}` )
 
-              let widget = Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
+              let widget = Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
               if( widget !== undefined && widget.mark !== undefined ) {
                 widget.mark.clear()
               }
-              delete Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
+              delete Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
             }, __v.shouldKill.after )
           }
           
@@ -322,11 +322,11 @@ let Gibber = {
               Gibber.Communication.send( `ungen ${parameter.id}` )
             }
 
-            let widget = Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
+            let widget = Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
             if( widget !== undefined && widget.mark !== undefined ) {
               widget.mark.clear()
             }
-            delete Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
+            delete Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
           }
 
           v = typeof _v === 'object' && _v.isGen ? ( hasGen === true ? _v.render( 'gen' ) : _v.render('genish') ) : _v

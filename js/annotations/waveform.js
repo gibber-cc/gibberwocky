@@ -73,7 +73,6 @@ const Waveform = {
       widget.gen.widget = widget
     }
 
-    //debugger
     widget.mark = cm.markText({ line, ch:ch }, { line, ch:ch+1 }, { replacedWith:widget })
     if( patternObject !== null ) patternObject.mark = widget.mark
     widget.mark.__clear = widget.mark.clear

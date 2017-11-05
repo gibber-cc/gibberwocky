@@ -93,7 +93,7 @@ const Marker = {
   },
 
   
-  processGen( node, cm, track, patternObject=null, seq=null ) {
+  processGen( node, cm, track, patternObject=null, seq=null, lineMod=0 ) {
     let ch = node.end, 
         line = Marker.offset.vertical + node.loc.start.line, 
         closeParenStart = ch - 1, 
@@ -123,9 +123,16 @@ const Marker = {
           if( idx === -1 ) return
 
           
-          ch = seqArgument.loc.end.ch
+          ch = seqArgument.loc.end.ch || seqArgument.loc.end.column
           // XXX why don't I need the Marker offset here?
-          line = /*Marker.offset.vertical +*/ seqArgument.loc.end.line
+          line = seqArgument.loc.end.line + lineMod
+
+          // for some reason arguments to .seq() include the offset,
+          // so we only want to add the offset in if we this is a gen~
+          // assignment via function call. lineMod will !== 0 if this
+          // is the case.
+          if( lineMod !== 0 ) line += Marker.offset.vertical
+
           closeParenStart = ch - 1
           isAssignment = false
           node.processed = true

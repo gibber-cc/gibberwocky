@@ -243,7 +243,7 @@ let Environment = {
       Gibber.log( 'All sequencers stopped.' )
     },
     'Shift-Ctrl-C'( cm ) {
-      toggleSidebar()
+      Environment.toggleSidebar()
     }
   },
 

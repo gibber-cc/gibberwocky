@@ -61,9 +61,8 @@ module.exports = function( Marker ) {
 
         Marker.markPatternsForSeq( seq, node.arguments, state, cb, node, seqNumber )
       }else{
-        Marker.processGen( node, state.cm, null )
+        Marker.processGen( node, state.cm, null, null, null, state.indexOf('seq') > -1 ? 0 : -1 )
       }
-      //console.log( 'call:', state )
     },
     MemberExpression( node, state, cb ) {
       if( node.object.type !== 'Identifier' ) {
@@ -77,7 +76,6 @@ module.exports = function( Marker ) {
         }
         state.unshift( node.object.name )
       }
-      //console.log( 'member: ', state ) 
     },
   }
 }
