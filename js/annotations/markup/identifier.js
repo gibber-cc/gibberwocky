@@ -4,23 +4,29 @@ const __Identifier = function( Marker ) {
     const [ className, start, end ] = Marker._getNamesAndPosition( node, state, patternType, seqNumber )
     const cssName = className + '_0'
     const commentStart = end
-    const commentEnd = {}
 
-    Object.assign( commentEnd, commentStart )
+    // we define the comment range as being one character, this
+    // only defines the range of characters that will be replaced
+    // by the eventual longer comment string.
+    const commentEnd = Object.assign( {}, commentStart )
+    commentEnd.ch += 1
+
     const line = end.line
     const lineTxt = state.cm.getLine( line )
     let ch = end.ch
 
-    // different replacements are used for use in sequencers, when a callexpression
-    // creating a wavepattern is often followed by a comma, vs when a wavepattern is
-    // assigned to a variable, when no comma is present
-
+    // for whatever reason, sometimes the ch value leads to
+    // an undefined final character in the string. In that case,
+    // work back until we find the actual final character.
     let lastChar = lineTxt[ ch ]
     while( lastChar === undefined ) {
       ch--
       lastChar = lineTxt[ ch ]
     }
     
+    // different replacements are used for use in sequencers, when a callexpression
+    // creating a wavepattern is often followed by a comma, vs when a wavepattern is
+    // assigned to a variable, when no comma is present
     if( lastChar === ',' ) {
       state.cm.replaceRange( ' ,', { line, ch:ch }, { line, ch:ch + 1 } ) 
     }else if( lastChar === ')' ){
@@ -28,11 +34,7 @@ const __Identifier = function( Marker ) {
     }else{
       state.cm.replaceRange( lastChar + ' ', { line, ch:ch }, { line, ch:ch + 1 } )
     }
-    // else we assume it's a space character?
-
-    //commentStart.ch -= 1
-    commentEnd.ch += 1
-
+    
     const marker = state.cm.markText( commentStart, commentEnd, { className })
 
     return [ marker, className ]
@@ -53,7 +55,7 @@ const __Identifier = function( Marker ) {
     // these to the appropriate markup functions
     if( patternObject.type === 'WavePattern' || patternObject.isGen ) {
 
-      if( patternObject.widget === undefined ) { // if wavepattern is inlined to .seq call
+      if( patternObject.widget === undefined ) { // if wavepattern is inlined to .seq 
         Marker.processGen( containerNode, cm, track, patternObject, seq )
       }else{
         patternObject.update = Marker.patternUpdates.anonymousFunction( patternObject, marker, className, cm, track )

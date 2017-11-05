@@ -9,7 +9,7 @@ let Gibber = null
 const Waveform = {
   widgets: { dirty:false },
   
-  createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject, track ) {
+  createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject, track, isSeq=true ) {
 
     const widget = document.createElement( 'canvas' )
     widget.padding = 40
@@ -81,8 +81,10 @@ const Waveform = {
       const pos = widget.mark.find()
       if( pos === undefined ) return
       widget.mark.__clear()
-      cm.replaceRange( '', { line:pos.from.line, ch:pos.to.ch-1 }, { line:pos.from.line, ch:pos.to.ch } ) 
 
+      if( isSeq === true ) { // only replace for waveforms inside of a .seq() call
+        cm.replaceRange( '', { line:pos.from.line, ch:pos.from.ch }, { line:pos.from.line, ch:pos.to.ch } ) 
+      }
     }
 
     widget.onclick = ()=> {
@@ -91,6 +93,18 @@ const Waveform = {
       widget.storage.length = 0
     }
 
+  },
+
+  clear() {
+    for( let key in Waveform.widgets ) {
+      let widget = Waveform.widgets[ key ]
+      if( typeof widget === 'object' ) {
+        widget.mark.clear()
+        //widget.parentNode.removeChild( widget )
+      }
+    }
+
+    Waveform.widgets = { dirty:false }
   },
 
   // currently called when a network snapshot message is received providing ugen state..
@@ -198,24 +212,9 @@ const Waveform = {
         widget.ctx.lineTo( right - 3, widget.height - .5 )
 
         widget.ctx.stroke()
-
-
       }
     }
-  },
-
-  clear() {
-    for( let key in Waveform.widgets ) {
-      let widget = Waveform.widgets[ key ]
-      if( typeof widget === 'object' ) {
-        widget.mark.clear()
-        //widget.parentNode.removeChild( widget )
-      }
-    }
-
-    Waveform.widgets = { dirty:false }
   }
-
 }
 
 module.exports = function( __Gibber ) {

@@ -110,7 +110,7 @@ const Marker = {
           return
         }
 
-        Marker.waveform.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, __obj, track )
+        Marker.waveform.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, __obj, track, false )
       }
     }else if( node.type === 'CallExpression' ) {
       const seqExpression = node
@@ -137,7 +137,7 @@ const Marker = {
           isAssignment = false
           node.processed = true
           //debugger
-          Marker.waveform.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject, track )
+          Marker.waveform.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject, track, lineMod === 0 )
         }
       })
 
