@@ -275,7 +275,7 @@ let Gibber = {
     obj[ methodName ] = p = ( _v ) => {
       if( p.properties.quantized === 1 ) _v = Math.round( _v )
 
-      const hasGen = Gibber.__gen.__hasGen
+      const hasGen = Gibber.__gen.enabled
 
       if( _v !== undefined ) {
         if( typeof _v === 'object' && _v.isGen ) {
@@ -294,11 +294,24 @@ let Gibber = {
 
           if( hasGen === true ) { 
             Gibber.Communication.send( `gen ${parameter.id} "${__v.out()}"` )
+          }else{
+            //__v.callback = Gibber.__gen.genish.gen.createCallback( __v )
+            _v.wavePattern = Gibber.WavePattern( _v )
+            
+            _v.wavePattern.genReplace = function( out ) { 
+              Gibber.Communication.send( `set ${parameter.id} ${out}` )
+            }
+
+            _v.wavePattern( false )
+            //__v.interval = setInterval( ()=> {
+              //const out = __v.wavePattern( true )
+              //Gibber.Communication.send( `set ${parameter.id} ${out}` )
+            //}, 150 )
           }
 
           Gibber.Communication.send( `select_track ${ trackID }` )
 
-          Gibber.__gen.gen.lastConnected = __v
+          Gibber.__gen.gen.lastConnected = hasGen === true ? __v : _v
           
           // disconnects for fades etc.
           // XXX reconfigure for hasGen === false
@@ -315,7 +328,7 @@ let Gibber = {
             }, __v.shouldKill.after )
           }
           
-          v = __v
+          v = hasGen === true ? __v : _v
         }else{
           if( v.isGen ) {
             if( hasGen ) {
@@ -331,7 +344,7 @@ let Gibber = {
 
           v = typeof _v === 'object' && _v.isGen ? ( hasGen === true ? _v.render( 'gen' ) : _v.render('genish') ) : _v
 
-          if( hasGen )
+          //if( hasGen )
             Gibber.Communication.send( `set ${parameter.id} ${v}` )
         }
       }else{

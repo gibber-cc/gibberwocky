@@ -15,7 +15,11 @@
  * graph should be interpreted as a genish graph.
  *
  * One open problem: what if the same graph is used in two places? Can
- * the abstraction hold both types of codegen objects inside of it?
+ * the abstraction hold both types of codegen objects inside of it? Currently
+ * the abstraction only holds one graph in its 'rendered' property... perhaps
+ * this could be chagned to 'genRendered' and 'genishRendered' and then the 
+ * appropriate one could be linked to? What happens when multiple wavepatterns
+ * use the same graph? Does each generated a dot for every s&h value??
  */
 
 const genish = require( 'genish.js' )
@@ -122,37 +126,22 @@ module.exports = function( Gibber ) {
             defineMethod( this, inputNum, _input )
             inputs.push( _input )
           }else{
-            let _input = input
-            if( typeof input === 'number' ) {
-              _input = genfunctions.param( input )
-            }
-            inputs.push( _input )
+            inputs.push( input )
           }
         }
 
         inputNum++
       }
+
       let ugen
-      if( mode === 'genish' ) {
-        //if( this.name === 'beats' ) {
-          //ugen = __gen.ugens.beats( ...inputs )
-        //}else{
-          ugen = genish[ this.name ]( ...inputs ) 
-        //}
+      if( mode === 'genish' || __gen.enabled === false ) {
+        ugen = genish[ this.name ]( ...inputs ) 
       }else{
         ugen = genfunctions[ this.name ]( ...inputs )
       }
-      //const ugen = mode === 'genish' ? genish[ this.name ]( ...inputs ) : genfunctions[ this.name ]( ...inputs )
 
       this.rendered = ugen
       if( typeof this.__onrender === 'function' ) { this.__onrender() }
-
-
-      //if( this.subname === 'beats' || this.subname === 'lfo' ) {
-      //  for( let input of this.inputs ) {
-      //    this[ input ] = this.rendered[ input ]
-      //  }
-      //}
 
       return ugen
     },
@@ -165,6 +154,8 @@ module.exports = function( Gibber ) {
     gen,
     genish,
     Gibber,
+    enabled: true,
+    initialized: false,
     ugenNames: [
       'cycle','phasor','accum','counter',
       'add','mul','div','sub',
@@ -175,6 +166,22 @@ module.exports = function( Gibber ) {
       'gt','lt','ltp','gtp','samplerate','rate'
     ],
     ugens:{},
+  
+    // determine whether or not gen is licensed
+    checkForLicense() {
+      const volume = Gibber.Live.tracks[0].volume()
+      __gen.enabled = true
+      const lfo = __gen.ugens.lfo( .25 )
+      Gibber.Live.tracks[0].volume( lfo )
+      setTimeout( ()=> {
+        Gibber.clear()
+        setTimeout( ()=> {
+          Gibber.Live.tracks[0].volume( volume )
+          Gibber.Environment.suppressErrors = false
+        }, 50 )
+      }, 50 )
+
+    },
  
     assignTrackAndParamID: function( track, id ) {
       this.paramID = id
@@ -190,7 +197,16 @@ module.exports = function( Gibber ) {
 
     init() {
       genish.gen.memory = genish.gen.createMemory( 88200, Float64Array )
+      const btof = Gibber.Utility.beatsToFrequency 
 
+      Gibber.subscribe( 'lom_update', ()=> {
+        if( __gen.initialized === false ) {
+          __gen.checkForLicense()
+          __gen.initialized = true
+        }
+      })
+
+      Gibber.Environment.suppressErrors = true
 
       for( let name of this.ugenNames ) {
         this.ugens[ name ] = function( ...inputs ) {
@@ -245,19 +261,25 @@ module.exports = function( Gibber ) {
         const ugen = Object.create( __ugenproto__ )
         ugen.name = 'phasor'
         ugen.inputs = inputs
-        ugen.inputs[0] = Gibber.Utility.beatsToFrequency( inputs[0] )
-        inputs[2] = {min:0} 
+        let numBeats = inputs[0]
+
+        ugen.inputs[0] = Gibber.Utility.beatsToFrequency( inputs[0], 120 )
+        inputs[2] = {min:0}
 
         ugen.__onrender = ()=> {
           // store original param change function for wrapping with btof value
           ugen.__frequency = ugen[0]
 
           ugen[0] = v => {
-            if( ugen.rendered !== undefined ) {
+            if( v === undefined ) {
+              return numBeats
+            }else{
+              numBeats = v
               const frequency = Gibber.Utility.beatsToFrequency( v, 120 )
               
               // reset phase
               ugen.rendered.value = 0
+              ugen.rendered.shouldNotAdjust = true
 
               // pass btof value to phasor frequency via stored reference
               return ugen.__frequency( frequency )
@@ -412,6 +434,7 @@ module.exports = function( Gibber ) {
 
         return ugen
       }
+
     },
 
     export( target ) {

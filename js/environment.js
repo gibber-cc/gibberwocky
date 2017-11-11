@@ -19,6 +19,7 @@ let Environment = {
   consoleDiv:null,
   consoleList:null,
   annotations:true,
+  suppressErrors:false,
 
   init( gibber ) {
     Gibber = gibber
@@ -150,12 +151,19 @@ let Environment = {
   },
 
   error( ...args ) {
-    let consoleItem = Environment.createConsoleItem( args )
-    
-    consoleItem.setAttribute( 'class', 'console_error' )
+    if( Environment.suppressErrors === false ) {
+      if( args[0] === 'error Gen not authorized on this install' ) {
+        Gibber.__gen.enabled = false
+        args[0] = 'error Compiling Gen graphs is not authorized for this install of Max; using genish.js for modulation'
+      }
 
-    Environment.consoleList.appendChild( consoleItem )
-    consoleItem.scrollIntoView()
+      let consoleItem = Environment.createConsoleItem( args )
+
+      consoleItem.setAttribute( 'class', 'console_error' )
+
+      Environment.consoleList.appendChild( consoleItem )
+      consoleItem.scrollIntoView()
+    }
   },
   
   createConsoleItem( args ) {

@@ -29,6 +29,7 @@ const WavePattern = {
         const scaledSignalValue = signalValue * ( pattern._values.length )
         const adjustedSignalValue = Math.abs( scaledSignalValue )//scaledSignalValue < 0 ? pattern._values.length + scaledSignalValue : scaledSignalValue
         const roundedSignalValue  = Math.floor( adjustedSignalValue )
+        //console.log( scaledSignalValue, adjustedSignalValue, roundedSignalValue )
         outputBeforeFilters = pattern._values[ roundedSignalValue ]
       }
 
@@ -37,7 +38,7 @@ const WavePattern = {
       // if we are running the pattern solely to visualize the waveform data...
       if( isViz === true && pattern.vizinit && Gibber.Environment.annotations === true ) {
         Gibber.Environment.codeMarkup.waveform.updateWidget( pattern.widget, signalValue, false )
-      }else if( Gibber.Environment.annotations === true ) {
+      }else if( Gibber.Environment.annotations === true && pattern.widget !== undefined ) {
         // mark the last placed value by the visualization as having a "hit", 
         // which will cause a dot to be drawn on the sparkline.
         const idx = 60 + Math.round( pattern.nextTime * 12  )
@@ -45,6 +46,8 @@ const WavePattern = {
 
         pattern.widget.values[ idx ] = { value: signalValue, type:'hit' }
       }
+
+      if( typeof pattern.genReplace === 'function' ) { pattern.genReplace( output ) }
 
       if( output === pattern.DNR ) output = null
 
