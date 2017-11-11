@@ -50,13 +50,12 @@ let Scheduler = {
   },
 
   onAnimationFrame( timestamp ) {
+    window.requestAnimationFrame( this.onAnimationFrame )
     const diff = timestamp - this.currentTime
     this.currentTime = timestamp
     this.visualizationTime.phase += diff 
 
     this.run( timestamp, diff )    
-
-    window.requestAnimationFrame( this.onAnimationFrame )
   },
 
   updateVisualizationTime( ms ) {

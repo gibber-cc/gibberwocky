@@ -3769,13 +3769,12 @@ let Scheduler = {
   },
 
   onAnimationFrame( timestamp ) {
+    window.requestAnimationFrame( this.onAnimationFrame )
     const diff = timestamp - this.currentTime
     this.currentTime = timestamp
     this.visualizationTime.phase += diff 
 
     this.run( timestamp, diff )    
-
-    window.requestAnimationFrame( this.onAnimationFrame )
   },
 
   updateVisualizationTime( ms ) {
@@ -7374,7 +7373,6 @@ module.exports = function( Gibber ) {
   
     // determine whether or not gen is licensed
     checkForLicense() {
-      console.log( 'checking for license' )
       const volume = Gibber.Live.tracks[0].volume()
       __gen.enabled = true
       const lfo = __gen.ugens.lfo( .25 )
@@ -7385,7 +7383,7 @@ module.exports = function( Gibber ) {
           Gibber.Live.tracks[0].volume( volume )
           Gibber.Environment.suppressErrors = false
         }, 50 )
-      }, 50 )
+      }, 250 * 8 )
 
     },
  
@@ -7406,7 +7404,6 @@ module.exports = function( Gibber ) {
       const btof = Gibber.Utility.beatsToFrequency 
 
       Gibber.subscribe( 'lom_update', ()=> {
-        console.log( 'update!', __gen.initialized )
         if( __gen.initialized === false ) {
           __gen.checkForLicense()
           __gen.initialized = true

@@ -179,7 +179,7 @@ module.exports = function( Gibber ) {
           Gibber.Live.tracks[0].volume( volume )
           Gibber.Environment.suppressErrors = false
         }, 50 )
-      }, 50 )
+      }, 250 * 8 )
 
     },
  
