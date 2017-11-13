@@ -69,8 +69,15 @@ const Marker = {
 
     const state = []
     state.cm = codemirror
+    state.cm.__state = state
 
-    walk.recursive( acorn.parse( code, Marker.parsingOptions ), state, Marker.visitors )
+    const parsed = acorn.parse( code, Marker.parsingOptions )
+      
+    //parsed.body.forEach( node => {
+      //state.length = 0
+    console.log( parsed )
+    walk.recursive( parsed, state, Marker.visitors )
+    //})
   },
   
   markPatternsForSeq( seq, nodes, state, cb, container, seqNumber = 0 ) {
@@ -139,9 +146,9 @@ const Marker = {
           //debugger
           Marker.waveform.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject, track, lineMod === 0 )
         } else if( seqArgument.type === 'ArrayExpression' ) {
-          console.log( 'WavePattern array' )
+          //console.log( 'WavePattern array' )
         }else{
-          console.log( 'arg:', seqArgument.type )
+          //console.log( 'arg:', seqArgument.type )
         }
       })
 

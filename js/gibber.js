@@ -109,7 +109,7 @@ let Gibber = {
   },
 
   initSingletons: function( target ) {
-		var letters = "abcdefghijklmnopqrstuvwxyz"
+		var letters = "abcdefghjklmnopqrstuwxyz"
     
 		for(var l = 0; l < letters.length; l++) {
 

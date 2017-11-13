@@ -41,6 +41,8 @@ module.exports = function( Marker ) {
 
         }
       }
+
+      
     },
     CallExpression( node, state, cb ) {
       cb( node.callee, state )
@@ -63,8 +65,12 @@ module.exports = function( Marker ) {
       }else{
         Marker.processGen( node, state.cm, null, null, null, state.indexOf('seq') > -1 ? 0 : -1 )
       }
+
     },
     MemberExpression( node, state, cb ) {
+      // XXX why was this here?
+      //if( node.object.name === 'tracks' ) state.length = 0
+
       if( node.object.type !== 'Identifier' ) {
         if( node.property ) {
           state.unshift( node.property.type === 'Identifier' ? node.property.name : node.property.raw )
@@ -76,6 +82,7 @@ module.exports = function( Marker ) {
         }
         state.unshift( node.object.name )
       }
+
     },
   }
 }

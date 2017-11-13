@@ -36,7 +36,7 @@ const Waveform = {
     widget.max = -10000
 
     if( widget.gen === null || widget.gen === undefined ) {
-      if( node.expression.type === 'AssignmentExpression' ) {
+      if( node.expression !== undefined && node.expression.type === 'AssignmentExpression' ) {
         isAssignment = true
         
         widget.gen = window[ node.expression.left.name ]
@@ -45,7 +45,23 @@ const Waveform = {
           widget.gen.widget.parentNode.removeChild( widget.gen.widget )
         }
         widget.gen.widget = widget
-      }
+      }else if( node.type === 'CallExpression' ) {
+        const state = cm.__state
+
+        const track  = window[ state[0] ][ state[1] ]
+
+        const seq = track[ node.callee.object.property.name ][ node.arguments[2].value ] 
+
+        if( seq !== undefined && seq.values.type === 'WavePattern' ) {
+          widget.gen = seq.values
+          widget.gen.paramID += '_' + node.arguments[2].value
+          //widget.gen.widget = widget
+        }
+        isAssignment = true
+        //if( seq !== undefined && seq.timings.type === 'WavePattern' ) {
+          
+        //}
+      } 
     }else{
       if( widget.gen.widget !== undefined && widget.gen.widget !== widget ) {
         isAssignment = true
@@ -88,6 +104,7 @@ const Waveform = {
     widget.clear = ()=> widget.mark.clear() 
 
     if( widget.gen !== null ) {
+      console.log( 'paramID = ', widget.gen.paramID ) 
       Waveform.widgets[ widget.gen.paramID ] = widget
       widget.gen.widget = widget
     }

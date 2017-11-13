@@ -3,6 +3,7 @@ const $ = Utility.create
 
 
 module.exports = ( patternObject, marker, className, cm, track ) => {
+  console.log( 'euclid!' )
   let val ='/* ' + patternObject.values.join('')  + ' */',
     pos = marker.find(),
     end = Object.assign( {}, pos.to ),

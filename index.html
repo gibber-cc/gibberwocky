@@ -4611,7 +4611,7 @@ module.exports = function( Marker ) {
 
   const ArrayExpression = function( patternNode, state, seq, patternType, container=null, index=0 ) {
     if( patternNode.processed === true ) return 
-    console.log( 'array' )
+    
     const cm = state.cm
     const track = seq.object
     const patternObject = seq[ patternType ]
@@ -5269,6 +5269,7 @@ const $ = Utility.create
 
 
 module.exports = ( patternObject, marker, className, cm, track ) => {
+  console.log( 'euclid!' )
   let val ='/* ' + patternObject.values.join('')  + ' */',
     pos = marker.find(),
     end = Object.assign( {}, pos.to ),
@@ -5428,6 +5429,8 @@ module.exports = function( Marker ) {
 
         }
       }
+
+      
     },
     CallExpression( node, state, cb ) {
       cb( node.callee, state )
@@ -5450,8 +5453,12 @@ module.exports = function( Marker ) {
       }else{
         Marker.processGen( node, state.cm, null, null, null, state.indexOf('seq') > -1 ? 0 : -1 )
       }
+
     },
     MemberExpression( node, state, cb ) {
+      // XXX why was this here?
+      //if( node.object.name === 'tracks' ) state.length = 0
+
       if( node.object.type !== 'Identifier' ) {
         if( node.property ) {
           state.unshift( node.property.type === 'Identifier' ? node.property.name : node.property.raw )
@@ -5463,6 +5470,7 @@ module.exports = function( Marker ) {
         }
         state.unshift( node.object.name )
       }
+
     },
   }
 }
@@ -5506,7 +5514,7 @@ const Waveform = {
     widget.max = -10000
 
     if( widget.gen === null || widget.gen === undefined ) {
-      if( node.expression.type === 'AssignmentExpression' ) {
+      if( node.expression !== undefined && node.expression.type === 'AssignmentExpression' ) {
         isAssignment = true
         
         widget.gen = window[ node.expression.left.name ]
@@ -5515,7 +5523,23 @@ const Waveform = {
           widget.gen.widget.parentNode.removeChild( widget.gen.widget )
         }
         widget.gen.widget = widget
-      }
+      }else if( node.type === 'CallExpression' ) {
+        const state = cm.__state
+
+        const track  = window[ state[0] ][ state[1] ]
+
+        const seq = track[ node.callee.object.property.name ][ node.arguments[2].value ] 
+
+        if( seq !== undefined && seq.values.type === 'WavePattern' ) {
+          widget.gen = seq.values
+          widget.gen.paramID += '_' + node.arguments[2].value
+          //widget.gen.widget = widget
+        }
+        isAssignment = true
+        //if( seq !== undefined && seq.timings.type === 'WavePattern' ) {
+          
+        //}
+      } 
     }else{
       if( widget.gen.widget !== undefined && widget.gen.widget !== widget ) {
         isAssignment = true
@@ -5558,6 +5582,7 @@ const Waveform = {
     widget.clear = ()=> widget.mark.clear() 
 
     if( widget.gen !== null ) {
+      console.log( 'paramID = ', widget.gen.paramID ) 
       Waveform.widgets[ widget.gen.paramID ] = widget
       widget.gen.widget = widget
     }
@@ -5997,8 +6022,15 @@ const Marker = {
 
     const state = []
     state.cm = codemirror
+    state.cm.__state = state
 
-    walk.recursive( acorn.parse( code, Marker.parsingOptions ), state, Marker.visitors )
+    const parsed = acorn.parse( code, Marker.parsingOptions )
+      
+    //parsed.body.forEach( node => {
+      //state.length = 0
+    console.log( parsed )
+    walk.recursive( parsed, state, Marker.visitors )
+    //})
   },
   
   markPatternsForSeq( seq, nodes, state, cb, container, seqNumber = 0 ) {
@@ -6067,9 +6099,9 @@ const Marker = {
           //debugger
           Marker.waveform.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject, track, lineMod === 0 )
         } else if( seqArgument.type === 'ArrayExpression' ) {
-          console.log( 'WavePattern array' )
+          //console.log( 'WavePattern array' )
         }else{
-          console.log( 'arg:', seqArgument.type )
+          //console.log( 'arg:', seqArgument.type )
         }
       })
 
@@ -6614,7 +6646,7 @@ let Environment = {
         Environment.flash( cm, selectedCode.selection )
         
         const func = new Function( selectedCode.code ).bind( Gibber.currentTrack ),
-              markupFunction = () => { 
+              markupFunction = () => {
                 Environment.codeMarkup.process( 
                   selectedCode.code, 
                   selectedCode.selection, 
@@ -8571,7 +8603,7 @@ let Gibber = {
   },
 
   initSingletons: function( target ) {
-		var letters = "abcdefghijklmnopqrstuvwxyz"
+		var letters = "abcdefghjklmnopqrstuwxyz"
     
 		for(var l = 0; l < letters.length; l++) {
 
@@ -8914,6 +8946,12 @@ let Live = {
   },
 
   processDevice( device, idx, currentTrack ) {
+    if( device.name === undefined ) {
+      // XXX hack for wavetable bug
+      console.log( 'undefined device name, assuming wavetable:', device )
+      device.name = 'Wavetable'
+    }
+
     let d = currentTrack.devices[ device.name ] = currentTrack.devices[ idx ] = currentTrack[ idx ] = { idx },
         parameterCount = 0
     

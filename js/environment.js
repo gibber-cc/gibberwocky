@@ -187,7 +187,7 @@ let Environment = {
         Environment.flash( cm, selectedCode.selection )
         
         const func = new Function( selectedCode.code ).bind( Gibber.currentTrack ),
-              markupFunction = () => { 
+              markupFunction = () => {
                 Environment.codeMarkup.process( 
                   selectedCode.code, 
                   selectedCode.selection, 
