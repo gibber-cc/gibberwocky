@@ -75,7 +75,7 @@ const Marker = {
       
     //parsed.body.forEach( node => {
       //state.length = 0
-    console.log( parsed )
+    //console.log( parsed )
     walk.recursive( parsed, state, Marker.visitors )
     //})
   },

@@ -37,7 +37,7 @@ const WavePattern = {
 
       // if we are running the pattern solely to visualize the waveform data...
       if( isViz === true && pattern.vizinit && Gibber.Environment.annotations === true ) {
-        Gibber.Environment.codeMarkup.waveform.updateWidget( pattern.widget, signalValue, false )
+        Gibber.Environment.codeMarkup.waveform.updateWidget( abstractGraph.paramID, signalValue, false )
       }else if( Gibber.Environment.annotations === true && pattern.widget !== undefined ) {
         // mark the last placed value by the visualization as having a "hit", 
         // which will cause a dot to be drawn on the sparkline.
@@ -133,7 +133,7 @@ const WavePattern = {
       type:'WavePattern',
       graph,
       abstractGraph,
-      paramID:Math.round( Math.random() * 100000 ),
+      paramID:abstractGraph.paramID || Math.round( Math.random() * 1000000 ),
       _values:values,
       signalOut: genish.gen.createCallback( graph, mem, false, false, Float64Array ), 
       adjust: WavePattern.adjust.bind( pattern ),
@@ -146,11 +146,13 @@ const WavePattern = {
       __listeners:[]
     })
 
+    if( abstractGraph.paramID === undefined ) abstractGraph.paramID = pattern.paramID
+
     // for assigning an abstract graph to a variable
     // and then passing that variable as a pattern to a sequence
     if( abstractGraph.widget !== undefined ) {
       pattern.widget = abstractGraph.widget
-      Gibber.Environment.codeMarkup.waveform.widgets[ pattern.paramID ] = pattern.widget
+      Gibber.Environment.codeMarkup.waveform.widgets[ abstractGraph.paramID ] = pattern.widget
     }
 
     Gibber.Gen.connected.push( pattern )

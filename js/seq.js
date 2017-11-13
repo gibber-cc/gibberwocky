@@ -206,7 +206,7 @@ let seqclosure = function( Gibber ) {
       if( this.running ) return
       this.running = true
       //console.log( 'starting with offset', this.offset ) 
-      Gibber.Scheduler.addMessage( this, Big( this.offset ) )     
+      Gibber.Scheduler.addMessage( this, Big( this.offset ), true, 5 )     
       
       return this
     },

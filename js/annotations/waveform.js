@@ -104,7 +104,7 @@ const Waveform = {
     widget.clear = ()=> widget.mark.clear() 
 
     if( widget.gen !== null ) {
-      console.log( 'paramID = ', widget.gen.paramID ) 
+      //console.log( 'paramID = ', widget.gen.paramID ) 
       Waveform.widgets[ widget.gen.paramID ] = widget
       widget.gen.widget = widget
     }

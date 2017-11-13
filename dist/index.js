@@ -4772,7 +4772,7 @@ const Waveform = {
     widget.clear = ()=> widget.mark.clear() 
 
     if( widget.gen !== null ) {
-      console.log( 'paramID = ', widget.gen.paramID ) 
+      //console.log( 'paramID = ', widget.gen.paramID ) 
       Waveform.widgets[ widget.gen.paramID ] = widget
       widget.gen.widget = widget
     }
@@ -5218,7 +5218,7 @@ const Marker = {
       
     //parsed.body.forEach( node => {
       //state.length = 0
-    console.log( parsed )
+    //console.log( parsed )
     walk.recursive( parsed, state, Marker.visitors )
     //})
   },
@@ -7377,6 +7377,9 @@ module.exports = function( Gibber ) {
       }
 
       this.rendered = ugen
+      this.rendered.paramID = this.paramID
+      this.rendered.track = this.track
+
       if( typeof this.__onrender === 'function' ) { this.__onrender() }
 
       return ugen
@@ -7426,11 +7429,11 @@ module.exports = function( Gibber ) {
       this.track = track
 
       let count = 0, param
-      while( param = this[ count++ ] ) {
-        if( typeof param() === 'object' ) {
-          param().assignTrackAndParamID( track, id )
-        }
-      }
+      //while( param = this[ count++ ] ) {
+      //  if( typeof param() === 'object' ) {
+      //    param().assignTrackAndParamID( track, id )
+      //  }
+      //}
     },
 
     init() {
@@ -7673,7 +7676,7 @@ let Gibber = {
 
       obj[ methodName ][ id ] = seq
 
-      seq.delay( delay )
+      if( delay !== 0 ) seq.delay( delay )
       seq.start()
 
       // avoid this for gibber objects that don't communicate with Live such as Scale
@@ -7765,7 +7768,7 @@ let Gibber = {
           if( hasGen ) {
             __v.assignTrackAndParamID( trackID, parameter.id )
           }else{
-            Gibber.__gen.assignTrackAndParamID.call( __v, trackID, parameter.id )
+            Gibber.__gen.assignTrackAndParamID.call( _v, trackID, parameter.id )
           }
           
           // if a gen is not already connected to this parameter, push
@@ -9208,7 +9211,7 @@ let seqclosure = function( Gibber ) {
       if( this.running ) return
       this.running = true
       //console.log( 'starting with offset', this.offset ) 
-      Gibber.Scheduler.addMessage( this, Big( this.offset ) )     
+      Gibber.Scheduler.addMessage( this, Big( this.offset ), true, 5 )     
       
       return this
     },
@@ -9744,26 +9747,34 @@ let Scale = {
     let scale = Object.create( this )
     
     scale.rootNumber = scale.baseNumber = Note.convertToMIDI( root )
-    scale.degree = Scale.degrees.i 
+    scale.__degree = 'i' 
     scale.quality = 'minor'
+
+    console.log( scale.__degree )
 
     scale.root = function( v ) {
       if( typeof v === 'string' ) {
         root = v
-        scale.rootNumber = Note.convertToMIDI( root )
+        scale.baseNumber = Note.convertToMIDI( root )
+        const degree = Scale.degrees[ scale.quality ][ scale.__degree ]
+        scale.rootNumber = degree.offset + scale.baseNumber
       }else if( typeof v === 'number' ) {
-        scale.rootNumber = v
+        scale.baseNumber = v
+        const degree = Scale.degrees[ scale.quality ][ scale.__degree ]
+        scale.rootNumber = degree.offset + scale.baseNumber
+      }else if( typeof v === 'number' ) {
       }else{
         return root
       }
     }
+    scale.modulate = scale.root
 
     scale.degree = function( __degree ) {
       if( typeof __degree  === 'string' ) {
         const degree = Scale.degrees[ scale.quality ][ __degree ]
         
         scale.__degree = __degree
-        scale.root( degree.offset + scale.baseNumber )
+        scale.rootNumber = degree.offset + scale.baseNumber
         scale.mode( degree.mode )
 
       } else {
@@ -9787,8 +9798,8 @@ let Scale = {
     scale.mode.valueOf = () => { return mode }
 
     if( Gibber !== null ) {
-      Gibber.addSequencingToMethod( scale, 'root', 1 )
-      Gibber.addSequencingToMethod( scale, 'mode', 1 )
+      Gibber.addSequencingToMethod( scale, 'root', 3 )
+      Gibber.addSequencingToMethod( scale, 'mode', 2 )
       Gibber.addSequencingToMethod( scale, 'degree',1 )
     }
 
@@ -9891,8 +9902,8 @@ module.exports = {
   init( _Gibber ) { 
     Gibber = _Gibber; 
 
-    Scale.master = Scale.create( 'c4','aeolian' )
     Scale.__initDegrees()
+    Scale.master = Scale.create( 'c4','aeolian' )
     
     return this 
   },
@@ -10013,9 +10024,9 @@ let Track = {
     }
 
     Gibber.Environment.codeMarkup.prepareObject( track ) 
-    Gibber.addSequencingToMethod( track, 'note' )
+    Gibber.addSequencingToMethod( track, 'note', 0 )
     Gibber.addSequencingToMethod( track, 'cc' )
-    Gibber.addSequencingToMethod( track, 'chord' )
+    Gibber.addSequencingToMethod( track, 'chord', 0 )
     Gibber.addSequencingToMethod( track, 'velocity', 1 )
     Gibber.addSequencingToMethod( track, 'duration', 1 )
     Gibber.addSequencingToMethod( track, 'midinote' )
@@ -10767,7 +10778,7 @@ const WavePattern = {
 
       // if we are running the pattern solely to visualize the waveform data...
       if( isViz === true && pattern.vizinit && Gibber.Environment.annotations === true ) {
-        Gibber.Environment.codeMarkup.waveform.updateWidget( pattern.widget, signalValue, false )
+        Gibber.Environment.codeMarkup.waveform.updateWidget( abstractGraph.paramID, signalValue, false )
       }else if( Gibber.Environment.annotations === true && pattern.widget !== undefined ) {
         // mark the last placed value by the visualization as having a "hit", 
         // which will cause a dot to be drawn on the sparkline.
@@ -10863,7 +10874,7 @@ const WavePattern = {
       type:'WavePattern',
       graph,
       abstractGraph,
-      paramID:Math.round( Math.random() * 100000 ),
+      paramID:abstractGraph.paramID || Math.round( Math.random() * 1000000 ),
       _values:values,
       signalOut: genish.gen.createCallback( graph, mem, false, false, Float64Array ), 
       adjust: WavePattern.adjust.bind( pattern ),
@@ -10876,11 +10887,13 @@ const WavePattern = {
       __listeners:[]
     })
 
+    if( abstractGraph.paramID === undefined ) abstractGraph.paramID = pattern.paramID
+
     // for assigning an abstract graph to a variable
     // and then passing that variable as a pattern to a sequence
     if( abstractGraph.widget !== undefined ) {
       pattern.widget = abstractGraph.widget
-      Gibber.Environment.codeMarkup.waveform.widgets[ pattern.paramID ] = pattern.widget
+      Gibber.Environment.codeMarkup.waveform.widgets[ abstractGraph.paramID ] = pattern.widget
     }
 
     Gibber.Gen.connected.push( pattern )

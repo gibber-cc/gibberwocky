@@ -192,7 +192,7 @@ let Gibber = {
 
       obj[ methodName ][ id ] = seq
 
-      seq.delay( delay )
+      if( delay !== 0 ) seq.delay( delay )
       seq.start()
 
       // avoid this for gibber objects that don't communicate with Live such as Scale
@@ -284,7 +284,7 @@ let Gibber = {
           if( hasGen ) {
             __v.assignTrackAndParamID( trackID, parameter.id )
           }else{
-            Gibber.__gen.assignTrackAndParamID.call( __v, trackID, parameter.id )
+            Gibber.__gen.assignTrackAndParamID.call( _v, trackID, parameter.id )
           }
           
           // if a gen is not already connected to this parameter, push

@@ -141,6 +141,9 @@ module.exports = function( Gibber ) {
       }
 
       this.rendered = ugen
+      this.rendered.paramID = this.paramID
+      this.rendered.track = this.track
+
       if( typeof this.__onrender === 'function' ) { this.__onrender() }
 
       return ugen
@@ -190,11 +193,11 @@ module.exports = function( Gibber ) {
       this.track = track
 
       let count = 0, param
-      while( param = this[ count++ ] ) {
-        if( typeof param() === 'object' ) {
-          param().assignTrackAndParamID( track, id )
-        }
-      }
+      //while( param = this[ count++ ] ) {
+      //  if( typeof param() === 'object' ) {
+      //    param().assignTrackAndParamID( track, id )
+      //  }
+      //}
     },
 
     init() {

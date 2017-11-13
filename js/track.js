@@ -95,9 +95,9 @@ let Track = {
     }
 
     Gibber.Environment.codeMarkup.prepareObject( track ) 
-    Gibber.addSequencingToMethod( track, 'note' )
+    Gibber.addSequencingToMethod( track, 'note', 0 )
     Gibber.addSequencingToMethod( track, 'cc' )
-    Gibber.addSequencingToMethod( track, 'chord' )
+    Gibber.addSequencingToMethod( track, 'chord', 0 )
     Gibber.addSequencingToMethod( track, 'velocity', 1 )
     Gibber.addSequencingToMethod( track, 'duration', 1 )
     Gibber.addSequencingToMethod( track, 'midinote' )
