@@ -188,16 +188,20 @@ const waveObjects = {
 
     const ugen = genAbstract.ugens.round( genAbstract.ugens.add( min, genAbstract.ugens.mul( line, max-min ) ) )
 
-    ugen[0] = v => {
-      if( v === undefined ) {
-        return beats
-      }else{
-        beats = v
-        line[0]( v )
+    ugen.__onrender = ()=> {
+
+      ugen[0] = v => {
+        if( v === undefined ) {
+          return beats
+        }else{
+          beats = v
+          line[0]( v )
+        }
       }
+
+      Gibber.addSequencingToMethod( ugen, '0' )
     }
 
-    Gibber.addSequencingToMethod( ugen, '0' )
 
     return ugen
   },
@@ -207,16 +211,20 @@ const waveObjects = {
 
     const ugen = genAbstract.ugens.add( min, genAbstract.ugens.mul( line, max-min ) )
 
-    ugen[0] = v => {
-      if( v === undefined ) {
-        return beats
-      }else{
-        beats = v
-        line[0]( v )
+    ugen.__onrender = ()=> {
+
+      ugen[0] = v => {
+        if( v === undefined ) {
+          return beats
+        }else{
+          beats = v
+          line[0]( v )
+        }
       }
+
+      Gibber.addSequencingToMethod( ugen, '0' )
     }
 
-    Gibber.addSequencingToMethod( ugen, '0' )
 
     return ugen
   }

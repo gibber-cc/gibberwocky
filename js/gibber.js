@@ -288,7 +288,9 @@ let Gibber = {
           }
           
           // if a gen is not already connected to this parameter, push
-          if( Gibber.Gen.connected.find( e => e.paramID === parameter.id ) === undefined ) {
+          const prevGen = Gibber.Gen.connected.find( e => e.paramID === parameter.id )
+          const genAlreadyAssigned = prevGen !== undefined
+          if( genAlreadyAssigned === true ) {
             Gibber.Gen.connected.push( __v )
           }
 
@@ -296,6 +298,14 @@ let Gibber = {
             Gibber.Communication.send( `gen ${parameter.id} "${__v.out()}"` )
           }else{
             //__v.callback = Gibber.__gen.genish.gen.createCallback( __v )
+
+            if( genAlreadyAssigned === true ) {
+              prevGen.clear()
+              prevGen.shouldStop = true
+              const idx = Gibber.Gen.connected.findIndex( e => e.paramID === parameter.id )
+              Gibber.Gen.connected.splice( idx, 1 )
+            }
+
             _v.wavePattern = Gibber.WavePattern( _v )
             
             _v.wavePattern.genReplace = function( out ) { 
@@ -303,6 +313,7 @@ let Gibber = {
             }
 
             _v.wavePattern( false )
+
             //__v.interval = setInterval( ()=> {
               //const out = __v.wavePattern( true )
               //Gibber.Communication.send( `set ${parameter.id} ${out}` )

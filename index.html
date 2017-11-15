@@ -8582,7 +8582,9 @@ let Gibber = {
           }
           
           // if a gen is not already connected to this parameter, push
-          if( Gibber.Gen.connected.find( e => e.paramID === parameter.id ) === undefined ) {
+          const prevGen = Gibber.Gen.connected.find( e => e.paramID === parameter.id )
+          const genAlreadyAssigned = prevGen !== undefined
+          if( genAlreadyAssigned === true ) {
             Gibber.Gen.connected.push( __v )
           }
 
@@ -8590,6 +8592,14 @@ let Gibber = {
             Gibber.Communication.send( `gen ${parameter.id} "${__v.out()}"` )
           }else{
             //__v.callback = Gibber.__gen.genish.gen.createCallback( __v )
+
+            if( genAlreadyAssigned === true ) {
+              prevGen.clear()
+              prevGen.shouldStop = true
+              const idx = Gibber.Gen.connected.findIndex( e => e.paramID === parameter.id )
+              Gibber.Gen.connected.splice( idx, 1 )
+            }
+
             _v.wavePattern = Gibber.WavePattern( _v )
             
             _v.wavePattern.genReplace = function( out ) { 
@@ -8597,6 +8607,7 @@ let Gibber = {
             }
 
             _v.wavePattern( false )
+
             //__v.interval = setInterval( ()=> {
               //const out = __v.wavePattern( true )
               //Gibber.Communication.send( `set ${parameter.id} ${out}` )
@@ -10560,8 +10571,6 @@ let Scale = {
     scale.__degree = 'i' 
     scale.quality = 'minor'
 
-    console.log( scale.__degree )
-
     scale.root = function( v ) {
       if( typeof v === 'string' ) {
         root = v
@@ -10609,6 +10618,7 @@ let Scale = {
 
     if( Gibber !== null ) {
       Gibber.addSequencingToMethod( scale, 'root', 3 )
+      Gibber.addSequencingToMethod( scale, 'modulate', 3 )
       Gibber.addSequencingToMethod( scale, 'mode', 2 )
       Gibber.addSequencingToMethod( scale, 'degree',1 )
     }
@@ -11514,16 +11524,20 @@ const waveObjects = {
 
     const ugen = genAbstract.ugens.round( genAbstract.ugens.add( min, genAbstract.ugens.mul( line, max-min ) ) )
 
-    ugen[0] = v => {
-      if( v === undefined ) {
-        return beats
-      }else{
-        beats = v
-        line[0]( v )
+    ugen.__onrender = ()=> {
+
+      ugen[0] = v => {
+        if( v === undefined ) {
+          return beats
+        }else{
+          beats = v
+          line[0]( v )
+        }
       }
+
+      Gibber.addSequencingToMethod( ugen, '0' )
     }
 
-    Gibber.addSequencingToMethod( ugen, '0' )
 
     return ugen
   },
@@ -11533,16 +11547,20 @@ const waveObjects = {
 
     const ugen = genAbstract.ugens.add( min, genAbstract.ugens.mul( line, max-min ) )
 
-    ugen[0] = v => {
-      if( v === undefined ) {
-        return beats
-      }else{
-        beats = v
-        line[0]( v )
+    ugen.__onrender = ()=> {
+
+      ugen[0] = v => {
+        if( v === undefined ) {
+          return beats
+        }else{
+          beats = v
+          line[0]( v )
+        }
       }
+
+      Gibber.addSequencingToMethod( ugen, '0' )
     }
 
-    Gibber.addSequencingToMethod( ugen, '0' )
 
     return ugen
   }
@@ -11664,12 +11682,14 @@ const WavePattern = {
     abstractGraph.__listeners.push( proxyFunction )
 
     pattern.clear = function() {
-      if( pattern.widget !== undefined ) { 
+      if( pattern.widget !== undefined  ) { 
         if( abstractGraph.widget !== undefined ) {
           delete abstractGraph.widget
         }
         pattern.widget.clear()
         delete pattern.widget
+        pattern.running = false
+      }else if( abstractGraph.widget !== undefined ) {
         pattern.running = false
       }
     }
@@ -11694,6 +11714,7 @@ const WavePattern = {
       running: false,
       initialized:false,
       vizinit:true,
+      shouldStop:false,
       __listeners:[]
     })
 
@@ -11718,7 +11739,8 @@ const WavePattern = {
     
     this( true ) // I LOVE JS
 
-    Gibber.Environment.animationScheduler.add( this.pattern.runVisualization, 1000 / 60 )
+    if( this.pattern.shouldStop === false )
+      Gibber.Environment.animationScheduler.add( this.pattern.runVisualization, 1000 / 60 )
   },
 
   assignInputProperties( genishGraph, abstractGraph ) {

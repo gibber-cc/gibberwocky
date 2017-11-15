@@ -113,12 +113,14 @@ const WavePattern = {
     abstractGraph.__listeners.push( proxyFunction )
 
     pattern.clear = function() {
-      if( pattern.widget !== undefined ) { 
+      if( pattern.widget !== undefined  ) { 
         if( abstractGraph.widget !== undefined ) {
           delete abstractGraph.widget
         }
         pattern.widget.clear()
         delete pattern.widget
+        pattern.running = false
+      }else if( abstractGraph.widget !== undefined ) {
         pattern.running = false
       }
     }
@@ -143,6 +145,7 @@ const WavePattern = {
       running: false,
       initialized:false,
       vizinit:true,
+      shouldStop:false,
       __listeners:[]
     })
 
@@ -167,7 +170,8 @@ const WavePattern = {
     
     this( true ) // I LOVE JS
 
-    Gibber.Environment.animationScheduler.add( this.pattern.runVisualization, 1000 / 60 )
+    if( this.pattern.shouldStop === false )
+      Gibber.Environment.animationScheduler.add( this.pattern.runVisualization, 1000 / 60 )
   },
 
   assignInputProperties( genishGraph, abstractGraph ) {

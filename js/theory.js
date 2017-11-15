@@ -179,6 +179,7 @@ let Scale = {
 
     if( Gibber !== null ) {
       Gibber.addSequencingToMethod( scale, 'root', 3 )
+      Gibber.addSequencingToMethod( scale, 'modulate', 3 )
       Gibber.addSequencingToMethod( scale, 'mode', 2 )
       Gibber.addSequencingToMethod( scale, 'degree',1 )
     }
