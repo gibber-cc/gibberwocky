@@ -235,6 +235,44 @@ module.exports = function( Gibber ) {
 
       this.waveObjects = this.__waveObjects( Gibber, this, __ugenproto__ )
       Object.assign( this.ugens, this.waveObjects )
+
+      genish.lfo = ( frequency = .1, center = .5, amp = .25 ) => {
+        const g = genish
+
+        let _cycle = g.cycle( frequency ),
+            _mul   = g.mul( _cycle, amp ),
+            _add   = g.add( center, _mul ) 
+         
+        _add.frequency = (v) => {
+          if( v === undefined ) {
+            return _cycle[ 0 ]()
+          }else{
+            _cycle[0]( v )
+          }
+        }
+
+        _add.amp = (v) => {
+          if( v === undefined ) {
+            return _mul[ 1 ]()
+          }else{
+            _mul[1]( v )
+          }
+        }
+
+        _add.center = (v) => {
+          if( v === undefined ) {
+            return _add[ 0 ]()
+          }else{
+            _add[0]( v )
+          }
+        }
+
+        Gibber.addSequencingToMethod( _add, 'frequency' )
+        Gibber.addSequencingToMethod( _add, 'amp' )
+        Gibber.addSequencingToMethod( _add, 'center' )
+
+        return _add
+      }
     },
 
     export( target ) {

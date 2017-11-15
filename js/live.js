@@ -67,7 +67,7 @@ let Live = {
   processDevice( device, idx, currentTrack ) {
     if( device.name === undefined ) {
       // XXX hack for wavetable bug
-      console.log( 'undefined device name, assuming wavetable:', device )
+      //console.log( 'undefined device name, assuming wavetable:', device )
       device.name = 'Wavetable'
     }
 
