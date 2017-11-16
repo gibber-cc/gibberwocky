@@ -13,6 +13,7 @@ let Track = {
         if( v===undefined ) return this.__octave
 
         this.__octave = v
+        return this
       },
       note( ...args ) {
         args[0] = Gibber.Theory.Note.convertToMIDI( args[0] )

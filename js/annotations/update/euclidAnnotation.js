@@ -3,18 +3,17 @@ const $ = Utility.create
 
 
 module.exports = ( patternObject, marker, className, cm, track ) => {
-  console.log( 'euclid!' )
   let val ='/* ' + patternObject.values.join('')  + ' */',
-    pos = marker.find(),
-    end = Object.assign( {}, pos.to ),
-    annotationStartCh = pos.from.ch + 3,
-    annotationEndCh   = annotationStartCh + 1,
-    memberAnnotationStart   = Object.assign( {}, pos.from ),
-    memberAnnotationEnd     = Object.assign( {}, pos.to ),
-    initialized = false,
-    markStart = null,
-    commentMarker,
-    currentMarker, chEnd
+      pos = marker.find(),
+      end = Object.assign( {}, pos.to ),
+      annotationStartCh = pos.from.ch + 3,
+      annotationEndCh   = annotationStartCh + 1,
+      memberAnnotationStart   = Object.assign( {}, pos.from ),
+      memberAnnotationEnd     = Object.assign( {}, pos.to ),
+      initialized = false,
+      markStart = null,
+      commentMarker,
+      currentMarker, chEnd
 
   end.ch = pos.from.ch + val.length
 

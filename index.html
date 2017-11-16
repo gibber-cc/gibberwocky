@@ -4611,7 +4611,7 @@ module.exports = function( Marker ) {
 
   const ArrayExpression = function( patternNode, state, seq, patternType, container=null, index=0 ) {
     if( patternNode.processed === true ) return 
-    
+
     const cm = state.cm
     const track = seq.object
     const patternObject = seq[ patternType ]
@@ -4628,8 +4628,8 @@ module.exports = function( Marker ) {
           elementEnd   = Object.assign( {}, end   ),
           marker
       
-      elementStart.ch = element.start + Marker.offset.horizontal
-      elementEnd.ch   = element.end   + Marker.offset.horizontal
+      elementStart.ch = element.loc.start.column// + Marker.offset.horizontal
+      elementEnd.ch   = element.loc.end.column //  + Marker.offset.horizontal
 
       if( element.type === 'BinaryExpression' ) {
         marker = cm.markText( elementStart, elementEnd, { 
@@ -4676,6 +4676,7 @@ module.exports = function( Marker ) {
           startStyle:'annotation-left-border-start',
           endStyle: 'annotation-right-border-end',
          })
+
 
          // mark opening array bracket
          const arrayStart_start = Object.assign( {}, elementStart )
@@ -5269,18 +5270,17 @@ const $ = Utility.create
 
 
 module.exports = ( patternObject, marker, className, cm, track ) => {
-  console.log( 'euclid!' )
   let val ='/* ' + patternObject.values.join('')  + ' */',
-    pos = marker.find(),
-    end = Object.assign( {}, pos.to ),
-    annotationStartCh = pos.from.ch + 3,
-    annotationEndCh   = annotationStartCh + 1,
-    memberAnnotationStart   = Object.assign( {}, pos.from ),
-    memberAnnotationEnd     = Object.assign( {}, pos.to ),
-    initialized = false,
-    markStart = null,
-    commentMarker,
-    currentMarker, chEnd
+      pos = marker.find(),
+      end = Object.assign( {}, pos.to ),
+      annotationStartCh = pos.from.ch + 3,
+      annotationEndCh   = annotationStartCh + 1,
+      memberAnnotationStart   = Object.assign( {}, pos.from ),
+      memberAnnotationEnd     = Object.assign( {}, pos.to ),
+      initialized = false,
+      markStart = null,
+      commentMarker,
+      currentMarker, chEnd
 
   end.ch = pos.from.ch + val.length
 
@@ -5587,7 +5587,10 @@ const Waveform = {
       widget.gen.widget = widget
     }
     
-    if( patternObject !== null ) patternObject.mark = widget.mark
+    if( patternObject !== null ) {
+      patternObject.mark = widget.mark
+      if( patternObject === Gibber.Gen.lastConnected[0] ) Gibber.Gen.lastConnected.shift()
+    }
 
     widget.onclick = ()=> {
       widget.min = Infinity
@@ -8539,7 +8542,6 @@ let Gibber = {
         Gibber.Gen.lastConnected.push( seq.values )
       }
       
-      // XXX THIS WILL BREAK IF THERE ARE WAVE PATTERNS FOR BOTH VALUES AND TIMINGS
       if( typeof timing === 'object' && timings.isGen ) {
         Gibber.Gen.lastConnected.push( seq.timings )
       }
@@ -10807,6 +10809,7 @@ let Track = {
         if( v===undefined ) return this.__octave
 
         this.__octave = v
+        return this
       },
       note( ...args ) {
         args[0] = Gibber.Theory.Note.convertToMIDI( args[0] )

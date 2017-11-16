@@ -109,7 +109,10 @@ const Waveform = {
       widget.gen.widget = widget
     }
     
-    if( patternObject !== null ) patternObject.mark = widget.mark
+    if( patternObject !== null ) {
+      patternObject.mark = widget.mark
+      if( patternObject === Gibber.Gen.lastConnected[0] ) Gibber.Gen.lastConnected.shift()
+    }
 
     widget.onclick = ()=> {
       widget.min = Infinity

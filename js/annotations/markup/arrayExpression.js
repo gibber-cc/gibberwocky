@@ -6,7 +6,7 @@ module.exports = function( Marker ) {
 
   const ArrayExpression = function( patternNode, state, seq, patternType, container=null, index=0 ) {
     if( patternNode.processed === true ) return 
-    
+
     const cm = state.cm
     const track = seq.object
     const patternObject = seq[ patternType ]
@@ -23,8 +23,8 @@ module.exports = function( Marker ) {
           elementEnd   = Object.assign( {}, end   ),
           marker
       
-      elementStart.ch = element.start + Marker.offset.horizontal
-      elementEnd.ch   = element.end   + Marker.offset.horizontal
+      elementStart.ch = element.loc.start.column// + Marker.offset.horizontal
+      elementEnd.ch   = element.loc.end.column //  + Marker.offset.horizontal
 
       if( element.type === 'BinaryExpression' ) {
         marker = cm.markText( elementStart, elementEnd, { 
@@ -71,6 +71,7 @@ module.exports = function( Marker ) {
           startStyle:'annotation-left-border-start',
           endStyle: 'annotation-right-border-end',
          })
+
 
          // mark opening array bracket
          const arrayStart_start = Object.assign( {}, elementStart )
