@@ -73,11 +73,11 @@ const Marker = {
 
     const parsed = acorn.parse( code, Marker.parsingOptions )
       
-    //parsed.body.forEach( node => {
-      //state.length = 0
+    parsed.body.forEach( node => {
+      state.length = 0
     //console.log( parsed )
-    walk.recursive( parsed, state, Marker.visitors )
-    //})
+      walk.recursive( node, state, Marker.visitors )
+    })
   },
   
   markPatternsForSeq( seq, nodes, state, cb, container, seqNumber = 0 ) {

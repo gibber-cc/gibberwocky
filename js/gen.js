@@ -26,9 +26,13 @@ let Gen  = {
     Gen.names.push( ...Object.keys( Gen.constants ) )
     Gen.names.push( ...Object.keys( Gen.functions ) )
     Gen.names.push( ...Object.keys( Gen.composites ) )
+
+
+    Gibber.subscribe( 'clear', ()=> Gen.lastConnected.length = 0 )
+
   },
 
-  lastConnected:null,
+  lastConnected:[],
 
   names:[],
   

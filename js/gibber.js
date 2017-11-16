@@ -44,7 +44,6 @@ let Gibber = {
     this.max = window.max
     this.$   = Gibber.Utility.create
 
-    this.createPubSub()
 
     this.Environment.init( Gibber )
     this.Theory.init( Gibber )
@@ -201,12 +200,11 @@ let Gibber = {
       // setup code annotations to place values and widget onto pattern object
       // not gen~ object
       if( typeof values === 'object' && values.isGen ) {
-        Gibber.Gen.lastConnected = seq.values 
+        Gibber.Gen.lastConnected.push( seq.values )
       }
       
-      // XXX THIS WILL BREAK IF THERE ARE WAVE PATTERNS FOR BOTH VALUES AND TIMINGS
       if( typeof timing === 'object' && timings.isGen ) {
-        Gibber.Gen.lastConnected = seq.timings
+        Gibber.Gen.lastConnected.push( seq.timings )
       }
 
       return seq
@@ -322,7 +320,7 @@ let Gibber = {
 
           Gibber.Communication.send( `select_track ${ trackID }` )
 
-          Gibber.__gen.gen.lastConnected = hasGen === true ? __v : _v
+          Gibber.__gen.gen.lastConnected.push( hasGen === true ? __v : _v )
           
           // disconnects for fades etc.
           // XXX reconfigure for hasGen === false
@@ -368,6 +366,10 @@ let Gibber = {
     Gibber.addSequencingToMethod( obj, methodName, 0, seqKey )
   }
 }
+
+// must be called before requiring objects that use pubsub
+Gibber.createPubSub()
+
 
 Gibber.Pattern = require( './pattern.js' )( Gibber )
 Gibber.Seq     = require( './seq.js' )( Gibber )

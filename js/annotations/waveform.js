@@ -29,7 +29,7 @@ const Waveform = {
     widget.ctx.strokeStyle = COLORS.STROKE
     widget.ctx.font = '10px monospace'
     widget.ctx.lineWidth = 1
-    widget.gen = patternObject !== null ? patternObject : Gibber.__gen.gen.lastConnected
+    widget.gen = patternObject !== null ? patternObject : Gibber.__gen.gen.lastConnected.shift()
     widget.values = []
     widget.storage = []
     widget.min = 10000
@@ -50,7 +50,7 @@ const Waveform = {
 
         const track  = window[ state[0] ][ state[1] ]
 
-        const seq = track[ node.callee.object.property.name ][ node.arguments[2].value ] 
+        const seq = track[ node.callee.object.property.value][ node.arguments[2].value ] 
 
         if( seq !== undefined && seq.values.type === 'WavePattern' ) {
           widget.gen = seq.values
@@ -69,7 +69,7 @@ const Waveform = {
       }
     }
 
-    Gibber.__gen.gen.lastConnected = null
+    //Gibber.__gen.gen.lastConnected = null
 
     //for( let i = 0; i < 120; i++ ) widget.values[ i ] = 0
 
