@@ -7658,7 +7658,7 @@ let Gibber = {
     window.log           = this.log
     window.clear         = this.clear
     window.Theory        = this.Theory
-    window.WavePattern   = this.WavePattern
+    window.Lookup        = this.WavePattern
 
     Gibber.__gen.export( window ) 
     //Gibber.Gen.export( window )
