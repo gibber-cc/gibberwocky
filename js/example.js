@@ -709,7 +709,7 @@ tracks[1].note.seq(
 // of course we can use a pattern for our rhythm:
 tracks[1].note.seq(
   sine( 8, 0, 7 ),
-  Euclid(5,16)
+  Euclid(5,16),
   1
 )
 
@@ -719,7 +719,7 @@ tracks[1].note[1].timings.rotate.seq( 1,1 )
 // For example, in the sequence below the pattern alternates between
 // 1/16, 1/8, and 1/4 notes based on a phasor:
 tracks[1].note.seq(
-  Lookup( cycle( btof(3) ), [ -7,0,7,14 ] ),
+  0, 
   Lookup( phasor( btof(4) ), [1/16,1/8,1/4] )              
 )
 
