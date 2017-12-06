@@ -258,7 +258,11 @@ const WavePattern = {
     }
 
     if( typeof ugen.inputs !== 'undefined' ) {
-      ugen.inputs.forEach( u => WavePattern.adjust( u,ms ) ) 
+      
+      ugen.inputs.forEach( u => {
+        if( typeof u === 'object' || typeof u === 'function' )
+          WavePattern.adjust( u,ms )
+      }) 
     }
   }
  

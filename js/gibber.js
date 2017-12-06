@@ -277,7 +277,7 @@ let Gibber = {
 
       if( _v !== undefined ) {
         if( typeof _v === 'object' && _v.isGen ) {
-          const __v = hasGen === true ? _v.render( 'gen' ) : _v.render( 'genish' )
+          let __v = hasGen === true ? _v.render( 'gen' ) : _v.render( 'genish' )
 
           if( hasGen ) {
             __v.assignTrackAndParamID( trackID, parameter.id )
@@ -316,6 +316,7 @@ let Gibber = {
               //const out = __v.wavePattern( true )
               //Gibber.Communication.send( `set ${parameter.id} ${out}` )
             //}, 150 )
+            __v = _v
           }
 
           Gibber.Communication.send( `select_track ${ trackID }` )
@@ -324,11 +325,13 @@ let Gibber = {
           
           // disconnects for fades etc.
           // XXX reconfigure for hasGen === false
-          if( typeof __v.shouldKill === 'object' && hasGen === true ) {
+          if( typeof __v.shouldKill === 'object' ) {
             Gibber.Utility.future( ()=> {
-              Gibber.Communication.send( `ungen ${parameter.id}` )
+              if( hasGen ) {
+                Gibber.Communication.send( `ungen ${parameter.id}` )
+              }
               Gibber.Communication.send( `set ${parameter.id} ${__v.shouldKill.final}` )
-
+              
               let widget = Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
               if( widget !== undefined && widget.mark !== undefined ) {
                 widget.mark.clear()

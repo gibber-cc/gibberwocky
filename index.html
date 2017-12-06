@@ -6498,7 +6498,7 @@ let Environment = {
     this.codeMarkup.init()
     this.editorWidth = document.querySelector( '#editor' ).style.width
 
-    this.toggleSidebar()
+    //this.toggleSidebar()
   },
 
   createSidePanel() {
@@ -7702,6 +7702,80 @@ steps[69].rotate.seq( 1,1 )
 // reverse all steps each measure
 steps.reverse.seq( 1, 2 )`,
 
+['using waveforms to generate patterns']: `/* Periodic Functions as Patterns */
+
+// Gibberwocky enables you to define continuous signals that are
+// periodically sto create patterns, a common technique in
+// the modular synthesis community that was popularized in Impromptu
+// and Extempore. For example, to use a sine oscillator to generate
+// a pattern constrained to a musical scale:
+
+// assumes that you have a melodic instrument loaded on track 1
+tracks[1].note.seq(
+  sine( 4, 0, 4 ), // period (in beats), center, amplitude
+  1/8
+)
+
+tracks[1].octave(-2)
+
+// as you can see from the visualization, this creates a sine oscillator
+// with a period of 4 beats, an amplitude of 4 and a center (bias) of 0.
+// sine() is a convenience method in gibberwocky; we could recreate this
+// waveform using low-level Gen/genish functions:
+
+tracks[1].note.seq(
+  mul( cycle( btof(4) ), 4 ),
+  1/8
+)
+
+// ... or for a straight line:
+tracks[1].note.seq(
+  mul( phasor( btof(8)), 8 ),
+  1/8
+)
+
+// of course we can use a pattern for our rhythm:
+tracks[1].note.seq(
+  sine( 8, 0, 7 ),
+  Euclid(5,16)
+  1
+)
+
+tracks[1].note[1].timings.rotate.seq( 1,1 )
+
+// an Lookup object can lookup a value in an array based on a signal.
+// For example, in the sequence below the pattern alternates between
+// 1/16, 1/8, and 1/4 notes based on a phasor:
+tracks[1].note.seq(
+  Lookup( cycle( btof(3) ), [ -7,0,7,14 ] ),
+  Lookup( phasor( btof(4) ), [1/16,1/8,1/4] )              
+)
+
+// as one final example, in multi-samplers / drum machines different
+// midi notes trigger different sounds. Using signals to control 
+// select sounds can yield interesting patterns over time.
+
+// assumes that tracks[0] contains an impulse:
+tracks[0].note.seq(
+  sine( 8, 4, 4 ),
+  1/16
+)
+
+// here's an example specifically sequencing a snare drum pattern
+// (the snare drum is usually midinote 62 in an Impulse) along
+// with velocity sequencing:
+tracks[0].midinote.seq(
+  62,
+  Lookup( phasor( btof(4) ), [ 1/32, 1/16, 1/8, 1/4 ] )    
+)
+tracks[0].velocity.seq( sine( 4, 48, 48 ) )
+
+// note that if you don't provide a set of durations to a sequence, 
+// gibberwocky will assume the same trigger points used by running
+// note or midinote sequences. In effect, this means that every time
+// a note is trigger, our velocity sine oscillator is sampled and a new
+// velocity is sent to Live.`
+
 }
 
 module.exports = Examples
@@ -8326,6 +8400,30 @@ module.exports = function( Gibber ) {
 
         return _add
       }
+
+      genish.fade = function( beats=43, from = 0, to = 1 ) {
+        const g = __gen.ugens 
+        let fade, amt, beatsInSeconds = Gibber.Utility.beatsToFrequency( beats, 120 )
+       
+        if( from > to ) {
+          amt = from - to
+
+          fade = g.gtp( g.sub( from, g.accum( g.div( amt, g.mul(beatsInSeconds, g.samplerate ) ), 0 ) ), to )
+        }else{
+          amt = to - from
+          fade = g.cycle(2)//g.add( from, g.ltp( g.accum( g.div( amt, g.mul( beatsInSeconds, g.samplerate ) ), 0 ), to ) )
+        }
+        
+        // XXX should this be available in ms? msToBeats()?
+        fade.shouldKill = {
+          after: beats, 
+          final: to
+        }
+
+        fade.name = 'fade'
+        
+        return fade
+      }
     },
 
     export( target ) {
@@ -8616,7 +8714,7 @@ let Gibber = {
 
       if( _v !== undefined ) {
         if( typeof _v === 'object' && _v.isGen ) {
-          const __v = hasGen === true ? _v.render( 'gen' ) : _v.render( 'genish' )
+          let __v = hasGen === true ? _v.render( 'gen' ) : _v.render( 'genish' )
 
           if( hasGen ) {
             __v.assignTrackAndParamID( trackID, parameter.id )
@@ -8655,6 +8753,7 @@ let Gibber = {
               //const out = __v.wavePattern( true )
               //Gibber.Communication.send( `set ${parameter.id} ${out}` )
             //}, 150 )
+            __v = _v
           }
 
           Gibber.Communication.send( `select_track ${ trackID }` )
@@ -8663,11 +8762,13 @@ let Gibber = {
           
           // disconnects for fades etc.
           // XXX reconfigure for hasGen === false
-          if( typeof __v.shouldKill === 'object' && hasGen === true ) {
+          if( typeof __v.shouldKill === 'object' ) {
             Gibber.Utility.future( ()=> {
-              Gibber.Communication.send( `ungen ${parameter.id}` )
+              if( hasGen ) {
+                Gibber.Communication.send( `ungen ${parameter.id}` )
+              }
               Gibber.Communication.send( `set ${parameter.id} ${__v.shouldKill.final}` )
-
+              
               let widget = Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
               if( widget !== undefined && widget.mark !== undefined ) {
                 widget.mark.clear()
@@ -11423,7 +11524,35 @@ const waveObjects = {
 
     return ugen
   },
+  fade( beats=16, from=0, to=1 ) {
+    //const ugen = Object.create( __ugenproto__ )
 
+    //ugen.name = 'fade'
+    //ugen.inputs = inputs
+
+    //return ugen
+    const g = genAbstract.ugens 
+    let fade, amt, beatsInSeconds = Gibber.Utility.beatsToFrequency( beats, 120 )
+
+    if( from > to ) {
+      amt = from - to
+
+      fade = g.gtp( g.sub( from, g.accum( g.div( amt, g.mul(beatsInSeconds, g.samplerate ) ), 0 ) ), to )
+    }else{
+      amt = to - from
+      fade = g.ltp( g.accum( g.div( amt, g.mul( beatsInSeconds, 44100 ) ), 0 ), to )
+    }
+
+    // XXX should this be available in ms? msToBeats()?
+    fade.shouldKill = {
+      after: beats, 
+      final: to
+    }
+
+    //fade.name = 'fade'
+
+    return fade   
+  },
   beats( ...inputs ) {
     const ugen = Object.create( __ugenproto__ )
     ugen.name = 'phasor'
@@ -11875,7 +12004,11 @@ const WavePattern = {
     }
 
     if( typeof ugen.inputs !== 'undefined' ) {
-      ugen.inputs.forEach( u => WavePattern.adjust( u,ms ) ) 
+      
+      ugen.inputs.forEach( u => {
+        if( typeof u === 'object' || typeof u === 'function' )
+          WavePattern.adjust( u,ms )
+      }) 
     }
   }
  

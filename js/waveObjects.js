@@ -39,7 +39,35 @@ const waveObjects = {
 
     return ugen
   },
+  fade( beats=16, from=0, to=1 ) {
+    //const ugen = Object.create( __ugenproto__ )
 
+    //ugen.name = 'fade'
+    //ugen.inputs = inputs
+
+    //return ugen
+    const g = genAbstract.ugens 
+    let fade, amt, beatsInSeconds = Gibber.Utility.beatsToFrequency( beats, 120 )
+
+    if( from > to ) {
+      amt = from - to
+
+      fade = g.gtp( g.sub( from, g.accum( g.div( amt, g.mul(beatsInSeconds, g.samplerate ) ), 0 ) ), to )
+    }else{
+      amt = to - from
+      fade = g.ltp( g.accum( g.div( amt, g.mul( beatsInSeconds, 44100 ) ), 0 ), to )
+    }
+
+    // XXX should this be available in ms? msToBeats()?
+    fade.shouldKill = {
+      after: beats, 
+      final: to
+    }
+
+    //fade.name = 'fade'
+
+    return fade   
+  },
   beats( ...inputs ) {
     const ugen = Object.create( __ugenproto__ )
     ugen.name = 'phasor'
