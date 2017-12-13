@@ -20,12 +20,12 @@ const WavePattern = {
       // edge case... because adjust might lead to a value of 1
       // which accum would wrap AFTER the obtaining the current value
       // leading to an undefined value for the pattern output (e.g. pattern[ pattern.length ] )
-      if( signalValue === 1 ) signalValue = 0
-
       let outputBeforeFilters = signalValue
 
       // if there is an array of values to read from... (signal is a phasor indexing into a values array)
       if( pattern.__usesValues === true ) {
+        if( signalValue === 1 ) signalValue = 0
+
         const scaledSignalValue = signalValue * ( pattern._values.length )
         const adjustedSignalValue = Math.abs( scaledSignalValue )//scaledSignalValue < 0 ? pattern._values.length + scaledSignalValue : scaledSignalValue
         const roundedSignalValue  = Math.floor( adjustedSignalValue )
