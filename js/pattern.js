@@ -31,7 +31,6 @@ Object.assign( PatternProto, {
   },
 
   checkForUpdateFunction( name, ...args ) {
-    console.log( 'check:', this )
     if( this.__delayAnnotations === true ) {
       console.log( 'delayed', this.__delayAnnotations )
       setTimeout( ()=> {

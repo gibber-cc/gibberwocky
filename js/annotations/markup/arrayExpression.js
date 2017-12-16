@@ -4,7 +4,7 @@ const $ = Utility.create
 module.exports = function( Marker ) {
   'use strict'
 
-  const ArrayExpression = function( patternNode, state, seq, patternType, container=null, index=0 ) {
+  const ArrayExpression = function( patternNode, state, seq, patternType, container=null, index=0, isLookup=false ) {
     if( patternNode.processed === true ) return 
 
     const cm = state.cm
@@ -131,7 +131,9 @@ module.exports = function( Marker ) {
         }
 
         // add annotation for current pattern element
-        if( Array.isArray( patternObject.values[ patternObject.update.currentIndex ] ) ) {
+        const values = isLookup === false ? patternObject.values : patternObject._values
+
+        if( Array.isArray( values[ patternObject.update.currentIndex ] ) ) {
           $( className ).add( 'annotation-array' )
           $( className + '_start' ).add( 'annotation-border-left' )
           $( className + '_end' ).add( 'annotation-border-right' )

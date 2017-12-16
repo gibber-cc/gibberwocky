@@ -36,7 +36,7 @@ let Environment = {
     this.codeMarkup.init()
     this.editorWidth = document.querySelector( '#editor' ).style.width
 
-    //this.toggleSidebar()
+    this.toggleSidebar()
   },
 
   createSidePanel() {

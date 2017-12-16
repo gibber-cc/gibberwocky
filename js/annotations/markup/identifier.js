@@ -65,7 +65,11 @@ const __Identifier = function( Marker ) {
       const updateName = typeof patternNode.callee !== 'undefined' ? patternNode.callee.name : patternNode.name
 
       if( Marker.patternUpdates[ updateName ] ) {
-        patternObject.update = Marker.patternUpdates[ updateName ]( patternObject, marker, className, cm, track )
+        if( updateName !== 'Lookup' ) {
+         patternObject.update =  Marker.patternUpdates[ updateName ]( patternObject, marker, className, cm, track, patternNode )
+        }else{
+          Marker.patternUpdates[ updateName ]( patternObject, marker, className, cm, track, patternNode, patternType )
+        }
       } else {
         patternObject.update = Marker.patternUpdates.anonymousFunction( patternObject, marker, className, cm, track )
       }
@@ -75,7 +79,8 @@ const __Identifier = function( Marker ) {
       // store value changes in array and then pop them every time the annotation is updated
       patternObject.update.value = []
 
-      Marker._addPatternFilter( patternObject )
+      if( updateName !== 'Lookup' )
+        Marker._addPatternFilter( patternObject )
     }
 
     patternObject.marker = marker

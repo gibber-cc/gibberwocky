@@ -720,7 +720,7 @@ tracks[1].note[1].timings.rotate.seq( 1,1 )
 // 1/16, 1/8, and 1/4 notes based on a phasor:
 tracks[1].note.seq(
   0, 
-  Lookup( phasor( btof(4) ), [1/16,1/8,1/4] )              
+  Lookup( beats(4), [1/16,1/8,1/4] )              
 )
 
 // as one final example, in multi-samplers / drum machines different
@@ -738,7 +738,7 @@ tracks[0].note.seq(
 // with velocity sequencing:
 tracks[0].midinote.seq(
   62,
-  Lookup( phasor( btof(4) ), [ 1/32, 1/16, 1/8, 1/4 ] )    
+  Lookup( beats(4), [ 1/32, 1/16, 1/8, 1/4 ] )    
 )
 tracks[0].velocity.seq( sine( 4, 48, 48 ) )
 

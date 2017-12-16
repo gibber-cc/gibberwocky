@@ -298,6 +298,9 @@ let Gibber = {
             //__v.callback = Gibber.__gen.genish.gen.createCallback( __v )
 
             if( genAlreadyAssigned === true ) {
+            //  console.log( 'gen already assigned' )
+              //const prevPattern = obj[ methodName ]()
+              //prevPattern.clear()
               prevGen.clear()
               prevGen.shouldStop = true
               const idx = Gibber.Gen.connected.findIndex( e => e.paramID === parameter.id )

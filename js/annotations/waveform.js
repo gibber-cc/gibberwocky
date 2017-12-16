@@ -47,17 +47,21 @@ const Waveform = {
         widget.gen.widget = widget
       }else if( node.type === 'CallExpression' ) {
         const state = cm.__state
+        
+        if( node.callee.name !== 'Lookup' ) {
+          const track  = window[ state[0] ][ state[1] ]
 
-        const track  = window[ state[0] ][ state[1] ]
+          const seq = track[ node.callee.object.property.value][ node.arguments[2].value ] 
 
-        const seq = track[ node.callee.object.property.value][ node.arguments[2].value ] 
-
-        if( seq !== undefined && seq.values.type === 'WavePattern' ) {
-          widget.gen = seq.values
-          widget.gen.paramID += '_' + node.arguments[2].value
-          //widget.gen.widget = widget
+          if( seq !== undefined && seq.values.type === 'WavePattern' ) {
+            widget.gen = seq.values
+            widget.gen.paramID += '_' + node.arguments[2].value
+            //widget.gen.widget = widget
+          }
+          isAssignment = true
+        }else{
+          widget.gen = patternObject
         }
-        isAssignment = true
         //if( seq !== undefined && seq.timings.type === 'WavePattern' ) {
           
         //}
@@ -74,17 +78,17 @@ const Waveform = {
     //for( let i = 0; i < 120; i++ ) widget.values[ i ] = 0
 
     let replaced = false
-    if( isAssignment === false ) {
-      if( widget.gen !== null ) {
-        let oldWidget = Waveform.widgets[ widget.gen.paramID ] 
+    //if( isAssignment === false ) {
+    //  if( widget.gen !== null ) {
+    //    let oldWidget = Waveform.widgets[ widget.gen.paramID ] 
 
-        if( oldWidget !== undefined ) {
-          //oldWidget.parentNode.removeChild( oldWidget )
-          widget = oldWidget
-          replaced = true
-        } 
-      }
-    }
+    //    if( oldWidget !== undefined ) {
+    //      //oldWidget.parentNode.removeChild( oldWidget )
+    //      widget = oldWidget
+    //      replaced = true
+    //    } 
+    //  }
+    //}
 
     if( replaced === false ) {
       widget.mark = cm.markText({ line, ch:ch }, { line, ch:ch+1 }, { replacedWith:widget })
@@ -145,8 +149,8 @@ const Waveform = {
     // XXX why does beats generate a downward ramp?
     if( isFromMax ) value = 1 - value
 
-    if( typeof widget.values[72] !== 'object' ) {
-      widget.values[ 72 ] = value
+    if( typeof widget.values[76] !== 'object' ) {
+      widget.values[ 76 ] = value
       widget.storage.push( value )
     }
 
@@ -170,7 +174,7 @@ const Waveform = {
     Waveform.widgets.dirty = false
 
     for( let key in Waveform.widgets ) {
-      let widget = Waveform.widgets[ key ]
+      const widget = Waveform.widgets[ key ]
       if( typeof widget === 'object' && widget.ctx !== undefined ) {
 
         widget.ctx.fillStyle = COLORS.FILL
@@ -193,7 +197,7 @@ const Waveform = {
         widget.ctx.moveTo( widget.padding,  widget.height / 2 + 1 )
 
         const range = widget.max - widget.min
-        const wHeight = widget.height * .9 + .45
+        const wHeight = widget.height * .85 + .45
 
         for( let i = 0, len = widget.waveWidth; i < len; i++ ) {
           const data = widget.values[ i ]
@@ -201,11 +205,12 @@ const Waveform = {
           const value = shouldDrawDot ? data.value : data
           const scaledValue = ( value - widget.min ) / range
 
-          const yValue = scaledValue * wHeight - .5 
+          const yValue = scaledValue * (wHeight) - .5 
           
           if( shouldDrawDot === true ) {
             widget.ctx.fillStyle = COLORS.DOT
-            widget.ctx.fillRect( i + widget.padding -1.5, wHeight - yValue - 1, 3, 3)
+            widget.ctx.fillRect( i + widget.padding -1, wHeight - yValue - 1.5, 3, 3)
+            widget.ctx.lineTo( i + widget.padding + .5, wHeight - yValue - 1.5 )
           }else{
             widget.ctx.lineTo( i + widget.padding + .5, wHeight - yValue )
           }

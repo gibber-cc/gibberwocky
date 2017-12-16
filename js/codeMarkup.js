@@ -187,13 +187,24 @@ const Marker = {
       // pattern; reversing their order of execution fixes this.  
       if( patternObject.__delayAnnotations === true ) {
         Gibber.Environment.animationScheduler.add( () => {
-          patternObject.update.currentIndex = idx
+          if( patternObject.type !== 'Lookup' ) {
+            patternObject.update.currentIndex = idx
+          }else{
+            patternObject.update.currentIndex = patternObject.update.__currentIndex.shift()
+          }
+
           patternObject.update()
         }, wait + 1 )
       }else{
         Gibber.Environment.animationScheduler.add( () => {
-          patternObject.update.currentIndex = idx
-          patternObject.update()
+          if( patternObject.type !== 'Lookup' ) {
+            patternObject.update.currentIndex = idx
+          }else{
+            patternObject.update.currentIndex = patternObject.update.__currentIndex.shift()
+          }
+
+
+         patternObject.update()
         }, wait ) 
       }
 
@@ -227,6 +238,7 @@ const Marker = {
 
   patternUpdates: {
     Euclid: require( './annotations/update/euclidAnnotation.js' ),
+    Lookup: require( './annotations/update/lookupAnnotation.js' ),
     anonymousFunction: require( './annotations/update/anonymousAnnotation.js' ),
   },
 

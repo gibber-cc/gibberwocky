@@ -3,15 +3,17 @@ const $ = Utility.create
 
 module.exports = function( classNamePrefix, patternObject ) {
   let modCount = 0,
-    lastBorder = null,
-    lastClassName = null
+      lastBorder = null,
+      lastClassName = null
 
-  let cycle = function( isArray = false ) {
-    let className = '.' + classNamePrefix, //+ '_' +  patternObject.update.currentIndex,
-      border = 'top'
+  const cycle = function( isArray = false ) {
+    let className = '.' + classNamePrefix,
+        border = 'top'
 
     // accommodate arrays
-    if( patternObject.values.length > 1 ) className += '_' + patternObject.update.currentIndex
+    if( patternObject.values.length > 1 || patternObject.type === 'Lookup' ) {
+      className += '_' + patternObject.update.currentIndex
+    }
 
     switch( modCount++ % 4 ) {
       case 1: border = 'right'; break;

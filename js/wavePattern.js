@@ -8,10 +8,10 @@ const WavePattern = {
   create( abstractGraph, values ) {
     // might change due to proxy functionality, so use 'let'
     let graph = abstractGraph.render( 'genish' ) // convert abstraction to genish.js graph
-    let count = -1
 
     const patternOutputFnc = function( isViz = false ) {
       if( isViz && pattern.vizinit === false ) {
+        
         return
       } 
       pattern.run( isViz )
@@ -23,7 +23,12 @@ const WavePattern = {
       let outputBeforeFilters = signalValue
 
       // if there is an array of values to read from... (signal is a phasor indexing into a values array)
-      if( pattern.__usesValues === true ) {
+      if( pattern.__usesValues === true && isViz === false ) {
+        // have to wait to declare this array for annotations to be processed
+        if( pattern.update !== undefined ) {
+          if( pattern.update.__currentIndex === undefined ) pattern.update.__currentIndex = []
+        }
+
         if( signalValue === 1 ) signalValue = 0
 
         const scaledSignalValue = signalValue * ( pattern._values.length )
@@ -31,6 +36,10 @@ const WavePattern = {
         const roundedSignalValue  = Math.floor( adjustedSignalValue )
         //console.log( scaledSignalValue, adjustedSignalValue, roundedSignalValue )
         outputBeforeFilters = pattern._values[ roundedSignalValue ]
+
+        if( pattern.update !== undefined ) {
+          pattern.update.__currentIndex.push( roundedSignalValue )
+        }
       }
 
       let output = outputBeforeFilters
@@ -41,7 +50,7 @@ const WavePattern = {
       }else if( Gibber.Environment.annotations === true && pattern.widget !== undefined ) {
         // mark the last placed value by the visualization as having a "hit", 
         // which will cause a dot to be drawn on the sparkline.
-        const idx = 60 + Math.round( pattern.nextTime * 12  )
+        const idx = 60 + Math.round( pattern.nextTime * 16  )
         const oldValue = pattern.widget.values[ idx ]
 
         pattern.widget.values[ idx ] = { value: signalValue, type:'hit' }
@@ -68,6 +77,8 @@ const WavePattern = {
     // check whether or not to use raw signal values
     // or index into values array
     pattern.__usesValues = values !== undefined
+
+    
 
     if( abstractGraph.patterns === undefined ) {
       abstractGraph.patterns = []
@@ -121,6 +132,8 @@ const WavePattern = {
         delete pattern.widget
         pattern.running = false
       }else if( abstractGraph.widget !== undefined ) {
+        abstractGraph.widget.clear()
+        delete abstractGraph.widget
         pattern.running = false
       }
     }
@@ -132,7 +145,7 @@ const WavePattern = {
     let mem = genish.gen.memory || 44100 * 2
 
     Object.assign( pattern, {
-      type:'WavePattern',
+      type: pattern.__usesValues ? 'Lookup' : 'WavePattern',
       graph,
       abstractGraph,
       paramID:abstractGraph.paramID || Math.round( Math.random() * 1000000 ),
