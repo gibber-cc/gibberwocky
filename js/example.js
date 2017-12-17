@@ -677,10 +677,10 @@ steps.reverse.seq( 1, 2 )`,
 ['using waveforms to generate patterns']: `/* Periodic Functions as Patterns */
 
 // Gibberwocky enables you to define continuous signals that are
-// periodically sto create patterns, a common technique in
-// the modular synthesis community that was popularized in Impromptu
-// and Extempore. For example, to use a sine oscillator to generate
-// a pattern constrained to a musical scale:
+// periodically sampled to create patterns, a common technique in
+// the modular synthesis community that was popularized in live coding
+// by the Impromptu and Extempore environments. For example, to use a sine oscillator 
+// to generate a pattern constrained to a musical scale:
 
 // assumes that you have a melodic instrument loaded on track 1
 tracks[1].note.seq(
@@ -715,7 +715,7 @@ tracks[1].note.seq(
 
 tracks[1].note[1].timings.rotate.seq( 1,1 )
 
-// an Lookup object can lookup a value in an array based on a signal.
+// a Lookup object can lookup a value in an array based on a signal.
 // For example, in the sequence below the pattern alternates between
 // 1/16, 1/8, and 1/4 notes based on a phasor:
 tracks[1].note.seq(
@@ -723,15 +723,6 @@ tracks[1].note.seq(
   Lookup( beats(4), [1/16,1/8,1/4] )              
 )
 
-// as one final example, in multi-samplers / drum machines different
-// midi notes trigger different sounds. Using signals to control 
-// select sounds can yield interesting patterns over time.
-
-// assumes that tracks[0] contains an impulse:
-tracks[0].note.seq(
-  sine( 8, 4, 4 ),
-  1/16
-)
 
 // here's an example specifically sequencing a snare drum pattern
 // (the snare drum is usually midinote 62 in an Impulse) along
@@ -746,7 +737,17 @@ tracks[0].velocity.seq( sine( 4, 48, 48 ) )
 // gibberwocky will assume the same trigger points used by running
 // note or midinote sequences. In effect, this means that every time
 // a note is trigger, our velocity sine oscillator is sampled and a new
-// velocity is sent to Live.`
+// velocity is sent to Live.
+
+// as one final example, in multi-samplers / drum machines different
+// midi notes trigger different sounds. Using signals to control 
+// select sounds can yield interesting patterns over time.
+
+// assumes that tracks[0] contains an impulse:
+tracks[0].note.seq(
+  sine( 8, 4, 4 ),
+  1/16
+)`
 
 }
 
