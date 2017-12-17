@@ -5452,7 +5452,7 @@ module.exports = function( Marker ) {
           Marker.globalIdentifiers[ left.name ] = right
 
           // XXX does this need a track object? passing null...
-          Marker.processGen( expression, state.cm, null)
+          //  Marker.processGen( expression, state.cm, null)
 
         }
       }
@@ -6063,7 +6063,6 @@ const Marker = {
       
     parsed.body.forEach( node => {
       state.length = 0
-    //console.log( parsed )
       walk.recursive( node, state, Marker.visitors )
     })
   },
@@ -6135,8 +6134,16 @@ const Marker = {
           Marker.waveform.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject, track, lineMod === 0 )
         } else if( seqArgument.type === 'ArrayExpression' ) {
           //console.log( 'WavePattern array' )
-        }else{
-          //console.log( 'arg:', seqArgument.type )
+        }else if( seqArgument.type === 'Identifier' ) {
+          // handles 'Identifier' when pre-declared variables are passed to methods
+          ch = seqArgument.loc.end.ch || seqArgument.loc.end.column
+          line = seqArgument.loc.end.line + lineMod
+          isAssignment = false
+          node.processsed = true
+
+          if( lineMod !== 0 ) line += Marker.offset.vertical
+          Marker.waveform.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject, track, lineMod === 0 )
+          
         }
       })
 
@@ -7415,8 +7422,8 @@ impulse['Global Time']( cycle(1) )
 // Often times we want to specify a center point (bias) for our sine oscillator, in addition to 
 // a specific amplitude and frequency. The lfo() function provides a simpler syntax for doing this:
 
-// frequency, amplitude, bias
-mylfo = lfo( 2, .2, .7 )
+// frequency, bias, amp 
+mylfo = lfo( 2, .7, .2 )
 
 impulse['Global Time']( mylfo )
 

@@ -37,7 +37,7 @@ module.exports = function( Marker ) {
           Marker.globalIdentifiers[ left.name ] = right
 
           // XXX does this need a track object? passing null...
-          Marker.processGen( expression, state.cm, null)
+          //  Marker.processGen( expression, state.cm, null)
 
         }
       }

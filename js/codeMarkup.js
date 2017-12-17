@@ -75,7 +75,6 @@ const Marker = {
       
     parsed.body.forEach( node => {
       state.length = 0
-    //console.log( parsed )
       walk.recursive( node, state, Marker.visitors )
     })
   },
@@ -147,8 +146,16 @@ const Marker = {
           Marker.waveform.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject, track, lineMod === 0 )
         } else if( seqArgument.type === 'ArrayExpression' ) {
           //console.log( 'WavePattern array' )
-        }else{
-          //console.log( 'arg:', seqArgument.type )
+        }else if( seqArgument.type === 'Identifier' ) {
+          // handles 'Identifier' when pre-declared variables are passed to methods
+          ch = seqArgument.loc.end.ch || seqArgument.loc.end.column
+          line = seqArgument.loc.end.line + lineMod
+          isAssignment = false
+          node.processsed = true
+
+          if( lineMod !== 0 ) line += Marker.offset.vertical
+          Marker.waveform.createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject, track, lineMod === 0 )
+          
         }
       })
 

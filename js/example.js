@@ -343,8 +343,8 @@ impulse['Global Time']( cycle(1) )
 // Often times we want to specify a center point (bias) for our sine oscillator, in addition to 
 // a specific amplitude and frequency. The lfo() function provides a simpler syntax for doing this:
 
-// frequency, amplitude, bias
-mylfo = lfo( 2, .2, .7 )
+// frequency, bias, amp 
+mylfo = lfo( 2, .7, .2 )
 
 impulse['Global Time']( mylfo )
 
