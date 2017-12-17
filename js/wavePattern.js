@@ -11,7 +11,6 @@ const WavePattern = {
 
     const patternOutputFnc = function( isViz = false ) {
       if( isViz && pattern.vizinit === false ) {
-        
         return
       } 
       pattern.run( isViz )
@@ -43,6 +42,7 @@ const WavePattern = {
       }
 
       let output = outputBeforeFilters
+
 
       // if we are running the pattern solely to visualize the waveform data...
       if( isViz === true && pattern.vizinit && Gibber.Environment.annotations === true ) {
@@ -77,8 +77,6 @@ const WavePattern = {
     // check whether or not to use raw signal values
     // or index into values array
     pattern.__usesValues = values !== undefined
-
-    
 
     if( abstractGraph.patterns === undefined ) {
       abstractGraph.patterns = []
@@ -119,7 +117,6 @@ const WavePattern = {
       }
       newAbstractGraph.__listeners.push( proxyFunction ) 
     }
-
 
     abstractGraph.__listeners.push( proxyFunction )
 

@@ -237,7 +237,8 @@ module.exports = function( Gibber ) {
       Object.assign( this.ugens, this.waveObjects )
 
       genish.lfo = ( frequency = .1, center = .5, amp = .25 ) => {
-        const g = genish
+        const g = this.ugens//genish
+        //console.log( 'lfo', g )
 
         let _cycle = g.cycle( frequency ),
             _mul   = g.mul( _cycle, amp ),

@@ -11,34 +11,56 @@ module.exports = function( _Gibber, _genAbstract, proto ) {
 
 
 const waveObjects = {
-  lfo( ...inputs ) {
-    const ugen = Object.create( __ugenproto__ )
+  lfo( freq=.5, bias=.5, amp=.5, phase=0 ) {
+    const initPhase = phase
+    const __cycle = genAbstract.ugens.cycle( freq, 0, { initialValue:phase })
 
-    ugen.name = 'lfo'
-    ugen.inputs = inputs
+    const sine = __cycle
+    const ugen = genAbstract.ugens.add( bias, genAbstract.ugens.mul( sine, amp ) )
+    ugen.__phase = initPhase
 
-    ugen.frequency = v => {
-      if( ugen.rendered !== undefined ) {
-        return ugen.rendered.frequency( v )
+    ugen.__onrender = ()=> {
+
+      ugen.frequency = v => {
+        if( v === undefined ) {
+          return freq
+        }else{
+          freq = v
+          __cycle[0]( freq )
+          //ugen.phase( initPhase )
+        }
+      }
+
+      Gibber.addSequencingToMethod( ugen, 'frequency' )
+
+      ugen.bias = v => {
+        if( v === undefined ) {
+          return bias
+        }else{
+          bias = v
+          ugen[0]( bias )
+          //ugen.phase( initPhase )
+        }
+      }
+
+      Gibber.addSequencingToMethod( ugen, 'bias' )
+    }
+
+    ugen.phase = (value) => {
+      if( value === undefined ) return ugen.__phase
+
+      ugen.__phase = value
+      if( ugen.rendered !== undefined ) { 
+        ugen.rendered.inputs[1].inputs[0].inputs[0].value = ugen.__phase
+        ugen.rendered.shouldNotAdjust = true
       }
     }
-    ugen.amp = v => {
-      if( ugen.rendered !== undefined ) {
-        return ugen.rendered.amp( v )
-      }
-    }
-    ugen.center = v => {
-      if( ugen.rendered !== undefined ) {
-        return ugen.rendered.center( v )
-      }
-    }
 
-    Gibber.addSequencingToMethod( ugen, 'frequency' )
-    Gibber.addSequencingToMethod( ugen, 'amp' )
-    Gibber.addSequencingToMethod( ugen, 'center' )
+    Gibber.addSequencingToMethod( ugen, 'phase' )
 
-    return ugen
+    return ugen   
   },
+
   fade( beats=16, from=0, to=1 ) {
     //const ugen = Object.create( __ugenproto__ )
 

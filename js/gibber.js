@@ -295,12 +295,7 @@ let Gibber = {
           if( hasGen === true ) { 
             Gibber.Communication.send( `gen ${parameter.id} "${__v.out()}"` )
           }else{
-            //__v.callback = Gibber.__gen.genish.gen.createCallback( __v )
-
             if( genAlreadyAssigned === true ) {
-            //  console.log( 'gen already assigned' )
-              //const prevPattern = obj[ methodName ]()
-              //prevPattern.clear()
               prevGen.clear()
               prevGen.shouldStop = true
               const idx = Gibber.Gen.connected.findIndex( e => e.paramID === parameter.id )
@@ -310,15 +305,14 @@ let Gibber = {
             _v.wavePattern = Gibber.WavePattern( _v )
             
             _v.wavePattern.genReplace = function( out ) { 
+              // XXX set min/max for gibberwocky.live only
+              out = Math.min( out, 1 )
+              out = Math.max( 0, out )
+
               Gibber.Communication.send( `set ${parameter.id} ${out}` )
             }
 
             _v.wavePattern( false )
-
-            //__v.interval = setInterval( ()=> {
-              //const out = __v.wavePattern( true )
-              //Gibber.Communication.send( `set ${parameter.id} ${out}` )
-            //}, 150 )
             __v = _v
           }
 
@@ -359,8 +353,7 @@ let Gibber = {
 
           v = typeof _v === 'object' && _v.isGen ? ( hasGen === true ? _v.render( 'gen' ) : _v.render('genish') ) : _v
 
-          //if( hasGen )
-            Gibber.Communication.send( `set ${parameter.id} ${v}` )
+          Gibber.Communication.send( `set ${parameter.id} ${v}` )
         }
       }else{
         return v
