@@ -62,31 +62,14 @@ const waveObjects = {
   },
 
   fade( beats=16, from=0, to=1 ) {
-    //const ugen = Object.create( __ugenproto__ )
-
-    //ugen.name = 'fade'
-    //ugen.inputs = inputs
-
-    //return ugen
     const g = genAbstract.ugens 
-    let fade, amt, beatsInSeconds = Gibber.Utility.beatsToFrequency( beats, 120 )
-
-    if( from > to ) {
-      amt = from - to
-
-      fade = g.gtp( g.sub( from, g.accum( g.div( amt, g.mul(beatsInSeconds, g.samplerate ) ), 0 ) ), to )
-    }else{
-      amt = to - from
-      fade = g.ltp( g.accum( g.div( amt, g.mul( beatsInSeconds, 44100 ) ), 0 ), to )
-    }
-
-    // XXX should this be available in ms? msToBeats()?
+    const amt = to - from
+    const fade = g.add( from, g.mul( g.beats( beats ), amt ) )
+      
     fade.shouldKill = {
-      after: beats, 
+      after: beats / 4, 
       final: to
     }
-
-    //fade.name = 'fade'
 
     return fade   
   },
@@ -99,7 +82,7 @@ const waveObjects = {
     ugen.inputs[0] = Gibber.Utility.beatsToFrequency( inputs[0], 120 )
     inputs[2] = {min:0}
 
-    ugen.__onrender = ()=> {
+   ugen.__onrender = ()=> {
       // store original param change function for wrapping with btof value
       ugen.__frequency = ugen[0]
 
@@ -121,6 +104,8 @@ const waveObjects = {
 
       Gibber.addSequencingToMethod( ugen, '0' )
     }
+
+    //console.log( 'beats:', ugen )
 
     return ugen
   },

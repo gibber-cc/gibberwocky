@@ -275,29 +275,30 @@ module.exports = function( Gibber ) {
         return _add
       }
 
-      genish.fade = function( beats=43, from = 0, to = 1 ) {
-        const g = __gen.ugens 
-        let fade, amt, beatsInSeconds = Gibber.Utility.beatsToFrequency( beats, 120 )
+      //genish.fade = function( beats=43, from = 0, to = 1 ) {
+      //  const g = this.ugens//__gen.ugens 
+      //  let fade, amt, beatsInSeconds = Gibber.Utility.beatsToFrequency( beats, 120 )
        
-        if( from > to ) {
-          amt = from - to
+      //  if( from > to ) {
+      //    amt = from - to
 
-          fade = g.gtp( g.sub( from, g.accum( g.div( amt, g.mul(beatsInSeconds, g.samplerate ) ), 0 ) ), to )
-        }else{
-          amt = to - from
-          fade = g.cycle(2)//g.add( from, g.ltp( g.accum( g.div( amt, g.mul( beatsInSeconds, g.samplerate ) ), 0 ), to ) )
-        }
+      //    fade = g.gtp( g.sub( from, g.accum( g.div( amt, g.mul(beatsInSeconds, g.samplerate ) ), 0 ) ), to )
+      //  }else{
+      //    console.log( 'fading in' )
+      //    amt = to - from
+      //    fade = g.add( from, g.ltp( g.accum( g.div( amt, g.mul( beatsInSeconds, g.samplerate ) ), 0 ), to ) )
+      //  }
         
-        // XXX should this be available in ms? msToBeats()?
-        fade.shouldKill = {
-          after: beats, 
-          final: to
-        }
+      //  // XXX should this be available in ms? msToBeats()?
+      //  fade.shouldKill = {
+      //    after: beats, 
+      //    final: to
+      //  }
 
-        fade.name = 'fade'
+      //  fade.name = 'fade'
         
-        return fade
-      }
+      //  return fade
+      //}
     },
 
     export( target ) {

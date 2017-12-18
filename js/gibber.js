@@ -322,19 +322,30 @@ let Gibber = {
           
           // disconnects for fades etc.
           // XXX reconfigure for hasGen === false
-          if( typeof __v.shouldKill === 'object' ) {
+          if( typeof _v.shouldKill === 'object' ) {
             Gibber.Utility.future( ()=> {
               if( hasGen ) {
                 Gibber.Communication.send( `ungen ${parameter.id}` )
+                Gibber.Communication.send( `set ${parameter.id} ${_v.shouldKill.final}` )
+              }else{
+                //_v.wavePattern.clear()
+
+                const prevGen = Gibber.Gen.connected.find( e => e.paramID === parameter.id )
+                prevGen.clear()
+                prevGen.shouldStop = true
+                const idx = Gibber.Gen.connected.findIndex( e => e.paramID === parameter.id )
+                Gibber.Gen.connected.splice( idx, 1 )
+                obj[ methodName ]( _v.shouldKill.final )
               }
-              Gibber.Communication.send( `set ${parameter.id} ${__v.shouldKill.final}` )
+
+              
               
               let widget = Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
               if( widget !== undefined && widget.mark !== undefined ) {
                 widget.mark.clear()
               }
               delete Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
-            }, __v.shouldKill.after )
+            }, _v.shouldKill.after )
           }
           
           v = hasGen === true ? __v : _v

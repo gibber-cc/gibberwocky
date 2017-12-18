@@ -31,6 +31,10 @@ let Live = {
     }
 
     for( let track of Live.tracks ) {
+      // the next line is for a weird error that occurs when tracks
+      // are named with discontinuous numbers; see https://github.com/gibber-cc/gibberwocky.live/issues/8
+      if( track === undefined ) continued
+
       Live.tracks[ track.spec.name ] = track
     }
     

@@ -5739,7 +5739,7 @@ let Environment = {
     this.codeMarkup.init()
     this.editorWidth = document.querySelector( '#editor' ).style.width
 
-    this.toggleSidebar()
+    //this.toggleSidebar()
   },
 
   createSidePanel() {
@@ -7644,29 +7644,30 @@ module.exports = function( Gibber ) {
         return _add
       }
 
-      genish.fade = function( beats=43, from = 0, to = 1 ) {
-        const g = __gen.ugens 
-        let fade, amt, beatsInSeconds = Gibber.Utility.beatsToFrequency( beats, 120 )
+      //genish.fade = function( beats=43, from = 0, to = 1 ) {
+      //  const g = this.ugens//__gen.ugens 
+      //  let fade, amt, beatsInSeconds = Gibber.Utility.beatsToFrequency( beats, 120 )
        
-        if( from > to ) {
-          amt = from - to
+      //  if( from > to ) {
+      //    amt = from - to
 
-          fade = g.gtp( g.sub( from, g.accum( g.div( amt, g.mul(beatsInSeconds, g.samplerate ) ), 0 ) ), to )
-        }else{
-          amt = to - from
-          fade = g.cycle(2)//g.add( from, g.ltp( g.accum( g.div( amt, g.mul( beatsInSeconds, g.samplerate ) ), 0 ), to ) )
-        }
+      //    fade = g.gtp( g.sub( from, g.accum( g.div( amt, g.mul(beatsInSeconds, g.samplerate ) ), 0 ) ), to )
+      //  }else{
+      //    console.log( 'fading in' )
+      //    amt = to - from
+      //    fade = g.add( from, g.ltp( g.accum( g.div( amt, g.mul( beatsInSeconds, g.samplerate ) ), 0 ), to ) )
+      //  }
         
-        // XXX should this be available in ms? msToBeats()?
-        fade.shouldKill = {
-          after: beats, 
-          final: to
-        }
+      //  // XXX should this be available in ms? msToBeats()?
+      //  fade.shouldKill = {
+      //    after: beats, 
+      //    final: to
+      //  }
 
-        fade.name = 'fade'
+      //  fade.name = 'fade'
         
-        return fade
-      }
+      //  return fade
+      //}
     },
 
     export( target ) {
@@ -8002,19 +8003,30 @@ let Gibber = {
           
           // disconnects for fades etc.
           // XXX reconfigure for hasGen === false
-          if( typeof __v.shouldKill === 'object' ) {
+          if( typeof _v.shouldKill === 'object' ) {
             Gibber.Utility.future( ()=> {
               if( hasGen ) {
                 Gibber.Communication.send( `ungen ${parameter.id}` )
+                Gibber.Communication.send( `set ${parameter.id} ${_v.shouldKill.final}` )
+              }else{
+                //_v.wavePattern.clear()
+
+                const prevGen = Gibber.Gen.connected.find( e => e.paramID === parameter.id )
+                prevGen.clear()
+                prevGen.shouldStop = true
+                const idx = Gibber.Gen.connected.findIndex( e => e.paramID === parameter.id )
+                Gibber.Gen.connected.splice( idx, 1 )
+                obj[ methodName ]( _v.shouldKill.final )
               }
-              Gibber.Communication.send( `set ${parameter.id} ${__v.shouldKill.final}` )
+
+              
               
               let widget = Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
               if( widget !== undefined && widget.mark !== undefined ) {
                 widget.mark.clear()
               }
               delete Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
-            }, __v.shouldKill.after )
+            }, _v.shouldKill.after )
           }
           
           v = hasGen === true ? __v : _v
@@ -10785,31 +10797,14 @@ const waveObjects = {
   },
 
   fade( beats=16, from=0, to=1 ) {
-    //const ugen = Object.create( __ugenproto__ )
-
-    //ugen.name = 'fade'
-    //ugen.inputs = inputs
-
-    //return ugen
     const g = genAbstract.ugens 
-    let fade, amt, beatsInSeconds = Gibber.Utility.beatsToFrequency( beats, 120 )
-
-    if( from > to ) {
-      amt = from - to
-
-      fade = g.gtp( g.sub( from, g.accum( g.div( amt, g.mul(beatsInSeconds, g.samplerate ) ), 0 ) ), to )
-    }else{
-      amt = to - from
-      fade = g.ltp( g.accum( g.div( amt, g.mul( beatsInSeconds, 44100 ) ), 0 ), to )
-    }
-
-    // XXX should this be available in ms? msToBeats()?
+    const amt = to - from
+    const fade = g.add( from, g.mul( g.beats( beats ), amt ) )
+      
     fade.shouldKill = {
-      after: beats, 
+      after: beats / 4, 
       final: to
     }
-
-    //fade.name = 'fade'
 
     return fade   
   },
@@ -10822,7 +10817,7 @@ const waveObjects = {
     ugen.inputs[0] = Gibber.Utility.beatsToFrequency( inputs[0], 120 )
     inputs[2] = {min:0}
 
-    ugen.__onrender = ()=> {
+   ugen.__onrender = ()=> {
       // store original param change function for wrapping with btof value
       ugen.__frequency = ugen[0]
 
@@ -10844,6 +10839,8 @@ const waveObjects = {
 
       Gibber.addSequencingToMethod( ugen, '0' )
     }
+
+    //console.log( 'beats:', ugen )
 
     return ugen
   },
