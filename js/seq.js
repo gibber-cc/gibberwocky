@@ -301,6 +301,13 @@ let seqclosure = function( Gibber ) {
     
   }
 
+  // create external messages for cc0, cc1, cc2 etc.
+  for( let i = 0; i < 128; i++ ) {
+    proto.externalMessages[ 'cc' + i ] =  ( value, beat, trackID ) => {
+       return  `${trackID} add ${beat} cc ${i} ${value}`
+    }
+  }
+
   proto.create = proto.create.bind( proto )
   proto.create.DO_NOT_OUTPUT = proto.DO_NOT_OUTPUT
   proto.create._seqs = proto._seqs

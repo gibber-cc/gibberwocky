@@ -116,7 +116,8 @@ const waveObjects = {
     const __cycle = genAbstract.ugens.cycle( freq,0,{initialValue:phase} )
 
     const sine = __cycle 
-    const ugen = genAbstract.ugens.add( center, genAbstract.ugens.mul( sine, amp ) )
+    const scalar = genAbstract.ugens.mul( amp, sine )
+    const ugen = genAbstract.ugens.add( center, scalar )
     ugen.__phase = initPhase
 
     ugen.__onrender = ()=> {
@@ -133,6 +134,28 @@ const waveObjects = {
       }
 
       Gibber.addSequencingToMethod( ugen, '0' )
+
+      ugen[1] = v => {
+        if( v === undefined ) {
+          return center
+        }else{
+          center = v
+          ugen[0]( center )
+        }
+      }
+
+      Gibber.addSequencingToMethod( ugen, '1' )
+      
+      ugen[2] = v => {
+        if( v === undefined ) {
+          return amp 
+        }else{
+          amp = v
+          scalar[0]( amp )
+        }
+      }
+
+      Gibber.addSequencingToMethod( ugen, '2' )   
     }
 
     ugen.phase = (value) => {
@@ -140,7 +163,7 @@ const waveObjects = {
 
       ugen.__phase = value
       if( ugen.rendered !== undefined ) { 
-        ugen.rendered.inputs[1].inputs[0].inputs[0].value = ugen.__phase
+        ugen.rendered.inputs[1].inputs[1].inputs[0].value = ugen.__phase
         ugen.rendered.shouldNotAdjust = true
       }
     }
@@ -244,6 +267,7 @@ const waveObjects = {
   line( beats=4, min=0, max=1 ) {
     const line = genAbstract.ugens.beats( beats )
 
+    // note messages are rounded in note filter, found in seq.js
     const ugen = genAbstract.ugens.add( min, genAbstract.ugens.mul( line, max-min ) )
 
     ugen.__onrender = ()=> {

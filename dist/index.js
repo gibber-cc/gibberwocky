@@ -8122,6 +8122,10 @@ let Live = {
     }
 
     for( let track of Live.tracks ) {
+      // the next line is for a weird error that occurs when tracks
+      // are named with discontinuous numbers; see https://github.com/gibber-cc/gibberwocky.live/issues/8
+      if( track === undefined ) continued
+
       Live.tracks[ track.spec.name ] = track
     }
     
@@ -9525,6 +9529,13 @@ let seqclosure = function( Gibber ) {
     
   }
 
+  // create external messages for cc0, cc1, cc2 etc.
+  for( let i = 0; i < 128; i++ ) {
+    proto.externalMessages[ 'cc' + i ] =  ( value, beat, trackID ) => {
+       return  `${trackID} add ${beat} cc ${i} ${value}`
+    }
+  }
+
   proto.create = proto.create.bind( proto )
   proto.create.DO_NOT_OUTPUT = proto.DO_NOT_OUTPUT
   proto.create._seqs = proto._seqs
@@ -10254,6 +10265,15 @@ let Track = {
     Gibber.addSequencingToMethod( track, 'solo' )
     Gibber.addSequencingToMethod( track, 'octave' )
 
+    // XXX add cc messages to track!
+    for( let i = 0; i < 127; i++ ) {
+      track[ 'cc' + i ] = value => {
+        let msg =  `${track.id} cc ${i} ${value}`
+        Gibber.Communication.send( msg )
+      }
+      Gibber.addSequencingToMethod( track, 'cc'+i )
+    }
+
     Gibber.addMethod( track, 'pan', spec.panning )
     Gibber.addMethod( track, 'volume', spec.volume )
 
@@ -10851,7 +10871,8 @@ const waveObjects = {
     const __cycle = genAbstract.ugens.cycle( freq,0,{initialValue:phase} )
 
     const sine = __cycle 
-    const ugen = genAbstract.ugens.add( center, genAbstract.ugens.mul( sine, amp ) )
+    const scalar = genAbstract.ugens.mul( amp, sine )
+    const ugen = genAbstract.ugens.add( center, scalar )
     ugen.__phase = initPhase
 
     ugen.__onrender = ()=> {
@@ -10868,6 +10889,28 @@ const waveObjects = {
       }
 
       Gibber.addSequencingToMethod( ugen, '0' )
+
+      ugen[1] = v => {
+        if( v === undefined ) {
+          return center
+        }else{
+          center = v
+          ugen[0]( center )
+        }
+      }
+
+      Gibber.addSequencingToMethod( ugen, '1' )
+      
+      ugen[2] = v => {
+        if( v === undefined ) {
+          return amp 
+        }else{
+          amp = v
+          scalar[0]( amp )
+        }
+      }
+
+      Gibber.addSequencingToMethod( ugen, '2' )   
     }
 
     ugen.phase = (value) => {
@@ -10875,7 +10918,7 @@ const waveObjects = {
 
       ugen.__phase = value
       if( ugen.rendered !== undefined ) { 
-        ugen.rendered.inputs[1].inputs[0].inputs[0].value = ugen.__phase
+        ugen.rendered.inputs[1].inputs[1].inputs[0].value = ugen.__phase
         ugen.rendered.shouldNotAdjust = true
       }
     }
@@ -10979,6 +11022,7 @@ const waveObjects = {
   line( beats=4, min=0, max=1 ) {
     const line = genAbstract.ugens.beats( beats )
 
+    // note messages are rounded in note filter, found in seq.js
     const ugen = genAbstract.ugens.add( min, genAbstract.ugens.mul( line, max-min ) )
 
     ugen.__onrender = ()=> {

@@ -107,6 +107,15 @@ let Track = {
     Gibber.addSequencingToMethod( track, 'solo' )
     Gibber.addSequencingToMethod( track, 'octave' )
 
+    // XXX add cc messages to track!
+    for( let i = 0; i < 127; i++ ) {
+      track[ 'cc' + i ] = value => {
+        let msg =  `${track.id} cc ${i} ${value}`
+        Gibber.Communication.send( msg )
+      }
+      Gibber.addSequencingToMethod( track, 'cc'+i )
+    }
+
     Gibber.addMethod( track, 'pan', spec.panning )
     Gibber.addMethod( track, 'volume', spec.volume )
 
