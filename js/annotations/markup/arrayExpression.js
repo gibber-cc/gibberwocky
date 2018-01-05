@@ -13,6 +13,8 @@ module.exports = function( Marker ) {
     const [ patternName, start, end ] = Marker._getNamesAndPosition( patternNode, state, patternType, index )
     const cssName = patternName 
 
+    patternObject.markers = []
+
     if( track.markup === undefined ) Marker.prepareObject( track )
 
     let count = 0
@@ -31,7 +33,7 @@ module.exports = function( Marker ) {
           'className': cssClassName + ' annotation',
            startStyle: 'annotation-no-right-border',
            endStyle: 'annotation-no-left-border',
-           inclusiveLeft:true, inclusiveRight:true
+           //inclusiveLeft:true, inclusiveRight:true
         })
 
         // create specific border for operator: top, bottom, no sides
@@ -43,31 +45,34 @@ module.exports = function( Marker ) {
 
         const marker2 = cm.markText( divStart, divEnd, { className:cssClassName + '_binop annotation-binop' })
 
+        patternObject.markers.push( marker, marker2 )
 
       }else if (element.type === 'UnaryExpression' ) {
         marker = cm.markText( elementStart, elementEnd, { 
           'className': cssClassName + ' annotation', 
-          inclusiveLeft: true,
-          inclusiveRight: true
+          //inclusiveLeft: true,
+          //inclusiveRight: true
         })
 
         let start2 = Object.assign( {}, elementStart )
         start2.ch += 1
         let marker2 = cm.markText( elementStart, start2, { 
           'className': cssClassName + ' annotation-no-right-border', 
-          inclusiveLeft: true,
-          inclusiveRight: true
+          //inclusiveLeft: true,
+          //inclusiveRight: true
         })
 
         let marker3 = cm.markText( start2, elementEnd, { 
           'className': cssClassName + ' annotation-no-left-border', 
-          inclusiveLeft: true,
-          inclusiveRight: true
+          //inclusiveLeft: true,
+          //inclusiveRight: true
         })
+
+        patternObject.markers.push( marker, marker2, marker3 )
       }else if( element.type === 'ArrayExpression' ) {
          marker = cm.markText( elementStart, elementEnd, { 
           'className': cssClassName + ' annotation',
-          inclusiveLeft:true, inclusiveRight:true,
+          //inclusiveLeft:true, inclusiveRight:true,
           startStyle:'annotation-left-border-start',
           endStyle: 'annotation-right-border-end',
          })
@@ -83,13 +88,17 @@ module.exports = function( Marker ) {
          const arrayEnd_start = Object.assign( {}, elementEnd )
          const arrayEnd_end   = Object.assign( {}, elementEnd )
          arrayEnd_start.ch -=1
-         cm.markText( arrayEnd_start, arrayEnd_end, { className:cssClassName + '_end' })
+         const marker2 = cm.markText( arrayEnd_start, arrayEnd_end, { className:cssClassName + '_end' })
+
+         patternObject.markers.push( marker, marker2 )
 
       }else{
         marker = cm.markText( elementStart, elementEnd, { 
           'className': cssClassName + ' annotation',
-          inclusiveLeft:true, inclusiveRight:true
+          //inclusiveLeft:true, inclusiveRight:true
         })
+
+        patternObject.markers.push( marker )
       }
 
       if( track.markup.textMarkers[ patternName  ] === undefined ) track.markup.textMarkers[ patternName ] = []
@@ -158,6 +167,7 @@ module.exports = function( Marker ) {
     patternObject.clear = () => {
       if( highlighted.className !== null ) { $( highlighted.className ).remove( 'annotation-border' ) }
       cycle.clear()
+      patternObject.markers.forEach( marker => marker.clear() )
     }
 
     Marker._addPatternFilter( patternObject )

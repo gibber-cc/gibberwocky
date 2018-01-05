@@ -13,8 +13,8 @@ module.exports = function( Marker ) {
 
     const marker = cm.markText( start, end, { 
       'className': cssName + ' annotation-border', 
-      inclusiveLeft: true,
-      inclusiveRight: true
+      //inclusiveLeft: true,
+      //inclusiveRight: true
     })
 
     if( seqTarget.markup === undefined ) Marker.prepareObject( seqTarget )
@@ -27,7 +27,6 @@ module.exports = function( Marker ) {
     
     patternObject.marker = marker
     Marker.finalizePatternAnnotation( patternObject, className, seqTarget, marker )
-
   }
 
   return Literal 

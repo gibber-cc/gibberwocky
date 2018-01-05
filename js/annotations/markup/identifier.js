@@ -2,7 +2,7 @@ const __Identifier = function( Marker ) {
 
   const mark = function( node, state, patternType, seqNumber ) {
     const [ className, start, end ] = Marker._getNamesAndPosition( node, state, patternType, seqNumber )
-    const cssName = className + '_0'
+    const cssName = className + '_' + seqNumber
     const commentStart = end
 
     // we define the comment range as being one character, this
@@ -61,14 +61,13 @@ const __Identifier = function( Marker ) {
         patternObject.update = Marker.patternUpdates.anonymousFunction( patternObject, marker, className, cm, track )
       }
     }else{
-      
       const updateName = typeof patternNode.callee !== 'undefined' ? patternNode.callee.name : patternNode.name
 
       if( Marker.patternUpdates[ updateName ] ) {
         if( updateName !== 'Lookup' ) {
          patternObject.update =  Marker.patternUpdates[ updateName ]( patternObject, marker, className, cm, track, patternNode )
         }else{
-          Marker.patternUpdates[ updateName ]( patternObject, marker, className, cm, track, patternNode, patternType )
+          Marker.patternUpdates[ updateName ]( patternObject, marker, className, cm, track, patternNode, patternType, seqNumber )
         }
       } else {
         patternObject.update = Marker.patternUpdates.anonymousFunction( patternObject, marker, className, cm, track )
