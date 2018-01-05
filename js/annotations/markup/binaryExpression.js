@@ -17,8 +17,8 @@ module.exports = function( Marker ) {
         'className': cssName + ' annotation annotation-border' ,
         startStyle: 'annotation-no-right-border',
         endStyle: 'annotation-no-left-border',
-        inclusiveLeft:true,
-        inclusiveRight:true
+        //inclusiveLeft:true,
+        //inclusiveRight:true
       }
     )
 

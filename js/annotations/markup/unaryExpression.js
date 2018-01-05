@@ -11,8 +11,8 @@ module.exports = function( Marker ) {
 
     marker = cm.markText( start, end, { 
       'className': cssName + ' annotation', 
-      inclusiveLeft: true,
-      inclusiveRight: true
+      //inclusiveLeft: true,
+      //inclusiveRight: true
     })
 
     if( seqTarget.markup === undefined ) Marker.prepareObject( seqTarget )
@@ -26,14 +26,14 @@ module.exports = function( Marker ) {
     start2.ch += 1
     let marker2 = cm.markText( start, start2, { 
       'className': cssName + ' annotation-no-right-border', 
-      inclusiveLeft: true,
-      inclusiveRight: true
+      //inclusiveLeft: true,
+      //inclusiveRight: true
     })
 
     let marker3 = cm.markText( start2, end, { 
       'className': cssName + ' annotation-no-left-border', 
-      inclusiveLeft: true,
-      inclusiveRight: true
+      //inclusiveLeft: true,
+      //inclusiveRight: true
     })
 
 
