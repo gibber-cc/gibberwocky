@@ -134,6 +134,7 @@ let seqclosure = function( Gibber ) {
 
           this.timings = timingsPattern
         }
+
         const proxyFunctionTimings = ( oldPattern, newPattern ) => {
           this.timings = newPattern
           this.timings.filters = oldPattern.filters.slice( 0 )

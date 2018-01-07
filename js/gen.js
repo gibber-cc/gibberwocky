@@ -17,6 +17,13 @@ const noops = [
 ]
 
 let Gen  = {
+  lastConnected:[],
+  names:[],
+  connected: [],
+
+  isGen:true,
+  debug:false,
+
   init() {
     Gen.createBinopFunctions()
     Gen.createMonopFunctions()
@@ -27,19 +34,8 @@ let Gen  = {
     Gen.names.push( ...Object.keys( Gen.functions ) )
     Gen.names.push( ...Object.keys( Gen.composites ) )
 
-
     Gibber.subscribe( 'clear', ()=> Gen.lastConnected.length = 0 )
-
   },
-
-  lastConnected:[],
-
-  names:[],
-  
-  connected: [],
-
-  isGen:true,
-  debug:false,
 
   // if property is !== ugen (it's a number) a Param must be made using a default
   create( name ) {

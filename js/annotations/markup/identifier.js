@@ -53,7 +53,7 @@ const __Identifier = function( Marker ) {
 
     // WavePatterns can also be passed as named functions; make sure we forward
     // these to the appropriate markup functions
-    if( patternObject.type === 'WavePattern' || patternObject.isGen ) {
+    if( patternObject.type === 'WavePattern' || patternObject.isGen || patternObject.type === 'Lookup' ) {
 
       if( patternObject.widget === undefined ) { // if wavepattern is inlined to .seq 
         Marker.processGen( containerNode, cm, track, patternObject, seq )

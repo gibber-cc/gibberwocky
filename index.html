@@ -4918,7 +4918,7 @@ const __Identifier = function( Marker ) {
 
     // WavePatterns can also be passed as named functions; make sure we forward
     // these to the appropriate markup functions
-    if( patternObject.type === 'WavePattern' || patternObject.isGen ) {
+    if( patternObject.type === 'WavePattern' || patternObject.isGen || patternObject.type === 'Lookup' ) {
 
       if( patternObject.widget === undefined ) { // if wavepattern is inlined to .seq 
         Marker.processGen( containerNode, cm, track, patternObject, seq )
@@ -7866,6 +7866,13 @@ const noops = [
 ]
 
 let Gen  = {
+  lastConnected:[],
+  names:[],
+  connected: [],
+
+  isGen:true,
+  debug:false,
+
   init() {
     Gen.createBinopFunctions()
     Gen.createMonopFunctions()
@@ -7876,19 +7883,8 @@ let Gen  = {
     Gen.names.push( ...Object.keys( Gen.functions ) )
     Gen.names.push( ...Object.keys( Gen.composites ) )
 
-
     Gibber.subscribe( 'clear', ()=> Gen.lastConnected.length = 0 )
-
   },
-
-  lastConnected:[],
-
-  names:[],
-  
-  connected: [],
-
-  isGen:true,
-  debug:false,
 
   // if property is !== ugen (it's a number) a Param must be made using a default
   create( name ) {
@@ -10185,6 +10181,7 @@ let seqclosure = function( Gibber ) {
 
           this.timings = timingsPattern
         }
+
         const proxyFunctionTimings = ( oldPattern, newPattern ) => {
           this.timings = newPattern
           this.timings.filters = oldPattern.filters.slice( 0 )
