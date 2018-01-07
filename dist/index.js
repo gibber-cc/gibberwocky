@@ -3959,10 +3959,16 @@ module.exports = function( Marker ) {
       }
     }
 
+    // check to see if a clear function already exists and save reference
+    // XXX should clear be saved somewhere else... on the update function?
+    let __clear = null
+    if( patternObject.clear !== undefined )  __clear = patternObject.clear
+
     patternObject.clear = () => {
       if( highlighted.className !== null ) { $( highlighted.className ).remove( 'annotation-border' ) }
       cycle.clear()
       patternObject.markers.forEach( marker => marker.clear() )
+      if( __clear !== null ) __clear()
     }
 
     Marker._addPatternFilter( patternObject )
@@ -5360,7 +5366,6 @@ const Marker = {
     patternObject._onchange = () => { Marker._updatePatternContents( patternObject, className, seqTarget ) }
 
     patternObject.clear = () => {
-      console.log( 'clear!' )
       patternObject.marker.clear()
     }
   },
@@ -7945,6 +7950,7 @@ let Gibber = {
     }
   },
 
+  // XXX THIS MUST BE REFACTORED. UGH.
   addMethod( obj, methodName, parameter, _trackID ) {
     let v = parameter.value,
         p,
@@ -8027,8 +8033,6 @@ let Gibber = {
                 Gibber.Gen.connected.splice( idx, 1 )
                 obj[ methodName ]( _v.shouldKill.final )
               }
-
-              
               
               let widget = Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
               if( widget !== undefined && widget.mark !== undefined ) {

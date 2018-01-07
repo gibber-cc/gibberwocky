@@ -174,7 +174,6 @@ const Marker = {
     patternObject._onchange = () => { Marker._updatePatternContents( patternObject, className, seqTarget ) }
 
     patternObject.clear = () => {
-      console.log( 'clear!' )
       patternObject.marker.clear()
     }
   },

@@ -255,6 +255,7 @@ let Gibber = {
     }
   },
 
+  // XXX THIS MUST BE REFACTORED. UGH.
   addMethod( obj, methodName, parameter, _trackID ) {
     let v = parameter.value,
         p,
@@ -337,8 +338,6 @@ let Gibber = {
                 Gibber.Gen.connected.splice( idx, 1 )
                 obj[ methodName ]( _v.shouldKill.final )
               }
-
-              
               
               let widget = Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
               if( widget !== undefined && widget.mark !== undefined ) {

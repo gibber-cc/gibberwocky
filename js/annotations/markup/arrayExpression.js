@@ -164,10 +164,16 @@ module.exports = function( Marker ) {
       }
     }
 
+    // check to see if a clear function already exists and save reference
+    // XXX should clear be saved somewhere else... on the update function?
+    let __clear = null
+    if( patternObject.clear !== undefined )  __clear = patternObject.clear
+
     patternObject.clear = () => {
       if( highlighted.className !== null ) { $( highlighted.className ).remove( 'annotation-border' ) }
       cycle.clear()
       patternObject.markers.forEach( marker => marker.clear() )
+      if( __clear !== null ) __clear()
     }
 
     Marker._addPatternFilter( patternObject )
