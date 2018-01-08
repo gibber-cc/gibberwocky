@@ -53,7 +53,7 @@ const __Identifier = function( Marker ) {
 
     // WavePatterns can also be passed as named functions; make sure we forward
     // these to the appropriate markup functions
-    if( patternObject.type === 'WavePattern' || patternObject.isGen || patternObject.type === 'Lookup' ) {
+    if( patternObject.type === 'WavePattern' || patternObject.isGen ) { //|| patternObject.type === 'Lookup' ) {
 
       if( patternObject.widget === undefined ) { // if wavepattern is inlined to .seq 
         Marker.processGen( containerNode, cm, track, patternObject, seq )
@@ -61,11 +61,14 @@ const __Identifier = function( Marker ) {
         patternObject.update = Marker.patternUpdates.anonymousFunction( patternObject, marker, className, cm, track )
       }
     }else{
-      const updateName = typeof patternNode.callee !== 'undefined' ? patternNode.callee.name : patternNode.name
+      let updateName = typeof patternNode.callee !== 'undefined' ? patternNode.callee.name : patternNode.name
+      
+      // this doesn't work for variables storing lookups, as there's no array to highlight
+      // if( patternObject.type === 'Lookup' ) updateName = 'Lookup' 
 
       if( Marker.patternUpdates[ updateName ] ) {
         if( updateName !== 'Lookup' ) {
-         patternObject.update =  Marker.patternUpdates[ updateName ]( patternObject, marker, className, cm, track, patternNode )
+          patternObject.update =  Marker.patternUpdates[ updateName ]( patternObject, marker, className, cm, track, patternNode )
         }else{
           Marker.patternUpdates[ updateName ]( patternObject, marker, className, cm, track, patternNode, patternType, seqNumber )
         }

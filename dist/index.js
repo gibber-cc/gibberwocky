@@ -4108,7 +4108,7 @@ const __Identifier = function( Marker ) {
 
     // WavePatterns can also be passed as named functions; make sure we forward
     // these to the appropriate markup functions
-    if( patternObject.type === 'WavePattern' || patternObject.isGen || patternObject.type === 'Lookup' ) {
+    if( patternObject.type === 'WavePattern' || patternObject.isGen ) { //|| patternObject.type === 'Lookup' ) {
 
       if( patternObject.widget === undefined ) { // if wavepattern is inlined to .seq 
         Marker.processGen( containerNode, cm, track, patternObject, seq )
@@ -4116,11 +4116,14 @@ const __Identifier = function( Marker ) {
         patternObject.update = Marker.patternUpdates.anonymousFunction( patternObject, marker, className, cm, track )
       }
     }else{
-      const updateName = typeof patternNode.callee !== 'undefined' ? patternNode.callee.name : patternNode.name
+      let updateName = typeof patternNode.callee !== 'undefined' ? patternNode.callee.name : patternNode.name
+      
+      // this doesn't work for variables storing lookups, as there's no array to highlight
+      // if( patternObject.type === 'Lookup' ) updateName = 'Lookup' 
 
       if( Marker.patternUpdates[ updateName ] ) {
         if( updateName !== 'Lookup' ) {
-         patternObject.update =  Marker.patternUpdates[ updateName ]( patternObject, marker, className, cm, track, patternNode )
+          patternObject.update =  Marker.patternUpdates[ updateName ]( patternObject, marker, className, cm, track, patternNode )
         }else{
           Marker.patternUpdates[ updateName ]( patternObject, marker, className, cm, track, patternNode, patternType, seqNumber )
         }
@@ -4882,8 +4885,15 @@ const Waveform = {
   drawWidgets() {
     Waveform.widgets.dirty = false
 
+    const drawn = []
+
     for( let key in Waveform.widgets ) {
       const widget = Waveform.widgets[ key ]
+
+      // ensure that a widget does not get drawn more
+      // than once per frame
+      if( drawn.indexOf( widget ) !== -1 ) continue
+
       if( typeof widget === 'object' && widget.ctx !== undefined ) {
 
         widget.ctx.fillStyle = COLORS.FILL
@@ -4953,6 +4963,8 @@ const Waveform = {
         widget.ctx.lineTo( right - 3, widget.height - .5 )
 
         widget.ctx.stroke()
+
+        drawn.push( widget )
       }
     }
   }
@@ -11155,7 +11167,8 @@ const WavePattern = {
       }
       newAbstractGraph.patterns.push( pattern )
       newAbstractGraph.graphs.push( graph )
-      newAbstractGraph.widget = oldAbstractGraph.widget
+      // XXX what the heck is the patterns array used for?
+      newAbstractGraph.widget = oldAbstractGraph.patterns[0].widget
 
       pattern.graph = graph
       pattern.signalOut = genish.gen.createCallback( graph, mem, false, false, Float64Array ),

@@ -98,7 +98,8 @@ const WavePattern = {
       }
       newAbstractGraph.patterns.push( pattern )
       newAbstractGraph.graphs.push( graph )
-      newAbstractGraph.widget = oldAbstractGraph.widget
+      // XXX what the heck is the patterns array used for?
+      newAbstractGraph.widget = oldAbstractGraph.patterns[0].widget
 
       pattern.graph = graph
       pattern.signalOut = genish.gen.createCallback( graph, mem, false, false, Float64Array ),

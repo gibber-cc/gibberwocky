@@ -173,8 +173,15 @@ const Waveform = {
   drawWidgets() {
     Waveform.widgets.dirty = false
 
+    const drawn = []
+
     for( let key in Waveform.widgets ) {
       const widget = Waveform.widgets[ key ]
+
+      // ensure that a widget does not get drawn more
+      // than once per frame
+      if( drawn.indexOf( widget ) !== -1 ) continue
+
       if( typeof widget === 'object' && widget.ctx !== undefined ) {
 
         widget.ctx.fillStyle = COLORS.FILL
@@ -244,6 +251,8 @@ const Waveform = {
         widget.ctx.lineTo( right - 3, widget.height - .5 )
 
         widget.ctx.stroke()
+
+        drawn.push( widget )
       }
     }
   }
