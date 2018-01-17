@@ -110,8 +110,8 @@ const waveObjects = {
     return ugen
   },
 
-  sine( beats=4, center=0, amp=7, phase=0 )  {
-    const freq = btof( beats, 120 )
+  sine( periodInMeasures=1, center=0, amp=7, phase=0 )  {
+    const freq = btof( periodInMeasures * 4, 120 )
     const initPhase = phase
     const __cycle = genAbstract.ugens.cycle( freq,0,{initialValue:phase} )
 
@@ -124,10 +124,10 @@ const waveObjects = {
 
       ugen[0] = v => {
         if( v === undefined ) {
-          return beats
+          return periodInMeasures
         }else{
-          beats = v
-          const freq = btof( beats, 120 ) 
+          periodInMeasures = v
+          const freq = btof( periodInMeasures * 4, 120 ) 
           __cycle[0]( freq )
           ugen.phase( initPhase )
         }
@@ -173,8 +173,8 @@ const waveObjects = {
     return ugen
   },
 
-  siner( beats=4, center=0, amp=7 ) {
-    const freq = btof( beats, 120 )
+  siner( periodInMeasures=1, center=0, amp=7 ) {
+    const freq = btof( periodInMeasures * 4, 120 )
     const __cycle = genAbstract.ugens.cycle( freq )
 
     const sine = __cycle 
@@ -186,10 +186,10 @@ const waveObjects = {
 
       ugen[0] = v => {
         if( v === undefined ) {
-          return beats
+          return periodInMeasures
         }else{
-          beats = v
-          __cycle[0]( btof( beats, 120 ) )
+          periodInMeasures = v
+          __cycle[0]( btof( periodInMeasures * 4, 120 ) )
         }
       }
 
@@ -199,8 +199,8 @@ const waveObjects = {
     return ugen
   },
 
-  cos( beats=4, center=0, amp=7 )  {
-    const freq = btof( beats, 120 )
+  cos( periodInMeasures=1, center=0, amp=7 )  {
+    const freq = btof( periodInMeasures * 4, 120 )
     const __cycle = genAbstract.ugens.cycle( freq, 0, { initialValue:1 })
 
     const sine = __cycle 
@@ -208,10 +208,10 @@ const waveObjects = {
 
     ugen[0] = v => {
       if( v === undefined ) {
-        return beats
+        return periodInMeasures
       }else{
-        beats = v
-        __cycle[0]( btof( beats, 120 ) )
+        periodInMeasures = v
+        __cycle[0]( btof( periodInMeasures * 4, 120 ) )
       }
     }
 
@@ -220,8 +220,8 @@ const waveObjects = {
     return ugen
   },
 
-  cosr( beats=4, center=0, amp=7 )  {
-    const freq = btof( beats, 120 )
+  cosr( periodInMeasures=1, center=0, amp=7 )  {
+    const freq = btof( periodInMeasures * 4, 120 )
     const __cycle = genAbstract.ugens.cycle( freq, 0, { initialValue:1 })
 
     const sine = __cycle 
@@ -229,10 +229,10 @@ const waveObjects = {
 
     ugen[0] = v => {
       if( v === undefined ) {
-        return beats
+        return periodInMeasures
       }else{
-        beats = v
-        __cycle[0]( btof( beats, 120 ) )
+        periodInMeasures = v
+        __cycle[0]( btof( periodInMeasures * 4, 120 ) )
       }
     }
 
@@ -241,8 +241,8 @@ const waveObjects = {
     return ugen
   },
 
-  liner( beats=4, min=0, max=7 )  {
-    const line = genAbstract.ugens.beats( beats )
+  liner( periodInMeasures=1, min=0, max=7 )  {
+    const line = genAbstract.ugens.beats( periodInMeasures * 4 )
 
     const ugen = genAbstract.ugens.round( genAbstract.ugens.add( min, genAbstract.ugens.mul( line, max-min ) ) )
 
@@ -250,10 +250,10 @@ const waveObjects = {
 
       ugen[0] = v => {
         if( v === undefined ) {
-          return beats
+          return periodInMeasures
         }else{
-          beats = v
-          line[0]( v )
+          periodInMeasures = v
+          line[0]( v * 4 )
         }
       }
 
@@ -264,8 +264,8 @@ const waveObjects = {
     return ugen
   },
 
-  line( beats=4, min=0, max=1 ) {
-    const line = genAbstract.ugens.beats( beats )
+  line( periodInMeasures=1, min=0, max=1 ) {
+    const line = genAbstract.ugens.beats( periodInMeasures * 4 )
 
     // note messages are rounded in note filter, found in seq.js
     const ugen = genAbstract.ugens.add( min, genAbstract.ugens.mul( line, max-min ) )
@@ -274,10 +274,10 @@ const waveObjects = {
 
       ugen[0] = v => {
         if( v === undefined ) {
-          return beats
+          return periodInMeasures
         }else{
-          beats = v
-          line[0]( v )
+          periodInMeasures = v
+          line[0]( v * 4 )
         }
       }
 

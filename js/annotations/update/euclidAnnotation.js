@@ -72,11 +72,12 @@ module.exports = ( patternObject, marker, className, cm, track ) => {
     }
 
     let spanName = `.${className}_${currentIdx}`,
-      currentValue = patternObject.values[ currentIdx ]
+        currentValue = patternObject.values[ currentIdx ]
 
     span = $( spanName )
 
-    if( currentValue === 1 ) {
+    // deliberate ==
+    if( currentValue == 1 ) {
       span.add( 'euclid1' )
       activeSpans.push( span )
       setTimeout( ()=> { 

@@ -9,6 +9,7 @@ let Gibber = {
   Track:         null,
   Gen:           null,
   Euclid:        null,
+  Hex:           null,
   Seq:           null,
   Score:         null,
   Pattern:       null,
@@ -26,6 +27,7 @@ let Gibber = {
     window.Scheduler     = this.Scheduler
     window.Pattern       = this.Pattern
     window.Euclid        = this.Euclid
+    window.Hex           = this.Hex
     window.Arp           = this.Arp
     window.Communication = this.Communication
     window.log           = this.log
@@ -34,7 +36,6 @@ let Gibber = {
     window.Lookup        = this.WavePattern
 
     Gibber.__gen.export( window ) 
-    //Gibber.Gen.export( window )
 
     this.Theory.export( window )
     this.Utility.export( window )
@@ -385,6 +386,7 @@ Gibber.Seq     = require( './seq.js' )( Gibber )
 Gibber.Score   = require( './score.js' )( Gibber )
 Gibber.Arp     = require( './arp.js' )( Gibber )
 Gibber.Euclid  = require( './euclidean.js')( Gibber )
+Gibber.Hex     = require( './hex.js')( Gibber )
 //Gibber.Gen     = require( './gen.js' )( Gibber )
 Gibber.Steps   = require( './steps.js' )( Gibber )
 Gibber.Live    = require( './live.js' )( Gibber )
