@@ -747,6 +747,159 @@ tracks[0].velocity.seq( sine( 4, 48, 48 ) )
 tracks[0].note.seq(
   sine( 8, 4, 4 ),
   1/16
+)`,
+
+['using the Hex() function to create rhythms']:`/* Hex tutorial
+
+The Hex function lets you quickly create
+rhythmic patterns using hexadecimal numbers
+which are subsequently converted to binary,
+based off an idea originally implemented by 
+Steven Yi. If you are unfamiliar with binary notation, 
+maybe you'll learn a bit through this tutorial!
+
+*/
+
+// Hex objects accept strings of hexadecimal numbers
+// (0-9, a-f). Each hexadecimal number is responsible
+// for populating four 1/16th notes (by default) with
+// pulses and rests. A value of 0 means no pulses are
+// present. A value of 1 means the rightmost slot contains
+// a pulse.
+
+tracks[0].midinote.seq(
+  60,
+  Hex('1')
+)
+
+// Binary numbers can only consist of zeros or ones. Our
+// rightmost digit is the ones entry. Our third digit 
+// represents two. 
+
+tracks[0].midinote.seq(
+  60,
+  Hex('2')
+)
+
+// For a hex value of three, we add the twos digit
+// and the ones digit together.
+
+tracks[0].midinote.seq(
+  60,
+  Hex('3')
+)
+
+// Our second digit represents four.
+tracks[0].midinote.seq(
+  60,
+  Hex('4')
+)
+
+// A hex value of 7 would use our last three digits.
+tracks[0].midinote.seq(
+  60,
+  Hex('7')
+)
+
+// a value of f fills all places.
+tracks[0].midinote.seq(
+  60,
+  Hex('f')
+)
+
+// experiments with other letters (a-f) and numbers
+// until you get a feeling for how a single hex digit
+// translates to a four-digit binary number. Now we
+// can chain multiple hex values together to create longer
+// patterns. For example, here's a pattern of a quarter note
+// followed by two-eighth notes.
+
+tracks[0].midinote.seq(
+  60,
+  Hex('8a')
+)
+
+// each hex digit is responsible for four of the binary digits.
+// these patterns can be arbitrarily long. For example, here is
+// the classic kick pattern for Afrika Bambaataa's Planet Rock,
+// over two measures.
+
+tracks[0].midinote.seq(
+  60,
+  Hex('82008224')
+)
+
+// once you get some practice, typing 8 numbers to get a
+// two measure 16th note pattern is pretty powerful. The
+// resulting patterns can be manipulated like any other
+// pattern in Gibberwocky. 
+
+tracks[0].midinote.seq(
+  60,
+  Hex('c8')
+)
+
+// rotate the pattern
+tracks[0].midinote[0].timings.rotate.seq( 1,1 )
+
+// See the Patterns tutorial for other pattern transforms
+// to use.
+
+// by default each binary digit is a 1/16th note in duration,
+// however, we can change this by adding a second argument to
+// our Hex() call, making it easy to setup interesting
+// polyrhythms.
+
+// 1/16th note default
+tracks[0].midinote.seq(
+  60,
+  Hex('8')
+)
+
+// 1/12th notes (quarter-note triplets)
+tracks[0].midinote.seq(
+  62,
+  Hex( '665', 1/12 ),
+  1
+)
+
+// 1/9th notes
+tracks[0].midinote.seq(
+  64,
+  Hex( 'a7', 1/9 ),
+  2
+)
+
+// core beat from planet rock by afrika bambaataa
+// assumes 808 impulse with a cowbell
+// for the sample assigned to midinote 71
+// beat copied from http://808.pixll.de/anzeigen.php?m=15
+
+// kick, alternating patterns for each measure
+tracks[0].midinote.seq(
+  60,
+  Hex('82008224')
+)
+
+// snare
+tracks[0].midinote.seq(
+  62,
+  Hex('0808'),
+  1
+)
+
+// closed hat
+tracks[0].midinote.seq(
+  64,
+  Hex('bbbf'),
+  2
+)
+
+// cowbell
+tracks[0].midinote.seq(
+  71,
+  Hex('ab5a'),
+  3
 )`
 
 }
