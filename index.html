@@ -6793,6 +6793,17 @@ let Environment = {
     },
     'Shift-Ctrl-C'( cm ) {
       Environment.toggleSidebar()
+    },
+    'Ctrl-S'( cm ) {
+      cm.replaceSelection('.seq(\n\n)')
+      cm.execCommand('goLineUp')
+      cm.replaceSelection('  ')
+    },
+    'Ctrl-,'( cm ) {
+      cm.execCommand('goLineEnd')
+      cm.replaceSelection(',\n')
+      cm.execCommand('goLineStart')
+      cm.replaceSelection('  ')
     }
   },
 
