@@ -180,6 +180,19 @@ let Environment = {
   keymap : {
     fallthrough:'default',
 
+    // execute now
+    'Shift-Enter'(cm) {
+      try {
+        const selectedCode = Environment.getSelectionCodeColumn( cm, false ).code
+        const func = new Function( selectedCode )
+
+        func()
+      }catch( e ) {
+        console.log( e )
+        Environment.log( 'error with immediately executed code:', e )
+      }
+    },
+
     'Ctrl-Enter'( cm ) {
       try {
         const selectedCode = Environment.getSelectionCodeColumn( cm, false )

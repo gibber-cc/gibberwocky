@@ -9,7 +9,6 @@ module.exports = function( _Gibber, _genAbstract, proto ) {
   return waveObjects
 }
 
-
 const waveObjects = {
   lfo( freq=.5, bias=.5, amp=.5, phase=0 ) {
     const initPhase = phase
@@ -64,15 +63,18 @@ const waveObjects = {
   fade( beats=16, from=0, to=1 ) {
     const g = genAbstract.ugens 
     const amt = to - from
-    const fade = g.add( from, g.mul( g.beats( beats ), amt ) )
-      
+    const incr = (Gibber.Utility.beatsToMs( beats ) / 1000 / 44100) * amt
+    const psr =  g.accum( incr, 0, { max:Infinity, min:0, initialValue:0 })
+    const fade = g.clamp( g.add( from, psr ), from, to )
+
     fade.shouldKill = {
-      after: beats / 4, 
+      after: (beats -1.1) / 4, 
       final: to
     }
 
-    return fade   
+    return fade
   },
+
   beats( ...inputs ) {
     const ugen = Object.create( __ugenproto__ )
     ugen.name = 'phasor'

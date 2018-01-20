@@ -168,7 +168,7 @@ module.exports = function( Gibber ) {
       'beats', 'lfo', 'fade', 'sine', 'siner', 'cos', 'cosr', 'liner', 'line',
       'abs', 'ceil', 'round', 'floor',
       'min','max',
-      'gt','lt','ltp','gtp','samplerate','rate'
+      'gt','lt','ltp','gtp','samplerate','rate','clamp'
     ],
     ugens:{},
   

@@ -162,7 +162,8 @@ let Gen  = {
     accum:  { properties:[ '0','1' ], str:'accum' },
     counter:{ properties:[ '0','1' ], str:'counter' },
     scale:  { properties: ['0', '1', '2', '3'], str:'scale' },
-    sah:    { properties: ['0', '1', '2'], str:'sah' }
+    sah:    { properties: ['0', '1', '2'], str:'sah' },
+    clamp:    { properties: ['0', '1', '2'], str:'clamp' }
   },
 
   _count: 0,

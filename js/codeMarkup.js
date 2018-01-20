@@ -252,7 +252,8 @@ const Marker = {
 
   standalone: {
     Score: require( './annotations/standalone/scoreAnnotation.js' ),
-    Steps: require( './annotations/standalone/stepsAnnotation.js' )
+    Steps: require( './annotations/standalone/stepsAnnotation.js' ),
+    //HexSteps: require( './annotations/standalone/hexStepsAnnotation.js' )
   },
 
 
