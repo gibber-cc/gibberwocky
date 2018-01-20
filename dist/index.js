@@ -6056,10 +6056,11 @@ let Environment = {
     // execute now
     'Shift-Enter'(cm) {
       try {
-        const selectedCode = Environment.getSelectionCodeColumn( cm, false ).code
-        const func = new Function( selectedCode )
+        const selectedCode = Environment.getSelectionCodeColumn( cm, false )
+        const func = new Function( selectedCode.code )
 
-        console.log( func.toString() )
+        Environment.flash( cm, selectedCode.selection )
+
         func()
       }catch( e ) {
         console.log( e )
@@ -11693,14 +11694,20 @@ const waveObjects = {
   },
 
   fade( beats=16, from=0, to=1 ) {
+    
     const g = genAbstract.ugens 
     const amt = to - from
-    const incr = (Gibber.Utility.beatsToMs( beats ) / 1000 / 44100) * amt
-    const psr =  g.accum( incr, 0, { max:Infinity, min:0, initialValue:0 })
-    const fade = g.clamp( g.add( from, psr ), from, to )
+    const incr = 1 / ((Gibber.Utility.beatsToMs( beats ) / 1000) * 44100) * amt
+    console.log( incr )
+    const psr =  g.accum( incr, 0, { max:Infinity, min:-Infinity, shouldWrap:false, initialValue:0})
+    const min = from < to ? from : to
+    const max = to > from ? to : from
+    const fade = g.clamp( g.add( from, psr ), min, max )
 
+    //debugger
+    
     fade.shouldKill = {
-      after: (beats -1.1) / 4, 
+      after: beats / 4, 
       final: to
     }
 

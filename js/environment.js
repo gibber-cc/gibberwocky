@@ -183,8 +183,10 @@ let Environment = {
     // execute now
     'Shift-Enter'(cm) {
       try {
-        const selectedCode = Environment.getSelectionCodeColumn( cm, false ).code
-        const func = new Function( selectedCode )
+        const selectedCode = Environment.getSelectionCodeColumn( cm, false )
+        const func = new Function( selectedCode.code )
+
+        Environment.flash( cm, selectedCode.selection )
 
         func()
       }catch( e ) {
