@@ -226,8 +226,11 @@ let seqclosure = function( Gibber ) {
 
         return `${trackID} add ${beat} note ${number} ${velocity} ${duration}` 
       },
-      midinote( number, beat, trackID ) {
-        return `${trackID} add ${beat} note ${number}` 
+      midinote( number, beat, trackID, seq ) {
+        const velocity = seq.velocity()
+        const duration = seq.duration()
+
+        return `${trackID} add ${beat} note ${number} ${velocity} ${duration}`        
       },
       //duration( value, beat, trackID ) {
       //  return `${trackID} add ${beat} duration ${value}` 

@@ -5108,11 +5108,11 @@ const numberToBinaryArray = num => {
 
 let Automata = function( __rule=30, __axiom='00011000', evolutionSpeed=1, playbackSpeed ) {
   const axiom = typeof __axiom === 'string' ? __axiom : Number( __axiom ).toString( 2 ),
-        rule = numberToBinaryArray( __rule )
+        rule  = numberToBinaryArray( __rule )
 
   let currentState = axiom.split('').map( parseFloat ).map( Math.round ),
       nextState    = currentState.slice( 0 ),
-      pattern = Gibber.Pattern.apply( null, currentState )
+      pattern      = Gibber.Pattern.apply( null, currentState )
 
   pattern.time = playbackSpeed === undefined ? 1 / currentState.length : playbackSpeed
 
@@ -5129,6 +5129,7 @@ let Automata = function( __rule=30, __axiom='00011000', evolutionSpeed=1, playba
   })
 
   const width = currentState.length
+
   pattern.evolve = ()=> {
     currentState = nextState.slice( 0 )
 
@@ -5144,7 +5145,7 @@ let Automata = function( __rule=30, __axiom='00011000', evolutionSpeed=1, playba
   }
 
   Gibber.addSequencingToMethod( pattern, 'evolve' )
-  Gibber.Utility.future( ()=> pattern.evolve.seq( 1,evolutionSpeed ), evolutionSpeed )
+  Gibber.Utility.future( ()=> pattern.evolve.seq( 1, evolutionSpeed ), evolutionSpeed )
 
   return pattern
 }
@@ -7429,6 +7430,87 @@ tracks[0].midinote.seq(
   71,
   Hex('ab5a'),
   3
+)`,
+
+['using 1D Cellular Automata']:`/* Automata Demo
+ * This demo shows how to use 1D cellular automata to
+ * create evolving rhythmic patterns. If you've never used
+ * automata, or 1D specifically, I recommend reading the
+ * first two sections of this excellent chapter on the subject,
+ * from the Nature of Code by Daniel Shiffman:
+ *
+ * http://natureofcode.com/book/chapter-7-cellular-automata/
+ *
+ * For a discussion of rhythm and 1D automata, you could also
+ * check out this paper by fellow live coder Andrew Brown:
+ *
+ * http://bit.ly/2BzUGtY
+ *
+ * The Automata class in gibberwocky creates a pattern that
+ * outputs a set of zeros and ones, in the same fashion as the
+ * Euclid and Hex classes. The parameters of the Automata are
+ * as follows:
+ *
+ * Automata( rule=30, axiom='00011000', evolutionSpeed=1, playbackSpeed=1/16 )
+ *
+ * The 'rule' property determines which 1D automata rule, as 
+ * outlined by Stephen Wolfram, will be used to compute each
+ * generation. The 'axiom' determines the starting set of values;
+ * this can be given as a decimal integer or as a binary string.
+ * 'evolutionSpeed' (note:evolution is not the right word to use)
+ * determines how often the Automata recomputes its state, while
+ * the 'playbackSpeed' determines how fast the state is read to 
+ * generate patterns.
+ */
+
+// play a kick drum pattern on an Impulse instrument.
+// use rule 30: http://mathworld.wolfram.com/Rule30.html
+// compute state every measure, and read the state every
+// 1/16th note. this means each pattern will play twice.
+tracks[0].midinote.seq(
+  60,
+  Automata( 30, '00011000', 1, 1/16 )
+)
+
+// note how that rather quickly becomes stable,
+// alternating between two states with different offsets. 
+// simply changing one value in the axiom creates a much
+// longer cycle, to the point where repetition becomes 
+// tricky to recognize.
+tracks[0].midinote.seq(
+  60,
+  Automata( 30, '01011000', 1, 1/16 )
+)
+
+// let's try another rule: http://mathworld.wolfram.com/Rule158.html
+// this time we'll compute the state every 1/2 note so
+// that it doesn't repeat.
+tracks[0].midinote.seq(
+  64,
+  Automata( 158, '00001000', 1/2, 1/16 )
+)
+
+// we can also use longer axioms which will in turn create longer
+// patterns. this pattern lasts a measure without repeating
+// itself, even using 1/16th notes.
+tracks[0].midinote.seq(
+  64,
+  Automata( 158, '0000100000010000', 1, 1/16 )
+)
+
+// as mentioned, we can use decimal numbers for the axiom; it
+// will be translated into a binary string
+tracks[0].midinote.seq(
+  60,
+  Automata( 5, 147, 1/2, 1/16 )
+)
+
+tracks[0].midinote.seq( 62, 1/2, 1, 1/4 )
+
+tracks[0].midinote.seq(
+  64,
+  Automata( 30, '00001000', 1, 1/16 )
+  2
 )`
 
 }
@@ -10382,8 +10464,11 @@ let seqclosure = function( Gibber ) {
 
         return `${trackID} add ${beat} note ${number} ${velocity} ${duration}` 
       },
-      midinote( number, beat, trackID ) {
-        return `${trackID} add ${beat} note ${number}` 
+      midinote( number, beat, trackID, seq ) {
+        const velocity = seq.velocity()
+        const duration = seq.duration()
+
+        return `${trackID} add ${beat} note ${number} ${velocity} ${duration}`        
       },
       //duration( value, beat, trackID ) {
       //  return `${trackID} add ${beat} duration ${value}` 
