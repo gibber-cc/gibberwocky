@@ -163,7 +163,9 @@ let Gen  = {
     counter:{ properties:[ '0','1' ], str:'counter' },
     scale:  { properties: ['0', '1', '2', '3'], str:'scale' },
     sah:    { properties: ['0', '1', '2'], str:'sah' },
-    clamp:    { properties: ['0', '1', '2'], str:'clamp' }
+    clamp:  { properties: ['0', '1', '2'], str:'clamp' },
+    ternary:{ properties: ['0', '1', '2'], str:'ternary' },
+    selector:{ properties: ['0', '1', '2'], str:'selector' },
   },
 
   _count: 0,

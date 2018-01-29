@@ -4,6 +4,7 @@ let Gibber, genAbstract, __ugenproto__
 module.exports = function( _Gibber, _genAbstract, proto ) {
   Gibber = _Gibber
   genAbstract = _genAbstract
+  waveObjects.saw = waveObjects.line
   __ugenproto__ = proto
 
   return waveObjects
@@ -60,12 +61,12 @@ const waveObjects = {
     return ugen   
   },
 
-  fade( beats=16, from=0, to=1 ) {
+  fade( measures=4, from=0, to=1 ) {
     
     const g = genAbstract.ugens 
     const amt = to - from
-    const incr = 1 / ((Gibber.Utility.beatsToMs( beats ) / 1000) * 44100) * amt
-    const psr =  g.accum( incr, 0, { max:Infinity, min:-Infinity, shouldWrap:false, initialValue:0})
+    const incr = 1 / ((Gibber.Utility.beatsToMs( measures * 4 ) / 1000) * 44100) * amt
+    const psr =  g.accum( incr, 0, { max:Infinity, min:-Infinity, shouldWrap:false, initialValue:0 })
     const min = from < to ? from : to
     const max = to > from ? to : from
     const fade = g.clamp( g.add( from, psr ), min, max )
@@ -73,7 +74,7 @@ const waveObjects = {
     //debugger
     
     fade.shouldKill = {
-      after: beats / 4, 
+      after: measures, 
       final: to
     }
 
@@ -165,7 +166,7 @@ const waveObjects = {
       Gibber.addSequencingToMethod( ugen, '2' )   
     }
 
-    ugen.phase = (value) => {
+    ugen.phase = value => {
       if( value === undefined ) return ugen.__phase
 
       ugen.__phase = value
@@ -173,6 +174,8 @@ const waveObjects = {
         ugen.rendered.inputs[1].inputs[1].inputs[0].value = ugen.__phase
         ugen.rendered.shouldNotAdjust = true
       }
+
+      return ugen
     }
 
     Gibber.addSequencingToMethod( ugen, 'phase' )

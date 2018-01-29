@@ -4,11 +4,15 @@ let Track = {
   create( spec ) {
 
     let track = {    
+      type: 'track',
       id: spec.id,
       spec,
 		  sequences:{},
       sends:[],
       __octave:0,
+      __velocity:64,
+      __duration:250,
+
       octave( v ) {
         if( v===undefined ) return this.__octave
 
@@ -28,10 +32,16 @@ let Track = {
       },
       
       duration( value ) {
+        if( value === undefined ) return this.__duration
+        this.__duration = value
+
         Gibber.Communication.send( `${track.id} duration ${value}` )
       },
       
       velocity( value ) {
+        if( value === undefined ) return this.__velocity
+        this.__velocity = value
+
         Gibber.Communication.send( `${track.id} velocity ${value}` )
       },
 

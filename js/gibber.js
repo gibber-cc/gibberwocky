@@ -187,7 +187,10 @@ let Gibber = {
       if( obj.sequences[ methodName ][ id ] ) obj.sequences[ methodName ][ id ].clear()
 
       obj.sequences[ methodName ][ id ] = seq = Gibber.Seq( values, timings, overrideName, obj, priority )
-      seq.trackID = obj.id
+
+      // if the target is another sequencer (like for per-sequencer velocity control) it won't
+      // have an id property.. use existing trackID property instead.
+      seq.trackID = obj.id === undefined ? obj.trackID : obj.id
 
       if( id === 0 ) {
         obj[ methodName ].values  = obj.sequences[ methodName ][ 0 ].values
@@ -212,7 +215,7 @@ let Gibber = {
         Gibber.Gen.lastConnected.push( seq.timings )
       }
 
-      return seq
+      return obj[ methodName ]
     }
     
     obj[ methodName ].seq.delay = v => obj[ methodName ][ lastId ].delay( v )
@@ -330,9 +333,7 @@ let Gibber = {
           // XXX reconfigure for hasGen === false
           if( typeof _v.shouldKill === 'object' ) {
             Gibber.Utility.future( ()=> {
-              console.log( 'kill:', _v.shouldKill )
               if( hasGen ) {
-                console.log( 'has gen' )
                 Gibber.Communication.send( `ungen ${parameter.id}` )
                 Gibber.Communication.send( `set ${parameter.id} ${_v.shouldKill.final}` )
               }else{

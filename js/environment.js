@@ -147,6 +147,7 @@ let Environment = {
     Environment.consoleList.appendChild( consoleItem )
     consoleItem.scrollIntoView()
 
+    console.log( ...args )
     return consoleItem
   },
 
