@@ -2,25 +2,6 @@ module.exports = function( Gibber ) {
 
 let Pattern = Gibber.Pattern
 
-
-let printArray = function( array ) {
-  let str = ''
-  for( let i = 0; i < array.length; i++ ) {
-    let outerElement = array[ i ]
-    if( Array.isArray( outerElement ) ) {
-      str += '['
-      for( let j = 0; j < outerElement.length; j++ ) {
-        str += outerElement[ j ]
-      }
-      str += '] '
-    }else{
-      str += outerElement + ''
-    }
-  }
-
-  return str
-}
-
 let Hex = function( hexString, time = 1/16, rotation ) {
   let count = 0,
       onesAndZeros = ''

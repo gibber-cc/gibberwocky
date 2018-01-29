@@ -22,6 +22,7 @@ let Gibber = {
   export() {
     window.Steps         = this.Steps
     window.HexSteps      = this.HexSteps
+    window.Automata      = this.Automata
     window.Seq           = this.Seq
     window.Score         = this.Score
     window.Track         = this.Track
@@ -504,6 +505,7 @@ Gibber.Seq     = require( './seq.js' )( Gibber )
 Gibber.Score   = require( './score.js' )( Gibber )
 Gibber.Arp     = require( './arp.js' )( Gibber )
 Gibber.Euclid  = require( './euclidean.js')( Gibber )
+Gibber.Automata= require( './automata.js' )( Gibber )
 Gibber.Hex     = require( './hex.js')( Gibber )
 Gibber.Steps   = require( './steps.js' )( Gibber )
 Gibber.HexSteps= require( './hexSteps.js' )( Gibber )

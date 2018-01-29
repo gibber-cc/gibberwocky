@@ -244,9 +244,10 @@ const Marker = {
   },
 
   patternUpdates: {
-    Euclid: require( './annotations/update/euclidAnnotation.js' ),
-    Hex: require( './annotations/update/euclidAnnotation.js' ),
-    Lookup: require( './annotations/update/lookupAnnotation.js' ),
+    Euclid:   require( './annotations/update/euclidAnnotation.js' ),
+    Automata: require( './annotations/update/euclidAnnotation.js' ),
+    Hex:      require( './annotations/update/euclidAnnotation.js' ),
+    Lookup:   require( './annotations/update/lookupAnnotation.js' ),
     anonymousFunction: require( './annotations/update/anonymousAnnotation.js' ),
   },
 
