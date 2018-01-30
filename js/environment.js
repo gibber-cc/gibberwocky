@@ -16,6 +16,7 @@ let Environment = {
   _codemirror: CodeMirror,
   animationScheduler: require( './animationScheduler.js' ),
   lomView: require( './lomView.js' ),
+  momView: require( './momView.js' ),
   consoleDiv:null,
   consoleList:null,
   annotations:true,

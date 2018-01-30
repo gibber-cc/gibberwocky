@@ -46,7 +46,6 @@ let Gibber = {
   },
 
   init() {
-    this.max = window.max
     this.$   = Gibber.Utility.create
 
 
@@ -265,18 +264,23 @@ let Gibber = {
   },
 
   // XXX THIS MUST BE REFACTORED. UGH.
-  addMethod( obj, methodName, parameter, _trackID ) {
-    let v = parameter.value,
+  addMethod( obj, methodName, parameter, _trackID, mode='live' ) {
+    let v = mode === 'live' ? parameter.value : 0,
         p,
-        trackID = isNaN( _trackID ) ? obj.id : _trackID,
-        seqKey = `${trackID} ${obj.id} ${parameter.id}`
+        trackID = isNaN( _trackID ) ? obj.id : _trackID
+
+
+    let  seqKey = mode === 'live' ? `${trackID} ${obj.id} ${parameter.id}` : `${obj.address} ${methodName}`
 
     //console.log( "add method trackID", trackID )
 
-    if( methodName === null ) methodName = parameter.name
+    if( mode === 'live' && methodName === null ) methodName = parameter.name
 
     Gibber.Seq.proto.externalMessages[ seqKey ] = ( value, beat ) => {
-      let msg = `add ${beat} set ${parameter.id} ${value}` 
+      let msg = mode === 'live' 
+        ? `add ${beat} set ${parameter.id} ${value}`
+        : `add ${beat} ${obj.path} ${methodName} ${value}`
+              
       return msg
     }
 
@@ -510,6 +514,7 @@ Gibber.Hex     = require( './hex.js')( Gibber )
 Gibber.Steps   = require( './steps.js' )( Gibber )
 Gibber.HexSteps= require( './hexSteps.js' )( Gibber )
 Gibber.Live    = require( './live.js' )( Gibber )
+Gibber.Max     = require( './max.js' )( Gibber )
 Gibber.Track   = require( './track.js')( Gibber )
 Gibber.__gen   = require( './gen_abstraction.js' )( Gibber )
 

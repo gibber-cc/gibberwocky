@@ -1,7 +1,8 @@
 let Gibber = null
 
 let Communication = {
-  webSocketPort: 8081, // default?
+  livePort: 8081,
+  maxPort:  8082,
   socketInitialized: false,
   connectMsg: null,
   debug: {
@@ -11,11 +12,14 @@ let Communication = {
   
   init( _Gibber ) { 
     Gibber = _Gibber
-    this.createWebSocket()
+
+    //this.createWebSocket( Gibber.Live.init, this.livePort, 'live' )
+    this.createWebSocket( Gibber.Max.init,  this.maxPort,  'max'  )
+
     this.send = this.send.bind( Communication )
   },
 
-  createWebSocket() {
+  createWebSocket( init, __port, clientName ) {
     if ( this.connected ) return
 
     if ( 'WebSocket' in window ) {
@@ -27,17 +31,17 @@ let Communication = {
       }
 
       let host = this.querystring.host || '127.0.0.1',
-          port = this.querystring.port || '8081',
+          port = this.querystring.port || __port,
           address = "ws://" + host + ":" + port
       
       this.wsocket = new WebSocket( address )
       
       this.wsocket.onopen = function(ev) {        
         //Gibber.log( 'CONNECTED to ' + address )
-        Gibber.log('gibberwocky is ready to burble.')
+        Gibber.log( `gibberwocky.${clientName} is ready to burble.` )
         this.connected = true
         
-        Gibber.Live.init()
+        init()
         // cancel the auto-reconnect task:
         if ( this.connectTask !== undefined ) clearTimeout( this.connectTask )
           
@@ -53,7 +57,7 @@ let Communication = {
         }
 
         // set up an auto-reconnect task:
-        this.connectTask = setTimeout( this.createWebSocket.bind( Communication ) , 1000 )
+        this.connectTask = setTimeout( this.createWebSocket.bind( Communication ) , 2000 )
       }.bind( Communication )
 
       this.wsocket.onmessage = function( ev ) {
