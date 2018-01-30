@@ -45,9 +45,9 @@ const MIDI = {
     const lastMIDIInput = localStorage.getItem('midi.input'),
           lastMIDIOutput = localStorage.getItem('midi.output')
 
-    if( lastMIDIInput !== null && lastMIDIInput !== undefined ) {
-      this.selectInputByName( lastMIDIInput ) 
-    }
+    //if( lastMIDIInput !== null && lastMIDIInput !== undefined ) {
+    //  this.selectInputByName( lastMIDIInput ) 
+    //}
     if( lastMIDIOutput !== null && lastMIDIOutput !== undefined ) {
       this.selectOutputByName( lastMIDIOutput ) 
     }
@@ -59,23 +59,23 @@ const MIDI = {
   },
 
   createInputAndOutputLists( midiAccess ) {
-    let optin = document.createElement( 'option' )
-    optin.text = 'none'
+    //let optin = document.createElement( 'option' )
+    //optin.text = 'none'
     let optout = document.createElement( 'option' )
     optout.text = 'none'
-    MIDI.midiInputList.add( optin )
+    //MIDI.midiInputList.add( optin )
     MIDI.midiOutputList.add( optout )
 
-    MIDI.midiInputList.onchange = MIDI.selectInputViaGUI
+    //MIDI.midiInputList.onchange = MIDI.selectInputViaGUI
     MIDI.midiOutputList.onchange = MIDI.selectOutputViaGUI
     
-    const inputs = midiAccess.inputs
-    for( let input of inputs.values() ) {
-      const opt = document.createElement( 'option' )
-      opt.text = input.name
-      opt.input = input
-      MIDI.midiInputList.add( opt )
-    }
+    //const inputs = midiAccess.inputs
+    //for( let input of inputs.values() ) {
+    //  const opt = document.createElement( 'option' )
+    //  opt.text = input.name
+    //  opt.input = input
+    //  MIDI.midiInputList.add( opt )
+    //}
 
     const outputs = midiAccess.outputs
     for( let output of outputs.values() ) {

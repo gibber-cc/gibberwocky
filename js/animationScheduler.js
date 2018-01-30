@@ -24,6 +24,15 @@ let Scheduler = {
     return time
   },
 
+  runSoon( evt ) {
+    
+    try{
+      evt.func()
+    }catch(e) {
+      console.log( 'annotiation error:', e.toString() )
+    }
+  },
+
   run( timestamp, dt ) {
     let nextEvent = this.queue.peek()
     //if( nextEvent === undefined ) return
@@ -33,12 +42,13 @@ let Scheduler = {
       // remove event
       this.queue.pop()
       
-      try{
-        nextEvent.func()
-      }catch( e ) {
-        console.log( e )
-        Gibber.Environment.error( 'annotation error:', e.toString() )
-      }
+      setTimeout( ()=> this.runSoon( nextEvent ) ) 
+      //try{
+      //  nextEvent.func()
+      //}catch( e ) {
+      //  console.log( e )
+      //  Gibber.Environment.error( 'annotation error:', e.toString() )
+      //}
       
       // call recursively
       this.run( timestamp )

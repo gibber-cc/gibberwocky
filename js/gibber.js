@@ -216,7 +216,7 @@ let Gibber = {
         Gibber.Gen.lastConnected.push( seq.timings )
       }
 
-      return obj[ methodName ]
+      return seq 
     }
     
     obj[ methodName ].seq.delay = v => obj[ methodName ][ lastId ].delay( v )
