@@ -19,9 +19,12 @@ let Environment = {
   consoleDiv:null,
   consoleList:null,
   annotations:true,
+  suppressErrors:false,
 
   init( gibber ) {
     Gibber = gibber
+
+    this.codeMarkup = this.codeMarkup( Gibber )
 
     this.createCodeMirror()   
     this.createSidePanel()
@@ -30,7 +33,10 @@ let Environment = {
     this.sidebar.isVisible = 1
     //this.lomView.init( Gibber )
     this.animationScheduler.init()
+    this.codeMarkup.init()
     this.editorWidth = document.querySelector( '#editor' ).style.width
+
+    //this.toggleSidebar()
   },
 
   createSidePanel() {
@@ -38,6 +44,11 @@ let Environment = {
 
     this.createConsole()
     this.createDemoList()
+  },
+
+  clear() {
+    this.codeMarkup.clear()
+    this.animationScheduler.clear()
   },
   
   setupSplit() {
@@ -136,16 +147,24 @@ let Environment = {
     Environment.consoleList.appendChild( consoleItem )
     consoleItem.scrollIntoView()
 
+    console.log( ...args )
     return consoleItem
   },
 
   error( ...args ) {
-    let consoleItem = Environment.createConsoleItem( args )
-    
-    consoleItem.setAttribute( 'class', 'console_error' )
+    if( Environment.suppressErrors === false ) {
+      if( args[0] === 'error Gen not authorized on this install' ) {
+        Gibber.__gen.enabled = false
+        args[0] = 'error Compiling Gen graphs is not authorized for this install of Max; using genish.js for modulation'
+      }
 
-    Environment.consoleList.appendChild( consoleItem )
-    consoleItem.scrollIntoView()
+      let consoleItem = Environment.createConsoleItem( args )
+
+      consoleItem.setAttribute( 'class', 'console_error' )
+
+      Environment.consoleList.appendChild( consoleItem )
+      consoleItem.scrollIntoView()
+    }
   },
   
   createConsoleItem( args ) {
@@ -162,6 +181,21 @@ let Environment = {
   keymap : {
     fallthrough:'default',
 
+    // execute now
+    'Shift-Enter'(cm) {
+      try {
+        const selectedCode = Environment.getSelectionCodeColumn( cm, false )
+        const func = new Function( selectedCode.code )
+
+        Environment.flash( cm, selectedCode.selection )
+
+        func()
+      }catch( e ) {
+        console.log( e )
+        Environment.log( 'error with immediately executed code:', e )
+      }
+    },
+
     'Ctrl-Enter'( cm ) {
       try {
         const selectedCode = Environment.getSelectionCodeColumn( cm, false )
@@ -169,7 +203,7 @@ let Environment = {
         Environment.flash( cm, selectedCode.selection )
         
         const func = new Function( selectedCode.code ).bind( Gibber.currentTrack ),
-              markupFunction = () => { 
+              markupFunction = () => {
                 Environment.codeMarkup.process( 
                   selectedCode.code, 
                   selectedCode.selection, 
@@ -233,17 +267,33 @@ let Environment = {
       Gibber.log( 'All sequencers stopped.' )
     },
     'Shift-Ctrl-C'( cm ) {
-      Environment.sidebar.isVisible = !Environment.sidebar.isVisible
-      let editor = document.querySelector( '#editor' )
-      if( !Environment.sidebar.isVisible ) {
-        Environment.editorWidth = editor.style.width
-        editor.style.width = '100%'
-      }else{
-        editor.style.width = Environment.editorWidth
-      }
-
-      Environment.sidebar.style.display = Environment.sidebar.isVisible ? 'block' : 'none'
+      Environment.toggleSidebar()
+    },
+    'Ctrl-S'( cm ) {
+      cm.replaceSelection('.seq(\n\n)')
+      cm.execCommand('goLineUp')
+      cm.replaceSelection('  ')
+    },
+    'Ctrl-,'( cm ) {
+      cm.execCommand('goLineEnd')
+      cm.replaceSelection(',\n')
+      cm.execCommand('goLineStart')
+      cm.replaceSelection('  ')
     }
+  },
+
+  toggleSidebar() {
+    Environment.sidebar.isVisible = !Environment.sidebar.isVisible
+    let editor = document.querySelector( '#editor' )
+    if( !Environment.sidebar.isVisible ) {
+      Environment.editorWidth = editor.style.width
+      editor.style.width = '100%'
+    }else{
+      editor.style.width = Environment.editorWidth
+    }
+
+    Environment.sidebar.style.display = Environment.sidebar.isVisible ? 'block' : 'none'
+
   },
 
  	getSelectionCodeColumn( cm, findBlock ) {

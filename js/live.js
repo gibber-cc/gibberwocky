@@ -31,6 +31,10 @@ let Live = {
     }
 
     for( let track of Live.tracks ) {
+      // the next line is for a weird error that occurs when tracks
+      // are named with discontinuous numbers; see https://github.com/gibber-cc/gibberwocky.live/issues/8
+      if( track === undefined ) continued
+
       Live.tracks[ track.spec.name ] = track
     }
     
@@ -41,11 +45,14 @@ let Live = {
     Gibber.Scheduler.bpm = Live.LOM.bpm
 
     Gibber.Environment.lomView.init( Gibber )
+
+    Gibber.publish( 'lom_update' )
   },
 
-  processTrack( spec ) {
+  processTrack( spec, index  ) {
     let track = Gibber.Track( spec )
     track.devices = []
+    track.index = index
 
     spec.devices.forEach( (val, idx ) => {
       Live.processDevice( val, idx, track ) 
@@ -62,6 +69,12 @@ let Live = {
   },
 
   processDevice( device, idx, currentTrack ) {
+    if( device.name === undefined ) {
+      // XXX hack for wavetable bug
+      //console.log( 'undefined device name, assuming wavetable:', device )
+      device.name = 'Wavetable'
+    }
+
     let d = currentTrack.devices[ device.name ] = currentTrack.devices[ idx ] = currentTrack[ idx ] = { idx },
         parameterCount = 0
     

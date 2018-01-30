@@ -4,11 +4,21 @@ let Track = {
   create( spec ) {
 
     let track = {    
+      type: 'track',
       id: spec.id,
       spec,
 		  sequences:{},
       sends:[],
-      octave:0,
+      __octave:0,
+      __velocity:64,
+      __duration:250,
+
+      octave( v ) {
+        if( v===undefined ) return this.__octave
+
+        this.__octave = v
+        return this
+      },
       note( ...args ) {
         args[0] = Gibber.Theory.Note.convertToMIDI( args[0] )
         
@@ -22,10 +32,16 @@ let Track = {
       },
       
       duration( value ) {
+        if( value === undefined ) return this.__duration
+        this.__duration = value
+
         Gibber.Communication.send( `${track.id} duration ${value}` )
       },
       
       velocity( value ) {
+        if( value === undefined ) return this.__velocity
+        this.__velocity = value
+
         Gibber.Communication.send( `${track.id} velocity ${value}` )
       },
 
@@ -90,15 +106,25 @@ let Track = {
     }
 
     Gibber.Environment.codeMarkup.prepareObject( track ) 
-    Gibber.addSequencingToMethod( track, 'note' )
+    Gibber.addSequencingToMethod( track, 'note', 0 )
     Gibber.addSequencingToMethod( track, 'cc' )
-    Gibber.addSequencingToMethod( track, 'chord' )
+    Gibber.addSequencingToMethod( track, 'chord', 0 )
     Gibber.addSequencingToMethod( track, 'velocity', 1 )
     Gibber.addSequencingToMethod( track, 'duration', 1 )
     Gibber.addSequencingToMethod( track, 'midinote' )
     Gibber.addSequencingToMethod( track, 'midichord' )
     Gibber.addSequencingToMethod( track, 'mute' )
     Gibber.addSequencingToMethod( track, 'solo' )
+    Gibber.addSequencingToMethod( track, 'octave' )
+
+    // XXX add cc messages to track!
+    for( let i = 0; i < 127; i++ ) {
+      track[ 'cc' + i ] = value => {
+        let msg =  `${track.id} cc ${i} ${value}`
+        Gibber.Communication.send( msg )
+      }
+      Gibber.addSequencingToMethod( track, 'cc'+i )
+    }
 
     Gibber.addMethod( track, 'pan', spec.panning )
     Gibber.addMethod( track, 'volume', spec.volume )
@@ -138,7 +164,17 @@ let Track = {
 
 
         let propName = useUpper ? upper : prop
-        return hasProp ? target[ prop ] : device[ propName ]
+
+        let property = null
+        if( hasProp ) {
+          property = target[ prop ]
+        }else{
+          if( device !== null ) {
+            property = device[ propName ]
+          }
+        }
+
+        return property 
       }
     })
 

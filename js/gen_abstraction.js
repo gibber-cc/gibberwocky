@@ -15,7 +15,11 @@
  * graph should be interpreted as a genish graph.
  *
  * One open problem: what if the same graph is used in two places? Can
- * the abstraction hold both types of codegen objects inside of it?
+ * the abstraction hold both types of codegen objects inside of it? Currently
+ * the abstraction only holds one graph in its 'rendered' property... perhaps
+ * this could be chagned to 'genRendered' and 'genishRendered' and then the 
+ * appropriate one could be linked to? What happens when multiple wavepatterns
+ * use the same graph? Does each generated a dot for every s&h value??
  */
 
 const genish = require( 'genish.js' )
@@ -41,7 +45,6 @@ const defineMethod = function( obj, methodName, param, priority=0 ) {
     // else, set the value
     param.value = v
   }
-
   
   if( !obj.sequences ) obj.sequences = {}
 
@@ -105,6 +108,8 @@ module.exports = function( Gibber ) {
     render( mode ) {
       let inputs = [], inputNum = 0
 
+      this.mode = mode
+
       if( this.name === 'phasor' ) {
         if( this.inputs[2] === undefined ) {
           this.inputs[2] = { min:0 }
@@ -119,7 +124,6 @@ module.exports = function( Gibber ) {
           if( mode === 'genish' && typeof input === 'number' ) { // replace numbers with params
             let _input =  genish.param( input )
             defineMethod( this, inputNum, _input )
-
             inputs.push( _input )
           }else{
             inputs.push( input )
@@ -128,22 +132,35 @@ module.exports = function( Gibber ) {
 
         inputNum++
       }
-      
-      const ugen = mode === 'genish' ? genish[ this.name ]( ...inputs ) : genfunctions[ this.name ]( ...inputs )
+
+      let ugen
+      if( mode === 'genish' || __gen.enabled === false ) {
+        ugen = genish[ this.name ]( ...inputs ) 
+      }else{
+        ugen = genfunctions[ this.name ]( ...inputs )
+      }
+
+      this.rendered = ugen
+      this.rendered.paramID = this.paramID
+      this.rendered.track = this.track
 
       if( typeof this.__onrender === 'function' ) { this.__onrender() }
 
       return ugen
     },
 
-    isGen:true
+    isGen:true,
   }
 
-
   const __gen = {
+    __hasGen: true, // is Gen licensed on this machine? true by default
     gen,
     genish,
     Gibber,
+    enabled: true,
+    initialized: false,
+    __waveObjects: require( './waveObjects.js' ),
+    waveObjects:null,
     ugenNames: [
       'cycle','phasor','accum','counter',
       'add','mul','div','sub',
@@ -151,12 +168,52 @@ module.exports = function( Gibber ) {
       'beats', 'lfo', 'fade', 'sine', 'siner', 'cos', 'cosr', 'liner', 'line',
       'abs', 'ceil', 'round', 'floor',
       'min','max',
-      'gt','lt','ltp','gtp','samplerate','rate'
+      'gt','lt','ltp','gtp','samplerate','rate','clamp',
+      'ternary', 'selector'
     ],
-
     ugens:{},
+  
+    // determine whether or not gen is licensed
+    checkForLicense() {
+      const volume = Gibber.Live.tracks[0].volume()
+      __gen.enabled = true
+      const lfo = __gen.ugens.lfo( .25 )
+      Gibber.Live.tracks[0].volume( lfo )
+      setTimeout( ()=> {
+        Gibber.clear()
+        setTimeout( ()=> {
+          Gibber.Live.tracks[0].volume( volume )
+          Gibber.Environment.suppressErrors = false
+        }, 50 )
+      }, 250 * 8 )
+
+    },
+ 
+    assignTrackAndParamID: function( track, id ) {
+      this.paramID = id
+      this.track = track
+
+      let count = 0, param
+      //while( param = this[ count++ ] ) {
+      //  if( typeof param() === 'object' ) {
+      //    param().assignTrackAndParamID( track, id )
+      //  }
+      //}
+    },
 
     init() {
+      genish.gen.memory = genish.gen.createMemory( 88200, Float64Array )
+      const btof = Gibber.Utility.beatsToFrequency 
+
+      Gibber.subscribe( 'lom_update', ()=> {
+        if( __gen.initialized === false ) {
+          __gen.checkForLicense()
+          __gen.initialized = true
+        }
+      })
+
+      Gibber.Environment.suppressErrors = true
+
       for( let name of this.ugenNames ) {
         this.ugens[ name ] = function( ...inputs ) {
           const ugen = Object.create( __ugenproto__ )
@@ -164,156 +221,85 @@ module.exports = function( Gibber ) {
           ugen.name = name
           ugen.inputs = inputs
 
+          for( let i = 0; i < inputs.length; i++ ) {
+            ugen[ i ] = v => {
+              if( ugen.rendered !== undefined ) {
+                return ugen.rendered[ i ]( v )
+              }
+            }
+            Gibber.addSequencingToMethod( ugen, i )
+          }
+
           return ugen
         }
       }
 
-      this.ugens[ 'beats' ] = ( num ) => {
-        const frequency = Gibber.Utility.beatsToFrequency( num, 120 )
+      this.waveObjects = this.__waveObjects( Gibber, this, __ugenproto__ )
+      Object.assign( this.ugens, this.waveObjects )
 
-        const ugen = this.ugens[ 'phasor' ]( frequency, 0, { min:0, max:1 } )
-        const storedAssignmentFunction = ugen[0]
+      genish.lfo = ( frequency = .1, center = .5, amp = .25 ) => {
+        const g = this.ugens//genish
+        //console.log( 'lfo', g )
 
-        ugen[0] = v => {
+        let _cycle = g.cycle( frequency ),
+            _mul   = g.mul( _cycle, amp ),
+            _add   = g.add( center, _mul ) 
+         
+        _add.frequency = (v) => {
           if( v === undefined ) {
-            return storedAssignmentFunction()
+            return _cycle[ 0 ]()
           }else{
-            const freq = Gibber.Utility.beatsToFrequency( v )
-            storedAssignmentFunction( freq )
+            _cycle[0]( v )
           }
         }
 
-        Gibber.addSequencingToMethod( ugen, '0' )
-
-        return ugen
-      }
-
-      this.ugens[ 'sine' ] = ( beats=4, center=0, amp=7 ) => {
-        const freq = btof( beats, 120 )
-        const __cycle = this.ugens.cycle( freq )
-
-        const sine = __cycle 
-        const ugen = this.ugens.add( center, this.ugens.mul( sine, amp ) )
-
-        ugen.__onrender = ()=> {
-
-          ugen[0] = v => {
-            if( v === undefined ) {
-              return beats
-            }else{
-              beats = v
-              __cycle[0]( btof( beats, 120 ) )
-            }
+        _add.amp = (v) => {
+          if( v === undefined ) {
+            return _mul[ 1 ]()
+          }else{
+            _mul[1]( v )
           }
-
-          Gibber.addSequencingToMethod( ugen, '0' )
         }
 
-        return ugen
+        _add.center = (v) => {
+          if( v === undefined ) {
+            return _add[ 0 ]()
+          }else{
+            _add[0]( v )
+          }
+        }
+
+        Gibber.addSequencingToMethod( _add, 'frequency' )
+        Gibber.addSequencingToMethod( _add, 'amp' )
+        Gibber.addSequencingToMethod( _add, 'center' )
+
+        return _add
       }
 
-      this.ugens[ 'siner' ] = ( beats=4, center=0, amp=7 ) => {
-        const freq = btof( beats, 120 )
-        const __cycle = this.ugens.cycle( freq )
+      //genish.fade = function( beats=43, from = 0, to = 1 ) {
+      //  const g = this.ugens//__gen.ugens 
+      //  let fade, amt, beatsInSeconds = Gibber.Utility.beatsToFrequency( beats, 120 )
+       
+      //  if( from > to ) {
+      //    amt = from - to
 
-        const sine = __cycle 
-        const ugen = this.ugens.round( this.ugens.add( center, this.ugens.mul( sine, amp ) ) )
+      //    fade = g.gtp( g.sub( from, g.accum( g.div( amt, g.mul(beatsInSeconds, g.samplerate ) ), 0 ) ), to )
+      //  }else{
+      //    console.log( 'fading in' )
+      //    amt = to - from
+      //    fade = g.add( from, g.ltp( g.accum( g.div( amt, g.mul( beatsInSeconds, g.samplerate ) ), 0 ), to ) )
+      //  }
         
-        ugen.sine = sine
+      //  // XXX should this be available in ms? msToBeats()?
+      //  fade.shouldKill = {
+      //    after: beats, 
+      //    final: to
+      //  }
 
-        ugen.__onrender = ()=> {
-
-          ugen[0] = v => {
-            if( v === undefined ) {
-              return beats
-            }else{
-              beats = v
-              __cycle[0]( btof( beats, 120 ) )
-            }
-          }
-
-          Gibber.addSequencingToMethod( ugen, '0' )
-        }
-
-        return ugen
-      }
-
-      this.ugens[ 'cos' ] = ( beats=4, center=0, amp=7 ) => {
-        const freq = btof( beats, 120 )
-        const __cycle = this.ugens.cycle( freq, 0, { initialValue:1 })
-
-        const sine = __cycle 
-        const ugen = this.ugens.add( center, this.ugens.mul( sine, amp ) )
-
-        ugen[0] = v => {
-          if( v === undefined ) {
-            return beats
-          }else{
-            beats = v
-            __cycle[0]( btof( beats, 120 ) )
-          }
-        }
-
-        Gibber.addSequencingToMethod( ugen, '0' )
-
-        return ugen
-      }
-      this.ugens[ 'cosr' ] = ( beats=4, center=0, amp=7 ) => {
-        const freq = btof( beats, 120 )
-        const __cycle = this.ugens.cycle( freq, 0, { initialValue:1 })
-
-        const sine = __cycle 
-        const ugen = this.ugens.round( this.ugens.add( center, this.ugens.mul( sine, amp ) ) )
-
-        ugen[0] = v => {
-          if( v === undefined ) {
-            return beats
-          }else{
-            beats = v
-            __cycle[0]( btof( beats, 120 ) )
-          }
-        }
-
-        Gibber.addSequencingToMethod( ugen, '0' )
-
-        return ugen
-      }
-      this.ugens[ 'liner' ] = ( beats=4, min=0, max=7 ) => {
-        const line = this.ugens.beats( beats )
-
-        const ugen = this.ugens.round( this.ugens.add( min, this.ugens.mul( line, max-min ) ) )
-
-        ugen[0] = v => {
-          if( v === undefined ) {
-            return beats
-          }else{
-            beats = v
-            line[0]( v )
-          }
-        }
-
-        Gibber.addSequencingToMethod( ugen, '0' )
-
-        return ugen
-      }
-      this.ugens[ 'line' ] = ( beats=4, min=0, max=1 ) => {
-        const line = this.ugens.beats( beats )
-
-        const ugen = this.ugens.add( min, this.ugens.mul( line, max-min ) )
-
-        ugen[0] = v => {
-          if( v === undefined ) {
-            return beats
-          }else{
-            beats = v
-            line[0]( v )
-          }
-        }
-
-        Gibber.addSequencingToMethod( ugen, '0' )
-
-        return ugen
-      }
+      //  fade.name = 'fade'
+        
+      //  return fade
+      //}
     },
 
     export( target ) {

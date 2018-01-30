@@ -8,9 +8,6 @@ const WavePattern = {
   create( abstractGraph, values ) {
     // might change due to proxy functionality, so use 'let'
     let graph = abstractGraph.render( 'genish' ) // convert abstraction to genish.js graph
-    let count = -1
-
-    
 
     const patternOutputFnc = function( isViz = false ) {
       if( isViz && pattern.vizinit === false ) {
@@ -22,31 +19,44 @@ const WavePattern = {
       // edge case... because adjust might lead to a value of 1
       // which accum would wrap AFTER the obtaining the current value
       // leading to an undefined value for the pattern output (e.g. pattern[ pattern.length ] )
-      if( signalValue === 1 ) signalValue = 0
-
       let outputBeforeFilters = signalValue
 
       // if there is an array of values to read from... (signal is a phasor indexing into a values array)
-      if( pattern.__usesValues === true ) {
+      if( pattern.__usesValues === true && isViz === false ) {
+        // have to wait to declare this array for annotations to be processed
+        if( pattern.update !== undefined ) {
+          if( pattern.update.__currentIndex === undefined ) pattern.update.__currentIndex = []
+        }
+
+        if( signalValue === 1 ) signalValue = 0
+
         const scaledSignalValue = signalValue * ( pattern._values.length )
         const adjustedSignalValue = Math.abs( scaledSignalValue )//scaledSignalValue < 0 ? pattern._values.length + scaledSignalValue : scaledSignalValue
         const roundedSignalValue  = Math.floor( adjustedSignalValue )
+        //console.log( scaledSignalValue, adjustedSignalValue, roundedSignalValue )
         outputBeforeFilters = pattern._values[ roundedSignalValue ]
+
+        if( pattern.update !== undefined ) {
+          pattern.update.__currentIndex.push( roundedSignalValue )
+        }
       }
 
       let output = outputBeforeFilters
 
+
       // if we are running the pattern solely to visualize the waveform data...
       if( isViz === true && pattern.vizinit && Gibber.Environment.annotations === true ) {
-        Gibber.Environment.codeMarkup.updateWidget( pattern.widget, signalValue )
-      }else if( Gibber.Environment.annotations === true ) {
+        Gibber.Environment.codeMarkup.waveform.updateWidget( abstractGraph.paramID, signalValue, false )
+      }else if( Gibber.Environment.annotations === true && pattern.widget !== undefined ) {
         // mark the last placed value by the visualization as having a "hit", 
         // which will cause a dot to be drawn on the sparkline.
-        const idx = 60 + Math.round( pattern.nextTime * 12  )
+        const idx = 60 + Math.round( pattern.nextTime * 16  )
         const oldValue = pattern.widget.values[ idx ]
 
         pattern.widget.values[ idx ] = { value: signalValue, type:'hit' }
       }
+
+      if( typeof pattern.genReplace === 'function' ) { pattern.genReplace( output ) }
 
       if( output === pattern.DNR ) output = null
 
@@ -88,16 +98,20 @@ const WavePattern = {
       }
       newAbstractGraph.patterns.push( pattern )
       newAbstractGraph.graphs.push( graph )
-      newAbstractGraph.widget = oldAbstractGraph.widget
+      // XXX what the heck is the patterns array used for?
+      newAbstractGraph.widget = oldAbstractGraph.patterns[0].widget
 
       pattern.graph = graph
       pattern.signalOut = genish.gen.createCallback( graph, mem, false, false, Float64Array ),
       pattern.phase = 0
       pattern.initialized = false
       pattern.widget = newAbstractGraph.widget
+      
       // reset min and max values for sparkline in case amplitudes have changed
       pattern.widget.min = Infinity 
       pattern.widget.max = -Infinity
+      pattern.widget.values.length = 0
+      pattern.widget.storage.length = 0
 
       if( newAbstractGraph.__listeners === undefined ) {
         newAbstractGraph.__listeners = []
@@ -105,25 +119,34 @@ const WavePattern = {
       newAbstractGraph.__listeners.push( proxyFunction ) 
     }
 
-
     abstractGraph.__listeners.push( proxyFunction )
 
     pattern.clear = function() {
-      if( pattern.widget !== undefined ) { 
+      if( pattern.widget !== undefined  ) { 
+        if( abstractGraph.widget !== undefined ) {
+          delete abstractGraph.widget
+        }
         pattern.widget.clear()
+        delete pattern.widget
+        pattern.running = false
+      }else if( abstractGraph.widget !== undefined ) {
+        abstractGraph.widget.clear()
+        delete abstractGraph.widget
         pattern.running = false
       }
     }
 
+    Gibber.subscribe( 'clear', pattern.clear )
+
     // if memory block has not been defined, create new one by passing in an undefined value
     // else reuse exisitng memory block
-    let mem = genish.gen.memory || 44100
+    let mem = genish.gen.memory || 44100 * 2
 
     Object.assign( pattern, {
-      type:'WavePattern',
+      type: pattern.__usesValues ? 'Lookup' : 'WavePattern',
       graph,
       abstractGraph,
-      paramID:Math.round( Math.random() * 100000 ),
+      paramID:abstractGraph.paramID || Math.round( Math.random() * 1000000 ),
       _values:values,
       signalOut: genish.gen.createCallback( graph, mem, false, false, Float64Array ), 
       adjust: WavePattern.adjust.bind( pattern ),
@@ -133,14 +156,17 @@ const WavePattern = {
       running: false,
       initialized:false,
       vizinit:true,
+      shouldStop:false,
       __listeners:[]
     })
+
+    if( abstractGraph.paramID === undefined ) abstractGraph.paramID = pattern.paramID
 
     // for assigning an abstract graph to a variable
     // and then passing that variable as a pattern to a sequence
     if( abstractGraph.widget !== undefined ) {
       pattern.widget = abstractGraph.widget
-      Gibber.Environment.codeMarkup.genWidgets[ pattern.paramID ] = pattern.widget
+      Gibber.Environment.codeMarkup.waveform.widgets[ abstractGraph.paramID ] = pattern.widget
     }
 
     Gibber.Gen.connected.push( pattern )
@@ -155,7 +181,8 @@ const WavePattern = {
     
     this( true ) // I LOVE JS
 
-    Gibber.Environment.animationScheduler.add( this.pattern.runVisualization, 1000 / 60 )
+    if( this.pattern.shouldStop === false )
+      Gibber.Environment.animationScheduler.add( this.pattern.runVisualization, 1000 / 60 )
   },
 
   assignInputProperties( genishGraph, abstractGraph ) {
@@ -190,6 +217,10 @@ const WavePattern = {
   },
 
   adjust( ugen, ms ) {
+    if( ugen.shouldNotAdjust === true ) {
+      ugen.shouldNotAdjust = false
+      return
+    }
     // subtract one sample for the phase incremenet that occurs during
     // the genish.js callback
     const numberOfSamplesToAdvance = ( ms/1000 ) * (Gibber.__gen.genish.gen.samplerate  )
@@ -238,7 +269,11 @@ const WavePattern = {
     }
 
     if( typeof ugen.inputs !== 'undefined' ) {
-      ugen.inputs.forEach( u => WavePattern.adjust( u,ms ) ) 
+      
+      ugen.inputs.forEach( u => {
+        if( typeof u === 'object' || typeof u === 'function' )
+          WavePattern.adjust( u,ms )
+      }) 
     }
   }
  

@@ -9,6 +9,7 @@ let seqclosure = function( Gibber ) {
   let proto = {
     DO_NOT_OUTPUT: -987654321,
     _seqs: [],
+    type: 'sequence',
 
     create( values, timings, key, object = null, priority=0 ) {
       let seq = Object.create( this )
@@ -34,8 +35,52 @@ let seqclosure = function( Gibber ) {
         key,
         priority,
         trackID:-1,
-        octave:0
+        octave:0,
+        autorun:[]
       })
+
+      seq.autorun.init = false
+
+      if( key === 'note' || key === 'midinote' ) {
+        let __velocity = null 
+        seq.velocity = v => {
+          if( v !== undefined ) {
+            __velocity = v
+          }
+          
+          let output = __velocity
+          if( output === null ) {
+            let track = null
+            while( track === null ) {
+              track = seq.object
+            }
+
+            output = track.velocity()
+          }
+          return output
+        }
+
+        Gibber.addSequencingToMethod( seq, 'velocity', 1 )
+
+        let __duration = null 
+        seq.duration = v => {
+          if( v !== undefined ) {
+            __duration = v
+          }
+          let output = __duration
+          if( output === null ) {
+            let track = null
+            while( track === null ) {
+              track = seq.object
+            }
+
+            output = track.duration()
+          }
+          return output
+        }
+
+        Gibber.addSequencingToMethod( seq, 'duration', 1 )
+      }
       
       seq.init()
 
@@ -46,11 +91,11 @@ let seqclosure = function( Gibber ) {
 
     __noteFilter( args ) {
       args[ 0 ] = Theory.Note.convertToMIDI( args[ 0 ] )
-      if( this.octave !== 0 || this.object.octave !== 0 ) {
+      if( this.octave !== 0 || this.object.octave() !== 0 ) {
         if( this.octave !== 0 )
           args[0] += this.octave * 12
         else
-          args[0] += this.object.octave * 12
+          args[0] += this.object.octave() * 12
       }
 
       return args
@@ -79,7 +124,12 @@ let seqclosure = function( Gibber ) {
       if( this.key === 'note' ) {
         if( this.values.filters.findIndex( v => v.type === 'note' ) === -1 ) {
           // round the values for transformation to midinotes... XXX what about for Max version?
-          this.values.filters.push( args => { args[0] = Math.round( args[0] ); return args })
+          this.values.filters.push( args => { 
+            if( typeof args[0] !== 'string' ) args[0] = Math.round( args[0] )
+
+            return args 
+          })
+
           const noteFilter = this.__noteFilter.bind( this ) 
           noteFilter.type = 'note'
           this.values.filters.push( noteFilter )
@@ -96,8 +146,8 @@ let seqclosure = function( Gibber ) {
           }else{
             if( typeof chord === 'function' ) chord = chord()
             out = chord.map( Gibber.Theory.Note.convertToMIDI )
-            if( this.octave !== 0 || this.object.octave !== 0 ) {
-              out = this.octave !== 0 ? out.map( v => v + ( this.octave * 12 ) ) : out.map( v=> v + ( this.object.octave * 12 ) )
+            if( this.octave !== 0 || this.object.octave() !== 0 ) {
+              out = this.octave !== 0 ? out.map( v => v + ( this.octave * 12 ) ) : out.map( v=> v + ( this.object.octave() * 12 ) )
             }
           }
 
@@ -106,6 +156,19 @@ let seqclosure = function( Gibber ) {
           return args
         })
       }
+      
+       //XXX implement per sequence velocity
+      //if( this.key === 'note' || this.key === 'midinote' || this.key === 'chord' || this.key === 'midichord' ) {
+      //  this.values.filters.push( args => {
+      //    const velocity = this.velocity()
+      //    if( velocity !== null ) {
+      //      let msg = this.externalMessages[ 'velocity' ]( velocity, this.values.beat + this.values.beatOffset, this.trackID ) 
+      //      this.values.scheduler.msgs.push( msg ) 
+      //    }
+      //    return args
+      //  })
+    
+      //}
 
       // check in case it has no time values and is autotriggered by note / midinote messages
       if( this.timings !== undefined ) {
@@ -128,6 +191,7 @@ let seqclosure = function( Gibber ) {
 
           this.timings = timingsPattern
         }
+
         const proxyFunctionTimings = ( oldPattern, newPattern ) => {
           this.timings = newPattern
           this.timings.filters = oldPattern.filters.slice( 0 )
@@ -155,21 +219,26 @@ let seqclosure = function( Gibber ) {
     },
 
     externalMessages: {
-      note( number, beat, trackID ) {
+      note( number, beat, trackID, seq ) {
         // let msgstring = "add " + beat + " " + t + " " + n + " " + v + " " + d
+        const velocity = seq.velocity()
+        const duration = seq.duration()
 
-        return `${trackID} add ${beat} note ${number}` 
+        return `${trackID} add ${beat} note ${number} ${velocity} ${duration}` 
       },
-      midinote( number, beat, trackID ) {
-        return `${trackID} add ${beat} note ${number}` 
-      },
-      duration( value, beat, trackID ) {
-        return `${trackID} add ${beat} duration ${value}` 
-      },
+      midinote( number, beat, trackID, seq ) {
+        const velocity = seq.velocity()
+        const duration = seq.duration()
 
-      velocity( value, beat, trackID ) {
-        return `${trackID} add ${beat} velocity ${value}` 
+        return `${trackID} add ${beat} note ${number} ${velocity} ${duration}`        
       },
+      //duration( value, beat, trackID ) {
+      //  return `${trackID} add ${beat} duration ${value}` 
+      //},
+
+      //velocity( value, beat, trackID ) {
+      //  return `${trackID} add ${beat} velocity ${value}` 
+      //},
 
       chord( chord, beat, trackID ) {
         //console.log( chord )
@@ -200,7 +269,7 @@ let seqclosure = function( Gibber ) {
       if( this.running ) return
       this.running = true
       //console.log( 'starting with offset', this.offset ) 
-      Gibber.Scheduler.addMessage( this, Big( this.offset ) )     
+      Gibber.Scheduler.addMessage( this, Big( this.offset ), true, this.priority )     
       
       return this
     },
@@ -221,11 +290,11 @@ let seqclosure = function( Gibber ) {
       return this
     },
 
-    tick( scheduler, beat, beatOffset ) {
+    tick( scheduler, beat, beatOffset, priority=0 ) {
       if( !this.running ) return
 
       let _beatOffset = parseFloat( beatOffset.toFixed( 6 ) ),
-          shouldExecute
+          shouldExecute = false
 
       // if sequencer is not on autorun...
       if( this.timings !== undefined ) {
@@ -260,13 +329,33 @@ let seqclosure = function( Gibber ) {
         if( value !== null ) {
           // delay messages  
           if( this.externalMessages[ this.key ] !== undefined ) {
-
-            let msg = this.externalMessages[ this.key ]( value, beat + _beatOffset, this.trackID )
-            scheduler.msgs.push( msg, this.priority )
-
             //Gibber.Communication.send( msg )
+            if( this.autorun.init === true ) {
+              if( this.key === 'note' || this.key === 'midinote' ) {
+                if( this.object !== undefined && this.object !== null ) {
+                  if( Array.isArray( this.object.autorun ) ) {
+                    for( let seq of this.object.autorun ) {
+                      seq.tick( scheduler, beat, beatOffset, 1 )
+                    }
+                  }
+                }
+                // for per sequence (i.e. tracks[0].note[0]) sequences,
+                // primarily velocity (could also be duration)
+                if( Array.isArray( this.autorun ) ) {
+                  for( let seq of this.autorun ) {
+                    seq.tick( scheduler, beat, beatOffset, 1 )
+                  }
+                }
+              }
+            }else{
+              this.autorun.init = true
+            }
 
+            let msg = this.externalMessages[ this.key ]( value, beat + _beatOffset, this.trackID, this )
+            scheduler.msgs.push( msg, priority > this.priority ? priority : this.priority )
+          
           } else { // schedule internal method / function call immediately
+
             if( this.object !== undefined && this.key !== undefined ) {
               if( typeof this.object[ this.key ] === 'function' ) {
                 this.object[ this.key ]( value )
@@ -275,15 +364,6 @@ let seqclosure = function( Gibber ) {
               }
             }
           }
-
-          if( this.key === 'note' || this.key === 'midinote' ) {
-            if( Array.isArray( this.object.autorun ) ) {
-              for( let seq of this.object.autorun ) {
-                seq.tick( scheduler, beat, beatOffset )
-              }
-            }
-          }
-
         }
       } 
 
@@ -291,6 +371,13 @@ let seqclosure = function( Gibber ) {
       //this.timings.nextTime = _beatOffset // for scheduling pattern updates
     },
     
+  }
+
+  // create external messages for cc0, cc1, cc2 etc.
+  for( let i = 0; i < 128; i++ ) {
+    proto.externalMessages[ 'cc' + i ] =  ( value, beat, trackID ) => {
+       return  `${trackID} add ${beat} cc ${i} ${value}`
+    }
   }
 
   proto.create = proto.create.bind( proto )

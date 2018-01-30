@@ -12,6 +12,10 @@ let Scheduler = {
   init() {
     window.requestAnimationFrame( this.onAnimationFrame ) 
   },
+
+  clear() {
+    this.queue.data.length = 0
+  },
   
   add( func, offset, idx ) {
     let time = this.currentTime + offset
@@ -20,38 +24,48 @@ let Scheduler = {
     return time
   },
 
+  runSoon( evt ) {
+    
+    try{
+      evt.func()
+    }catch(e) {
+      console.log( 'annotiation error:', e.toString() )
+    }
+  },
+
   run( timestamp, dt ) {
     let nextEvent = this.queue.peek()
-    
-    if( this.queue.length && nextEvent.time <= timestamp ) {
+    //if( nextEvent === undefined ) return
+
+    if( nextEvent !== undefined && this.queue.length > 0 && nextEvent.time <= timestamp ) {
 
       // remove event
       this.queue.pop()
       
-      try{
-        nextEvent.func()
-      }catch( e ) {
-        console.log( e )
-        Gibber.Environment.error( 'annotation error:', e.toString() )
-      }
+      setTimeout( ()=> this.runSoon( nextEvent ) ) 
+      //try{
+      //  nextEvent.func()
+      //}catch( e ) {
+      //  console.log( e )
+      //  Gibber.Environment.error( 'annotation error:', e.toString() )
+      //}
       
       // call recursively
       this.run( timestamp )
     }
 
-    if( Gibber.Environment.codeMarkup.genWidgets.dirty === true ) {
-      Gibber.Environment.codeMarkup.drawWidgets()
+    if( Gibber.Environment.codeMarkup.waveform.widgets.dirty === true ) {
+      Gibber.Environment.codeMarkup.waveform.drawWidgets()
     }
   },
 
   onAnimationFrame( timestamp ) {
+    window.requestAnimationFrame( this.onAnimationFrame )
     const diff = timestamp - this.currentTime
     this.currentTime = timestamp
     this.visualizationTime.phase += diff 
 
     this.run( timestamp, diff )    
-
-    window.requestAnimationFrame( this.onAnimationFrame )
   },
 
   updateVisualizationTime( ms ) {

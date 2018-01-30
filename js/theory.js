@@ -129,26 +129,32 @@ let Scale = {
     let scale = Object.create( this )
     
     scale.rootNumber = scale.baseNumber = Note.convertToMIDI( root )
-    scale.degree = Scale.degrees.i 
+    scale.__degree = 'i' 
     scale.quality = 'minor'
 
     scale.root = function( v ) {
       if( typeof v === 'string' ) {
         root = v
-        scale.rootNumber = Note.convertToMIDI( root )
+        scale.baseNumber = Note.convertToMIDI( root )
+        const degree = Scale.degrees[ scale.quality ][ scale.__degree ]
+        scale.rootNumber = degree.offset + scale.baseNumber
       }else if( typeof v === 'number' ) {
-        scale.rootNumber = v
+        scale.baseNumber = v
+        const degree = Scale.degrees[ scale.quality ][ scale.__degree ]
+        scale.rootNumber = degree.offset + scale.baseNumber
+      }else if( typeof v === 'number' ) {
       }else{
         return root
       }
     }
+    scale.modulate = scale.root
 
     scale.degree = function( __degree ) {
       if( typeof __degree  === 'string' ) {
         const degree = Scale.degrees[ scale.quality ][ __degree ]
         
         scale.__degree = __degree
-        scale.root( degree.offset + scale.baseNumber )
+        scale.rootNumber = degree.offset + scale.baseNumber
         scale.mode( degree.mode )
 
       } else {
@@ -172,8 +178,9 @@ let Scale = {
     scale.mode.valueOf = () => { return mode }
 
     if( Gibber !== null ) {
-      Gibber.addSequencingToMethod( scale, 'root', 1 )
-      Gibber.addSequencingToMethod( scale, 'mode', 1 )
+      Gibber.addSequencingToMethod( scale, 'root', 3 )
+      Gibber.addSequencingToMethod( scale, 'modulate', 3 )
+      Gibber.addSequencingToMethod( scale, 'mode', 2 )
       Gibber.addSequencingToMethod( scale, 'degree',1 )
     }
 
@@ -276,8 +283,8 @@ module.exports = {
   init( _Gibber ) { 
     Gibber = _Gibber; 
 
-    Scale.master = Scale.create( 'c4','aeolian' )
     Scale.__initDegrees()
+    Scale.master = Scale.create( 'c4','aeolian' )
     
     return this 
   },

@@ -9,6 +9,7 @@ let Gibber = {
   Track:         null,
   Gen:           null,
   Euclid:        null,
+  Hex:           null,
   Seq:           null,
   Score:         null,
   Pattern:       null,
@@ -20,21 +21,25 @@ let Gibber = {
 
   export() {
     window.Steps         = this.Steps
+    window.HexSteps      = this.HexSteps
+    window.Automata      = this.Automata
     window.Seq           = this.Seq
     window.Score         = this.Score
     window.Track         = this.Track
     window.Scheduler     = this.Scheduler
     window.Pattern       = this.Pattern
     window.Euclid        = this.Euclid
+    window.Hex           = this.Hex
     window.Arp           = this.Arp
     window.Communication = this.Communication
     window.log           = this.log
     window.clear         = this.clear
     window.Theory        = this.Theory
-    window.WavePattern   = this.WavePattern
+    window.Lookup        = this.WavePattern
+    window.channels      = this.MIDI.channels
+    window.MIDI          = this.MIDI
 
     Gibber.__gen.export( window ) 
-    //Gibber.Gen.export( window )
 
     this.Theory.export( window )
     this.Utility.export( window )
@@ -44,6 +49,7 @@ let Gibber = {
     this.max = window.max
     this.$   = Gibber.Utility.create
 
+
     this.Environment.init( Gibber )
     this.Theory.init( Gibber )
     this.log = this.Environment.log
@@ -51,6 +57,7 @@ let Gibber = {
     if( this.Environment.debug ) {
       this.Scheduler.mockRun()
     }else{
+      this.MIDI.init( Gibber )
       this.Communication.init( Gibber ) 
     }
 
@@ -77,6 +84,7 @@ let Gibber = {
 
     let proxy = null
     Object.defineProperty( target, key, {
+      configurable:true,
       get() { return proxy },
       set(v) {
         if( proxy !== null && proxy.clear ) {
@@ -106,7 +114,7 @@ let Gibber = {
   },
 
   initSingletons: function( target ) {
-		var letters = "abcdefghijklmnopqrstuvwxyz"
+		var letters = "abcdefghjklmnopqrstuwxyz"
     
 		for(var l = 0; l < letters.length; l++) {
 
@@ -130,11 +138,39 @@ let Gibber = {
         }else{
           if( marker.clear ) marker.clear() 
         }
-        }
+      }
     }, 250 )
 
     Gibber.Gen.clear()
-    Gibber.Environment.codeMarkup.clear()
+    Gibber.Environment.clear()
+    Gibber.publish( 'clear' )
+    Gibber.initSingletons( window )
+  },
+
+  createPubSub() {
+    const events = {}
+    this.subscribe = function( key, fcn ) {
+      if( typeof events[ key ] === 'undefined' ) {
+        events[ key ] = []
+      }
+      events[ key ].push( fcn )
+    }
+
+    this.unsubscribe = function( key, fcn ) {
+      if( typeof events[ key ] !== 'undefined' ) {
+        const arr = events[ key ]
+
+        arr.splice( arr.indexOf( fcn ), 1 )
+      }
+    }
+
+    this.publish = function( key, data ) {
+      if( typeof events[ key ] !== 'undefined' ) {
+        const arr = events[ key ]
+
+        arr.forEach( v => v( data ) )
+      }
+    }
   },
 
   addSequencingToMethod( obj, methodName, priority, overrideName ) {
@@ -152,7 +188,10 @@ let Gibber = {
       if( obj.sequences[ methodName ][ id ] ) obj.sequences[ methodName ][ id ].clear()
 
       obj.sequences[ methodName ][ id ] = seq = Gibber.Seq( values, timings, overrideName, obj, priority )
-      seq.trackID = obj.id
+
+      // if the target is another sequencer (like for per-sequencer velocity control) it won't
+      // have an id property.. use existing trackID property instead.
+      seq.trackID = obj.id === undefined ? obj.trackID : obj.id
 
       if( id === 0 ) {
         obj[ methodName ].values  = obj.sequences[ methodName ][ 0 ].values
@@ -161,7 +200,7 @@ let Gibber = {
 
       obj[ methodName ][ id ] = seq
 
-      seq.delay( delay )
+      if( delay !== 0 ) seq.delay( delay )
       seq.start()
 
       // avoid this for gibber objects that don't communicate with Live such as Scale
@@ -170,15 +209,14 @@ let Gibber = {
       // setup code annotations to place values and widget onto pattern object
       // not gen~ object
       if( typeof values === 'object' && values.isGen ) {
-        Gibber.Gen.lastConnected = seq.values 
+        Gibber.Gen.lastConnected.push( seq.values )
       }
       
-      // XXX THIS WILL BREAK IF THERE ARE WAVE PATTERNS FOR BOTH VALUES AND TIMINGS
       if( typeof timing === 'object' && timings.isGen ) {
-        Gibber.Gen.lastConnected = seq.timings
+        Gibber.Gen.lastConnected.push( seq.timings )
       }
 
-      return seq
+      return seq 
     }
     
     obj[ methodName ].seq.delay = v => obj[ methodName ][ lastId ].delay( v )
@@ -226,6 +264,7 @@ let Gibber = {
     }
   },
 
+  // XXX THIS MUST BE REFACTORED. UGH.
   addMethod( obj, methodName, parameter, _trackID ) {
     let v = parameter.value,
         p,
@@ -240,52 +279,102 @@ let Gibber = {
       let msg = `add ${beat} set ${parameter.id} ${value}` 
       return msg
     }
-    
+
     obj[ methodName ] = p = ( _v ) => {
       if( p.properties.quantized === 1 ) _v = Math.round( _v )
 
+      const hasGen = Gibber.__gen.enabled
+
       if( _v !== undefined ) {
         if( typeof _v === 'object' && _v.isGen ) {
-          const __v = _v.render( 'gen' )
-          __v.assignTrackAndParamID( trackID, parameter.id )
+          let __v = hasGen === true ? _v.render( 'gen' ) : _v.render( 'genish' )
+
+          if( hasGen ) {
+            __v.assignTrackAndParamID( trackID, parameter.id )
+          }else{
+            Gibber.__gen.assignTrackAndParamID.call( _v, trackID, parameter.id )
+          }
           
           // if a gen is not already connected to this parameter, push
-          if( Gibber.Gen.connected.find( e => e.paramID === parameter.id ) === undefined ) {
+          const prevGen = Gibber.Gen.connected.find( e => e.paramID === parameter.id )
+          const genAlreadyAssigned = prevGen !== undefined
+          if( genAlreadyAssigned === true ) {
             Gibber.Gen.connected.push( __v )
           }
 
-          //Gibber.Gen.lastConnected = __v
+          if( hasGen === true ) { 
+            Gibber.Communication.send( `gen ${parameter.id} "${__v.out()}"` )
+          }else{
+            if( genAlreadyAssigned === true ) {
+              prevGen.clear()
+              prevGen.shouldStop = true
+              const idx = Gibber.Gen.connected.findIndex( e => e.paramID === parameter.id )
+              Gibber.Gen.connected.splice( idx, 1 )
+            }
 
+            _v.wavePattern = Gibber.WavePattern( _v )
+            
+            _v.wavePattern.genReplace = function( out ) { 
+              // XXX set min/max for gibberwocky.live only
+              out = Math.min( out, 1 )
+              out = Math.max( 0, out )
 
-          Gibber.Communication.send( `gen ${parameter.id} "${__v.out()}"` )
+              Gibber.Communication.send( `set ${parameter.id} ${out}` )
+            }
+
+            _v.wavePattern( false )
+            __v = _v
+          }
+
           Gibber.Communication.send( `select_track ${ trackID }` )
+
+          Gibber.__gen.gen.lastConnected.push( hasGen === true ? __v : _v )
           
           // disconnects for fades etc.
-          if( typeof __v.shouldKill === 'object' ) {
+          // XXX reconfigure for hasGen === false
+          if( typeof _v.shouldKill === 'object' ) {
             Gibber.Utility.future( ()=> {
-              Gibber.Communication.send( `ungen ${parameter.id}` )
-              Gibber.Communication.send( `set ${parameter.id} ${__v.shouldKill.final}` )
+              if( hasGen ) {
+                Gibber.Communication.send( `ungen ${parameter.id}` )
+                Gibber.Communication.send( `set ${parameter.id} ${_v.shouldKill.final}` )
+              }else{
+                Gibber.Communication.send( `ungen ${parameter.id}` )
+                //_v.wavePattern.clear()
 
-              let widget = Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
+                const prevGen = Gibber.Gen.connected.find( e => e.paramID === parameter.id )
+                prevGen.clear()
+                _v.patterns[0].shouldStop = true
+                const idx = Gibber.Gen.connected.findIndex( e => e.paramID === parameter.id )
+                Gibber.Gen.connected.splice( idx, 1 )
+                obj[ methodName ]( _v.shouldKill.final )
+
+                Gibber.Communication.send( `set ${parameter.id} ${_v.shouldKill.final}` )
+              }
+              
+              let widget = Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
               if( widget !== undefined && widget.mark !== undefined ) {
                 widget.mark.clear()
               }
-              delete Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
-            }, __v.shouldKill.after )
+              delete Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
+            }, _v.shouldKill.after )
           }
           
-          v = __v
+          v = hasGen === true ? __v : _v
         }else{
           if( v.isGen ) {
-            Gibber.Communication.send( `ungen ${parameter.id}` )
-            let widget = Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
+            if( hasGen ) {
+              Gibber.Communication.send( `ungen ${parameter.id}` )
+            }
+
+            let widget = Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
             if( widget !== undefined && widget.mark !== undefined ) {
               widget.mark.clear()
             }
-            delete Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
+            delete Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
           }
 
-          v = typeof _v === 'object' && _v.isGen ? _v.render( 'gen' ) : _v
+          v = typeof _v === 'object' && _v.isGen ? ( hasGen === true ? _v.render( 'gen' ) : _v.render('genish') ) : _v
+
           Gibber.Communication.send( `set ${parameter.id} ${v}` )
         }
       }else{
@@ -296,21 +385,137 @@ let Gibber = {
     p.properties = parameter
 
     Gibber.addSequencingToMethod( obj, methodName, 0, seqKey )
+  },
+
+  
+  addMIDIMethod( obj, methodName, channel, ccnum )  {
+    let v = 0,//parameter.value,
+        p,
+        seqKey = `${channel} cc ${ccnum}`
+
+    //console.log( "add method trackID", trackID )
+
+    Gibber.Seq.proto.externalMessages[ seqKey ] = ( val, offset=null ) => {
+      let msg = [ 0xb0 + channel, ccnum, val ]
+      const baseTime = offset !== null ? window.performance.now() + offset : window.performance.now()
+
+      Gibber.MIDI.send( msg, baseTime )
+    }
+    
+    obj[ methodName ] = p = ( initialGraph, shouldTransform=true ) => {
+      let transformedGraph = null, finishedGraph = null
+      //if( p.properties.quantized === 1 ) _v = Math.round( _v )
+      
+      if( typeof initialGraph === 'object' ) initialGraph.isGen = typeof initialGraph.gen === 'function'
+
+      if( initialGraph !== undefined ) {
+        if( typeof initialGraph === 'object' && initialGraph.isGen ) {
+          if( shouldTransform === true ) { // affine transform -1:1 to 0:127
+            transformedGraph = Gibber.Gen.genish.clamp(
+              Gibber.Gen.genish.floor(
+                Gibber.Gen.genish.mul( 
+                  Gibber.Gen.genish.div( 
+                    Gibber.Gen.genish.add( 1, initialGraph ), 
+                    2 
+                  ), 
+                127 
+                ) 
+              ),
+            0, 127 )
+          }
+
+          finishedGraph = shouldTransform ?
+            Gibber.Gen.genish.gen.createCallback( transformedGraph ) :
+            Gibber.Gen.genish.gen.createCallback( initialGraph ) 
+
+
+          Gibber.Gen.assignTrackAndParamID( finishedGraph, channel, ccnum )
+          
+          // if a gen is not already connected to this parameter, push
+          if( Gibber.Gen.connected.find( e => e.ccnum === ccnum && e.channel === channel ) === undefined ) {
+            Gibber.Gen.connected.push( finishedGraph )
+          }
+
+          Gibber.Gen.lastConnected = finishedGraph
+
+          if( '__widget__' in initialGraph ) {
+            initialGraph.__widget__.place()
+          }
+          
+          // disconnects for fades etc.
+          //if( typeof _v.shouldKill === 'object' ) {
+          //  Gibber.Utility.future( ()=> {
+          //    Gibber.Communication.send( `ungen ${parameter.id}` )
+          //    Gibber.Communication.send( `set ${parameter.id} ${_v.shouldKill.final}` )
+
+          //    let widget = Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
+          //    if( widget !== undefined && widget.mark !== undefined ) {
+          //      widget.mark.clear()
+          //    }
+          //    delete Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
+          //  }, _v.shouldKill.after )
+          //}
+          
+          v = finishedGraph
+          v.isGen = true
+        }else{
+          // if there was a gen assigned and now a number is being assigned...
+          if( v.isGen ) { 
+            console.log( 'removing gen', v )
+            let widget = Gibber.Environment.codeMarkup.genWidgets[ v.id ]
+
+            if( widget !== undefined && widget.mark !== undefined ) {
+              widget.mark.clear()
+            }
+            delete Gibber.Environment.codeMarkup.genWidgets[ v.id ]
+
+          }
+
+          v = initialGraph
+          Gibber.Seq.proto.externalMessages[ seqKey ]( v )
+          //Gibber.Communication.send( `set ${parameter.id} ${v}` )
+        }
+      }else{
+        return v
+      }
+    }
+    
+    // solo cc output for midi mapping
+    let soloing = false
+    obj[ methodName ].solo = function() {
+      if( soloing === false ) {
+        Gibber.Gen.__solo = { channel, ccnum }
+      }else{
+        Gibber.Gen.__solo = null
+      }
+
+      soloing = !soloing
+    }
+    //p.properties = parameter
+
+    Gibber.addSequencingToMethod( obj, methodName, 0, seqKey )
   }
 }
+
+// must be called before requiring objects that use pubsub
+Gibber.createPubSub()
 
 Gibber.Pattern = require( './pattern.js' )( Gibber )
 Gibber.Seq     = require( './seq.js' )( Gibber )
 Gibber.Score   = require( './score.js' )( Gibber )
 Gibber.Arp     = require( './arp.js' )( Gibber )
 Gibber.Euclid  = require( './euclidean.js')( Gibber )
-//Gibber.Gen     = require( './gen.js' )( Gibber )
+Gibber.Automata= require( './automata.js' )( Gibber )
+Gibber.Hex     = require( './hex.js')( Gibber )
 Gibber.Steps   = require( './steps.js' )( Gibber )
+Gibber.HexSteps= require( './hexSteps.js' )( Gibber )
 Gibber.Live    = require( './live.js' )( Gibber )
 Gibber.Track   = require( './track.js')( Gibber )
 Gibber.__gen   = require( './gen_abstraction.js' )( Gibber )
-Gibber.Gen = Gibber.__gen.gen
 
+Gibber.Channel = require( './channel.js' )( Gibber )
+Gibber.MIDI    = require( './midi.js' )
 Gibber.WavePattern = require( './wavePattern.js' )( Gibber )
 
+Gibber.Gen = Gibber.__gen.gen
 module.exports = Gibber
