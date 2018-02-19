@@ -270,14 +270,17 @@ const Marker = {
         marker = track.markup.textMarkers[ patternClassName ][ i ]
         pos = marker.find()
 
-        marker.doc.replaceRange( '' + pattern.values[ i ], pos.from, pos.to )
+        const itemClass = document.querySelector('.' + marker.className.split(' ')[0] )
+        itemClass.innerText = pattern.values[ i ]
       }
     }else{
       // single literal
       marker = track.markup.textMarkers[ patternClassName ]
       pos = marker.find()
 
-      marker.doc.replaceRange( '' + pattern.values[ 0 ], pos.from, pos.to )
+      const itemClass = document.querySelector('.' + marker.className.split(' ')[0] )
+      itemClass.innerText = pattern.values[ 0 ]
+      //marker.doc.replaceRange( '' + pattern.values[ 0 ], pos.from, pos.to )
       // newMarker = marker.doc.markText( pos.from, pos.to, { className: patternClassName + ' annotation-border' } )
       // track.markup.textMarkers[ patternClassName ] = newMarker
     }

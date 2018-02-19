@@ -5780,14 +5780,17 @@ const Marker = {
         marker = track.markup.textMarkers[ patternClassName ][ i ]
         pos = marker.find()
 
-        marker.doc.replaceRange( '' + pattern.values[ i ], pos.from, pos.to )
+        const itemClass = document.querySelector('.' + marker.className.split(' ')[0] )
+        itemClass.innerText = pattern.values[ i ]
       }
     }else{
       // single literal
       marker = track.markup.textMarkers[ patternClassName ]
       pos = marker.find()
 
-      marker.doc.replaceRange( '' + pattern.values[ 0 ], pos.from, pos.to )
+      const itemClass = document.querySelector('.' + marker.className.split(' ')[0] )
+      itemClass.innerText = pattern.values[ 0 ]
+      //marker.doc.replaceRange( '' + pattern.values[ 0 ], pos.from, pos.to )
       // newMarker = marker.doc.markText( pos.from, pos.to, { className: patternClassName + ' annotation-border' } )
       // track.markup.textMarkers[ patternClassName ] = newMarker
     }
@@ -7662,7 +7665,7 @@ let Gibber = {
           // if a gen is not already connected to this parameter, push
           const prevGen = Gibber.Gen.connected.find( e => e.paramID === parameter.id )
           const genAlreadyAssigned = prevGen !== undefined
-          if( genAlreadyAssigned === true ) {
+          if( genAlreadyAssigned === false ) {
             Gibber.Gen.connected.push( __v )
           }
 
@@ -7673,6 +7676,13 @@ let Gibber = {
             }else{
               Gibber.Communication.send( `sig ${parameter.id} expr "${__v.out()}"`, 'max' )
             } 
+            console.log( genAlreadyAssigned )
+            if( genAlreadyAssigned === true ) {
+              prevGen.clear()
+              prevGen.shouldStop = true
+              const idx = Gibber.Gen.connected.findIndex( e => e.paramID === parameter.id )
+              Gibber.Gen.connected.splice( idx, 1 )
+            }
           }else{
             if( genAlreadyAssigned === true ) {
               prevGen.clear()
@@ -7681,15 +7691,13 @@ let Gibber = {
               Gibber.Gen.connected.splice( idx, 1 )
             }
 
+            console.log( 'WP' )
+
             _v.wavePattern = Gibber.WavePattern( _v )
             
             _v.wavePattern.genReplace = function( out ) { 
-              // XXX set min/max for gibberwocky.live only
-              
-              console.log( 'REPLACE mode:', mode )
-
               if( mode === 'live' ) {
-                // clamp to {0,1}
+                // set min/max for live only
                 out = Math.min( out, 1 )
                 out = Math.max( 0, out )
                 Gibber.Communication.send( `set ${parameter.id} ${out}` )
@@ -7702,8 +7710,7 @@ let Gibber = {
             __v = _v
           }
 
-          if( mode === 'live' )
-            Gibber.Communication.send( `select_track ${ trackID }` )
+          if( mode === 'live' ) Gibber.Communication.send( `select_track ${ trackID }` )
 
           Gibber.__gen.gen.lastConnected.push( hasGen === true ? __v : _v )
           
@@ -10112,13 +10119,13 @@ const create = function( spec ) {
 				if( typeof velocity !== 'number' || velocity === 0) velocity = d.__velocity
 				if( typeof duration !== 'number' ) duration = this.__duration
 
-				Gibber.Communication.send( `midinote ${d.path} ${note} ${velocity} ${duration}` )
+				Gibber.Communication.send( `midinote ${d.path} ${note} ${velocity} ${duration}`, 'max' )
 			},
 
 			note( num, offset=null, doNotConvert=false ){
 				const notenum = doNotConvert === true ? num : Gibber.Theory.Note.convertToMIDI( num )
 
-				Gibber.Communication.send( `midinote ${d.path} ${notenum} ${d.__velocity} ${d.__duration}` )
+				Gibber.Communication.send( `midinote ${d.path} ${notenum} ${d.__velocity} ${d.__duration}`, 'max' )
 			},
 
 			chord( chord, offset=null, doNotConvert=false ) {
@@ -13455,8 +13462,6 @@ const WavePattern = {
   create( abstractGraph, values ) {
     // might change due to proxy functionality, so use 'let'
     let graph = abstractGraph.render( 'genish' ) // convert abstraction to genish.js graph
-
-    debugger
 
     const patternOutputFnc = function( isViz = false ) {
       if( isViz && pattern.vizinit === false ) {

@@ -318,7 +318,7 @@ let Gibber = {
           // if a gen is not already connected to this parameter, push
           const prevGen = Gibber.Gen.connected.find( e => e.paramID === parameter.id )
           const genAlreadyAssigned = prevGen !== undefined
-          if( genAlreadyAssigned === true ) {
+          if( genAlreadyAssigned === false ) {
             Gibber.Gen.connected.push( __v )
           }
 
@@ -329,6 +329,13 @@ let Gibber = {
             }else{
               Gibber.Communication.send( `sig ${parameter.id} expr "${__v.out()}"`, 'max' )
             } 
+            console.log( genAlreadyAssigned )
+            if( genAlreadyAssigned === true ) {
+              prevGen.clear()
+              prevGen.shouldStop = true
+              const idx = Gibber.Gen.connected.findIndex( e => e.paramID === parameter.id )
+              Gibber.Gen.connected.splice( idx, 1 )
+            }
           }else{
             if( genAlreadyAssigned === true ) {
               prevGen.clear()
@@ -337,15 +344,13 @@ let Gibber = {
               Gibber.Gen.connected.splice( idx, 1 )
             }
 
+            console.log( 'WP' )
+
             _v.wavePattern = Gibber.WavePattern( _v )
             
             _v.wavePattern.genReplace = function( out ) { 
-              // XXX set min/max for gibberwocky.live only
-              
-              console.log( 'REPLACE mode:', mode )
-
               if( mode === 'live' ) {
-                // clamp to {0,1}
+                // set min/max for live only
                 out = Math.min( out, 1 )
                 out = Math.max( 0, out )
                 Gibber.Communication.send( `set ${parameter.id} ${out}` )
@@ -358,8 +363,7 @@ let Gibber = {
             __v = _v
           }
 
-          if( mode === 'live' )
-            Gibber.Communication.send( `select_track ${ trackID }` )
+          if( mode === 'live' ) Gibber.Communication.send( `select_track ${ trackID }` )
 
           Gibber.__gen.gen.lastConnected.push( hasGen === true ? __v : _v )
           

@@ -36,13 +36,13 @@ const create = function( spec ) {
 				if( typeof velocity !== 'number' || velocity === 0) velocity = d.__velocity
 				if( typeof duration !== 'number' ) duration = this.__duration
 
-				Gibber.Communication.send( `midinote ${d.path} ${note} ${velocity} ${duration}` )
+				Gibber.Communication.send( `midinote ${d.path} ${note} ${velocity} ${duration}`, 'max' )
 			},
 
 			note( num, offset=null, doNotConvert=false ){
 				const notenum = doNotConvert === true ? num : Gibber.Theory.Note.convertToMIDI( num )
 
-				Gibber.Communication.send( `midinote ${d.path} ${notenum} ${d.__velocity} ${d.__duration}` )
+				Gibber.Communication.send( `midinote ${d.path} ${notenum} ${d.__velocity} ${d.__duration}`, 'max' )
 			},
 
 			chord( chord, offset=null, doNotConvert=false ) {
