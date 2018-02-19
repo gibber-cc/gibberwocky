@@ -25,7 +25,7 @@ let Communication = {
   init( _Gibber ) { 
     Gibber = _Gibber
 
-    //this.liveSocket = this.createWebSocket( Gibber.Live.init, this.livePort, '127.0.0.1', 'live' )
+    this.liveSocket = this.createWebSocket( Gibber.Live.init, this.livePort, '127.0.0.1', 'live' )
     this.maxSocket  = this.createWebSocket( Gibber.Max.init,  this.maxPort,  '127.0.0.1', 'max'  )
 
     this.send = this.send.bind( Communication )
@@ -109,10 +109,12 @@ let Communication = {
         let param_id = data[ i ]
         let param_value = data[ i+1 ] 
 
-        if( param_value < 0 ) {
-          param_value = 0
-        }else if( param_value > 1 ) {
-          param_value = 1
+        if( socket === Communication.liveSocket ) {
+          if( param_value < 0 ) {
+            param_value = 0
+          }else if( param_value > 1 ) {
+            param_value = 1
+          }
         }
           
         Gibber.Environment.codeMarkup.waveform.updateWidget( param_id, 1 - param_value )

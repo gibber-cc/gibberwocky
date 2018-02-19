@@ -59,23 +59,25 @@ module.exports = function( Gibber ) {
           //  Gibber.Gen.connected.push( genGraph )
           //}
 
-          Gibber.Gen.lastConnected.unshift( genGraph.render('gen') )
+          const rendered = genGraph.render('gen')
+          Gibber.Gen.lastConnected.unshift( rendered )
 
           //if( '__widget__' in genGraph ) {
           //  genGraph.__widget__.place()
           //}
 
-          Gibber.Communication.send( `sig ${signalNumber} expr "${genGraph.render('gen').out()}"`, 'max' )
+          Gibber.Communication.send( `sig ${signalNumber} expr "${rendered.out()}"`, 'max' )
           if( genGraph.isGen ) {
             Gibber.Environment.codeMarkup.TEST = genGraph
           }
 
-          Max.signals[ signalNumber ].genGraph = genGraph
+          Max.signals[ signalNumber ].genGraph = rendered
         }
         Max.signals[ signalNumber ].id = signalNumber
         Max.signals[ signalNumber ].__client = 'max'
 
-        Gibber.addSequencingToMethod( Max.signals, signalNumber, 0, null, 'max' )
+        Gibber.addMethod( Max.signals, signalNumber, { quantized: 0, id:signalNumber }, null, 'max' )
+        //Gibber.addSequencingToMethod( Max.signals, signalNumber, 0, null, 'max' )
       }
 
       Max.params.path = 'set'

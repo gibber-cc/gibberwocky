@@ -294,6 +294,7 @@ let Gibber = {
     }
 
     obj[ methodName ] = p = ( _v ) => {
+
       if( p.properties.quantized === 1 ) _v = Math.round( _v )
 
       const hasGen = Gibber.__gen.enabled
@@ -308,6 +309,12 @@ let Gibber = {
             Gibber.__gen.assignTrackAndParamID.call( _v, trackID, parameter.id )
           }
           
+          //_v.assignTrackAndParamID( trackID, parameter.id )
+
+          //// if a gen is not already connected to this parameter, push
+          //if( Gibber.Gen.connected.find( e => e.paramID === parameter.id ) === undefined ) {
+          //  Gibber.Gen.connected.push( _v )
+          //}
           // if a gen is not already connected to this parameter, push
           const prevGen = Gibber.Gen.connected.find( e => e.paramID === parameter.id )
           const genAlreadyAssigned = prevGen !== undefined
@@ -315,10 +322,13 @@ let Gibber = {
             Gibber.Gen.connected.push( __v )
           }
 
-          debugger
 
           if( hasGen === true ) { 
-            Gibber.Communication.send( `gen ${parameter.id} "${__v.out()}"` )
+            if( mode === 'live' ) {
+              Gibber.Communication.send( `gen ${parameter.id} "${__v.out()}"`, 'live' )
+            }else{
+              Gibber.Communication.send( `sig ${parameter.id} expr "${__v.out()}"`, 'max' )
+            } 
           }else{
             if( genAlreadyAssigned === true ) {
               prevGen.clear()
@@ -331,17 +341,25 @@ let Gibber = {
             
             _v.wavePattern.genReplace = function( out ) { 
               // XXX set min/max for gibberwocky.live only
-              out = Math.min( out, 1 )
-              out = Math.max( 0, out )
+              
+              console.log( 'REPLACE mode:', mode )
 
-              Gibber.Communication.send( `set ${parameter.id} ${out}` )
+              if( mode === 'live' ) {
+                // clamp to {0,1}
+                out = Math.min( out, 1 )
+                out = Math.max( 0, out )
+                Gibber.Communication.send( `set ${parameter.id} ${out}` )
+              }else if( mode === 'max' ) {
+                Gibber.Communication.send( `sig ${parameter.id} expr "out1=${out};"` )
+              }
             }
 
             _v.wavePattern( false )
             __v = _v
           }
 
-          Gibber.Communication.send( `select_track ${ trackID }` )
+          if( mode === 'live' )
+            Gibber.Communication.send( `select_track ${ trackID }` )
 
           Gibber.__gen.gen.lastConnected.push( hasGen === true ? __v : _v )
           
@@ -350,7 +368,7 @@ let Gibber = {
           if( typeof _v.shouldKill === 'object' ) {
             Gibber.Utility.future( ()=> {
               if( hasGen ) {
-                Gibber.Communication.send( `ungen ${parameter.id}` )
+                Gibber.Communication.send( `ungen ${parameter.id}`, 'live' )
                 Gibber.Communication.send( `set ${parameter.id} ${_v.shouldKill.final}` )
               }else{
                 Gibber.Communication.send( `ungen ${parameter.id}` )
@@ -363,7 +381,7 @@ let Gibber = {
                 Gibber.Gen.connected.splice( idx, 1 )
                 obj[ methodName ]( _v.shouldKill.final )
 
-                Gibber.Communication.send( `set ${parameter.id} ${_v.shouldKill.final}` )
+                Gibber.Communication.send( `set ${parameter.id} ${_v.shouldKill.final}`, 'live' )
               }
               
               let widget = Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
@@ -378,7 +396,8 @@ let Gibber = {
         }else{
           if( v.isGen ) {
             if( hasGen ) {
-              Gibber.Communication.send( `ungen ${parameter.id}` )
+              if( mode === 'live' )
+                Gibber.Communication.send( `ungen ${parameter.id}`, 'live' )
             }
 
             let widget = Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
@@ -390,7 +409,11 @@ let Gibber = {
 
           v = typeof _v === 'object' && _v.isGen ? ( hasGen === true ? _v.render( 'gen' ) : _v.render('genish') ) : _v
 
-          Gibber.Communication.send( `set ${parameter.id} ${v}` )
+          if( mode === 'live' ) {
+            Gibber.Communication.send( `set ${parameter.id} ${v}`, 'live' )
+          }else if( mode === 'max' ) {
+            Gibber.Communication.send( `sig ${parameter.id} expr "out1=${v};"`, 'max' )
+          }
         }
       }else{
         return v

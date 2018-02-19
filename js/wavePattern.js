@@ -9,6 +9,8 @@ const WavePattern = {
     // might change due to proxy functionality, so use 'let'
     let graph = abstractGraph.render( 'genish' ) // convert abstraction to genish.js graph
 
+    debugger
+
     const patternOutputFnc = function( isViz = false ) {
       if( isViz && pattern.vizinit === false ) {
         return
