@@ -18,27 +18,46 @@
           <div id='console'></div>
         </div>
 
-        <div class="microlib_tabs_tab" data-title="lom">
-          <div id='lomView'></div>
+        <div class="microlib_tabs_tab schemas" data-title="schemas">
+          <div id='schemaTabs' class='microlib_tabs'>
+            <div class="microlib_tabs_tab" data-title="lom">
+              <div id='lomView'></div>
+            </div>
+
+            <div class="microlib_tabs_tab" data-title="mom">
+              <div id='momView'></div>
+            </div>
+          </div>
+        </div>
+        <div class="microlib_tabs_tab demos" data-title="demos">
+          <div id='demoTabs' class='microlib_tabs'>
+            <div class="microlib_tabs_tab" data-title="live demos">
+              <div id='liveDemosView'></div>
+            </div>
+
+            <div class="microlib_tabs_tab" data-title="max demos">
+              <div id='maxDemosView'></div>
+            </div>
+
+            <div class="microlib_tabs_tab" data-title="midi demos">
+              <div id='midiDemosView'></div>
+            </div>
+          </div>
         </div>
 
-        <div class="microlib_tabs_tab" data-title="mom">
-          <div id='momView'></div>
-        </div>
-
-        <div class="microlib_tabs_tab" data-title="demos">
-          <div id="demos"></div>
-        </div>
-
-        <div class="microlib_tabs_tab" data-title="midi">
-          <div id='MIDIView'>
-            <!--<label>select MIDI input:</label><br><select id='midiInputSelect'></select><br>-->
-            <label>select MIDI output:</label><br><select id='midiOutputSelect'></select><br>
+        <div class="microlib_tabs_tab" data-title="config">
+          <div id='configView'>
             <!--<label>cc modulation output rate (in Hz):</label><br>-->
             <!--<input id='modulationRate' value=60></input><br>-->
-            <!--<h4>clock sync:</h4>-->
-            <!--<input type='radio' id='internalSyncRadio' name='sync' checked>internal</input>-->
-            <!--<input type='radio' id='clockSyncRadio' name='sync'>MIDI clock</input>-->
+            <h4>Clock sync:</h4>
+            <input type='radio' id='liveSyncRadio' name='sync' checked>Live</input><br>
+            <input type='radio' id='maxSyncRadio' name='sync'>Max/MSP</input><br>
+            <input type='radio' id='clockSyncRadio' name='sync'>MIDI Clock</input><br>     
+            <input type='radio' id='internalSyncRadio' name='sync'>Internal</input>
+
+            <h4>MIDI I/O</h4>
+            <label>MIDI input (clock):</label><br><select id='midiInputSelect'></select><br>
+            <label>MIDI output:</label><br><select id='midiOutputSelect'></select><br>
           </div>
         </div>
 

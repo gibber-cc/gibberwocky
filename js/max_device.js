@@ -13,7 +13,25 @@ const create = function( spec ) {
 		const d = Object.assign({}, spec, {
 			__velocity: 127,
 			__duration: 500,
+      __octave:0,
+      __client:'max',
 
+      octave( v ) {
+        if( v===undefined ) return this.__octave
+
+        this.__octave = v
+        return this
+      },
+      
+      duration( value ) {
+        if( value === undefined ) return this.__duration
+        this.__duration = value
+      },
+      
+      velocity( value ) {
+        if( value === undefined ) return this.__velocity
+        this.__velocity = value
+      },
 			midinote( note, velocity, duration ) {
 				if( typeof velocity !== 'number' || velocity === 0) velocity = d.__velocity
 				if( typeof duration !== 'number' ) duration = this.__duration
@@ -25,14 +43,6 @@ const create = function( spec ) {
 				const notenum = doNotConvert === true ? num : Gibber.Theory.Note.convertToMIDI( num )
 
 				Gibber.Communication.send( `midinote ${d.path} ${notenum} ${d.__velocity} ${d.__duration}` )
-			},
-
-			duration( value ) {
-				d.__duration = value
-			},
-
-			velocity( value ) {
-				d.__velocity = value 
 			},
 
 			chord( chord, offset=null, doNotConvert=false ) {
@@ -89,14 +99,16 @@ const create = function( spec ) {
 		// these are not needed for velocity and duration, which are
 		// only used internally to the client
 		const external = {
-		  [	d.path + 'note' ]  : ( value, beat ) => {
-			  const midivalue = value // Theory.Note.convertToMIDI( value )
+		  [	d.path + 'note' ]  : ( value, beat, id, seq ) => {
+        const velocity = seq.velocity()
+        const duration = seq.duration()
 
-			  let msg = `add ${beat} midinote ${d.path} ${midivalue} ${d.__velocity} ${d.__duration}` 
+			  let msg = `add ${beat} midinote ${d.path} ${value} ${velocity} ${duration}` 
+
 			  return msg
 		  },
 
-		  [ d.path + 'midinote' ] : ( value, beat ) => {
+		  [ d.path + 'midinote' ] : ( value, beat, id, seq ) => {
 			  let msg = `add ${beat} midinote ${d.path} ${value} ${d.__velocity} ${d.__duration}` 
 			  return msg
 			},

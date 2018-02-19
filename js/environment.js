@@ -10,6 +10,8 @@ require( '../node_modules/codemirror/addon/hint/javascript-hint.js' )
 
 require( './tabs-standalone.microlib-latest.js' )
 
+const types = [ 'live', 'max', 'midi' ]
+
 let Environment = {
   codeMarkup: require( './codeMarkup.js' ),
   debug: false,
@@ -42,9 +44,11 @@ let Environment = {
 
   createSidePanel() {
     this.tabs = new ML.Tabs( '#tabs' )
+    this.demotabs = new ML.Tabs( '#demoTabs' )
+    this.schematabs = new ML.Tabs( '#schemaTabs' )
 
     this.createConsole()
-    this.createDemoList()
+    this.createDemoLists()
   },
 
   clear() {
@@ -84,7 +88,7 @@ let Environment = {
       mode:'javascript', 
       keyMap:'gibber',
       autofocus:true, 
-      value: Gibber.Examples.introduction,
+      value: Gibber.Examples.live.introduction,
       matchBrackets: true,
       autoCloseBrackets: true,
       extraKeys: {"Ctrl-Space": "autocomplete"},
@@ -122,25 +126,28 @@ let Environment = {
     console.error = console.__error
   },
 
-  createDemoList() {
-    let container = document.querySelector('#demos'),
-        list = document.createElement( 'ul' )
+  createDemoLists() {
 
-    for( let demoName in Gibber.Examples ) {
-      let li = document.createElement( 'li' ),
-          txt = Gibber.Examples[ demoName ]
-      
-      li.innerText = demoName 
+    for( let type of types ) {
+      let container = document.querySelector(`#${type}DemosView`),
+          list = document.createElement( 'ul' )
 
-      li.addEventListener( 'click', () => {
-        Environment.codemirror.setValue( txt )
-      })
+      for( let demoName in Gibber.Examples[ type ] ) {
+        let li = document.createElement( 'li' ),
+            txt = Gibber.Examples[ type ][ demoName ]
+        
+        li.innerText = demoName 
+
+        li.addEventListener( 'click', () => {
+          Environment.codemirror.setValue( txt )
+        })
+        
+        list.appendChild( li )
+      }
       
-      list.appendChild( li )
+      container.innerHTML = ''
+      container.appendChild( list )
     }
-    
-    container.innerHTML = ''
-    container.appendChild( list )
   },
 
   log( ...args ) {

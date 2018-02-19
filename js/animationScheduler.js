@@ -29,7 +29,7 @@ let Scheduler = {
     try{
       evt.func()
     }catch(e) {
-      console.log( 'annotiation error:', e.toString() )
+      console.log( 'annotation error:', e.toString() )
     }
   },
 

@@ -40,8 +40,11 @@ const Marker = {
     let obj = window[ path[0] ]
 
     for( let i = 1; i < path.length; i++ ) {
-      const key = path[ i ]
+      let key = path[ i ]
       if( key !== undefined ) {
+        if( key[0] === "'" || key[0] === '"' ) {
+          key = key.slice(1,-1)
+        }
         obj = obj[ key ]
       }else{
         break;

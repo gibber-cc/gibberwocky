@@ -1,10 +1,18 @@
 module.exports = function( Marker ) {
+
+
+  const strip = function( unstripped ) {
+    //const unstripped = node.property.type === 'Identifier' ? node.property.name : node.property.raw )
+    const stripped   = unstripped[0] === '"' || unstripped[0] === "'" ? unstripped.slice(1,-1) : unstripped
+    return stripped
+  }
+
   return {
     Literal( node, state, cb ) {
       state.push( node.value )
     },
     Identifier( node, state, cb ) {
-      state.push( node.name )
+      state.push( strip( node.name ) )
     },
     AssignmentExpression( expression, state, cb ) {
       // the only assignments we're interested in for annotation purposes are
@@ -71,16 +79,20 @@ module.exports = function( Marker ) {
       // XXX why was this here?
       //if( node.object.name === 'tracks' ) state.length = 0
 
+      // for any member name, make sure to get rid of potential quotes surrounding it using
+      // the strip function.
+      
       if( node.object.type !== 'Identifier' ) {
         if( node.property ) {
-          state.unshift( node.property.type === 'Identifier' ? node.property.name : node.property.raw )
+          const unstripped = node.property.type === 'Identifier' ? node.property.name : node.property.raw 
+          state.unshift( strip( unstripped ) )
         }
         cb( node.object, state )
       }else{
         if( node.property !== undefined ) { // if the objects is an array member, e.g. tracks[0]
-          state.unshift( node.property.raw || node.property.name )
+          state.unshift( strip( node.property.raw || node.property.name ) )
         }
-        state.unshift( node.object.name )
+        state.unshift( strip( node.object.name ) )
       }
 
     },

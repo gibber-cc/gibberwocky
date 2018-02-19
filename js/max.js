@@ -11,21 +11,23 @@ module.exports = function( Gibber ) {
     receives:{},
 
     init() {
-      Gibber.Communication.callbacks.scene = Max.handleScene
-      Gibber.Communication.send( 'get_scene' )     
+      Gibber.Communication.callbacks.schemas.max= Max.handleScene
+      Gibber.Communication.send( 'get_scene', 'max' )     
     },
 
     handleScene( msg ) {
       Max.id = Communication.querystring.track
 
-      Max.MOM = msg
+      if( msg.namespaces !== undefined ) {
+        Max.MOM = msg
 
-      Max.processMOM()
+        Max.processMOM()
+      }
     },
 
     clear() {
       for( let i = 0; i < Max.signals.length; i++ ) {
-        Gibber.Communication.send( `sig ${i} clear` )
+        Gibber.Communication.send( `sig ${i} clear`, 'max' )
       }
     },
 
@@ -60,7 +62,7 @@ module.exports = function( Gibber ) {
             genGraph.__widget__.place()
           }
 
-          Gibber.Communication.send( `sig ${signalNumber} expr "${genGraph.out()}"` )
+          Gibber.Communication.send( `sig ${signalNumber} expr "${genGraph.out()}"`, 'max' )
           if( genGraph.isGen ) {
             Gibber.Environment.codeMarkup.TEST = genGraph
           }
@@ -75,9 +77,9 @@ module.exports = function( Gibber ) {
 
       for( let receive in Max.MOM.receives ) {
         Max.receives[ receive ] = function( v ) {
-          Gibber.Communication.send( `${receive} ${v}` )
+          Gibber.Communication.send( `${receive} ${v}`, 'max' )
         }
-        Gibber.addSequencingToMethod( Max.receives, receive, 0 )
+        Gibber.addSequencingToMethod( Max.receives, receive, 0, 'max' )
       }
 
       for( let device of Max.MOM.root.devices ) {
@@ -91,7 +93,7 @@ module.exports = function( Gibber ) {
       const addr = target === undefined ? str : target.address + ' ' + str
 
       const ns = function( ...args ) { 
-        Gibber.Communication.send( addr + ' ' + args.join(' ') )
+        Gibber.Communication.send( addr + ' ' + args.join(' '), 'max' )
       }
       ns.address = ns.path = str
       
@@ -114,7 +116,7 @@ module.exports = function( Gibber ) {
 
       target[ str ] = proxy 
 
-      Gibber.addSequencingToMethod( target, str, 0, addr )           
+      Gibber.addSequencingToMethod( target, str, 0, addr, 'max' )           
 
       Gibber.Seq.proto.externalMessages[ addr ] = ( value, beat ) => {
         let msg = `add ${beat} ${addr} ${value}`  

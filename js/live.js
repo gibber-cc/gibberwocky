@@ -2,8 +2,8 @@ module.exports = function( Gibber ) {
 
 let Live = {
   init() {
-    Gibber.Communication.callbacks.scene = Live.handleScene
-    Gibber.Communication.send( 'get_scene' )
+    Gibber.Communication.callbacks.schemas.live = Live.handleScene
+    Gibber.Communication.send( 'get_scene', 'live' )
   },
 
   tracks:[],
@@ -13,9 +13,11 @@ let Live = {
   handleScene( msg ) {
     Live.id = Communication.querystring.track
 
-    Live.LOM = msg
+    if( msg.tracks !== undefined ) {
+      Live.LOM = msg
 
-    Live.processLOM()
+      Live.processLOM()
+    }
   },
 
   processLOM() {

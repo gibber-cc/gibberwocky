@@ -189,11 +189,11 @@ span.cm-string {color: rgb(225, 225, 225) !important }
 
 #lomView ul { padding: 0 }
 
-#demos ul { margin:0; padding: 0; list-style:none; cursor:pointer }
+#liveDemosView ul, #maxDemosView ul, #midiDemosView ul { margin:0; padding: 0; list-style:none; cursor:pointer }
 
-#demos ul li { margin-bottom: 5px }
+#liveDemosView ul li, #maxDemosView ul li, #midiDemosView ul li { margin-bottom: 5px }
 
-#demos ul li:hover { background: rgba( 255,255,255, .15) }
+#liveDemosView ul li:hover, #maxDemosView ul li:hover, #midiDemosView ul li:hover { background: rgba( 255,255,255, .15) }
 
 #splitbar {
   display:inline-block;
@@ -250,6 +250,28 @@ span.cm-string {color: rgb(225, 225, 225) !important }
   background:rgba(89, 151, 198, .6) !important
 }
 
+.vtree{ padding-left: 0 }
+
+.demos .microlib_tabs_nav_item, .demos .microlib_tabs_nav_item.microlib_active {
+  background:transparent !important;
+  color:#ccc;
+  text-decoration:underline;
+  border:none;
+}
+
+.demos .microlib_tabs_nav_item.microlib_active {
+  color:rgba(109, 171, 238, 1) !important;
+}
+.schemas .microlib_tabs_nav_item, .schemas .microlib_tabs_nav_item.microlib_active {
+  background:transparent !important;
+  color:#ccc;
+  text-decoration:underline;
+  border:none;
+}
+
+.schemas .microlib_tabs_nav_item.microlib_active {
+  color:rgba(109, 171, 238, 1) !important;
+}
 #sidebar select, #sidebar input {
   background:#aaa;
   margin-bottom:10px;
@@ -262,4 +284,6 @@ label { margin-bottom:5px; }
 }
 
 #help p { max-width: 24em; margin-top:0 }
+
+.demos { padding-left:0 }
 

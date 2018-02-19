@@ -1725,7 +1725,7 @@ let gen = {
 
 module.exports = gen
 
-},{"memory-helper":427}],31:[function(require,module,exports){
+},{"memory-helper":429}],31:[function(require,module,exports){
 'use strict'
 
 let gen  = require('./gen.js')
@@ -3748,7 +3748,7 @@ let Scheduler = {
     try{
       evt.func()
     }catch(e) {
-      console.log( 'annotiation error:', e.toString() )
+      console.log( 'annotation error:', e.toString() )
     }
   },
 
@@ -3802,7 +3802,7 @@ Scheduler.onAnimationFrame = Scheduler.onAnimationFrame.bind( Scheduler )
 
 module.exports = Scheduler
 
-},{"./priorityqueue.js":111}],75:[function(require,module,exports){
+},{"./priorityqueue.js":113}],75:[function(require,module,exports){
 const Utility = require( '../../utility.js' )
 const $ = Utility.create
 
@@ -3989,7 +3989,7 @@ module.exports = function( Marker ) {
 }
 
 
-},{"../../utility.js":118}],76:[function(require,module,exports){
+},{"../../utility.js":120}],76:[function(require,module,exports){
 module.exports = function( Marker ) {
   'use strict'
 
@@ -4277,7 +4277,7 @@ module.exports = function( node, cm, track, objectName, vOffset=0 ) {
   }
 }
 
-},{"../../utility.js":118}],82:[function(require,module,exports){
+},{"../../utility.js":120}],82:[function(require,module,exports){
 const Utility = require( '../../utility.js' )
 const $ = Utility.create
 
@@ -4359,7 +4359,7 @@ module.exports = function( node, cm, track, objectName, state, cb ) {
 }  
 
 
-},{"../../utility.js":118}],83:[function(require,module,exports){
+},{"../../utility.js":120}],83:[function(require,module,exports){
 module.exports = ( patternObject, marker, className, cm ) => {
   patternObject.commentMarker = marker
   let update = () => {
@@ -4490,7 +4490,7 @@ module.exports = function( classNamePrefix, patternObject ) {
 }
 
 
-},{"../../utility.js":118}],85:[function(require,module,exports){
+},{"../../utility.js":120}],85:[function(require,module,exports){
 const Utility = require( '../../utility.js' )
 const $ = Utility.create
 
@@ -4612,7 +4612,7 @@ module.exports = ( patternObject, marker, className, cm, track ) => {
 }
 
 
-},{"../../utility.js":118}],86:[function(require,module,exports){
+},{"../../utility.js":120}],86:[function(require,module,exports){
 module.exports = ( patternObject, marker, className, cm, track, patternNode, patternType, seqNumber ) => {
   Gibber.Environment.codeMarkup.processGen( patternNode, cm, null, patternObject, null, -1 )
 
@@ -4632,6 +4632,14 @@ module.exports = ( patternObject, marker, className, cm, track, patternNode, pat
 
 },{}],87:[function(require,module,exports){
 module.exports = function( Marker ) {
+
+
+  const strip = function( unstripped ) {
+    //const unstripped = node.property.type === 'Identifier' ? node.property.name : node.property.raw )
+    const stripped   = unstripped[0] === '"' || unstripped[0] === "'" ? unstripped.slice(1,-1) : unstripped
+    return stripped
+  }
+
   return {
     Literal( node, state, cb ) {
       state.push( node.value )
@@ -4703,17 +4711,19 @@ module.exports = function( Marker ) {
     MemberExpression( node, state, cb ) {
       // XXX why was this here?
       //if( node.object.name === 'tracks' ) state.length = 0
-
+      console.log( 'member' )
+      
       if( node.object.type !== 'Identifier' ) {
         if( node.property ) {
-          state.unshift( node.property.type === 'Identifier' ? node.property.name : node.property.raw )
+          const unstripped = node.property.type === 'Identifier' ? node.property.name : node.property.raw 
+          state.unshift( strip( unstripped ) )
         }
         cb( node.object, state )
       }else{
         if( node.property !== undefined ) { // if the objects is an array member, e.g. tracks[0]
-          state.unshift( node.property.raw || node.property.name )
+          state.unshift( strip( node.property.raw || node.property.name ) )
         }
-        state.unshift( node.object.name )
+        state.unshift( strip( node.object.name ) )
       }
 
     },
@@ -5309,6 +5319,8 @@ return Channel.create.bind( Channel )
 const Queue = require( './priorityqueue.js' )
 const Big   = require( 'big.js' )
 
+let Gibber = null
+
 let Scheduler = {
   phase: 0,
   msgs: [],
@@ -5335,6 +5347,73 @@ let Scheduler = {
     } 
     this.mockInterval = setInterval( seqFunc, 500 )
   },
+
+  sync( mode = 'internal' ) {
+    console.log( 'SYNC:', mode )
+    const tempSync = this.__sync__
+
+    this.__sync__ = mode// === 'internal' 
+
+    if( this.__sync__ === 'internal' ) {
+      if( tempSync === true ) {
+        this.run()
+      }
+    }else{
+      if( tempSync === false ) {
+        this.animationClockInitialized = false
+      }
+    }
+
+    localStorage.setItem( 'sync', mode )
+  },
+
+  init( __Gibber ) {
+    Gibber = __Gibber
+    const sync = localStorage.getItem( 'sync' )
+
+    if( sync !== null && sync !== undefined ) { 
+      this.sync( sync )
+      switch( sync ) {
+        case 'internal': document.querySelector('#internalSyncRadio').setAttribute( 'checked', true ); break;
+        case 'clock':    document.querySelector('#clockSyncRadio').setAttribute( 'checked', true ); break; 
+        case 'live':     document.querySelector('#liveSyncRadio').setAttribute( 'checked', true ); break;
+        case 'max':      document.querySelector('#maxSyncRadio').setAttribute( 'checked', true ); break;
+      }
+    }else{
+      this.sync( 'max' )
+    }
+
+    this.animationClock = Gibber.Environment.animationClock
+  },
+
+  run() {
+    if( this.animationClockInitialized === false ) {
+      this.animationClock.add( this.animationClockCallback, 0 )
+    }
+  },
+
+  animationClockCallback( time ) {
+    if( this.animationClockInitialized === false ) {
+      this.animationOffset = this.lastBeat = time
+      this.animationClockInitialized = true
+    }
+    
+    this.beatCallback( time )
+  },
+
+  beatCallback( time ) {
+    const timeDiff = time - this.lastBeat
+    const oneBeat = (60 / this.bpm) * 1000 
+    if( timeDiff >= oneBeat ) {
+      this.advanceBeat()
+      this.lastBeat = time - (timeDiff - oneBeat) // preserve phase remainder
+    }
+
+    if( this.__sync__ === false ) {
+      this.animationClock.add( this.beatCallback, 1 )
+    }
+  },
+
 
   // all ticks take the form of { time:timeInSamples, seq:obj }
   advance( advanceAmount, beat ) {
@@ -5373,50 +5452,55 @@ let Scheduler = {
     }
   },
 
-  addMessage( seq, time, shouldExecute=true, priority=0 ) {
+  addMessage( seq, time, shouldExecute=true, priority=0, client ) {
     if( typeof time === 'number' ) time = Big( time )
     // TODO: should 4 be a function of the time signature?
     time = time.times( 4 ).plus( this.currentTime )
 
-    this.queue.push({ seq, time, shouldExecute, priority })
+    this.queue.push({ seq, time, shouldExecute, priority, client })
   },
 
   outputMessages() {
-    this.msgs.forEach( msg => {
-      if( Array.isArray( msg ) ) { // for chords etc.
+    this.msgs.forEach( __msg => {
+      if( __msg === undefined  ) return 
+
+      const msg  = __msg[ 0 ]
+      const mode = __msg[ 1 ]
+
+      if( Array.isArray( msg) ) { // for chords etc.
         msg.forEach( Gibber.Communication.send )
       }else{
-        if( msg !== 0 ) { // XXX
-          Gibber.Communication.send( msg )
-        }
+        Gibber.Communication.send( msg, mode )
       }
     })
   },
 
-  seq( beat ) {
-    beat = parseInt( beat )
+  seq( beat, from='max' ) {
+    if( Scheduler.__sync__ === from ) {
+      beat = parseInt( beat )
 
-    if( beat === 1 ) {
-      for( let func of Scheduler.functionsToExecute ) {
-        try {
-          func()
-        } catch( e ) {
-          console.error( 'error with user submitted code:', e )
+      if( beat === 1 ) {
+        for( let func of Scheduler.functionsToExecute ) {
+          try {
+            func()
+          } catch( e ) {
+            console.error( 'error with user submitted code:', e )
+          }
         }
+        Scheduler.functionsToExecute.length = 0
       }
-      Scheduler.functionsToExecute.length = 0
-    }
 
-    Scheduler.advance( 1, beat )
-    
-    Scheduler.outputMessages()
+      Scheduler.advance( 1, beat )
+      
+      Scheduler.outputMessages()
+    }
   },
 
 }
 
 module.exports = Scheduler
 
-},{"./priorityqueue.js":111,"big.js":125}],93:[function(require,module,exports){
+},{"./priorityqueue.js":113,"big.js":127}],93:[function(require,module,exports){
 const acorn = require( 'acorn' )
 const walk  = require( 'acorn/dist/walk' )
 const Utility = require( './utility.js' )
@@ -5459,8 +5543,11 @@ const Marker = {
     let obj = window[ path[0] ]
 
     for( let i = 1; i < path.length; i++ ) {
-      const key = path[ i ]
+      let key = path[ i ]
       if( key !== undefined ) {
+        if( key[0] === "'" || key[0] === '"' ) {
+          key = key.slice(1,-1)
+        }
         obj = obj[ key ]
       }else{
         break;
@@ -5770,7 +5857,7 @@ return Marker
 
 }
 
-},{"./annotations/markup/arrayExpression.js":75,"./annotations/markup/binaryExpression.js":76,"./annotations/markup/callExpression.js":77,"./annotations/markup/identifier.js":78,"./annotations/markup/literal.js":79,"./annotations/markup/unaryExpression.js":80,"./annotations/standalone/scoreAnnotation.js":81,"./annotations/standalone/stepsAnnotation.js":82,"./annotations/update/anonymousAnnotation.js":83,"./annotations/update/createBorderCycle.js":84,"./annotations/update/euclidAnnotation.js":85,"./annotations/update/lookupAnnotation.js":86,"./annotations/visitors.js":87,"./annotations/waveform.js":88,"./utility.js":118,"acorn":122,"acorn/dist/walk":123}],94:[function(require,module,exports){
+},{"./annotations/markup/arrayExpression.js":75,"./annotations/markup/binaryExpression.js":76,"./annotations/markup/callExpression.js":77,"./annotations/markup/identifier.js":78,"./annotations/markup/literal.js":79,"./annotations/markup/unaryExpression.js":80,"./annotations/standalone/scoreAnnotation.js":81,"./annotations/standalone/stepsAnnotation.js":82,"./annotations/update/anonymousAnnotation.js":83,"./annotations/update/createBorderCycle.js":84,"./annotations/update/euclidAnnotation.js":85,"./annotations/update/lookupAnnotation.js":86,"./annotations/visitors.js":87,"./annotations/waveform.js":88,"./utility.js":120,"acorn":124,"acorn/dist/walk":125}],94:[function(require,module,exports){
 let Gibber = null
 
 let Communication = {
@@ -5782,17 +5869,29 @@ let Communication = {
     input:false,
     output:false
   },
-  
+
+  liveSocket:null,
+  maxSocket: null,
+
+  callbacks: {
+    schemas: {
+      live:null,
+      max: null
+    }
+  },
+
+
+  count:0,
   init( _Gibber ) { 
     Gibber = _Gibber
 
-    //this.createWebSocket( Gibber.Live.init, this.livePort, 'live' )
-    this.createWebSocket( Gibber.Max.init,  this.maxPort,  'max'  )
+    //this.liveSocket = this.createWebSocket( Gibber.Live.init, this.livePort, '127.0.0.1', 'live' )
+    this.maxSocket  = this.createWebSocket( Gibber.Max.init,  this.maxPort,  '127.0.0.1', 'max'  )
 
     this.send = this.send.bind( Communication )
   },
 
-  createWebSocket( init, __port, clientName ) {
+  createWebSocket( init, port=8081, host='127.0.0.1', clientName ) {
     if ( this.connected ) return
 
     if ( 'WebSocket' in window ) {
@@ -5803,9 +5902,7 @@ let Communication = {
         this.connectMsg.innerText += '.'
       }
 
-      let host = this.querystring.host || '127.0.0.1',
-          port = this.querystring.port || __port,
-          address = "ws://" + host + ":" + port
+      const address = "ws://" + host + ":" + port
       
       this.wsocket = new WebSocket( address )
       
@@ -5833,33 +5930,38 @@ let Communication = {
         this.connectTask = setTimeout( this.createWebSocket.bind( Communication ) , 2000 )
       }.bind( Communication )
 
+      let socket = this.wsocket
       this.wsocket.onmessage = function( ev ) {
         //Gibber.log('msg:', ev )
-        this.handleMessage( ev )
+        this.handleMessage( ev, socket )
       }.bind( Communication )
 
       this.wsocket.onerror = function( ev ) {
         Gibber.log( 'WebSocket error' )
       }.bind( Communication )
 
+      this.wsocket.clientName = clientName
+
     } else {
       post( 'WebSockets are not available in this browser!!!' );
     }
-  
+
+    return this.wsocket
   },
 
-  callbacks: {},
 
-  count:0,
 
-  handleMessage( _msg ) {
-    let id, key, data, msg
+  handleMessage( _msg, socket ) {
+    let id, key, data, msg, isLiveMsg=true
     
     if( _msg.data.charAt( 0 ) === '{' ) {
       data = _msg.data
       key = null
-      if( Communication.callbacks.scene ) {
-        Communication.callbacks.scene( JSON.parse( data ) )
+      const json = JSON.parse( data )
+      const schema = json.namespaces !== undefined ? 'max' : 'live'
+
+      if( Communication.callbacks.schemas[ schema ] ) {
+        Communication.callbacks.schemas[ schema]( JSON.parse( data ) )
       }
     }else if( _msg.data.includes( 'snapshot' ) ) {
       data = _msg.data.substr( 9 ).split(' ')
@@ -5879,17 +5981,27 @@ let Communication = {
       return
     }else{
       msg = _msg.data.split( ' ' )
-      id = msg[ 0 ]
-      key = msg[ 1 ]
 
-      if( key === 'err' ) {
-        data = msg.slice( 2 ).join( ' ' )
+      isLiveMsg = msg.length > 2
+
+      if( isLiveMsg ) {
+        id = msg[ 0 ]
+        key = msg[ 1 ]
+        data = msg.slice( 2 )
+
+        if( key === 'err' ) data = data.join(' ')
+
       }else{
-        data = msg[ 2 ]
+        key = msg[ 0 ]
+        if( key === 'err' ) {
+          data = msg.slice( 1 ).join( ' ' )
+        }else{
+          data = msg[ 1 ]
+        }
       }
     }
     
-    if( id === undefined ) return
+    if( id === undefined && isLiveMsg === true ) return
 
     if( Communication.debug.input ) {
       if( id !== undefined ) { 
@@ -5904,7 +6016,8 @@ let Communication = {
         if( data === undefined ) {
           console.log( 'faulty ws seq message', _msg.data )
         }else{
-          Gibber.Scheduler.seq( data );
+          const from = socket === Communication.liveSocket ? 'live' : 'max' 
+          Gibber.Scheduler.seq( data, socket.clientName );
         }
         break;
 
@@ -5925,10 +6038,13 @@ let Communication = {
     }
   },
 
-  send( code ) {
+  send( code, to='live' ) {
     if( Communication.connected ) {
+      //if( code === true ) debugger
       if( Communication.debug.output ) Gibber.log( 'beat:', Gibber.Scheduler.currentBeat, 'msg:', code  )
-      Communication.wsocket.send( code )
+      
+      const socket = to === 'live' ? Communication.liveSocket : Communication.maxSocket
+      socket.send( code )
     }
   },
 
@@ -5960,6 +6076,8 @@ require( '../node_modules/codemirror/addon/hint/show-hint.js' )
 require( '../node_modules/codemirror/addon/hint/javascript-hint.js' )
 
 require( './tabs-standalone.microlib-latest.js' )
+
+const types = [ 'live', 'max', 'midi' ]
 
 let Environment = {
   codeMarkup: require( './codeMarkup.js' ),
@@ -5993,9 +6111,11 @@ let Environment = {
 
   createSidePanel() {
     this.tabs = new ML.Tabs( '#tabs' )
+    this.demotabs = new ML.Tabs( '#demoTabs' )
+    this.schematabs = new ML.Tabs( '#schemaTabs' )
 
     this.createConsole()
-    this.createDemoList()
+    this.createDemoLists()
   },
 
   clear() {
@@ -6035,7 +6155,7 @@ let Environment = {
       mode:'javascript', 
       keyMap:'gibber',
       autofocus:true, 
-      value: Gibber.Examples.introduction,
+      value: Gibber.Examples.live.introduction,
       matchBrackets: true,
       autoCloseBrackets: true,
       extraKeys: {"Ctrl-Space": "autocomplete"},
@@ -6073,25 +6193,28 @@ let Environment = {
     console.error = console.__error
   },
 
-  createDemoList() {
-    let container = document.querySelector('#demos'),
-        list = document.createElement( 'ul' )
+  createDemoLists() {
 
-    for( let demoName in Gibber.Examples ) {
-      let li = document.createElement( 'li' ),
-          txt = Gibber.Examples[ demoName ]
-      
-      li.innerText = demoName 
+    for( let type of types ) {
+      let container = document.querySelector(`#${type}DemosView`),
+          list = document.createElement( 'ul' )
 
-      li.addEventListener( 'click', () => {
-        Environment.codemirror.setValue( txt )
-      })
+      for( let demoName in Gibber.Examples[ type ] ) {
+        let li = document.createElement( 'li' ),
+            txt = Gibber.Examples[ type ][ demoName ]
+        
+        li.innerText = demoName 
+
+        li.addEventListener( 'click', () => {
+          Environment.codemirror.setValue( txt )
+        })
+        
+        list.appendChild( li )
+      }
       
-      list.appendChild( li )
+      container.innerHTML = ''
+      container.appendChild( list )
     }
-    
-    container.innerHTML = ''
-    container.appendChild( list )
   },
 
   log( ...args ) {
@@ -6308,7 +6431,7 @@ let Environment = {
 
 module.exports = Environment
 
-},{"../node_modules/codemirror/addon/edit/closebrackets.js":126,"../node_modules/codemirror/addon/hint/javascript-hint.js":127,"../node_modules/codemirror/addon/hint/show-hint.js":128,"../node_modules/codemirror/mode/javascript/javascript.js":130,"./animationScheduler.js":74,"./codeMarkup.js":93,"./lomView.js":105,"./momView.js":109,"./tabs-standalone.microlib-latest.js":115,"codemirror":129}],96:[function(require,module,exports){
+},{"../node_modules/codemirror/addon/edit/closebrackets.js":128,"../node_modules/codemirror/addon/hint/javascript-hint.js":129,"../node_modules/codemirror/addon/hint/show-hint.js":130,"../node_modules/codemirror/mode/javascript/javascript.js":132,"./animationScheduler.js":74,"./codeMarkup.js":93,"./lomView.js":106,"./momView.js":111,"./tabs-standalone.microlib-latest.js":117,"codemirror":131}],96:[function(require,module,exports){
 module.exports = function( Gibber ) {
 
 let Pattern = Gibber.Pattern
@@ -6544,6 +6667,1500 @@ return Euclid
 
 },{}],97:[function(require,module,exports){
 const Examples = {
+
+  live: require( './liveExamples.js' ),
+  max:  require( './maxExamples.js'  ),
+  midi: {}
+
+}
+
+module.exports = Examples
+
+},{"./liveExamples.js":105,"./maxExamples.js":108}],98:[function(require,module,exports){
+module.exports = function( Gibber ) {
+
+const binops = [ 
+  'min','max','add','sub','mul','div','rdiv','mod','rsub','rmod','absdiff',
+  'and','or','gt','eq','eqp','gte','gtep','gtp','lt','lte','ltep','ltp','neq',
+  'step' 
+]
+
+const monops = [
+  'abs','acos','acosh','asin','asinh','atan','atan2','atanh','cos','cosh','degrees',
+  'fastcos','fastsin','fasttan','hypot','radians','sin','sinh','tan','tanh', 'floor',
+  'ceil', 'sign', 'trunc', 'fract', 'param'
+]
+
+const noops = [
+  'noise'
+]
+
+let Gen  = {
+  lastConnected:[],
+  names:[],
+  connected: [],
+
+  isGen:true,
+  debug:false,
+
+  init() {
+    Gen.createBinopFunctions()
+    Gen.createMonopFunctions()
+
+    Gen.names.push( ...binops )
+    Gen.names.push( ...monops )
+    Gen.names.push( ...Object.keys( Gen.constants ) )
+    Gen.names.push( ...Object.keys( Gen.functions ) )
+    Gen.names.push( ...Object.keys( Gen.composites ) )
+
+    Gibber.subscribe( 'clear', ()=> Gen.lastConnected.length = 0 )
+  },
+
+  // if property is !== ugen (it's a number) a Param must be made using a default
+  create( name ) {
+    // rate needs custom function to skip sequencing input and only sequence rate adjustment
+
+    const params = Array.prototype.slice.call( arguments, 1 )
+
+    if( name === 'rate' ) return Gen.createRate( name, ...params )
+
+    let obj = Object.create( this ),
+        count = 0
+    
+    obj.name = name
+    obj.active = false
+    
+    for( let key of Gen.functions[ name ].properties ) { 
+
+      let value = params[ count++ ]
+      obj[ key ] = ( v ) => {
+        if( v === undefined ) {
+          return value
+        }else{
+          value = v
+          if( obj.active ) {
+            Gibber.Communication.send( `genp ${obj.paramID} ${obj[ key ].uid} ${v}` ) 
+          }
+        }
+      }
+      obj[ key ].uid = Gen.getUID()
+
+      Gibber.addSequencingToMethod( obj, key )
+    }
+
+    return obj
+  },
+
+  createRate( name ) {
+    let obj = Object.create( this ),
+        count = 0,
+        param = arguments[1] 
+    
+    obj.name = 'rate' 
+    obj.active = false
+    
+    let value = param
+    //console.log( 'value:', value, 'args:', arguments )
+    obj[ 0 ] = v => {
+      if( v === undefined ) {
+        return value
+      }else{
+        value = v
+        if( obj.active ) {
+          Gibber.Communication.send( `genp ${obj.paramID} ${obj[ 0 ].uid} ${v}` ) 
+        }
+      }
+    }
+
+    Gen.getUID() // leave 0 behind...
+    obj[ 0 ].uid = Gen.getUID()
+
+    Gibber.addSequencingToMethod( obj, '0' )
+
+    return obj
+  },
+ 
+  createBinopFunctions() {
+    for( let key of binops ) {
+      Gen.functions[ key ] = {
+        properties:['0','1'], str:key
+      }
+    }
+  },
+
+  createMonopFunctions() {
+    for( let key of monops ) {
+      Gen.functions[ key ] = {
+        properties:['0'], str:key
+      }
+    }
+  },
+
+  assignTrackAndParamID: function( track, id ) {
+    this.paramID = id
+    this.track = track
+
+    let count = 0, param
+    while( param = this[ count++ ] ) {
+      if( typeof param() === 'object' ) {
+        param().assignTrackAndParamID( track, id )
+      }
+    }
+  },
+
+  clear() {
+    for( let ugen of Gen.connected ) {
+      Gibber.Communication.send( `ungen ${ugen.paramID}` )
+    }
+
+    Gen.connected.length = 0
+  },
+
+  constants: {
+    degtorad: Math.PI / 180,
+    E :       Math.E,
+    halfpi:   Math.PI / 2,
+    invpi :   Math.PI * - 1,
+    ln10  :   Math.LN10,
+    ln2   :   Math.LN2,
+    log10e:   Math.LOG10E,
+    log2e :   Math.LOG2E,
+    pi    :   Math.PI,  
+    sqrt2 :   Math.SQRT2,
+    sqrt1_2:  Math.SQRT1_2,
+    twopi :   Math.PI * 2,
+    time  :   'time',
+    samplerate: 'samplerate'
+  },
+
+  functions: {
+    phasor: { properties:[ '0' ],  str:'phasor' },
+    cycle:  { properties:[ '0' ],  str:'cycle' },
+    rate:   { properties:[ '0' ], str:'rate' },
+    noise:  { properties:[], str:'noise' },
+    accum:  { properties:[ '0','1' ], str:'accum' },
+    counter:{ properties:[ '0','1' ], str:'counter' },
+    scale:  { properties: ['0', '1', '2', '3'], str:'scale' },
+    sah:    { properties: ['0', '1', '2'], str:'sah' },
+    clamp:  { properties: ['0', '1', '2'], str:'clamp' },
+    ternary:{ properties: ['0', '1', '2'], str:'ternary' },
+    selector:{ properties: ['0', '1', '2'], str:'selector' },
+  },
+
+  _count: 0,
+
+  getUID() {
+    return 'p' + Gen._count++
+  },
+
+  time: 'time',
+
+  out() {
+    let paramArray = [],
+        body, out
+    
+    body = this.gen( paramArray )
+
+    out = paramArray.join( ';' )
+
+    if( paramArray.length ) {
+      out += ';'
+    }
+    
+    out += 'out1='
+    out += body + ';'
+    
+    if( Gen.debug ) console.log( out )
+
+    return out
+  },
+
+  gen( paramArray ) {
+    let def = Gen.functions[ this.name ],
+        str = def.str + '(',
+        count = 0
+    
+    // tell Gibber that this gen object is part of an active gen graph
+    // so that changes to it are forwarded to m4l
+    this.active = true
+
+    if( this.name === 'rate' ) {
+      str += 'in1, '
+      let pName = this[ 0 ].uid
+      str += pName
+      paramArray.push( `Param ${pName}(${this[0]()})` )
+    }else{
+      for( let property of def.properties ) {
+        let p = this[ property ](),
+            uid = this[ property ].uid
+        
+        //console.log( this.name, property, def.properties, uid )
+        if( Gen.isPrototypeOf( p ) ) {
+          str += p.gen( paramArray )
+        }else if( typeof p === 'number' ) {
+          let pName = uid
+          str += pName
+          paramArray.push( `Param ${pName}(${p})` )
+        }else if( p === Gen.time ) {
+          str += p
+        }else if( typeof p === 'string' ) {
+          str += p
+        }else{
+          console.log( 'CODEGEN ERROR:', p )
+        }
+
+        if( count++ < def.properties.length - 1 ) str += ','
+      }
+    }
+    
+    str += ')'
+
+    return str
+  },
+
+  composites: { 
+    lfo( frequency = .1, amp = .5, center = .5 ) {
+      const g = Gen.ugens
+
+      let _cycle = g.cycle( frequency ),
+          _mul   = g.mul( _cycle, amp ),
+          _add   = g.add( center, _mul ) 
+       
+      _add.frequency = (v) => {
+        if( v === undefined ) {
+          return _cycle[ 0 ]()
+        }else{
+          _cycle[0]( v )
+        }
+      }
+
+      _add.amp = (v) => {
+        if( v === undefined ) {
+          return _mul[ 1 ]()
+        }else{
+          _mul[1]( v )
+        }
+      }
+
+      _add.center = (v) => {
+        if( v === undefined ) {
+          return _add[ 0 ]()
+        }else{
+          _add[0]( v )
+        }
+      }
+
+      Gibber.addSequencingToMethod( _add, 'frequency' )
+      Gibber.addSequencingToMethod( _add, 'amp' )
+      Gibber.addSequencingToMethod( _add, 'center' )
+
+      return _add
+    },
+
+    fade( time = 1, from = 1, to = 0 ) {
+      let g = Gen.ugens
+      let fade, amt, beatsInSeconds = time * ( 60 / Gibber.Live.LOM.bpm )
+     
+      if( from > to ) {
+        amt = from - to
+
+        fade = g.gtp( g.sub( from, g.accum( g.div( amt, g.mul(beatsInSeconds, g.samplerate ) ), 0 ) ), to )
+      }else{
+        amt = to - from
+        fade = g.add( from, g.ltp( g.accum( g.div( amt, g.mul( beatsInSeconds, g.samplerate ) ), 0 ), to ) )
+      }
+      
+      // XXX should this be available in ms? msToBeats()?
+      let numbeats = time / 4
+      fade.shouldKill = {
+        after: numbeats, 
+        final: to
+      }
+      
+      return fade
+    },
+    
+    beats( num ) {
+      return Gen.ugens.rate( num )
+      // beat( n ) => rate(in1, n)
+      // final string should be rate( in1, num )
+    }
+  },
+
+  ugens:{},
+
+  export( obj ) {
+    for( let key in Gen.functions ) {
+      this.ugens[ key ] = Gen.create.bind( Gen, key )
+    }
+
+    Object.assign( this.ugens, Gen.constants )
+    Object.assign( this.ugens, Gen.composites )
+
+    Object.assign( obj, this.ugens )
+  }
+}
+
+Gen.init()
+
+return Gen 
+
+}
+
+
+/*
+
+a = LFO( .5, .25, .5 )
+// lfo has frequency, amplitude and bias
+
+->
+
+// every array indicates presence of new ugen
+a.graph = [ 'add', 'bias', [ 'mul', 'amp', [ 'cycle', 'frequency' ] ] ]
+*/
+
+},{}],99:[function(require,module,exports){
+/* gen_abstraction.js
+ *
+ * This object serves as an asbtraction between the codegen for Gen and
+ * the use of genish.js. In gibberwocky, Gen code is sent to Live/Max for
+ * modulation purposes while genish.js is used to create waveforms that can
+ * be sampled for pattern generation.
+ *
+ * This abstraction delays interpretation of the Gen(ish) graphs until 
+ * one of the following two events occurs:
+ *
+ * 1. The graph is assigned to a property. This means that the graph
+ * should be interpreted as a Gen graph.
+ *
+ * 2. The graph is used to create a WavePattern. This means that the
+ * graph should be interpreted as a genish graph.
+ *
+ * One open problem: what if the same graph is used in two places? Can
+ * the abstraction hold both types of codegen objects inside of it? Currently
+ * the abstraction only holds one graph in its 'rendered' property... perhaps
+ * this could be chagned to 'genRendered' and 'genishRendered' and then the 
+ * appropriate one could be linked to? What happens when multiple wavepatterns
+ * use the same graph? Does each generated a dot for every s&h value??
+ */
+
+const genish = require( 'genish.js' )
+const genreq = require( './gen.js' )
+
+/*  
+assignInputProperties( genishGraph, abstractGraph ) {
+  for( let input in abstractGraph.inputs ) {
+    if( typeof abstractGraph.inputs[ input ] === 'number' ) {
+      let __param = genishGraph.inputs[ input ] = genish.param( abstractGraph.inputs[ input ] )
+      abstractGraph[ input ] = v => {
+        __param.value = v
+      }
+    }
+  }
+},
+*/
+
+const defineMethod = function( obj, methodName, param, priority=0 ) {
+  obj[ methodName ] = v => {
+    if( v === undefined ) return param.value
+    
+    // else, set the value
+    param.value = v
+  }
+  
+  if( !obj.sequences ) obj.sequences = {}
+
+  obj[ methodName ].seq = function( values, timings, id=0, delay=0 ) {
+    if( obj.sequences[ methodName ] === undefined ) obj.sequences[ methodName ] = []
+
+    if( obj.sequences[ methodName ][ id ] !== undefined ) obj.sequences[ methodName ][ id ].clear()
+
+    const seq = Gibber.Seq( values, timings, methodName, obj, priority )
+    obj.sequences[ methodName ][ id ] = seq 
+
+    seq.__tick = seq.tick
+    seq.tick = function( ...args ) {
+      param.value = 0 
+      for( let i = 0; i < obj.patterns.length; i++ ) {
+        let pattern = obj.patterns[ i ]
+        let graph   = obj.graphs[ i ]
+        pattern.adjust( graph, Gibber.Scheduler.currentTimeInMs - pattern.phase )  
+      }
+      seq.__tick.apply( seq, args )
+    }
+
+    seq.trackID = obj.id
+
+    if( id === 0 ) {
+      obj[ methodName ].values  = obj.sequences[ methodName ][ 0 ].values
+      obj[ methodName ].timings = obj.sequences[ methodName ][ 0 ].timings
+    }
+
+    obj[ methodName ][ id ] = seq
+
+    seq.delay( delay )
+    seq.start()
+
+    // avoid this for gibber objects that don't communicate with Live such as Scale
+    if( obj.id !== undefined ) Gibber.Communication.send( `select_track ${obj.id}` )
+
+    return seq
+  }
+    
+  obj[ methodName ].seq.delay = v => obj[ methodName ][ lastId ].delay( v )
+
+  obj[ methodName ].seq.stop = function() {
+    obj.sequences[ methodName ][ 0 ].stop()
+    return obj
+  }
+
+  obj[ methodName ].seq.start = function() {
+    obj.sequences[ methodName ][ 0 ].start()
+    return obj
+  }
+}
+
+module.exports = function( Gibber ) {
+  const gen = genreq( Gibber )
+  const genfunctions = {}
+
+  gen.export( genfunctions )
+
+  const __ugenproto__ = {
+    render( mode ) {
+      let inputs = [], inputNum = 0
+
+      this.mode = mode
+
+      if( this.name === 'phasor' ) {
+        if( this.inputs[2] === undefined ) {
+          this.inputs[2] = { min:0 }
+        }
+      }
+
+      for( let input of this.inputs ) {
+        // use input.render as check to make sure this isn't a properties dictionary
+        if( typeof input === 'object' && input.render !== undefined ) {
+          inputs.push( input.render( mode ) )
+        }else{
+          if( mode === 'genish' && typeof input === 'number' ) { // replace numbers with params
+            let _input =  genish.param( input )
+            defineMethod( this, inputNum, _input )
+            inputs.push( _input )
+          }else{
+            inputs.push( input )
+          }
+        }
+
+        inputNum++
+      }
+
+      let ugen
+      if( mode === 'genish' || __gen.enabled === false ) {
+        ugen = genish[ this.name ]( ...inputs ) 
+      }else{
+        ugen = genfunctions[ this.name ]( ...inputs )
+      }
+
+      this.rendered = ugen
+      this.rendered.paramID = this.paramID
+      this.rendered.track = this.track
+
+      if( typeof this.__onrender === 'function' ) { this.__onrender() }
+
+      return ugen
+    },
+
+    isGen:true,
+  }
+
+  const __gen = {
+    __hasGen: true, // is Gen licensed on this machine? true by default
+    gen,
+    genish,
+    Gibber,
+    enabled: true,
+    initialized: false,
+    __waveObjects: require( './waveObjects.js' ),
+    waveObjects:null,
+    ugenNames: [
+      'cycle','phasor','accum','counter',
+      'add','mul','div','sub',
+      'sah','noise',
+      'beats', 'lfo', 'fade', 'sine', 'siner', 'cos', 'cosr', 'liner', 'line',
+      'abs', 'ceil', 'round', 'floor',
+      'min','max',
+      'gt','lt','ltp','gtp','samplerate','rate','clamp',
+      'ternary', 'selector'
+    ],
+    ugens:{},
+  
+    // determine whether or not gen is licensed
+    checkForLicense() {
+      const volume = Gibber.Live.tracks[0].volume()
+      __gen.enabled = true
+      const lfo = __gen.ugens.lfo( .25 )
+      Gibber.Live.tracks[0].volume( lfo )
+      setTimeout( ()=> {
+        Gibber.clear()
+        setTimeout( ()=> {
+          Gibber.Live.tracks[0].volume( volume )
+          Gibber.Environment.suppressErrors = false
+        }, 50 )
+      }, 250 * 8 )
+
+    },
+ 
+    assignTrackAndParamID: function( track, id ) {
+      this.paramID = id
+      this.track = track
+
+      let count = 0, param
+      //while( param = this[ count++ ] ) {
+      //  if( typeof param() === 'object' ) {
+      //    param().assignTrackAndParamID( track, id )
+      //  }
+      //}
+    },
+
+    init() {
+      genish.gen.memory = genish.gen.createMemory( 88200, Float64Array )
+      const btof = Gibber.Utility.beatsToFrequency 
+
+      Gibber.subscribe( 'lom_update', ()=> {
+        if( __gen.initialized === false ) {
+          __gen.checkForLicense()
+          __gen.initialized = true
+        }
+      })
+
+      Gibber.Environment.suppressErrors = true
+
+      for( let name of this.ugenNames ) {
+        this.ugens[ name ] = function( ...inputs ) {
+          const ugen = Object.create( __ugenproto__ )
+
+          ugen.name = name
+          ugen.inputs = inputs
+
+          for( let i = 0; i < inputs.length; i++ ) {
+            ugen[ i ] = v => {
+              if( ugen.rendered !== undefined ) {
+                return ugen.rendered[ i ]( v )
+              }
+            }
+            Gibber.addSequencingToMethod( ugen, i )
+          }
+
+          return ugen
+        }
+      }
+
+      this.waveObjects = this.__waveObjects( Gibber, this, __ugenproto__ )
+      Object.assign( this.ugens, this.waveObjects )
+
+      genish.lfo = ( frequency = .1, center = .5, amp = .25 ) => {
+        const g = this.ugens//genish
+        //console.log( 'lfo', g )
+
+        let _cycle = g.cycle( frequency ),
+            _mul   = g.mul( _cycle, amp ),
+            _add   = g.add( center, _mul ) 
+         
+        _add.frequency = (v) => {
+          if( v === undefined ) {
+            return _cycle[ 0 ]()
+          }else{
+            _cycle[0]( v )
+          }
+        }
+
+        _add.amp = (v) => {
+          if( v === undefined ) {
+            return _mul[ 1 ]()
+          }else{
+            _mul[1]( v )
+          }
+        }
+
+        _add.center = (v) => {
+          if( v === undefined ) {
+            return _add[ 0 ]()
+          }else{
+            _add[0]( v )
+          }
+        }
+
+        Gibber.addSequencingToMethod( _add, 'frequency' )
+        Gibber.addSequencingToMethod( _add, 'amp' )
+        Gibber.addSequencingToMethod( _add, 'center' )
+
+        return _add
+      }
+
+      //genish.fade = function( beats=43, from = 0, to = 1 ) {
+      //  const g = this.ugens//__gen.ugens 
+      //  let fade, amt, beatsInSeconds = Gibber.Utility.beatsToFrequency( beats, 120 )
+       
+      //  if( from > to ) {
+      //    amt = from - to
+
+      //    fade = g.gtp( g.sub( from, g.accum( g.div( amt, g.mul(beatsInSeconds, g.samplerate ) ), 0 ) ), to )
+      //  }else{
+      //    console.log( 'fading in' )
+      //    amt = to - from
+      //    fade = g.add( from, g.ltp( g.accum( g.div( amt, g.mul( beatsInSeconds, g.samplerate ) ), 0 ), to ) )
+      //  }
+        
+      //  // XXX should this be available in ms? msToBeats()?
+      //  fade.shouldKill = {
+      //    after: beats, 
+      //    final: to
+      //  }
+
+      //  fade.name = 'fade'
+        
+      //  return fade
+      //}
+    },
+
+    export( target ) {
+      Object.assign( target, this.ugens )
+    },
+  }
+
+  return __gen
+}
+
+},{"./gen.js":98,"./waveObjects.js":122,"genish.js":37}],100:[function(require,module,exports){
+let Gibber = {
+  Utility:       require( './utility.js' ),
+  Communication: require( './communication.js' ),
+  Environment:   require( './environment.js' ),
+  Scheduler:     require( './clock.js' ),
+  Theory:        require( './theory.js' ),
+  Examples:      require( './example.js' ),
+  Live:          null,
+  Track:         null,
+  Gen:           null,
+  Euclid:        null,
+  Hex:           null,
+  Seq:           null,
+  Score:         null,
+  Pattern:       null,
+  Arp:           null,
+  currentTrack:  null,
+  codemirror:    null,
+  max:           null,
+  '$':           null,
+
+  export() {
+    window.Steps         = this.Steps
+    window.HexSteps      = this.HexSteps
+    window.Automata      = this.Automata
+    window.Seq           = this.Seq
+    window.Score         = this.Score
+    window.Track         = this.Track
+    window.Scheduler     = this.Scheduler
+    window.Pattern       = this.Pattern
+    window.Euclid        = this.Euclid
+    window.Hex           = this.Hex
+    window.Arp           = this.Arp
+    window.Communication = this.Communication
+    window.log           = this.log
+    window.clear         = this.clear
+    window.Theory        = this.Theory
+    window.Lookup        = this.WavePattern
+    window.channels      = this.MIDI.channels
+    window.MIDI          = this.MIDI
+    window.Max           = this.Max
+
+    window.signals       = this.Max.signals
+    window.params        = this.Max.params
+    window.namespace     = this.Max.namespace
+    window.devices       = this.Max.devices
+
+    Gibber.__gen.export( window ) 
+
+    this.Theory.export( window )
+    this.Utility.export( window )
+  },
+
+  init() {
+    this.$   = Gibber.Utility.create
+
+    this.Environment.init( Gibber )
+    this.Theory.init( Gibber )
+    this.log = this.Environment.log
+
+    if( this.Environment.debug ) {
+      this.Scheduler.mockRun()
+    }else{
+      this.MIDI.init( Gibber )
+      this.Communication.init( Gibber ) 
+    }
+
+    this.Scheduler.init( this )
+    //this.currentTrack = this.Track( this, 1 ) // TODO: how to determine actual "id" from Max?
+    
+    this.initSingletons( window )
+
+    this.__gen.init( this )
+
+    this.export()
+  },
+
+  singleton( target, key ) {
+    if( Array.isArray( key ) ) {
+      for( let i = 0; i < key.length; i++ ) {
+        Gibber.singleton( target, key[ i ] )
+      }
+      return
+    }
+    
+    if( target[ key ] !== undefined ) {
+      delete target[ key ]
+    }
+
+    let proxy = null
+    Object.defineProperty( target, key, {
+      configurable:true,
+      get() { return proxy },
+      set(v) {
+        if( proxy !== null && proxy.clear ) {
+          proxy.clear()
+        }
+        
+        if( proxy !== null && proxy.__listeners !== undefined ) {
+          for( let listener of proxy.__listeners ) {
+            listener( proxy, v )
+          }
+        }
+
+        if( proxy !== null && v !== null ) {
+          if( proxy.isGen && v.isGen ) {
+            for( let key in proxy.sequences ) {
+              let sequences = proxy.sequences[ key ]
+              for( let sequence of sequences ) {
+                sequence.target = v
+              }
+            }
+            v.sequences = proxy.sequences
+          }
+        }
+        proxy = v
+      }
+    })
+  },
+
+  initSingletons: function( target ) {
+		var letters = "abcdefghjklmnopqrstuwxyz"
+    
+		for(var l = 0; l < letters.length; l++) {
+
+			var lt = letters.charAt(l);
+      Gibber.singleton( target, lt )
+      
+    }
+  },
+
+  clear() {
+    for( let i = 0; i < this.Seq._seqs.length; i++ ){
+      this.Seq._seqs[ i ].clear()
+    }
+    
+    setTimeout( () => {
+      for( let key in Gibber.currentTrack.markup.textMarkers ) {
+        let marker = Gibber.currentTrack.markup.textMarkers[ key ]
+
+        if( Array.isArray( marker ) ) {
+          marker.forEach( m => m.clear() )
+        }else{
+          if( marker.clear ) marker.clear() 
+        }
+      }
+    }, 250 )
+
+    Gibber.Gen.clear()
+    Gibber.Environment.clear()
+    Gibber.publish( 'clear' )
+    Gibber.initSingletons( window )
+  },
+
+  createPubSub() {
+    const events = {}
+    this.subscribe = function( key, fcn ) {
+      if( typeof events[ key ] === 'undefined' ) {
+        events[ key ] = []
+      }
+      events[ key ].push( fcn )
+    }
+
+    this.unsubscribe = function( key, fcn ) {
+      if( typeof events[ key ] !== 'undefined' ) {
+        const arr = events[ key ]
+
+        arr.splice( arr.indexOf( fcn ), 1 )
+      }
+    }
+
+    this.publish = function( key, data ) {
+      if( typeof events[ key ] !== 'undefined' ) {
+        const arr = events[ key ]
+
+        arr.forEach( v => v( data ) )
+      }
+    }
+  },
+
+  addSequencingToMethod( obj, methodName, priority, overrideName, mode='live' ) {
+    
+    if( !obj.sequences ) obj.sequences = {}
+    if( overrideName === undefined ) overrideName = methodName 
+    
+    let lastId = 0
+    obj[ methodName ].seq = function( values, timings, id=0, delay=0 ) {
+      let seq
+      lastId = id
+
+      if( obj.sequences[ methodName ] === undefined ) obj.sequences[ methodName ] = []
+
+      if( obj.sequences[ methodName ][ id ] ) obj.sequences[ methodName ][ id ].clear()
+
+      obj.sequences[ methodName ][ id ] = seq = Gibber.Seq( values, timings, overrideName, obj, priority, mode )
+
+      // if the target is another sequencer (like for per-sequencer velocity control) it won't
+      // have an id property.. use existing trackID property instead.
+      seq.trackID = obj.id === undefined ? obj.trackID : obj.id
+
+      if( id === 0 ) {
+        obj[ methodName ].values  = obj.sequences[ methodName ][ 0 ].values
+        obj[ methodName ].timings = obj.sequences[ methodName ][ 0 ].timings
+      }
+
+      obj[ methodName ][ id ] = seq
+
+      if( delay !== 0 ) seq.delay( delay )
+      seq.start()
+
+      // avoid this for gibber objects that don't communicate with Live such as Scale
+      if( obj.id !== undefined ) Gibber.Communication.send( `select_track ${obj.id}` )
+
+      // setup code annotations to place values and widget onto pattern object
+      // not gen~ object
+      if( typeof values === 'object' && values.isGen ) {
+        Gibber.Gen.lastConnected.push( seq.values )
+      }
+      
+      if( typeof timing === 'object' && timings.isGen ) {
+        Gibber.Gen.lastConnected.push( seq.timings )
+      }
+
+      return seq 
+    }
+    
+    obj[ methodName ].seq.delay = v => obj[ methodName ][ lastId ].delay( v )
+
+    obj[ methodName ].seq.stop = function() {
+      obj.sequences[ methodName ][ 0 ].stop()
+      return obj
+    }
+
+    obj[ methodName ].seq.start = function() {
+      obj.sequences[ methodName ][ 0 ].start()
+      return obj
+    }
+
+
+  },
+
+  addSequencingToProtoMethod( proto, methodName ) {
+    proto[ methodName ].seq = function( values, timings, id = 0 ) {
+
+      if( this.sequences === undefined ) this.sequences = {}
+
+      if( this.sequences[ methodName ] === undefined ) this.sequences[ methodName ] = []
+
+      if( this.sequences[ methodName ][ id ] ) this.sequences[ methodName ][ id ].stop() 
+
+      this.sequences[ methodName ][ id ] = Gibber.Seq( values, timings, methodName, this ).start() // 'this' will never be correct reference
+
+      if( id === 0 ) {
+        this.values  = this.sequences[ methodName ][ 0 ].values
+        this.timings = this.sequences[ methodName ][ 0 ].timings
+      }
+
+      this[ id ] = this.sequences[ methodName ][ id ]
+      
+      this.seq.stop = function() {
+        this.sequences[ methodName ][ 0 ].stop()
+        return this
+      }.bind( this )
+
+      this.seq.start = function() {
+        this.sequences[ methodName ][ 0 ].start()
+        return this
+      }.bind( this )
+    }
+  },
+
+  // XXX THIS MUST BE REFACTORED. UGH.
+  addMethod( obj, methodName, parameter, _trackID, mode='live' ) {
+    let v = mode === 'live' ? parameter.value : 0,
+        p,
+        trackID = isNaN( _trackID ) ? obj.id : _trackID
+
+
+    let  seqKey = mode === 'live' ? `${trackID} ${obj.id} ${parameter.id}` : `${obj.address} ${methodName}`
+
+    //console.log( "add method trackID", trackID )
+
+    if( mode === 'live' && methodName === null ) methodName = parameter.name
+
+    Gibber.Seq.proto.externalMessages[ seqKey ] = ( value, beat ) => {
+      let msg = mode === 'live' 
+        ? `add ${beat} set ${parameter.id} ${value}`
+        : `add ${beat} ${obj.path} ${methodName} ${value}`
+              
+      return msg
+    }
+
+    obj[ methodName ] = p = ( _v ) => {
+      if( p.properties.quantized === 1 ) _v = Math.round( _v )
+
+      const hasGen = Gibber.__gen.enabled
+
+      if( _v !== undefined ) {
+        if( typeof _v === 'object' && _v.isGen ) {
+          let __v = hasGen === true ? _v.render( 'gen' ) : _v.render( 'genish' )
+
+          if( hasGen ) {
+            __v.assignTrackAndParamID( trackID, parameter.id )
+          }else{
+            Gibber.__gen.assignTrackAndParamID.call( _v, trackID, parameter.id )
+          }
+          
+          // if a gen is not already connected to this parameter, push
+          const prevGen = Gibber.Gen.connected.find( e => e.paramID === parameter.id )
+          const genAlreadyAssigned = prevGen !== undefined
+          if( genAlreadyAssigned === true ) {
+            Gibber.Gen.connected.push( __v )
+          }
+
+          if( hasGen === true ) { 
+            Gibber.Communication.send( `gen ${parameter.id} "${__v.out()}"` )
+          }else{
+            if( genAlreadyAssigned === true ) {
+              prevGen.clear()
+              prevGen.shouldStop = true
+              const idx = Gibber.Gen.connected.findIndex( e => e.paramID === parameter.id )
+              Gibber.Gen.connected.splice( idx, 1 )
+            }
+
+            _v.wavePattern = Gibber.WavePattern( _v )
+            
+            _v.wavePattern.genReplace = function( out ) { 
+              // XXX set min/max for gibberwocky.live only
+              out = Math.min( out, 1 )
+              out = Math.max( 0, out )
+
+              Gibber.Communication.send( `set ${parameter.id} ${out}` )
+            }
+
+            _v.wavePattern( false )
+            __v = _v
+          }
+
+          Gibber.Communication.send( `select_track ${ trackID }` )
+
+          Gibber.__gen.gen.lastConnected.push( hasGen === true ? __v : _v )
+          
+          // disconnects for fades etc.
+          // XXX reconfigure for hasGen === false
+          if( typeof _v.shouldKill === 'object' ) {
+            Gibber.Utility.future( ()=> {
+              if( hasGen ) {
+                Gibber.Communication.send( `ungen ${parameter.id}` )
+                Gibber.Communication.send( `set ${parameter.id} ${_v.shouldKill.final}` )
+              }else{
+                Gibber.Communication.send( `ungen ${parameter.id}` )
+                //_v.wavePattern.clear()
+
+                const prevGen = Gibber.Gen.connected.find( e => e.paramID === parameter.id )
+                prevGen.clear()
+                _v.patterns[0].shouldStop = true
+                const idx = Gibber.Gen.connected.findIndex( e => e.paramID === parameter.id )
+                Gibber.Gen.connected.splice( idx, 1 )
+                obj[ methodName ]( _v.shouldKill.final )
+
+                Gibber.Communication.send( `set ${parameter.id} ${_v.shouldKill.final}` )
+              }
+              
+              let widget = Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
+              if( widget !== undefined && widget.mark !== undefined ) {
+                widget.mark.clear()
+              }
+              delete Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
+            }, _v.shouldKill.after )
+          }
+          
+          v = hasGen === true ? __v : _v
+        }else{
+          if( v.isGen ) {
+            if( hasGen ) {
+              Gibber.Communication.send( `ungen ${parameter.id}` )
+            }
+
+            let widget = Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
+            if( widget !== undefined && widget.mark !== undefined ) {
+              widget.mark.clear()
+            }
+            delete Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
+          }
+
+          v = typeof _v === 'object' && _v.isGen ? ( hasGen === true ? _v.render( 'gen' ) : _v.render('genish') ) : _v
+
+          Gibber.Communication.send( `set ${parameter.id} ${v}` )
+        }
+      }else{
+        return v
+      }
+    }
+
+    p.properties = parameter
+
+    Gibber.addSequencingToMethod( obj, methodName, 0, seqKey )
+  },
+
+  
+  addMIDIMethod( obj, methodName, channel, ccnum )  {
+    let v = 0,//parameter.value,
+        p,
+        seqKey = `${channel} cc ${ccnum}`
+
+    //console.log( "add method trackID", trackID )
+
+    Gibber.Seq.proto.externalMessages[ seqKey ] = ( val, offset=null ) => {
+      let msg = [ 0xb0 + channel, ccnum, val ]
+      const baseTime = offset !== null ? window.performance.now() + offset : window.performance.now()
+
+      Gibber.MIDI.send( msg, baseTime )
+    }
+    
+    obj[ methodName ] = p = ( initialGraph, shouldTransform=true ) => {
+      let transformedGraph = null, finishedGraph = null
+      //if( p.properties.quantized === 1 ) _v = Math.round( _v )
+      
+      if( typeof initialGraph === 'object' ) initialGraph.isGen = typeof initialGraph.gen === 'function'
+
+      if( initialGraph !== undefined ) {
+        if( typeof initialGraph === 'object' && initialGraph.isGen ) {
+          if( shouldTransform === true ) { // affine transform -1:1 to 0:127
+            transformedGraph = Gibber.Gen.genish.clamp(
+              Gibber.Gen.genish.floor(
+                Gibber.Gen.genish.mul( 
+                  Gibber.Gen.genish.div( 
+                    Gibber.Gen.genish.add( 1, initialGraph ), 
+                    2 
+                  ), 
+                127 
+                ) 
+              ),
+            0, 127 )
+          }
+
+          finishedGraph = shouldTransform ?
+            Gibber.Gen.genish.gen.createCallback( transformedGraph ) :
+            Gibber.Gen.genish.gen.createCallback( initialGraph ) 
+
+
+          Gibber.Gen.assignTrackAndParamID( finishedGraph, channel, ccnum )
+          
+          // if a gen is not already connected to this parameter, push
+          if( Gibber.Gen.connected.find( e => e.ccnum === ccnum && e.channel === channel ) === undefined ) {
+            Gibber.Gen.connected.push( finishedGraph )
+          }
+
+          Gibber.Gen.lastConnected = finishedGraph
+
+          if( '__widget__' in initialGraph ) {
+            initialGraph.__widget__.place()
+          }
+          
+          // disconnects for fades etc.
+          //if( typeof _v.shouldKill === 'object' ) {
+          //  Gibber.Utility.future( ()=> {
+          //    Gibber.Communication.send( `ungen ${parameter.id}` )
+          //    Gibber.Communication.send( `set ${parameter.id} ${_v.shouldKill.final}` )
+
+          //    let widget = Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
+          //    if( widget !== undefined && widget.mark !== undefined ) {
+          //      widget.mark.clear()
+          //    }
+          //    delete Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
+          //  }, _v.shouldKill.after )
+          //}
+          
+          v = finishedGraph
+          v.isGen = true
+        }else{
+          // if there was a gen assigned and now a number is being assigned...
+          if( v.isGen ) { 
+            console.log( 'removing gen', v )
+            let widget = Gibber.Environment.codeMarkup.genWidgets[ v.id ]
+
+            if( widget !== undefined && widget.mark !== undefined ) {
+              widget.mark.clear()
+            }
+            delete Gibber.Environment.codeMarkup.genWidgets[ v.id ]
+
+          }
+
+          v = initialGraph
+          Gibber.Seq.proto.externalMessages[ seqKey ]( v )
+          //Gibber.Communication.send( `set ${parameter.id} ${v}` )
+        }
+      }else{
+        return v
+      }
+    }
+    
+    // solo cc output for midi mapping
+    let soloing = false
+    obj[ methodName ].solo = function() {
+      if( soloing === false ) {
+        Gibber.Gen.__solo = { channel, ccnum }
+      }else{
+        Gibber.Gen.__solo = null
+      }
+
+      soloing = !soloing
+    }
+    //p.properties = parameter
+
+    Gibber.addSequencingToMethod( obj, methodName, 0, seqKey )
+  }
+}
+
+// must be called before requiring objects that use pubsub
+Gibber.createPubSub()
+
+Gibber.Pattern = require( './pattern.js' )( Gibber )
+Gibber.Seq     = require( './seq.js' )( Gibber )
+Gibber.Score   = require( './score.js' )( Gibber )
+Gibber.Arp     = require( './arp.js' )( Gibber )
+Gibber.Euclid  = require( './euclidean.js')( Gibber )
+Gibber.Automata= require( './automata.js' )( Gibber )
+Gibber.Hex     = require( './hex.js')( Gibber )
+Gibber.Steps   = require( './steps.js' )( Gibber )
+Gibber.HexSteps= require( './hexSteps.js' )( Gibber )
+Gibber.Live    = require( './live.js' )( Gibber )
+Gibber.Max     = require( './max.js' )( Gibber )
+Gibber.Track   = require( './track.js')( Gibber )
+Gibber.__gen   = require( './gen_abstraction.js' )( Gibber )
+
+Gibber.Channel = require( './channel.js' )( Gibber )
+Gibber.MIDI    = require( './midi.js' )
+Gibber.WavePattern = require( './wavePattern.js' )( Gibber )
+
+Gibber.Gen = Gibber.__gen.gen
+module.exports = Gibber
+
+},{"./arp.js":89,"./automata.js":90,"./channel.js":91,"./clock.js":92,"./communication.js":94,"./environment.js":95,"./euclidean.js":96,"./example.js":97,"./gen_abstraction.js":99,"./hex.js":101,"./hexSteps.js":102,"./live.js":104,"./max.js":107,"./midi.js":110,"./pattern.js":112,"./score.js":114,"./seq.js":115,"./steps.js":116,"./theory.js":118,"./track.js":119,"./utility.js":120,"./wavePattern.js":123}],101:[function(require,module,exports){
+module.exports = function( Gibber ) {
+
+let Pattern = Gibber.Pattern
+
+let Hex = function( hexString, time = 1/16, rotation ) {
+  let count = 0,
+      onesAndZeros = ''
+
+
+  for( let chr of hexString ) {
+    let num = Number( '0x'+chr )
+
+    onesAndZeros += (num & 8) > 0 ? 1 : 0
+    onesAndZeros += (num & 4) > 0 ? 1 : 0
+    onesAndZeros += (num & 2) > 0 ? 1 : 0
+    onesAndZeros += (num & 1) > 0 ? 1 : 0
+  } 
+
+  let __onesAndZeros = onesAndZeros.split('') 
+
+  let pattern = Gibber.Pattern.apply( null, __onesAndZeros )
+
+  pattern.time = time
+
+  //let output = { time, shouldExecute: 0 }
+  
+  pattern.filters.push( ( args ) => {
+    let val = args[ 0 ],
+        idx = args[ 2 ],
+        output = { time, shouldExecute: 0 }
+
+    output.shouldExecute = val > 0
+    
+    args[ 0 ] = output
+
+    return args
+  })
+
+  pattern.reseed = ( ...args )=> {
+    let n, k
+    
+    if( Array.isArray( args[0] ) ) {
+      k = args[0][0]
+      n = args[0][1]
+    }else{
+      k = args[0]
+      n = args[1]
+    }
+
+    if( n === undefined ) n = 16
+    
+    out = createStartingArray( n,k )
+    let _onesAndZeros = Inner( n,k )
+    
+    pattern.set( _onesAndZeros )
+    pattern.time = 1 / n
+
+    // this.checkForUpdateFunction( 'reseed', pattern )
+
+    return pattern
+  }
+
+  Gibber.addSequencingToMethod( pattern, 'reseed' )
+
+  if( typeof rotation === 'number' ) pattern.rotate( rotation )
+
+  return pattern
+}
+
+return Hex
+
+}
+
+},{}],102:[function(require,module,exports){
+module.exports = function( Gibber ) {
+  
+let Steps = {
+  type:'HexSteps',
+  create( _steps, track = Gibber.currentTrack ) {
+    let stepseq = Object.create( Steps )
+    
+    stepseq.seqs = {}
+
+    //  create( values, timings, key, object = null, priority=0 )
+    for ( let _key in _steps ) {
+      let values = _steps[ _key ],
+          key = parseInt( _key )
+
+      let seq = Gibber.Seq( key, Gibber.Hex( values ), 'midinote', track, 0 )
+      seq.trackID = track.id
+
+      //seq.values.filters.push( function( args ) {
+      //  let sym = args[ 0 ],
+      //      velocity = ( parseInt( sym, 16 ) * 8 ) - 1
+
+      //  if( isNaN( velocity ) ) {
+      //    velocity = 0
+      //  }
+
+      //  // TODO: is there a better way to get access to beat, beatOffset and scheduler?
+      //  if( velocity !== 0 ) {
+      //    let msg = seq.externalMessages[ 'velocity' ]( velocity, seq.values.beat + seq.values.beatOffset, seq.trackID )
+      //    seq.values.scheduler.msgs.push( msg ) 
+      //  }
+
+      //  args[ 0 ] = sym === '.' ? Gibber.Seq.DO_NOT_OUTPUT : key
+
+      //  return args
+      //})
+
+      stepseq.seqs[ _key ] = seq
+      stepseq[ _key ] = seq.values
+    }
+
+    stepseq.start()
+    stepseq.addPatternMethods()
+
+    return stepseq
+  },
+  
+  addPatternMethods() {
+    groupMethodNames.map( (name) => {
+      this[ name ] = function( ...args ) {
+        for( let key in this.seqs ) {
+          this.seqs[ key ].values[ name ].apply( this, args )
+        }
+      }
+    
+      Gibber.addSequencingToMethod( this, name, 1 )
+    })
+  },
+
+  start() {
+    for( let key in this.seqs ) { 
+      this.seqs[ key ].start()
+    }
+  },
+
+  stop() {
+    for( let key in this.seqs ) { 
+      this.seqs[ key ].stop()
+    }
+  },
+
+  clear() { this.stop() },
+
+  /*
+   *rotate( amt ) {
+   *  for( let key in this.seqs ) { 
+   *    this.seqs[ key ].values.rotate( amt )
+   *  }
+   *},
+   */
+}
+
+const groupMethodNames = [ 
+  'rotate', 'reverse', 'transpose', 'range',
+  'shuffle', 'scale', 'repeat', 'switch', 'store', 
+  'reset','flip', 'invert', 'set'
+]
+
+return Steps.create
+
+}
+
+},{}],103:[function(require,module,exports){
+require( 'babel-polyfill' )
+
+let Gibber = require( './gibber.js' ),
+    useAudioContext = false,
+    count = 0
+   
+Gibber.init()
+window.Gibber = Gibber
+
+},{"./gibber.js":100,"babel-polyfill":126}],104:[function(require,module,exports){
+module.exports = function( Gibber ) {
+
+let Live = {
+  init() {
+    Gibber.Communication.callbacks.schemas.live = Live.handleScene
+    Gibber.Communication.send( 'get_scene', 'live' )
+  },
+
+  tracks:[],
+  master:null,
+  returns:[],
+  
+  handleScene( msg ) {
+    Live.id = Communication.querystring.track
+
+    if( msg.tracks !== undefined ) {
+      Live.LOM = msg
+
+      Live.processLOM()
+    }
+  },
+
+  processLOM() {
+    Live.tracks = Live.LOM.tracks.map( Live.processTrack )
+    Gibber.currentTrack = Live.tracks.find( element => { return element.id === Live.id } )
+    
+    Live.returns = Live.LOM.returns.map( Live.processTrack )
+
+    Gibber.Live.master = Live.processTrack( Live.LOM.master )
+
+    if( Gibber.currentTrack === undefined ) {
+      Gibber.currentTrack = Gibber.Live.master
+    }
+
+    for( let track of Live.tracks ) {
+      // the next line is for a weird error that occurs when tracks
+      // are named with discontinuous numbers; see https://github.com/gibber-cc/gibberwocky.live/issues/8
+      if( track === undefined ) continued
+
+      Live.tracks[ track.spec.name ] = track
+    }
+    
+    window.tracks  = Live.tracks
+    window.master  = Live.master
+    window.returns = Live.returns
+
+    Gibber.Scheduler.bpm = Live.LOM.bpm
+
+    Gibber.Environment.lomView.init( Gibber )
+
+    Gibber.publish( 'lom_update' )
+  },
+
+  processTrack( spec, index  ) {
+    let track = Gibber.Track( spec )
+    track.devices = []
+    track.index = index
+
+    spec.devices.forEach( (val, idx ) => {
+      Live.processDevice( val, idx, track ) 
+    })
+    
+    if( track.devices[0] !== undefined ) {
+      if( track.devices[0].title.includes('gibberwocky') ) {
+        track.length = track.devices.length
+        track.devices.shift()
+        Array.prototype.shift.call( track )
+      }
+    }
+    return track
+  },
+
+  processDevice( device, idx, currentTrack ) {
+    if( device.name === undefined ) {
+      // XXX hack for wavetable bug
+      //console.log( 'undefined device name, assuming wavetable:', device )
+      device.name = 'Wavetable'
+    }
+
+    let d = currentTrack.devices[ device.name ] = currentTrack.devices[ idx ] = currentTrack[ idx ] = { idx },
+        parameterCount = 0
+    
+    //console.log( 'device', device ) 
+    if( device.type === 1 ) currentTrack.instrument = d
+
+    d.pickRandomParameter = ()=> {
+      let idx = Gibber.Utility.rndi( 0, device.parameters.length - 1 ),
+          param = device.parameters[ idx ]
+       
+      while( param.name === 'Device On' || param.name.indexOf( 'Volume' ) !== -1 ) {
+        idx = Gibber.Utility.rndi( 0, device.parameters.length - 1 ),
+        param = device.parameters[ idx ]
+      }
+
+      return d[ param.name ]
+    }
+
+    d.galumph = ( value ) => d.pickRandomParameter()( value )
+    d.on =  ()=>  { d.isOn = 1; d['Device On']( d.isOn ) }
+    d.off = ()=>  { d.isOn = 0; d['Device On']( d.isOn ) }
+    d.toggle = ()=> { d.isOn = d.isOn === 1 ? 0 : 1; d['Device On']( d.isOn ) }
+
+    Gibber.addSequencingToMethod( d, 'galumph' )
+    Gibber.addSequencingToMethod( d, 'toggle' )
+
+    device.parameters.forEach( ( spec, idx ) => Gibber.addMethod( d, null, spec, currentTrack.id ) )
+    d.parameters = device.parameters.slice( 0 )
+    d.name = device.name
+    d.title = device.title
+  },
+}
+
+return Live
+
+}
+
+},{}],105:[function(require,module,exports){
+module.exports = {
   introduction:`/* gibberwocky.live - introduction
  * 
  * This introduction assumes that you have the gibberwocky.demo.als
@@ -7530,1484 +9147,7 @@ tracks[0].midinote.seq(
 
 }
 
-module.exports = Examples
-
-},{}],98:[function(require,module,exports){
-module.exports = function( Gibber ) {
-
-const binops = [ 
-  'min','max','add','sub','mul','div','rdiv','mod','rsub','rmod','absdiff',
-  'and','or','gt','eq','eqp','gte','gtep','gtp','lt','lte','ltep','ltp','neq',
-  'step' 
-]
-
-const monops = [
-  'abs','acos','acosh','asin','asinh','atan','atan2','atanh','cos','cosh','degrees',
-  'fastcos','fastsin','fasttan','hypot','radians','sin','sinh','tan','tanh', 'floor',
-  'ceil', 'sign', 'trunc', 'fract', 'param'
-]
-
-const noops = [
-  'noise'
-]
-
-let Gen  = {
-  lastConnected:[],
-  names:[],
-  connected: [],
-
-  isGen:true,
-  debug:false,
-
-  init() {
-    Gen.createBinopFunctions()
-    Gen.createMonopFunctions()
-
-    Gen.names.push( ...binops )
-    Gen.names.push( ...monops )
-    Gen.names.push( ...Object.keys( Gen.constants ) )
-    Gen.names.push( ...Object.keys( Gen.functions ) )
-    Gen.names.push( ...Object.keys( Gen.composites ) )
-
-    Gibber.subscribe( 'clear', ()=> Gen.lastConnected.length = 0 )
-  },
-
-  // if property is !== ugen (it's a number) a Param must be made using a default
-  create( name ) {
-    // rate needs custom function to skip sequencing input and only sequence rate adjustment
-
-    const params = Array.prototype.slice.call( arguments, 1 )
-
-    if( name === 'rate' ) return Gen.createRate( name, ...params )
-
-    let obj = Object.create( this ),
-        count = 0
-    
-    obj.name = name
-    obj.active = false
-    
-    for( let key of Gen.functions[ name ].properties ) { 
-
-      let value = params[ count++ ]
-      obj[ key ] = ( v ) => {
-        if( v === undefined ) {
-          return value
-        }else{
-          value = v
-          if( obj.active ) {
-            Gibber.Communication.send( `genp ${obj.paramID} ${obj[ key ].uid} ${v}` ) 
-          }
-        }
-      }
-      obj[ key ].uid = Gen.getUID()
-
-      Gibber.addSequencingToMethod( obj, key )
-    }
-
-    return obj
-  },
-
-  createRate( name ) {
-    let obj = Object.create( this ),
-        count = 0,
-        param = arguments[1] 
-    
-    obj.name = 'rate' 
-    obj.active = false
-    
-    let value = param
-    //console.log( 'value:', value, 'args:', arguments )
-    obj[ 0 ] = v => {
-      if( v === undefined ) {
-        return value
-      }else{
-        value = v
-        if( obj.active ) {
-          Gibber.Communication.send( `genp ${obj.paramID} ${obj[ 0 ].uid} ${v}` ) 
-        }
-      }
-    }
-
-    Gen.getUID() // leave 0 behind...
-    obj[ 0 ].uid = Gen.getUID()
-
-    Gibber.addSequencingToMethod( obj, '0' )
-
-    return obj
-  },
- 
-  createBinopFunctions() {
-    for( let key of binops ) {
-      Gen.functions[ key ] = {
-        properties:['0','1'], str:key
-      }
-    }
-  },
-
-  createMonopFunctions() {
-    for( let key of monops ) {
-      Gen.functions[ key ] = {
-        properties:['0'], str:key
-      }
-    }
-  },
-
-  assignTrackAndParamID: function( track, id ) {
-    this.paramID = id
-    this.track = track
-
-    let count = 0, param
-    while( param = this[ count++ ] ) {
-      if( typeof param() === 'object' ) {
-        param().assignTrackAndParamID( track, id )
-      }
-    }
-  },
-
-  clear() {
-    for( let ugen of Gen.connected ) {
-      Gibber.Communication.send( `ungen ${ugen.paramID}` )
-    }
-
-    Gen.connected.length = 0
-  },
-
-  constants: {
-    degtorad: Math.PI / 180,
-    E :       Math.E,
-    halfpi:   Math.PI / 2,
-    invpi :   Math.PI * - 1,
-    ln10  :   Math.LN10,
-    ln2   :   Math.LN2,
-    log10e:   Math.LOG10E,
-    log2e :   Math.LOG2E,
-    pi    :   Math.PI,  
-    sqrt2 :   Math.SQRT2,
-    sqrt1_2:  Math.SQRT1_2,
-    twopi :   Math.PI * 2,
-    time  :   'time',
-    samplerate: 'samplerate'
-  },
-
-  functions: {
-    phasor: { properties:[ '0' ],  str:'phasor' },
-    cycle:  { properties:[ '0' ],  str:'cycle' },
-    rate:   { properties:[ '0' ], str:'rate' },
-    noise:  { properties:[], str:'noise' },
-    accum:  { properties:[ '0','1' ], str:'accum' },
-    counter:{ properties:[ '0','1' ], str:'counter' },
-    scale:  { properties: ['0', '1', '2', '3'], str:'scale' },
-    sah:    { properties: ['0', '1', '2'], str:'sah' },
-    clamp:  { properties: ['0', '1', '2'], str:'clamp' },
-    ternary:{ properties: ['0', '1', '2'], str:'ternary' },
-    selector:{ properties: ['0', '1', '2'], str:'selector' },
-  },
-
-  _count: 0,
-
-  getUID() {
-    return 'p' + Gen._count++
-  },
-
-  time: 'time',
-
-  out() {
-    let paramArray = [],
-        body, out
-    
-    body = this.gen( paramArray )
-
-    out = paramArray.join( ';' )
-
-    if( paramArray.length ) {
-      out += ';'
-    }
-    
-    out += 'out1='
-    out += body + ';'
-    
-    if( Gen.debug ) console.log( out )
-
-    return out
-  },
-
-  gen( paramArray ) {
-    let def = Gen.functions[ this.name ],
-        str = def.str + '(',
-        count = 0
-    
-    // tell Gibber that this gen object is part of an active gen graph
-    // so that changes to it are forwarded to m4l
-    this.active = true
-
-    if( this.name === 'rate' ) {
-      str += 'in1, '
-      let pName = this[ 0 ].uid
-      str += pName
-      paramArray.push( `Param ${pName}(${this[0]()})` )
-    }else{
-      for( let property of def.properties ) {
-        let p = this[ property ](),
-            uid = this[ property ].uid
-        
-        //console.log( this.name, property, def.properties, uid )
-        if( Gen.isPrototypeOf( p ) ) {
-          str += p.gen( paramArray )
-        }else if( typeof p === 'number' ) {
-          let pName = uid
-          str += pName
-          paramArray.push( `Param ${pName}(${p})` )
-        }else if( p === Gen.time ) {
-          str += p
-        }else if( typeof p === 'string' ) {
-          str += p
-        }else{
-          console.log( 'CODEGEN ERROR:', p )
-        }
-
-        if( count++ < def.properties.length - 1 ) str += ','
-      }
-    }
-    
-    str += ')'
-
-    return str
-  },
-
-  composites: { 
-    lfo( frequency = .1, amp = .5, center = .5 ) {
-      const g = Gen.ugens
-
-      let _cycle = g.cycle( frequency ),
-          _mul   = g.mul( _cycle, amp ),
-          _add   = g.add( center, _mul ) 
-       
-      _add.frequency = (v) => {
-        if( v === undefined ) {
-          return _cycle[ 0 ]()
-        }else{
-          _cycle[0]( v )
-        }
-      }
-
-      _add.amp = (v) => {
-        if( v === undefined ) {
-          return _mul[ 1 ]()
-        }else{
-          _mul[1]( v )
-        }
-      }
-
-      _add.center = (v) => {
-        if( v === undefined ) {
-          return _add[ 0 ]()
-        }else{
-          _add[0]( v )
-        }
-      }
-
-      Gibber.addSequencingToMethod( _add, 'frequency' )
-      Gibber.addSequencingToMethod( _add, 'amp' )
-      Gibber.addSequencingToMethod( _add, 'center' )
-
-      return _add
-    },
-
-    fade( time = 1, from = 1, to = 0 ) {
-      let g = Gen.ugens
-      let fade, amt, beatsInSeconds = time * ( 60 / Gibber.Live.LOM.bpm )
-     
-      if( from > to ) {
-        amt = from - to
-
-        fade = g.gtp( g.sub( from, g.accum( g.div( amt, g.mul(beatsInSeconds, g.samplerate ) ), 0 ) ), to )
-      }else{
-        amt = to - from
-        fade = g.add( from, g.ltp( g.accum( g.div( amt, g.mul( beatsInSeconds, g.samplerate ) ), 0 ), to ) )
-      }
-      
-      // XXX should this be available in ms? msToBeats()?
-      let numbeats = time / 4
-      fade.shouldKill = {
-        after: numbeats, 
-        final: to
-      }
-      
-      return fade
-    },
-    
-    beats( num ) {
-      return Gen.ugens.rate( num )
-      // beat( n ) => rate(in1, n)
-      // final string should be rate( in1, num )
-    }
-  },
-
-  ugens:{},
-
-  export( obj ) {
-    for( let key in Gen.functions ) {
-      this.ugens[ key ] = Gen.create.bind( Gen, key )
-    }
-
-    Object.assign( this.ugens, Gen.constants )
-    Object.assign( this.ugens, Gen.composites )
-
-    Object.assign( obj, this.ugens )
-  }
-}
-
-Gen.init()
-
-return Gen 
-
-}
-
-
-/*
-
-a = LFO( .5, .25, .5 )
-// lfo has frequency, amplitude and bias
-
-->
-
-// every array indicates presence of new ugen
-a.graph = [ 'add', 'bias', [ 'mul', 'amp', [ 'cycle', 'frequency' ] ] ]
-*/
-
-},{}],99:[function(require,module,exports){
-/* gen_abstraction.js
- *
- * This object serves as an asbtraction between the codegen for Gen and
- * the use of genish.js. In gibberwocky, Gen code is sent to Live/Max for
- * modulation purposes while genish.js is used to create waveforms that can
- * be sampled for pattern generation.
- *
- * This abstraction delays interpretation of the Gen(ish) graphs until 
- * one of the following two events occurs:
- *
- * 1. The graph is assigned to a property. This means that the graph
- * should be interpreted as a Gen graph.
- *
- * 2. The graph is used to create a WavePattern. This means that the
- * graph should be interpreted as a genish graph.
- *
- * One open problem: what if the same graph is used in two places? Can
- * the abstraction hold both types of codegen objects inside of it? Currently
- * the abstraction only holds one graph in its 'rendered' property... perhaps
- * this could be chagned to 'genRendered' and 'genishRendered' and then the 
- * appropriate one could be linked to? What happens when multiple wavepatterns
- * use the same graph? Does each generated a dot for every s&h value??
- */
-
-const genish = require( 'genish.js' )
-const genreq = require( './gen.js' )
-
-/*  
-assignInputProperties( genishGraph, abstractGraph ) {
-  for( let input in abstractGraph.inputs ) {
-    if( typeof abstractGraph.inputs[ input ] === 'number' ) {
-      let __param = genishGraph.inputs[ input ] = genish.param( abstractGraph.inputs[ input ] )
-      abstractGraph[ input ] = v => {
-        __param.value = v
-      }
-    }
-  }
-},
-*/
-
-const defineMethod = function( obj, methodName, param, priority=0 ) {
-  obj[ methodName ] = v => {
-    if( v === undefined ) return param.value
-    
-    // else, set the value
-    param.value = v
-  }
-  
-  if( !obj.sequences ) obj.sequences = {}
-
-  obj[ methodName ].seq = function( values, timings, id=0, delay=0 ) {
-    if( obj.sequences[ methodName ] === undefined ) obj.sequences[ methodName ] = []
-
-    if( obj.sequences[ methodName ][ id ] !== undefined ) obj.sequences[ methodName ][ id ].clear()
-
-    const seq = Gibber.Seq( values, timings, methodName, obj, priority )
-    obj.sequences[ methodName ][ id ] = seq 
-
-    seq.__tick = seq.tick
-    seq.tick = function( ...args ) {
-      param.value = 0 
-      for( let i = 0; i < obj.patterns.length; i++ ) {
-        let pattern = obj.patterns[ i ]
-        let graph   = obj.graphs[ i ]
-        pattern.adjust( graph, Gibber.Scheduler.currentTimeInMs - pattern.phase )  
-      }
-      seq.__tick.apply( seq, args )
-    }
-
-    seq.trackID = obj.id
-
-    if( id === 0 ) {
-      obj[ methodName ].values  = obj.sequences[ methodName ][ 0 ].values
-      obj[ methodName ].timings = obj.sequences[ methodName ][ 0 ].timings
-    }
-
-    obj[ methodName ][ id ] = seq
-
-    seq.delay( delay )
-    seq.start()
-
-    // avoid this for gibber objects that don't communicate with Live such as Scale
-    if( obj.id !== undefined ) Gibber.Communication.send( `select_track ${obj.id}` )
-
-    return seq
-  }
-    
-  obj[ methodName ].seq.delay = v => obj[ methodName ][ lastId ].delay( v )
-
-  obj[ methodName ].seq.stop = function() {
-    obj.sequences[ methodName ][ 0 ].stop()
-    return obj
-  }
-
-  obj[ methodName ].seq.start = function() {
-    obj.sequences[ methodName ][ 0 ].start()
-    return obj
-  }
-}
-
-module.exports = function( Gibber ) {
-  const gen = genreq( Gibber )
-  const genfunctions = {}
-
-  gen.export( genfunctions )
-
-  const __ugenproto__ = {
-    render( mode ) {
-      let inputs = [], inputNum = 0
-
-      this.mode = mode
-
-      if( this.name === 'phasor' ) {
-        if( this.inputs[2] === undefined ) {
-          this.inputs[2] = { min:0 }
-        }
-      }
-
-      for( let input of this.inputs ) {
-        // use input.render as check to make sure this isn't a properties dictionary
-        if( typeof input === 'object' && input.render !== undefined ) {
-          inputs.push( input.render( mode ) )
-        }else{
-          if( mode === 'genish' && typeof input === 'number' ) { // replace numbers with params
-            let _input =  genish.param( input )
-            defineMethod( this, inputNum, _input )
-            inputs.push( _input )
-          }else{
-            inputs.push( input )
-          }
-        }
-
-        inputNum++
-      }
-
-      let ugen
-      if( mode === 'genish' || __gen.enabled === false ) {
-        ugen = genish[ this.name ]( ...inputs ) 
-      }else{
-        ugen = genfunctions[ this.name ]( ...inputs )
-      }
-
-      this.rendered = ugen
-      this.rendered.paramID = this.paramID
-      this.rendered.track = this.track
-
-      if( typeof this.__onrender === 'function' ) { this.__onrender() }
-
-      return ugen
-    },
-
-    isGen:true,
-  }
-
-  const __gen = {
-    __hasGen: true, // is Gen licensed on this machine? true by default
-    gen,
-    genish,
-    Gibber,
-    enabled: true,
-    initialized: false,
-    __waveObjects: require( './waveObjects.js' ),
-    waveObjects:null,
-    ugenNames: [
-      'cycle','phasor','accum','counter',
-      'add','mul','div','sub',
-      'sah','noise',
-      'beats', 'lfo', 'fade', 'sine', 'siner', 'cos', 'cosr', 'liner', 'line',
-      'abs', 'ceil', 'round', 'floor',
-      'min','max',
-      'gt','lt','ltp','gtp','samplerate','rate','clamp',
-      'ternary', 'selector'
-    ],
-    ugens:{},
-  
-    // determine whether or not gen is licensed
-    checkForLicense() {
-      const volume = Gibber.Live.tracks[0].volume()
-      __gen.enabled = true
-      const lfo = __gen.ugens.lfo( .25 )
-      Gibber.Live.tracks[0].volume( lfo )
-      setTimeout( ()=> {
-        Gibber.clear()
-        setTimeout( ()=> {
-          Gibber.Live.tracks[0].volume( volume )
-          Gibber.Environment.suppressErrors = false
-        }, 50 )
-      }, 250 * 8 )
-
-    },
- 
-    assignTrackAndParamID: function( track, id ) {
-      this.paramID = id
-      this.track = track
-
-      let count = 0, param
-      //while( param = this[ count++ ] ) {
-      //  if( typeof param() === 'object' ) {
-      //    param().assignTrackAndParamID( track, id )
-      //  }
-      //}
-    },
-
-    init() {
-      genish.gen.memory = genish.gen.createMemory( 88200, Float64Array )
-      const btof = Gibber.Utility.beatsToFrequency 
-
-      Gibber.subscribe( 'lom_update', ()=> {
-        if( __gen.initialized === false ) {
-          __gen.checkForLicense()
-          __gen.initialized = true
-        }
-      })
-
-      Gibber.Environment.suppressErrors = true
-
-      for( let name of this.ugenNames ) {
-        this.ugens[ name ] = function( ...inputs ) {
-          const ugen = Object.create( __ugenproto__ )
-
-          ugen.name = name
-          ugen.inputs = inputs
-
-          for( let i = 0; i < inputs.length; i++ ) {
-            ugen[ i ] = v => {
-              if( ugen.rendered !== undefined ) {
-                return ugen.rendered[ i ]( v )
-              }
-            }
-            Gibber.addSequencingToMethod( ugen, i )
-          }
-
-          return ugen
-        }
-      }
-
-      this.waveObjects = this.__waveObjects( Gibber, this, __ugenproto__ )
-      Object.assign( this.ugens, this.waveObjects )
-
-      genish.lfo = ( frequency = .1, center = .5, amp = .25 ) => {
-        const g = this.ugens//genish
-        //console.log( 'lfo', g )
-
-        let _cycle = g.cycle( frequency ),
-            _mul   = g.mul( _cycle, amp ),
-            _add   = g.add( center, _mul ) 
-         
-        _add.frequency = (v) => {
-          if( v === undefined ) {
-            return _cycle[ 0 ]()
-          }else{
-            _cycle[0]( v )
-          }
-        }
-
-        _add.amp = (v) => {
-          if( v === undefined ) {
-            return _mul[ 1 ]()
-          }else{
-            _mul[1]( v )
-          }
-        }
-
-        _add.center = (v) => {
-          if( v === undefined ) {
-            return _add[ 0 ]()
-          }else{
-            _add[0]( v )
-          }
-        }
-
-        Gibber.addSequencingToMethod( _add, 'frequency' )
-        Gibber.addSequencingToMethod( _add, 'amp' )
-        Gibber.addSequencingToMethod( _add, 'center' )
-
-        return _add
-      }
-
-      //genish.fade = function( beats=43, from = 0, to = 1 ) {
-      //  const g = this.ugens//__gen.ugens 
-      //  let fade, amt, beatsInSeconds = Gibber.Utility.beatsToFrequency( beats, 120 )
-       
-      //  if( from > to ) {
-      //    amt = from - to
-
-      //    fade = g.gtp( g.sub( from, g.accum( g.div( amt, g.mul(beatsInSeconds, g.samplerate ) ), 0 ) ), to )
-      //  }else{
-      //    console.log( 'fading in' )
-      //    amt = to - from
-      //    fade = g.add( from, g.ltp( g.accum( g.div( amt, g.mul( beatsInSeconds, g.samplerate ) ), 0 ), to ) )
-      //  }
-        
-      //  // XXX should this be available in ms? msToBeats()?
-      //  fade.shouldKill = {
-      //    after: beats, 
-      //    final: to
-      //  }
-
-      //  fade.name = 'fade'
-        
-      //  return fade
-      //}
-    },
-
-    export( target ) {
-      Object.assign( target, this.ugens )
-    },
-  }
-
-  return __gen
-}
-
-},{"./gen.js":98,"./waveObjects.js":120,"genish.js":37}],100:[function(require,module,exports){
-let Gibber = {
-  Utility:       require( './utility.js' ),
-  Communication: require( './communication.js' ),
-  Environment:   require( './environment.js' ),
-  Scheduler:     require( './clock.js' ),
-  Theory:        require( './theory.js' ),
-  Examples:      require( './example.js' ),
-  Live:          null,
-  Track:         null,
-  Gen:           null,
-  Euclid:        null,
-  Hex:           null,
-  Seq:           null,
-  Score:         null,
-  Pattern:       null,
-  Arp:           null,
-  currentTrack:  null,
-  codemirror:    null,
-  max:           null,
-  '$':           null,
-
-  export() {
-    window.Steps         = this.Steps
-    window.HexSteps      = this.HexSteps
-    window.Automata      = this.Automata
-    window.Seq           = this.Seq
-    window.Score         = this.Score
-    window.Track         = this.Track
-    window.Scheduler     = this.Scheduler
-    window.Pattern       = this.Pattern
-    window.Euclid        = this.Euclid
-    window.Hex           = this.Hex
-    window.Arp           = this.Arp
-    window.Communication = this.Communication
-    window.log           = this.log
-    window.clear         = this.clear
-    window.Theory        = this.Theory
-    window.Lookup        = this.WavePattern
-    window.channels      = this.MIDI.channels
-    window.MIDI          = this.MIDI
-
-    Gibber.__gen.export( window ) 
-
-    this.Theory.export( window )
-    this.Utility.export( window )
-  },
-
-  init() {
-    this.$   = Gibber.Utility.create
-
-
-    this.Environment.init( Gibber )
-    this.Theory.init( Gibber )
-    this.log = this.Environment.log
-
-    if( this.Environment.debug ) {
-      this.Scheduler.mockRun()
-    }else{
-      this.MIDI.init( Gibber )
-      this.Communication.init( Gibber ) 
-    }
-
-    //this.currentTrack = this.Track( this, 1 ) // TODO: how to determine actual "id" from Max?
-    
-    this.initSingletons( window )
-
-    this.__gen.init( this )
-
-    this.export()
-  },
-
-  singleton( target, key ) {
-    if( Array.isArray( key ) ) {
-      for( let i = 0; i < key.length; i++ ) {
-        Gibber.singleton( target, key[ i ] )
-      }
-      return
-    }
-    
-    if( target[ key ] !== undefined ) {
-      delete target[ key ]
-    }
-
-    let proxy = null
-    Object.defineProperty( target, key, {
-      configurable:true,
-      get() { return proxy },
-      set(v) {
-        if( proxy !== null && proxy.clear ) {
-          proxy.clear()
-        }
-        
-        if( proxy !== null && proxy.__listeners !== undefined ) {
-          for( let listener of proxy.__listeners ) {
-            listener( proxy, v )
-          }
-        }
-
-        if( proxy !== null && v !== null ) {
-          if( proxy.isGen && v.isGen ) {
-            for( let key in proxy.sequences ) {
-              let sequences = proxy.sequences[ key ]
-              for( let sequence of sequences ) {
-                sequence.target = v
-              }
-            }
-            v.sequences = proxy.sequences
-          }
-        }
-        proxy = v
-      }
-    })
-  },
-
-  initSingletons: function( target ) {
-		var letters = "abcdefghjklmnopqrstuwxyz"
-    
-		for(var l = 0; l < letters.length; l++) {
-
-			var lt = letters.charAt(l);
-      Gibber.singleton( target, lt )
-      
-    }
-  },
-
-  clear() {
-    for( let i = 0; i < this.Seq._seqs.length; i++ ){
-      this.Seq._seqs[ i ].clear()
-    }
-    
-    setTimeout( () => {
-      for( let key in Gibber.currentTrack.markup.textMarkers ) {
-        let marker = Gibber.currentTrack.markup.textMarkers[ key ]
-
-        if( Array.isArray( marker ) ) {
-          marker.forEach( m => m.clear() )
-        }else{
-          if( marker.clear ) marker.clear() 
-        }
-      }
-    }, 250 )
-
-    Gibber.Gen.clear()
-    Gibber.Environment.clear()
-    Gibber.publish( 'clear' )
-    Gibber.initSingletons( window )
-  },
-
-  createPubSub() {
-    const events = {}
-    this.subscribe = function( key, fcn ) {
-      if( typeof events[ key ] === 'undefined' ) {
-        events[ key ] = []
-      }
-      events[ key ].push( fcn )
-    }
-
-    this.unsubscribe = function( key, fcn ) {
-      if( typeof events[ key ] !== 'undefined' ) {
-        const arr = events[ key ]
-
-        arr.splice( arr.indexOf( fcn ), 1 )
-      }
-    }
-
-    this.publish = function( key, data ) {
-      if( typeof events[ key ] !== 'undefined' ) {
-        const arr = events[ key ]
-
-        arr.forEach( v => v( data ) )
-      }
-    }
-  },
-
-  addSequencingToMethod( obj, methodName, priority, overrideName ) {
-    
-    if( !obj.sequences ) obj.sequences = {}
-    if( overrideName === undefined ) overrideName = methodName 
-    
-    let lastId = 0
-    obj[ methodName ].seq = function( values, timings, id=0, delay=0 ) {
-      let seq
-      lastId = id
-
-      if( obj.sequences[ methodName ] === undefined ) obj.sequences[ methodName ] = []
-
-      if( obj.sequences[ methodName ][ id ] ) obj.sequences[ methodName ][ id ].clear()
-
-      obj.sequences[ methodName ][ id ] = seq = Gibber.Seq( values, timings, overrideName, obj, priority )
-
-      // if the target is another sequencer (like for per-sequencer velocity control) it won't
-      // have an id property.. use existing trackID property instead.
-      seq.trackID = obj.id === undefined ? obj.trackID : obj.id
-
-      if( id === 0 ) {
-        obj[ methodName ].values  = obj.sequences[ methodName ][ 0 ].values
-        obj[ methodName ].timings = obj.sequences[ methodName ][ 0 ].timings
-      }
-
-      obj[ methodName ][ id ] = seq
-
-      if( delay !== 0 ) seq.delay( delay )
-      seq.start()
-
-      // avoid this for gibber objects that don't communicate with Live such as Scale
-      if( obj.id !== undefined ) Gibber.Communication.send( `select_track ${obj.id}` )
-
-      // setup code annotations to place values and widget onto pattern object
-      // not gen~ object
-      if( typeof values === 'object' && values.isGen ) {
-        Gibber.Gen.lastConnected.push( seq.values )
-      }
-      
-      if( typeof timing === 'object' && timings.isGen ) {
-        Gibber.Gen.lastConnected.push( seq.timings )
-      }
-
-      return seq 
-    }
-    
-    obj[ methodName ].seq.delay = v => obj[ methodName ][ lastId ].delay( v )
-
-    obj[ methodName ].seq.stop = function() {
-      obj.sequences[ methodName ][ 0 ].stop()
-      return obj
-    }
-
-    obj[ methodName ].seq.start = function() {
-      obj.sequences[ methodName ][ 0 ].start()
-      return obj
-    }
-
-
-  },
-
-  addSequencingToProtoMethod( proto, methodName ) {
-    proto[ methodName ].seq = function( values, timings, id = 0 ) {
-
-      if( this.sequences === undefined ) this.sequences = {}
-
-      if( this.sequences[ methodName ] === undefined ) this.sequences[ methodName ] = []
-
-      if( this.sequences[ methodName ][ id ] ) this.sequences[ methodName ][ id ].stop() 
-
-      this.sequences[ methodName ][ id ] = Gibber.Seq( values, timings, methodName, this ).start() // 'this' will never be correct reference
-
-      if( id === 0 ) {
-        this.values  = this.sequences[ methodName ][ 0 ].values
-        this.timings = this.sequences[ methodName ][ 0 ].timings
-      }
-
-      this[ id ] = this.sequences[ methodName ][ id ]
-      
-      this.seq.stop = function() {
-        this.sequences[ methodName ][ 0 ].stop()
-        return this
-      }.bind( this )
-
-      this.seq.start = function() {
-        this.sequences[ methodName ][ 0 ].start()
-        return this
-      }.bind( this )
-    }
-  },
-
-  // XXX THIS MUST BE REFACTORED. UGH.
-  addMethod( obj, methodName, parameter, _trackID, mode='live' ) {
-    let v = mode === 'live' ? parameter.value : 0,
-        p,
-        trackID = isNaN( _trackID ) ? obj.id : _trackID
-
-
-    let  seqKey = mode === 'live' ? `${trackID} ${obj.id} ${parameter.id}` : `${obj.address} ${methodName}`
-
-    //console.log( "add method trackID", trackID )
-
-    if( mode === 'live' && methodName === null ) methodName = parameter.name
-
-    Gibber.Seq.proto.externalMessages[ seqKey ] = ( value, beat ) => {
-      let msg = mode === 'live' 
-        ? `add ${beat} set ${parameter.id} ${value}`
-        : `add ${beat} ${obj.path} ${methodName} ${value}`
-              
-      return msg
-    }
-
-    obj[ methodName ] = p = ( _v ) => {
-      if( p.properties.quantized === 1 ) _v = Math.round( _v )
-
-      const hasGen = Gibber.__gen.enabled
-
-      if( _v !== undefined ) {
-        if( typeof _v === 'object' && _v.isGen ) {
-          let __v = hasGen === true ? _v.render( 'gen' ) : _v.render( 'genish' )
-
-          if( hasGen ) {
-            __v.assignTrackAndParamID( trackID, parameter.id )
-          }else{
-            Gibber.__gen.assignTrackAndParamID.call( _v, trackID, parameter.id )
-          }
-          
-          // if a gen is not already connected to this parameter, push
-          const prevGen = Gibber.Gen.connected.find( e => e.paramID === parameter.id )
-          const genAlreadyAssigned = prevGen !== undefined
-          if( genAlreadyAssigned === true ) {
-            Gibber.Gen.connected.push( __v )
-          }
-
-          if( hasGen === true ) { 
-            Gibber.Communication.send( `gen ${parameter.id} "${__v.out()}"` )
-          }else{
-            if( genAlreadyAssigned === true ) {
-              prevGen.clear()
-              prevGen.shouldStop = true
-              const idx = Gibber.Gen.connected.findIndex( e => e.paramID === parameter.id )
-              Gibber.Gen.connected.splice( idx, 1 )
-            }
-
-            _v.wavePattern = Gibber.WavePattern( _v )
-            
-            _v.wavePattern.genReplace = function( out ) { 
-              // XXX set min/max for gibberwocky.live only
-              out = Math.min( out, 1 )
-              out = Math.max( 0, out )
-
-              Gibber.Communication.send( `set ${parameter.id} ${out}` )
-            }
-
-            _v.wavePattern( false )
-            __v = _v
-          }
-
-          Gibber.Communication.send( `select_track ${ trackID }` )
-
-          Gibber.__gen.gen.lastConnected.push( hasGen === true ? __v : _v )
-          
-          // disconnects for fades etc.
-          // XXX reconfigure for hasGen === false
-          if( typeof _v.shouldKill === 'object' ) {
-            Gibber.Utility.future( ()=> {
-              if( hasGen ) {
-                Gibber.Communication.send( `ungen ${parameter.id}` )
-                Gibber.Communication.send( `set ${parameter.id} ${_v.shouldKill.final}` )
-              }else{
-                Gibber.Communication.send( `ungen ${parameter.id}` )
-                //_v.wavePattern.clear()
-
-                const prevGen = Gibber.Gen.connected.find( e => e.paramID === parameter.id )
-                prevGen.clear()
-                _v.patterns[0].shouldStop = true
-                const idx = Gibber.Gen.connected.findIndex( e => e.paramID === parameter.id )
-                Gibber.Gen.connected.splice( idx, 1 )
-                obj[ methodName ]( _v.shouldKill.final )
-
-                Gibber.Communication.send( `set ${parameter.id} ${_v.shouldKill.final}` )
-              }
-              
-              let widget = Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
-              if( widget !== undefined && widget.mark !== undefined ) {
-                widget.mark.clear()
-              }
-              delete Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
-            }, _v.shouldKill.after )
-          }
-          
-          v = hasGen === true ? __v : _v
-        }else{
-          if( v.isGen ) {
-            if( hasGen ) {
-              Gibber.Communication.send( `ungen ${parameter.id}` )
-            }
-
-            let widget = Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
-            if( widget !== undefined && widget.mark !== undefined ) {
-              widget.mark.clear()
-            }
-            delete Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
-          }
-
-          v = typeof _v === 'object' && _v.isGen ? ( hasGen === true ? _v.render( 'gen' ) : _v.render('genish') ) : _v
-
-          Gibber.Communication.send( `set ${parameter.id} ${v}` )
-        }
-      }else{
-        return v
-      }
-    }
-
-    p.properties = parameter
-
-    Gibber.addSequencingToMethod( obj, methodName, 0, seqKey )
-  },
-
-  
-  addMIDIMethod( obj, methodName, channel, ccnum )  {
-    let v = 0,//parameter.value,
-        p,
-        seqKey = `${channel} cc ${ccnum}`
-
-    //console.log( "add method trackID", trackID )
-
-    Gibber.Seq.proto.externalMessages[ seqKey ] = ( val, offset=null ) => {
-      let msg = [ 0xb0 + channel, ccnum, val ]
-      const baseTime = offset !== null ? window.performance.now() + offset : window.performance.now()
-
-      Gibber.MIDI.send( msg, baseTime )
-    }
-    
-    obj[ methodName ] = p = ( initialGraph, shouldTransform=true ) => {
-      let transformedGraph = null, finishedGraph = null
-      //if( p.properties.quantized === 1 ) _v = Math.round( _v )
-      
-      if( typeof initialGraph === 'object' ) initialGraph.isGen = typeof initialGraph.gen === 'function'
-
-      if( initialGraph !== undefined ) {
-        if( typeof initialGraph === 'object' && initialGraph.isGen ) {
-          if( shouldTransform === true ) { // affine transform -1:1 to 0:127
-            transformedGraph = Gibber.Gen.genish.clamp(
-              Gibber.Gen.genish.floor(
-                Gibber.Gen.genish.mul( 
-                  Gibber.Gen.genish.div( 
-                    Gibber.Gen.genish.add( 1, initialGraph ), 
-                    2 
-                  ), 
-                127 
-                ) 
-              ),
-            0, 127 )
-          }
-
-          finishedGraph = shouldTransform ?
-            Gibber.Gen.genish.gen.createCallback( transformedGraph ) :
-            Gibber.Gen.genish.gen.createCallback( initialGraph ) 
-
-
-          Gibber.Gen.assignTrackAndParamID( finishedGraph, channel, ccnum )
-          
-          // if a gen is not already connected to this parameter, push
-          if( Gibber.Gen.connected.find( e => e.ccnum === ccnum && e.channel === channel ) === undefined ) {
-            Gibber.Gen.connected.push( finishedGraph )
-          }
-
-          Gibber.Gen.lastConnected = finishedGraph
-
-          if( '__widget__' in initialGraph ) {
-            initialGraph.__widget__.place()
-          }
-          
-          // disconnects for fades etc.
-          //if( typeof _v.shouldKill === 'object' ) {
-          //  Gibber.Utility.future( ()=> {
-          //    Gibber.Communication.send( `ungen ${parameter.id}` )
-          //    Gibber.Communication.send( `set ${parameter.id} ${_v.shouldKill.final}` )
-
-          //    let widget = Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
-          //    if( widget !== undefined && widget.mark !== undefined ) {
-          //      widget.mark.clear()
-          //    }
-          //    delete Gibber.Environment.codeMarkup.genWidgets[ parameter.id ]
-          //  }, _v.shouldKill.after )
-          //}
-          
-          v = finishedGraph
-          v.isGen = true
-        }else{
-          // if there was a gen assigned and now a number is being assigned...
-          if( v.isGen ) { 
-            console.log( 'removing gen', v )
-            let widget = Gibber.Environment.codeMarkup.genWidgets[ v.id ]
-
-            if( widget !== undefined && widget.mark !== undefined ) {
-              widget.mark.clear()
-            }
-            delete Gibber.Environment.codeMarkup.genWidgets[ v.id ]
-
-          }
-
-          v = initialGraph
-          Gibber.Seq.proto.externalMessages[ seqKey ]( v )
-          //Gibber.Communication.send( `set ${parameter.id} ${v}` )
-        }
-      }else{
-        return v
-      }
-    }
-    
-    // solo cc output for midi mapping
-    let soloing = false
-    obj[ methodName ].solo = function() {
-      if( soloing === false ) {
-        Gibber.Gen.__solo = { channel, ccnum }
-      }else{
-        Gibber.Gen.__solo = null
-      }
-
-      soloing = !soloing
-    }
-    //p.properties = parameter
-
-    Gibber.addSequencingToMethod( obj, methodName, 0, seqKey )
-  }
-}
-
-// must be called before requiring objects that use pubsub
-Gibber.createPubSub()
-
-Gibber.Pattern = require( './pattern.js' )( Gibber )
-Gibber.Seq     = require( './seq.js' )( Gibber )
-Gibber.Score   = require( './score.js' )( Gibber )
-Gibber.Arp     = require( './arp.js' )( Gibber )
-Gibber.Euclid  = require( './euclidean.js')( Gibber )
-Gibber.Automata= require( './automata.js' )( Gibber )
-Gibber.Hex     = require( './hex.js')( Gibber )
-Gibber.Steps   = require( './steps.js' )( Gibber )
-Gibber.HexSteps= require( './hexSteps.js' )( Gibber )
-Gibber.Live    = require( './live.js' )( Gibber )
-Gibber.Max     = require( './max.js' )( Gibber )
-Gibber.Track   = require( './track.js')( Gibber )
-Gibber.__gen   = require( './gen_abstraction.js' )( Gibber )
-
-Gibber.Channel = require( './channel.js' )( Gibber )
-Gibber.MIDI    = require( './midi.js' )
-Gibber.WavePattern = require( './wavePattern.js' )( Gibber )
-
-Gibber.Gen = Gibber.__gen.gen
-module.exports = Gibber
-
-},{"./arp.js":89,"./automata.js":90,"./channel.js":91,"./clock.js":92,"./communication.js":94,"./environment.js":95,"./euclidean.js":96,"./example.js":97,"./gen_abstraction.js":99,"./hex.js":101,"./hexSteps.js":102,"./live.js":104,"./max.js":106,"./midi.js":108,"./pattern.js":110,"./score.js":112,"./seq.js":113,"./steps.js":114,"./theory.js":116,"./track.js":117,"./utility.js":118,"./wavePattern.js":121}],101:[function(require,module,exports){
-module.exports = function( Gibber ) {
-
-let Pattern = Gibber.Pattern
-
-let Hex = function( hexString, time = 1/16, rotation ) {
-  let count = 0,
-      onesAndZeros = ''
-
-
-  for( let chr of hexString ) {
-    let num = Number( '0x'+chr )
-
-    onesAndZeros += (num & 8) > 0 ? 1 : 0
-    onesAndZeros += (num & 4) > 0 ? 1 : 0
-    onesAndZeros += (num & 2) > 0 ? 1 : 0
-    onesAndZeros += (num & 1) > 0 ? 1 : 0
-  } 
-
-  let __onesAndZeros = onesAndZeros.split('') 
-
-  let pattern = Gibber.Pattern.apply( null, __onesAndZeros )
-
-  pattern.time = time
-
-  //let output = { time, shouldExecute: 0 }
-  
-  pattern.filters.push( ( args ) => {
-    let val = args[ 0 ],
-        idx = args[ 2 ],
-        output = { time, shouldExecute: 0 }
-
-    output.shouldExecute = val > 0
-    
-    args[ 0 ] = output
-
-    return args
-  })
-
-  pattern.reseed = ( ...args )=> {
-    let n, k
-    
-    if( Array.isArray( args[0] ) ) {
-      k = args[0][0]
-      n = args[0][1]
-    }else{
-      k = args[0]
-      n = args[1]
-    }
-
-    if( n === undefined ) n = 16
-    
-    out = createStartingArray( n,k )
-    let _onesAndZeros = Inner( n,k )
-    
-    pattern.set( _onesAndZeros )
-    pattern.time = 1 / n
-
-    // this.checkForUpdateFunction( 'reseed', pattern )
-
-    return pattern
-  }
-
-  Gibber.addSequencingToMethod( pattern, 'reseed' )
-
-  if( typeof rotation === 'number' ) pattern.rotate( rotation )
-
-  return pattern
-}
-
-return Hex
-
-}
-
-},{}],102:[function(require,module,exports){
-module.exports = function( Gibber ) {
-  
-let Steps = {
-  type:'HexSteps',
-  create( _steps, track = Gibber.currentTrack ) {
-    let stepseq = Object.create( Steps )
-    
-    stepseq.seqs = {}
-
-    //  create( values, timings, key, object = null, priority=0 )
-    for ( let _key in _steps ) {
-      let values = _steps[ _key ],
-          key = parseInt( _key )
-
-      let seq = Gibber.Seq( key, Gibber.Hex( values ), 'midinote', track, 0 )
-      seq.trackID = track.id
-
-      //seq.values.filters.push( function( args ) {
-      //  let sym = args[ 0 ],
-      //      velocity = ( parseInt( sym, 16 ) * 8 ) - 1
-
-      //  if( isNaN( velocity ) ) {
-      //    velocity = 0
-      //  }
-
-      //  // TODO: is there a better way to get access to beat, beatOffset and scheduler?
-      //  if( velocity !== 0 ) {
-      //    let msg = seq.externalMessages[ 'velocity' ]( velocity, seq.values.beat + seq.values.beatOffset, seq.trackID )
-      //    seq.values.scheduler.msgs.push( msg ) 
-      //  }
-
-      //  args[ 0 ] = sym === '.' ? Gibber.Seq.DO_NOT_OUTPUT : key
-
-      //  return args
-      //})
-
-      stepseq.seqs[ _key ] = seq
-      stepseq[ _key ] = seq.values
-    }
-
-    stepseq.start()
-    stepseq.addPatternMethods()
-
-    return stepseq
-  },
-  
-  addPatternMethods() {
-    groupMethodNames.map( (name) => {
-      this[ name ] = function( ...args ) {
-        for( let key in this.seqs ) {
-          this.seqs[ key ].values[ name ].apply( this, args )
-        }
-      }
-    
-      Gibber.addSequencingToMethod( this, name, 1 )
-    })
-  },
-
-  start() {
-    for( let key in this.seqs ) { 
-      this.seqs[ key ].start()
-    }
-  },
-
-  stop() {
-    for( let key in this.seqs ) { 
-      this.seqs[ key ].stop()
-    }
-  },
-
-  clear() { this.stop() },
-
-  /*
-   *rotate( amt ) {
-   *  for( let key in this.seqs ) { 
-   *    this.seqs[ key ].values.rotate( amt )
-   *  }
-   *},
-   */
-}
-
-const groupMethodNames = [ 
-  'rotate', 'reverse', 'transpose', 'range',
-  'shuffle', 'scale', 'repeat', 'switch', 'store', 
-  'reset','flip', 'invert', 'set'
-]
-
-return Steps.create
-
-}
-
-},{}],103:[function(require,module,exports){
-require( 'babel-polyfill' )
-
-let Gibber = require( './gibber.js' ),
-    useAudioContext = false,
-    count = 0
-   
-Gibber.init()
-window.Gibber = Gibber
-
-},{"./gibber.js":100,"babel-polyfill":124}],104:[function(require,module,exports){
-module.exports = function( Gibber ) {
-
-let Live = {
-  init() {
-    Gibber.Communication.callbacks.scene = Live.handleScene
-    Gibber.Communication.send( 'get_scene' )
-  },
-
-  tracks:[],
-  master:null,
-  returns:[],
-  
-  handleScene( msg ) {
-    Live.id = Communication.querystring.track
-
-    Live.LOM = msg
-
-    Live.processLOM()
-  },
-
-  processLOM() {
-    Live.tracks = Live.LOM.tracks.map( Live.processTrack )
-    Gibber.currentTrack = Live.tracks.find( element => { return element.id === Live.id } )
-    
-    Live.returns = Live.LOM.returns.map( Live.processTrack )
-
-    Gibber.Live.master = Live.processTrack( Live.LOM.master )
-
-    if( Gibber.currentTrack === undefined ) {
-      Gibber.currentTrack = Gibber.Live.master
-    }
-
-    for( let track of Live.tracks ) {
-      // the next line is for a weird error that occurs when tracks
-      // are named with discontinuous numbers; see https://github.com/gibber-cc/gibberwocky.live/issues/8
-      if( track === undefined ) continued
-
-      Live.tracks[ track.spec.name ] = track
-    }
-    
-    window.tracks  = Live.tracks
-    window.master  = Live.master
-    window.returns = Live.returns
-
-    Gibber.Scheduler.bpm = Live.LOM.bpm
-
-    Gibber.Environment.lomView.init( Gibber )
-
-    Gibber.publish( 'lom_update' )
-  },
-
-  processTrack( spec, index  ) {
-    let track = Gibber.Track( spec )
-    track.devices = []
-    track.index = index
-
-    spec.devices.forEach( (val, idx ) => {
-      Live.processDevice( val, idx, track ) 
-    })
-    
-    if( track.devices[0] !== undefined ) {
-      if( track.devices[0].title.includes('gibberwocky') ) {
-        track.length = track.devices.length
-        track.devices.shift()
-        Array.prototype.shift.call( track )
-      }
-    }
-    return track
-  },
-
-  processDevice( device, idx, currentTrack ) {
-    if( device.name === undefined ) {
-      // XXX hack for wavetable bug
-      //console.log( 'undefined device name, assuming wavetable:', device )
-      device.name = 'Wavetable'
-    }
-
-    let d = currentTrack.devices[ device.name ] = currentTrack.devices[ idx ] = currentTrack[ idx ] = { idx },
-        parameterCount = 0
-    
-    //console.log( 'device', device ) 
-    if( device.type === 1 ) currentTrack.instrument = d
-
-    d.pickRandomParameter = ()=> {
-      let idx = Gibber.Utility.rndi( 0, device.parameters.length - 1 ),
-          param = device.parameters[ idx ]
-       
-      while( param.name === 'Device On' || param.name.indexOf( 'Volume' ) !== -1 ) {
-        idx = Gibber.Utility.rndi( 0, device.parameters.length - 1 ),
-        param = device.parameters[ idx ]
-      }
-
-      return d[ param.name ]
-    }
-
-    d.galumph = ( value ) => d.pickRandomParameter()( value )
-    d.on =  ()=>  { d.isOn = 1; d['Device On']( d.isOn ) }
-    d.off = ()=>  { d.isOn = 0; d['Device On']( d.isOn ) }
-    d.toggle = ()=> { d.isOn = d.isOn === 1 ? 0 : 1; d['Device On']( d.isOn ) }
-
-    Gibber.addSequencingToMethod( d, 'galumph' )
-    Gibber.addSequencingToMethod( d, 'toggle' )
-
-    device.parameters.forEach( ( spec, idx ) => Gibber.addMethod( d, null, spec, currentTrack.id ) )
-    d.parameters = device.parameters.slice( 0 )
-    d.name = device.name
-    d.title = device.title
-  },
-}
-
-return Live
-
-}
-
-},{}],105:[function(require,module,exports){
+},{}],106:[function(require,module,exports){
 require( './vanillatree.js' )
 
 let Gibber = null, count = -1
@@ -9068,7 +9208,7 @@ let lomView = {
 
 module.exports = lomView 
 
-},{"./vanillatree.js":119}],106:[function(require,module,exports){
+},{"./vanillatree.js":121}],107:[function(require,module,exports){
 'use strict';
 
 module.exports = function( Gibber ) {
@@ -9082,21 +9222,23 @@ module.exports = function( Gibber ) {
     receives:{},
 
     init() {
-      Gibber.Communication.callbacks.scene = Max.handleScene
-      Gibber.Communication.send( 'get_scene' )     
+      Gibber.Communication.callbacks.schemas.max= Max.handleScene
+      Gibber.Communication.send( 'get_scene', 'max' )     
     },
 
     handleScene( msg ) {
       Max.id = Communication.querystring.track
 
-      Max.MOM = msg
+      if( msg.namespaces !== undefined ) {
+        Max.MOM = msg
 
-      Max.processMOM()
+        Max.processMOM()
+      }
     },
 
     clear() {
       for( let i = 0; i < Max.signals.length; i++ ) {
-        Gibber.Communication.send( `sig ${i} clear` )
+        Gibber.Communication.send( `sig ${i} clear`, 'max' )
       }
     },
 
@@ -9131,7 +9273,7 @@ module.exports = function( Gibber ) {
             genGraph.__widget__.place()
           }
 
-          Gibber.Communication.send( `sig ${signalNumber} expr "${genGraph.out()}"` )
+          Gibber.Communication.send( `sig ${signalNumber} expr "${genGraph.out()}"`, 'max' )
           if( genGraph.isGen ) {
             Gibber.Environment.codeMarkup.TEST = genGraph
           }
@@ -9146,9 +9288,9 @@ module.exports = function( Gibber ) {
 
       for( let receive in Max.MOM.receives ) {
         Max.receives[ receive ] = function( v ) {
-          Gibber.Communication.send( `${receive} ${v}` )
+          Gibber.Communication.send( `${receive} ${v}`, 'max' )
         }
-        Gibber.addSequencingToMethod( Max.receives, receive, 0 )
+        Gibber.addSequencingToMethod( Max.receives, receive, 0, 'max' )
       }
 
       for( let device of Max.MOM.root.devices ) {
@@ -9162,7 +9304,7 @@ module.exports = function( Gibber ) {
       const addr = target === undefined ? str : target.address + ' ' + str
 
       const ns = function( ...args ) { 
-        Gibber.Communication.send( addr + ' ' + args.join(' ') )
+        Gibber.Communication.send( addr + ' ' + args.join(' '), 'max' )
       }
       ns.address = ns.path = str
       
@@ -9185,7 +9327,7 @@ module.exports = function( Gibber ) {
 
       target[ str ] = proxy 
 
-      Gibber.addSequencingToMethod( target, str, 0, addr )           
+      Gibber.addSequencingToMethod( target, str, 0, addr, 'max' )           
 
       Gibber.Seq.proto.externalMessages[ addr ] = ( value, beat ) => {
         let msg = `add ${beat} ${addr} ${value}`  
@@ -9202,7 +9344,684 @@ module.exports = function( Gibber ) {
   return Max
 }
 
-},{"./max_device.js":107}],107:[function(require,module,exports){
+},{"./max_device.js":109}],108:[function(require,module,exports){
+const Examples = {
+  introduction:`/* gibberwocky.max - introduction
+ * 
+ * This introduction assumes that your controlling the gibberwocky
+ * object's help patch in Max. Otherwise your mileage will vary.
+ *
+ * After playing around here, check out some of the tutorials
+ * found in the sidebar on the right. To execute any line of
+ * code, hit Ctrl+Enter. Feel free to modify and re-execute
+ * at any time. To stop all running sequences, hit Ctrl+. (period).
+ */
+
+// start kick drum on Max for Live device
+devices['drums'].midinote.seq( 36, Euclid(5,8) )
+
+// randomly pick between open and closed hi-hats
+// and eighth notes vs. 1/16th notes. If 1/16th
+// notes are played, always play two back to back.
+devices['drums'].midinote.seq( [42,46].rnd(), [1/8,1/16].rnd(1/16,2), 1 )
+
+// play a scintillating bass line
+devices['bass'].note.seq( [-14,-12,-9,-8], 1/8 )
+
+// target namespaces 'bell' and 'squelch' 
+// and sequence bangs at different rhythms
+namespace('bell').seq( 1, [1/8,1/16,1/4].rnd(1/16,2) )
+namespace('squelch').seq( 1, [1/4,1/16,1].rnd(1/16,4) )
+
+// set values of named UI elements in patcher interface
+params['White_Queen'].seq( [10,32,64,92,127], 1  )
+params['Red_Queen'].seq( [32,64,96,127], 1 ) 
+
+// send a sine wave out outlet 2 (the first signal outlet)
+signals[0]( cycle(.1) ) 
+
+// send a ramp lasting 16 beats out outlet 2
+signals[1]( beats(16) ) 
+
+// send a reverse sawtooth out outlet 3
+signals[2]( sub(1,phasor( 1 ) ) )   
+
+// send a sine wave with a modulated frequency out outlet 4
+signals[3]( mul( cycle( mul(beats(8), .5 ) ), .15 ) )
+`,
+
+['tutorial 1: basic messaging']:
+
+`/*
+ * gibberwocky.max - tutorial #1: basic messaging
+ *
+ * This first intro will explain how to execute code, send
+ * MIDI note messages, sequence arbitrary messages, and 
+ * control UI objects.
+ *
+ * To start, makesure you open the gibberwocky object help patch
+ * in Max and ahve the Max console open as well.
+*/
+
+// Messaging in gibberwocky.max can be done in two ways. First, 
+// we can send messages out the first outlet of the gibberwocky.max
+// object. To do this, we specify 'namespaces' where each
+// namespace represents the first part of messages that are sent. Thus,
+// you could create namespaces for individual instruments, or Max objects,
+// or any other routing scheme you can come up with.
+
+// Let's start by sending the following message 'synth1 1'. Connect the left
+// most outlet of the gibberwocky object in Max to a print object, and then
+// run the following three lines code and look at the console in Max:
+synth1 = namespace('synth1') 
+synth1( 1 )
+synth1( 'test' )
+
+// You can add an extra prefix to your message by appending a property:
+synth1.gollygee( 'willickers?' )
+
+// You can define arbitrary paths this way:
+synth1.a.b.c.d.e.f.g.h( 'i?' )
+
+// If you use [route], [routepass], or [sel] objects in Max/MSP you can easily direct 
+// messages to a variety of destinations in this fashion. These namespaces will appear
+// in the 'scene' tab of the browser reference; click on anyone to automatically insert
+// the appropriate path into the code editor at the current cursor position. For example,
+// using the gibberwocky help patcher both 'squelch' and 'bell' appear as targets as
+// they are connected to a [sel] that is in turn connected to the leftmost gibberwocky
+// outlet.
+
+// gibberwocky can also easily target Max for Live devices embedded in Max
+// patches. In the patcher for this tutorial there's an included Laverne
+// instrument. If you click on the 'scene' tab of the gibberwocky sidebar, 
+// you'll see a tree browser with a 'devices' branch. Open that branch to see all 
+// Max for Live devices available in your patch. Now click on the branch for the device
+// you want to send a midinote message to. The associated object path is automatically 
+// inserted into your code editor at the current cursor position. Add a call to midinote to the end of this
+// code snippet; it should look similar to the following:
+
+devices['bass'].midinote( 60 ) // send middle C
+
+// Now uncollapse the branch for your device in the scene browser. This lists
+// all the parameters exposed for control on the Max for Live device. Click on any
+// leaf to insert the full path to the control into your code editor. Here's the 
+// 'res' parameter controlling the resonance of the filter on the bassline instrument.
+
+devices['bass']['res']
+
+// This points to a function; we can pass this function a value to manipulate the
+// control.
+
+devices['bass']['res']( 100 )
+
+devices['bass'].note( 'eb4' )
+
+// If you've used gibberwocky.live before, it's important to note that these controls
+// do not default to a range of {0,1}. Many of the controls on bassline default to the 
+// standard MIDI range of {0,127}.
+
+// OK, that's some basics out of the way. Try the sequencing tutorial next!`,
+
+[ 'tutorial 2: basic sequencing' ]: `/* gibberwocky.max - tutorial #2: basic sequencing
+ *
+ * This tutorial will provide an introdution to sequencing messages in gibberwocky. In
+ * order for sequencing in gibberwocky.max to work, you must start the Global Transport
+ * running in Max/MSP. In the gibberwocky help patcher there's
+ * a link to open the Global Transport. Make sure you've opened this patcher to complete
+ * this tutorial, as we'll be using the included Bassline instrument.
+ */
+
+// In tutorial #1, we saw how we could send MIDI messages to specific MIDI
+// channel objects. We can easily sequence any of these methods by adding
+// a call to .seq(). For example:
+
+// send noteon message with a first value of 36
+devices['bass'].midinote( 36 )
+
+// send same value every quarter note
+devices['bass'].midinote.seq( 36, 1/4 )
+
+// You can stop all sequences in gibberwocky with the Ctrl+. keyboard shortcut
+// (Ctrl + period). You can also stop all sequences on a specific channel:
+
+devices['bass'].stop()
+
+// Most sequences in gibberwocky contain values (60) and timings (1/4). To
+// sequence multiple values we simply pass an array:
+
+devices['bass'].midinote.seq( [60,72,48], 1/4 )
+
+// ... and we can do the same thing with multiple timings:
+
+devices['bass'].midinote.seq( [60,72,48], [1/4,1/8] )
+
+// We can also sequence our note velocities and durations.
+devices['bass'].midinote.seq( 60, 1/2 )
+devices['bass'].velocity.seq( [16, 64, 127], 1/2 )
+devices['bass'].duration.seq( [10, 100,500], 1/2 )
+
+// If you experimented with running multiple variations of the midinote 
+// sequences you might have noticed that only one runs at a time. For example,
+// if you run these two lines:
+
+devices['bass'].midinote.seq( 72, 1/4 )
+devices['bass'].midinote.seq( 48, 1/4 )
+
+// ...you'll notice only the second one actually triggers. By default, gibberwocky
+// will replace an existing sequence with a new one. To stop this, you can pass an ID number 
+// as a third argument to calls to .seq(). In the examples of sequencing we've seen so far,
+// no ID has been given, which means gibberwocky is assuming a default ID of 0 for each
+// sequence. When you launch a sequence on a channel that has the same ID as another running 
+// sequence, the older sequence is stopped. If the sequences have different IDs they run 
+// concurrently. Note this makes it really easy to create polyrhythms.
+
+devices['bass'].midinote.seq( 48, 1 ) // assumes ID of 0
+devices['bass'].midinote.seq( 60, 1/2, 1 ) 
+devices['bass'].midinote.seq( 72, 1/3, 2 ) 
+devices['bass'].midinote.seq( 84, 1/7, 3 ) 
+
+// We can also sequence calls to midichord. You might remember from the first tutorial
+// that we pass midichord an array of values, where each value represents one note. This
+// means we need to pass an array of arrays in order to move between different chords.
+
+devices['bass'].midichord.seq( [[60,64,68], [62,66,72]], 1/2 )
+
+// Even we're only sequencing a single chord, we still need to pass a 2D array. Of course,
+// specifying arrays of MIDI values is not necessarily an optimal representation for chords.
+// Move on to tutorial #3 to learn more about how to leverage music theory in gibberwocky.`,
+
+['tutorial 3: harmony'] :`/* gibberwocky.max - tutorial #3: Harmony
+ *
+ * This tutorial covers the basics of using harmony in gibberwocky.midi. It assumes you
+ * know the basics of sequencing (tutorial #2) and have an appropriate MIDI output setup.
+ * It also assumes you have the gibberwocky help patch open and the transport running.
+ *
+ * In the previous tutorials we looked at using raw MIDI values to send messages. However,
+ * using MIDI note numbers is not an ideal representation. gibberwocky includes knoweldge of
+ * scales, chords, and note names to make musical sequencing easier and more flexible. In this
+ * tutorial, instead of using channel.midinote() and channel.midichord() we'll be using 
+ * channel.note() and channel.chord(). These methods use gibberwocky's theory objects to
+ * determine what MIDI notes are eventually outputted.
+ */
+
+// In our previous tutorial, we sent out C in the fourth octave by using MIDI number 60:
+devices['bass'].midinote( 60 )
+
+// We can also specify notes with calls to the note() method by passing a name and octave.
+devices['bass'].note( 'c4' )
+devices['bass'].note( 'fb3' )
+
+devices['bass'].note.seq( ['c4','e4','g4'], 1/8 )
+
+// remember, Ctrl+. stops all running sequences.
+
+// In gibberwocky, the default scale employed is C minor, starting in the fourth octave. 
+// This means that if we pass 0 as a value to note(), C4 will also be played.
+devices['bass'].note( 0 )
+
+// sequence C minor scale, starting in the fourth octave:
+devices['bass'].note.seq( [0,1,2,3,4,5,6,7], 1/8 )
+
+// negative scale indices also work:
+devices['bass'].note.seq( [-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7], 1/8 )
+
+// there is a global Scale object we can use to change the root and mode
+// for all scales. Run the lines below individually  with the previous note sequence running.
+Scale.root( 'd4' )
+Scale.mode( 'lydian' )
+
+Scale.root( 'c4' )
+Scale.mode( 'phrygian' )
+
+// We can also sequence changes to the root / mode:
+Scale.root.seq( ['c2','d2','f2','g2'], 2 )
+Scale.mode.seq( ['lydian', 'ionian', 'locrian'], 2 )
+
+// stop the scale sequencing
+Scale.root[0].stop()
+Scale.mode[0].stop()
+Scale.root( 'c4' )
+
+// We can also define our own scales using chromatic scale indices. Unfortunately, 
+// microtuning with MIDI is very diffcult, so only the standard eleven notes of 
+// Western harmony are supported. Scales can have arbtrary numbers of notes.
+Scale.modes[ 'my mode' ] = [ 0,1,2,3,5,6,10 ]
+Scale.mode( 'my mode' )
+
+Scale.modes[ 'another mode' ] = [0,1]
+Scale.mode( 'another mode' )
+
+Scale.mode.seq( ['my mode', 'another mode'], 4 )
+
+/******** chords **********/
+// Last but not least there are a few different ways to specify chords in gibberwocky.
+// First, clear the current scene using Ctrl+.
+
+// change the release time, scale mode, and root
+devices['bass'].release( 75 )
+
+// We can use note names:
+devices['bass'].chord( ['c4','eb4','gb4','a4'] )
+
+// Or we can use scale indices:
+devices['bass'].chord( [0,2,4,5] )
+
+// sequence in two-dimensional array
+devices['bass'].chord.seq( [[0,2,4,5], [1,3,4,6]], 1 )
+
+// We can also use strings that identify common chord names.
+devices['bass'].chord( 'c4maj7' )
+devices['bass'].chord( 'c#4sus7b9' )
+
+
+devices['bass'].chord.seq( ['c4dim7', 'bb3maj7', 'fb3aug7'], 1 )
+
+// OK, that's harmony in a nutshell. Next learn a bit about patterns and
+// pattern manipulation in gibberwocky in tutorial #4.`,
+
+['tutorial 4: patterns and pattern transformations']:`/* gibberwocky.max - tutorial #4: Patterns and Transformations
+ *
+ * This tutorial covers the basics of using patterns in gibberwocky.max. It assumes you
+ * know the basics of sequencing (tutorial #2), have the the gibberwocky help patch
+ * loaded, and the Global Transport running.
+ *
+ * In tutorial #2 we briefly mentioned that sequences consist of values and timings. These
+ * are both stored in Pattern objects in gibberwocky, and these patterns can be controlled
+ * and manipulated in a variety of ways over time.
+ */
+   
+// Make sure the console is open in your sidebar to see the calls to Gibber.log()
+// Create a Pattern with some initial values.
+myvalues = Pattern( 60,62,64,65 )
+
+Gibber.log( myvalues() ) // 60
+Gibber.log( myvalues() ) // 62
+Gibber.log( myvalues() ) // 64
+Gibber.log( myvalues() ) // 65
+Gibber.log( myvalues() ) // back to 60...
+
+// sequence using this pattern:
+devices['bass'].midinote.seq( myvalues, 1/8 )
+
+// Everytime we pass values and timings to .seq(), it converts these into Pattern objects
+// (unless we're already passing a Pattern object(s)). Remember from tutorial #2 that
+// all of our sequences have an ID number, which defaults to 0. We can access these patterns
+// as follows:
+
+devices['bass'].midinote.seq( [62,74,38,50], [1/2,1/4] )
+Gibber.log( devices['bass'].midinote[0].values.toString() ) 
+Gibber.log( devices['bass'].midinote[0].timings.toString() ) 
+
+// Now that we can access them, we can apply transformations:
+
+devices['bass'].midinote[0].values.reverse()
+devices['bass'].midinote[0].values.transpose( 1 ) // add 1 to each value
+devices['bass'].midinote[0].values.scale( 1.5 )    // scale each value by .5
+devices['bass'].midinote[0].values.rotate( 1 )    // shift values to the right
+devices['bass'].midinote[0].values.rotate( -1 )   // shift values to the left
+devices['bass'].midinote[0].values.reset()        // reset to initial values
+
+// We can sequence these transformations:
+devices['bass'].midinote[0].values.rotate.seq( 1,1 )
+devices['bass'].midinote[0].values.reverse.seq( 1, 2 )
+devices['bass'].midinote[0].values.transpose.seq( 1, 2 )
+devices['bass'].midinote[0].values.reset.seq( 1, 8 )
+
+// This enables us to quickly create variation over time. One more tutorial to go!
+// Learn more about creating synthesis graphs for modulation in tutorial #5.`,
+ 
+['tutorial 5: modulating with gen~'] :
+ `/* Gen is an extension for Max for Live for synthesizing audio/video signals.
+LFOs, ramps, stochastic signals... Gen can create a wide variety of modulation sources for
+exploration.
+
+We've seen that the first outlet of gibberwocky is used for messaging. The remaining outlets
+are used for signals created by Gen objects. You can determine the number of outlets
+using the @signals property; for example, [gibberwocky @signals 4], as seen in the gibberwocky
+help patch, has four outputs for audio signals in addtion to its messaging output (for a total
+of 5).
+*/
+
+// Let's experiment! Create a [gibberwocky @signals 1] object and connect the rightmost outlet
+// to a [scope~]. We can send a simple ramp as follows:
+signals[0]( phasor(1) )
+
+// This creates a sawtooth wave with a range of {0,1}. We can also do sine waves:
+signals[0]( cycle(1) )
+
+// Note that the cycle ugen generates a full bandwidth audio signal with a range of {-1,1}
+// Often times we want to specify a center point (bias) for our sine oscillator, in addition to 
+// a specific amplitude and frequency. The lfo() function provides a simpler syntax for doing this:
+
+// frequency, amplitude, bias
+mylfo = lfo( 2, .2, .7 )
+
+signals[0]( mylfo )
+
+// We can also easily sequence parameters of our LFO XXX CURRENTLY BROKEN:
+
+mylfo.frequency.seq( [ .5,1,2,4 ], 2 )
+
+/* ... as well as sequence any other parameter in Live controlled by a genish.js graph. Although the lfo()
+ugen provides named properties for controlling frequency, amplitude, and centroid, there is a more
+generic way to sequence any aspect of a gen~ ugen by using the index operator ( [] ). For example,
+cycle() contains a single inlet that controls its frequency, to sequence it we would use: */
+
+mycycle = cycle( .25 )
+
+mycycle[ 0 ].seq( [ .25, 1, 2 ], 1 )
+
+signals[0]( add( .5, div( mycycle, 2 ) ) )
+
+/*For other ugens that have more than one argument (see the genish.js random tutorial for an example) we
+simply indicate the appropriate index... for example, mysah[ 1 ] etc. For documentation on the types of
+ugens that are available, see the gen~ reference: https://docs.cycling74.com/max7/vignettes/gen~_operators*/`, 
+
+['tutorial 6: randomness']:
+`/* gibberwocky.max - tutorial #6: Randomness
+ *
+ * This tutorial covers the basics of using randomness in gibberwocky.max. 
+ * It assumes you've done all the other tutorials (#4 might be OK to have skipped),
+ * have the gibberwocky help patch loaded, DSP turned on in Max and the global
+ * transport rnning.
+ *
+ * Randomness in gibberwocky can be used to both create random values for sequencing 
+ * as well as stochastic signals for modulation purposes.
+ */
+   
+// rndf() and rndi() are used to generate a single random float or integer
+// make sure you have the console tab in the gibberwocky sidebar
+log( rndf() ) // outputs floats between 0-1
+log( rndi() ) // outputs either 0 or 1
+
+// although 0 and 1 are the default min/max values, we can pass
+// arbitrary bounds:
+
+log( rndf(-1,1) )
+log( rndi(0,127) )
+
+// if we pass a third value, we can create multiple random numbers at once,
+// returned as an array.
+
+log( rndf( 0,1,4 ) )
+log( rndi( 0,127,3 ) )
+
+// so, if we wanted to sequence a random midinote to the 'bass' device
+// in the gibberwocky help patcher, we could sequence a function as follows:
+
+devices['bass'].midinote.seq( ()=> rndi(0,127), 1/8 )
+
+// Whenever gibberwocky sees a function in a sequence, it calls that function
+// to generate a value or a timing. In practice this is common enough with
+// random numbers that gibberwocky has a shortcut for creating functions
+// that return a random value(s) in a particular range.
+// Simply capitalize the call to rndi or rndf (to Rndi / Rndf ).
+
+clear() // clear previous sequence
+devices['bass'].note.seq( Rndi(-14,-7), 1/8 )
+
+// And chords:
+clear()
+devices['bass'].chord.seq( Rndi(14,21,3), 1/8 )
+
+// In addition to creating functions outputting random numbers, we can
+// also randomly pick from the arrays used to initialize patterns.
+
+// randomly play open or closed hi-hat every 1/16th note
+devices['drums'].midinote.seq( [42,46].rnd(), 1/16 )
+
+// For timings, it's often important to ensure that patterns eventually align
+// themselves with a beat grid. For example, if we randomly choose a single 1/16th 
+// note timing, then every subsequent note played will be offset from a 1/8th note
+// grid until a second 1/16th note is chosen. We can ensure that particular values
+// are repeated whenever they are selected to help with this problem.
+
+// play constant kick drum to hear how bass aligns with 1/4 grid
+devices['drums'].midinote.seq( 36, 1/4 )
+
+// whenever a 1/16th timing is used, use it twice in a row
+devices['bass'].note.seq( -14, [1/8,1/16].rnd( 1/16,2 ) )
+
+// whenever a 1/16th timing is used, use it twice in a row and
+// whenever a 1/12th timing is used, use it three times in a row
+devices['bass'].note.seq( -14, [1/8,1/16,1/12].rnd( 1/16,2,1/12,3 ) )
+
+// OK, that's the basics of using randomness in patterns. But we can also use
+// noise to create randomness in modulations.
+
+// here's noise() going out the second outlet of gibberwocky
+signals[0]( noise() ) 
+
+// we can scale the noise
+signals[0]( mul( noise(), .5 ) ) 
+
+// we can also use sample and hold (sah) to selectively sample a noise signal.
+// below, we sample noise whenever a separate noise signal crosses
+// a threshold of .99995
+signals[0]( sah( noise(), noise(), .99995 ) )      
+
+// alternatively, randomly sample a sine wave
+signals[0]( sah( cycle(2), noise(), .999 ) )
+
+// OK, that's it for randomness... use it wisely!`,
+
+[ 'using the Score() object' ]  : 
+`// Scores are lists of functions with associated
+// relative time values. In the score below, the first function has
+// a time value of 0, which means it begins playing immediately. The
+// second has a value of 1, which means it beings playing one measure
+// after the previously executed function. The other funcions have
+// timestamps of two, which means they begins playing two measures after
+// the previously executed function. Scores have start(), stop(),
+// loop(), pause() and rewind() methods.
+
+s = Score([
+  0, ()=> devices['bass'].note.seq( -14, 1/4 ),
+ 
+  1, ()=> devices['bass'].note.seq( 0, Euclid(5,8) ),
+ 
+  2, ()=> {
+    arp = Arp( [0,1,3,5], 3, 'updown2' )
+    devices['bass'].note.seq( arp, 1/32 )
+  },
+ 
+  2, ()=> arp.transpose( 1 ),
+ 
+  2, ()=> arp.shuffle()
+])
+
+// Scores can also be stopped automatically to await manual retriggering.
+
+s2 = Score([
+  0,   ()=> devices['bass'].note( 0 ),
+
+  1/2, ()=> devices['bass'].note( 1 ),
+
+  Score.wait, null,
+
+  0,   ()=> devices['bass'].note( 2 )
+])
+
+// restart playback
+s2.next()
+
+// CURRENTLY BROKEN
+/* The loop() method tells a score to... loop. An optional argument specifies
+ * an amount of time to wait between the end of one loop and the start of the next.*/
+
+s3 = Score([
+  0, ()=> devices['bass'].note.seq( 0, 1/4 ),
+  1, ()=> devices['bass'].note.seq( [0,7], 1/8 ),
+  1, ()=> devices['bass'].note.seq( [0, 7, 14], 1/12 )
+])
+
+s3.loop( 1 )
+
+`,
+
+['using the Arp() object (arpeggiator)']:
+`/*
+  * This tutorial assumes familiarity with the material
+  * covered in tutorials 2–4.
+  *
+  * The Arp() object creates wrapped Pattern objects (see tutorial
+  * #4) that are simply functions playing arpeggios. However,
+  * the pattern transformations available in gibberwocky open
+  * up a great deal of flexiblity in manipulating these arpeggios.
+  */
+
+// Make an arp: chord, number of octaves, mode.
+myarp = Arp( [0,2,4,5], 4, 'updown' )
+
+// other modes include 'up' and 'down'. XXX updown2 is broken :( 
+
+// play arpeggiator with 1/16 notes
+devices['bass'].note.seq( myarp, 1/16 )
+
+// change root of Scale (see tutorial #3)
+Scale.root( 'c2' )
+
+// randomize arpeggiator
+myarp.shuffle()
+
+// transpose arpeggiator over time
+myarp.transpose.seq( 1,1 )
+
+// reset arpeggiator
+myarp.reset()
+
+// stop arpeggiator
+devices['bass'].stop()
+
+// The Arp() object can also be used with MIDI note values instead of
+// gibberwocky's system of harmony. However, arp objects are designed
+// to work with calls to note() by default, accordingly, they tranpose
+// patterns by seven per octave (there are seven notes in a scale of one
+// octave). For MIDI notes, there are 12 values... we can specify this
+// as a fourth parameter to the Arp() constructor.
+
+midiArp = Arp( [60,62,64,67,71], 4, 'down', 12 )
+
+devices['bass'].midinote.seq( midiArp, 1/32 )
+
+// bring everything down an octace
+midiArp.transpose( -12 )
+
+// change number of octaves
+midiArp.octaves = 2
+`,
+
+['using the Euclid() object (euclidean rhythms)'] :
+`/*
+  * This tutorial assumes familiarty with the material
+  * covered in tutorial #2. It will cover the basics of
+  * working with Euclidean rhythms in gibberwocky.
+  *
+  * Euclidean rhythms are specifcations of rhythm using
+  * a number of pulses allocated over a number of beats.
+  * The algorithm attempts to distribute the pulses as
+  * evenly as possible over all beats while maintaining
+  * a grid. You can read a paper describing this here:
+  *
+  * http://archive.bridgesmathart.org/2005/bridges2005-47.pdf
+  *
+  * For example, consider the rhythm '5,8' where there
+  * are 5 pulses over the span of eight notes while
+  * maintaining a temporal grid. The algorithm distributes 
+  * these as follows: "x.xx.xx." where 'x' represents a pulse
+  * and '.' represents a rest. Below are a few other examples:
+  *
+  * 1,4 : x...
+  * 2,3 : x.x
+  * 2,5 : x.x..
+  * 3,5 : x.x.x
+  * 3,8 : x..x..x.
+  * 4,9 : x.x.x.x..
+  * 5,9 : x.x.x.x.x
+  *
+  * In gibberwocky, by default the number of beats chosen
+  * also determines the time used by each beat; selecting
+  * '5,8' means 5 pulses spread across 8 1/8 notes. However,
+  * you can also specify a different temporal resolution for
+  * the resulting pattern: '5,8,1/16' means 5 pulses spread
+  * across 8 beats where each beat is a 1/16th note.
+  *
+  * You can specify Euclidean rhyhtms using the Euclid()
+  * function, which returns a pattern (see tutorial #4);
+  * in the example below I've assigned this to the variable E.
+  */
+
+// store for faster reference
+E = Euclid
+
+devices['bass'].duration( 10 )
+
+// 5 pulses spread over 8 eighth notes
+devices['bass'].midinote.seq( 60, E(5,8) )
+
+// 3 pulses spread over 8 sixteenth notes
+devices['bass'].midinote.seq( 48, E( 3, 8, 1/16 ), 1  )
+
+// a quick way of notating x.x.
+devices['bass'].midinote.seq( 36, E(2,4), 2 ) 
+
+// because Euclid() generates Pattern objects (see tutorial #3)
+// we can transform the patterns it generates:
+
+devices['bass'].midinote[1].timings.rotate.seq( 1,1 )
+
+`,
+
+
+['using the Steps() object (step-sequencer)'] : `/* Steps() creates a group of sequencer objects. Each
+ * sequencer is responsible for playing a single note,
+ * where the velocity of each note is determined by
+ * a hexadecimal value (0-f), where f is the loudest note.
+ * A value of '.' means that no MIDI note message is sent
+ * with for that particular pattern element.
+ *
+ * The lengths of the patterns found in a Steps object can
+ * differ. By default, the amount of time for each step in
+ * a pattern equals 1 divided by the number of steps in the
+ * pattern. In the example below, most patterns have sixteen
+ * steps, so each step represents a sixteenth note. However,
+ * the first two patterns (60 and 62) only have four steps, so
+ * each is a quarter note. 
+ *
+ * The individual patterns can be accessed using the note
+ * numbers they are assigned to. So, given an instance with
+ * the name 'a' (as below), the pattern for note 60 can be
+ * accessed at a[60]. Note that you have to access with brackets
+ * as a.60 is not valid JavaScript.
+ *
+ * The second argument to Steps is the instrument to target. Note
+ * that while the example below is designed to work with the
+ * Analogue Drums device found in the gibberwocky help file,
+ * that instrument is actually NOT velocity sensitive. 
+ */
+
+steps = Steps({
+  [36]: 'ffff', 
+  [38]: '.a.a',
+  [41]: '........7.9.c..d',
+  [43]: '..6..78..b......',
+  [45]: '..c.f....f..f..3',  
+  [42]: '.e.a.a...e.a.e.a',  
+  [46]: '..............e.',
+}, devices['drums'] )
+
+// rotate one pattern (assigned to midinote 71)
+// in step sequencer  every measure
+steps[42].rotate.seq( 1,1 )
+
+// reverse all steps each measure
+steps.reverse.seq( 1, 2 )`,
+
+}
+
+module.exports = Examples
+
+},{}],109:[function(require,module,exports){
 const Theory = require('./theory.js')
 
 
@@ -9218,7 +10037,25 @@ const create = function( spec ) {
 		const d = Object.assign({}, spec, {
 			__velocity: 127,
 			__duration: 500,
+      __octave:0,
+      __client:'max',
 
+      octave( v ) {
+        if( v===undefined ) return this.__octave
+
+        this.__octave = v
+        return this
+      },
+      
+      duration( value ) {
+        if( value === undefined ) return this.__duration
+        this.__duration = value
+      },
+      
+      velocity( value ) {
+        if( value === undefined ) return this.__velocity
+        this.__velocity = value
+      },
 			midinote( note, velocity, duration ) {
 				if( typeof velocity !== 'number' || velocity === 0) velocity = d.__velocity
 				if( typeof duration !== 'number' ) duration = this.__duration
@@ -9230,14 +10067,6 @@ const create = function( spec ) {
 				const notenum = doNotConvert === true ? num : Gibber.Theory.Note.convertToMIDI( num )
 
 				Gibber.Communication.send( `midinote ${d.path} ${notenum} ${d.__velocity} ${d.__duration}` )
-			},
-
-			duration( value ) {
-				d.__duration = value
-			},
-
-			velocity( value ) {
-				d.__velocity = value 
 			},
 
 			chord( chord, offset=null, doNotConvert=false ) {
@@ -9294,14 +10123,16 @@ const create = function( spec ) {
 		// these are not needed for velocity and duration, which are
 		// only used internally to the client
 		const external = {
-		  [	d.path + 'note' ]  : ( value, beat ) => {
-			  const midivalue = value // Theory.Note.convertToMIDI( value )
+		  [	d.path + 'note' ]  : ( value, beat, id, seq ) => {
+        const velocity = seq.velocity()
+        const duration = seq.duration()
 
-			  let msg = `add ${beat} midinote ${d.path} ${midivalue} ${d.__velocity} ${d.__duration}` 
+			  let msg = `add ${beat} midinote ${d.path} ${value} ${velocity} ${duration}` 
+
 			  return msg
 		  },
 
-		  [ d.path + 'midinote' ] : ( value, beat ) => {
+		  [ d.path + 'midinote' ] : ( value, beat, id, seq ) => {
 			  let msg = `add ${beat} midinote ${d.path} ${value} ${d.__velocity} ${d.__duration}` 
 			  return msg
 			},
@@ -9338,7 +10169,7 @@ return create
 
 }
 
-},{"./theory.js":116}],108:[function(require,module,exports){
+},{"./theory.js":118}],110:[function(require,module,exports){
 let Gibber = null
 
 const MIDI = {
@@ -9360,6 +10191,20 @@ const MIDI = {
     this.createChannels()
     // XXX restore
     //this.setModulationOutputRate()
+  },
+
+  createClockMenu() {
+    document.querySelector( '#liveSyncRadio' )
+      .addEventListener( 'click', Gibber.Scheduler.sync.bind( Gibber.Scheduler, 'live' ) )
+
+    document.querySelector( '#maxSyncRadio' )
+      .addEventListener( 'click', Gibber.Scheduler.sync.bind( Gibber.Scheduler, 'max' ) )
+
+    document.querySelector( '#clockSyncRadio' )
+      .addEventListener( 'click', Gibber.Scheduler.sync.bind( Gibber.Scheduler, 'external' ) )
+
+    document.querySelector( '#internalSyncRadio' )
+      .addEventListener( 'click', Gibber.Scheduler.sync.bind( Gibber.Scheduler, 'internal' ) )
   },
 
   setModulationOutputRate() {
@@ -9386,9 +10231,9 @@ const MIDI = {
     const lastMIDIInput = localStorage.getItem('midi.input'),
           lastMIDIOutput = localStorage.getItem('midi.output')
 
-    //if( lastMIDIInput !== null && lastMIDIInput !== undefined ) {
-    //  this.selectInputByName( lastMIDIInput ) 
-    //}
+    if( lastMIDIInput !== null && lastMIDIInput !== undefined ) {
+      this.selectInputByName( lastMIDIInput ) 
+    }
     if( lastMIDIOutput !== null && lastMIDIOutput !== undefined ) {
       this.selectOutputByName( lastMIDIOutput ) 
     }
@@ -9400,23 +10245,23 @@ const MIDI = {
   },
 
   createInputAndOutputLists( midiAccess ) {
-    //let optin = document.createElement( 'option' )
-    //optin.text = 'none'
+    let optin = document.createElement( 'option' )
+    optin.text = 'none'
     let optout = document.createElement( 'option' )
     optout.text = 'none'
-    //MIDI.midiInputList.add( optin )
+    MIDI.midiInputList.add( optin )
     MIDI.midiOutputList.add( optout )
 
-    //MIDI.midiInputList.onchange = MIDI.selectInputViaGUI
+    MIDI.midiInputList.onchange = MIDI.selectInputViaGUI
     MIDI.midiOutputList.onchange = MIDI.selectOutputViaGUI
     
-    //const inputs = midiAccess.inputs
-    //for( let input of inputs.values() ) {
-    //  const opt = document.createElement( 'option' )
-    //  opt.text = input.name
-    //  opt.input = input
-    //  MIDI.midiInputList.add( opt )
-    //}
+    const inputs = midiAccess.inputs
+    for( let input of inputs.values() ) {
+      const opt = document.createElement( 'option' )
+      opt.text = input.name
+      opt.input = input
+      MIDI.midiInputList.add( opt )
+    }
 
     const outputs = midiAccess.outputs
     for( let output of outputs.values() ) {
@@ -9565,7 +10410,7 @@ const MIDI = {
 
 module.exports = MIDI
 
-},{}],109:[function(require,module,exports){
+},{}],111:[function(require,module,exports){
 require( './vanillatree.js' )
 
 let Gibber = null, count = -1
@@ -9671,7 +10516,7 @@ let momView = {
 
 module.exports = momView 
 
-},{"./vanillatree.js":119}],110:[function(require,module,exports){
+},{"./vanillatree.js":121}],112:[function(require,module,exports){
 module.exports = function( Gibber ) {
 
 "use strict"
@@ -10128,7 +10973,7 @@ return Pattern
 
 }
 
-},{}],111:[function(require,module,exports){
+},{}],113:[function(require,module,exports){
 /*
  * https://github.com/antimatter15/heapqueue.js/blob/master/heapqueue.js
  *
@@ -10240,7 +11085,7 @@ HeapQueue.prototype.pop = function(){
 
 module.exports = HeapQueue
 
-},{}],112:[function(require,module,exports){
+},{}],114:[function(require,module,exports){
 /*
 Score is a Seq(ish) object, with pause, start / stop, rewind, fast-forward.
 It's internal phase is 
@@ -10631,7 +11476,7 @@ song.start()
 */
 
 
-},{}],113:[function(require,module,exports){
+},{}],115:[function(require,module,exports){
 'use strict';
 
 const Big = require( 'big.js' )
@@ -10645,7 +11490,7 @@ let seqclosure = function( Gibber ) {
     _seqs: [],
     type: 'sequence',
 
-    create( values, timings, key, object = null, priority=0 ) {
+    create( values, timings, key, object = null, priority=0, mode='live' ) {
       let seq = Object.create( this )
 
       if( values.isGen ) values  = Gibber.WavePattern( values )
@@ -10670,12 +11515,14 @@ let seqclosure = function( Gibber ) {
         priority,
         trackID:-1,
         octave:0,
-        autorun:[]
+        autorun:[],
+        mode
       })
 
+      seq.__client = object.__client
       seq.autorun.init = false
 
-      if( key === 'note' || key === 'midinote' ) {
+      if( key.indexOf( 'note' ) > -1 ) {
         let __velocity = null 
         seq.velocity = v => {
           if( v !== undefined ) {
@@ -10755,7 +11602,9 @@ let seqclosure = function( Gibber ) {
         this.values = valuesPattern
       }
 
-      if( this.key === 'note' ) {
+      // only apply for 'note' messages, but need to check for longer keys due to 
+      // max/msp addressing
+      if( this.key.indexOf( 'midinote' ) === -1 && this.key.indexOf( 'note' ) > -1 ) {
         if( this.values.filters.findIndex( v => v.type === 'note' ) === -1 ) {
           // round the values for transformation to midinotes... XXX what about for Max version?
           this.values.filters.push( args => { 
@@ -10768,7 +11617,7 @@ let seqclosure = function( Gibber ) {
           noteFilter.type = 'note'
           this.values.filters.push( noteFilter )
         }
-      } else if( this.key === 'chord' ) {
+      } else if( this.key.indexOf( 'midichord' ) === -1 && this.key.indexOf( 'chord' ) > -1  ) {
 
         this.values.filters.push( args => {
           let chord = args[ 0 ], out
@@ -10903,7 +11752,7 @@ let seqclosure = function( Gibber ) {
       if( this.running ) return
       this.running = true
       //console.log( 'starting with offset', this.offset ) 
-      Gibber.Scheduler.addMessage( this, Big( this.offset ), true, this.priority )     
+      Gibber.Scheduler.addMessage( this, Big( this.offset ), true, this.priority, this.object.__client )     
       
       return this
     },
@@ -10986,7 +11835,7 @@ let seqclosure = function( Gibber ) {
             }
 
             let msg = this.externalMessages[ this.key ]( value, beat + _beatOffset, this.trackID, this )
-            scheduler.msgs.push( msg, priority > this.priority ? priority : this.priority )
+            scheduler.msgs.push( [msg, this.__client ])
           
           } else { // schedule internal method / function call immediately
 
@@ -11025,7 +11874,7 @@ let seqclosure = function( Gibber ) {
 
 module.exports = seqclosure
 
-},{"big.js":125}],114:[function(require,module,exports){
+},{"big.js":127}],116:[function(require,module,exports){
 module.exports = function( Gibber ) {
   
 let Steps = {
@@ -11117,7 +11966,7 @@ return Steps.create
 
 }
 
-},{}],115:[function(require,module,exports){
+},{}],117:[function(require,module,exports){
 /**
  * MicroLib-Utils is the utility library for other MicroLib libraries. It provides
  * helper methods for common tasks such as adding, checking and removing classes.
@@ -11323,7 +12172,7 @@ MicroTabs.prototype._processClick = function _processClick(e) {
 window.ML = window.ML || {};
 window.ML.Tabs = MicroTabs;
 
-},{}],116:[function(require,module,exports){
+},{}],118:[function(require,module,exports){
 let Gibber = null
 
 let Note = {
@@ -11633,7 +12482,7 @@ module.exports = {
   } 
 }
 
-},{}],117:[function(require,module,exports){
+},{}],119:[function(require,module,exports){
 module.exports = function( Gibber ) {
 
 let Track = {
@@ -11822,7 +12671,7 @@ return Track.create.bind( Track )
 
 }
 
-},{}],118:[function(require,module,exports){
+},{}],120:[function(require,module,exports){
 let Utility = {
   elementArray: function( list ) {
     let out = []
@@ -12014,7 +12863,7 @@ let Utility = {
 
 module.exports = Utility
 
-},{}],119:[function(require,module,exports){
+},{}],121:[function(require,module,exports){
 (function (root, factory) {
     if (typeof define == 'function' && define.amd) {
         define( factory );
@@ -12240,7 +13089,7 @@ module.exports = Utility
 	// Look at the Balalaika https://github.com/finom/balalaika
 }));
 
-},{}],120:[function(require,module,exports){
+},{}],122:[function(require,module,exports){
 let Gibber, genAbstract, __ugenproto__
 
 
@@ -12542,7 +13391,7 @@ const waveObjects = {
   }
 }
 
-},{}],121:[function(require,module,exports){
+},{}],123:[function(require,module,exports){
 const genish = require( 'genish.js' )
 
 module.exports = function( Gibber ) {
@@ -12829,7 +13678,7 @@ return WavePattern.create
 }
 
 
-},{"genish.js":37}],122:[function(require,module,exports){
+},{"genish.js":37}],124:[function(require,module,exports){
 (function (global){
 (function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.acorn = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(_dereq_,module,exports){
 // A recursive descent parser operates by defining functions for all
@@ -16172,7 +17021,7 @@ exports.nonASCIIwhitespace = nonASCIIwhitespace;
 },{}]},{},[3])(3)
 });
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],123:[function(require,module,exports){
+},{}],125:[function(require,module,exports){
 (function (global){
 (function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}(g.acorn || (g.acorn = {})).walk = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(_dereq_,module,exports){
 // AST walker module for Mozilla Parser API compatible trees
@@ -16552,7 +17401,7 @@ base.ComprehensionExpression = function (node, st, c) {
 },{}]},{},[1])(1)
 });
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],124:[function(require,module,exports){
+},{}],126:[function(require,module,exports){
 (function (global){
 "use strict";
 
@@ -16587,7 +17436,7 @@ define(String.prototype, "padRight", "".padEnd);
   [][key] && define(Array, key, Function.call.bind([][key]));
 });
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"core-js/fn/regexp/escape":131,"core-js/shim":424,"regenerator-runtime/runtime":426}],125:[function(require,module,exports){
+},{"core-js/fn/regexp/escape":133,"core-js/shim":426,"regenerator-runtime/runtime":428}],127:[function(require,module,exports){
 /* big.js v3.1.3 https://github.com/MikeMcl/big.js/LICENCE */
 ;(function (global) {
     'use strict';
@@ -17731,7 +18580,7 @@ define(String.prototype, "padRight", "".padEnd);
     }
 })(this);
 
-},{}],126:[function(require,module,exports){
+},{}],128:[function(require,module,exports){
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
 // Distributed under an MIT license: http://codemirror.net/LICENSE
 
@@ -17928,7 +18777,7 @@ define(String.prototype, "padRight", "".padEnd);
   }
 });
 
-},{"../../lib/codemirror":129}],127:[function(require,module,exports){
+},{"../../lib/codemirror":131}],129:[function(require,module,exports){
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
 // Distributed under an MIT license: http://codemirror.net/LICENSE
 
@@ -18085,7 +18934,7 @@ define(String.prototype, "padRight", "".padEnd);
   }
 });
 
-},{"../../lib/codemirror":129}],128:[function(require,module,exports){
+},{"../../lib/codemirror":131}],130:[function(require,module,exports){
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
 // Distributed under an MIT license: http://codemirror.net/LICENSE
 
@@ -18525,7 +19374,7 @@ define(String.prototype, "padRight", "".padEnd);
   CodeMirror.defineOption("hintOptions", null);
 });
 
-},{"../../lib/codemirror":129}],129:[function(require,module,exports){
+},{"../../lib/codemirror":131}],131:[function(require,module,exports){
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
 // Distributed under an MIT license: http://codemirror.net/LICENSE
 
@@ -27488,7 +28337,7 @@ define(String.prototype, "padRight", "".padEnd);
   return CodeMirror;
 });
 
-},{}],130:[function(require,module,exports){
+},{}],132:[function(require,module,exports){
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
 // Distributed under an MIT license: http://codemirror.net/LICENSE
 
@@ -28252,21 +29101,21 @@ CodeMirror.defineMIME("application/typescript", { name: "javascript", typescript
 
 });
 
-},{"../../lib/codemirror":129}],131:[function(require,module,exports){
+},{"../../lib/codemirror":131}],133:[function(require,module,exports){
 require('../../modules/core.regexp.escape');
 module.exports = require('../../modules/_core').RegExp.escape;
-},{"../../modules/_core":152,"../../modules/core.regexp.escape":248}],132:[function(require,module,exports){
+},{"../../modules/_core":154,"../../modules/core.regexp.escape":250}],134:[function(require,module,exports){
 module.exports = function(it){
   if(typeof it != 'function')throw TypeError(it + ' is not a function!');
   return it;
 };
-},{}],133:[function(require,module,exports){
+},{}],135:[function(require,module,exports){
 var cof = require('./_cof');
 module.exports = function(it, msg){
   if(typeof it != 'number' && cof(it) != 'Number')throw TypeError(msg);
   return +it;
 };
-},{"./_cof":147}],134:[function(require,module,exports){
+},{"./_cof":149}],136:[function(require,module,exports){
 // 22.1.3.31 Array.prototype[@@unscopables]
 var UNSCOPABLES = require('./_wks')('unscopables')
   , ArrayProto  = Array.prototype;
@@ -28274,19 +29123,19 @@ if(ArrayProto[UNSCOPABLES] == undefined)require('./_hide')(ArrayProto, UNSCOPABL
 module.exports = function(key){
   ArrayProto[UNSCOPABLES][key] = true;
 };
-},{"./_hide":169,"./_wks":246}],135:[function(require,module,exports){
+},{"./_hide":171,"./_wks":248}],137:[function(require,module,exports){
 module.exports = function(it, Constructor, name, forbiddenField){
   if(!(it instanceof Constructor) || (forbiddenField !== undefined && forbiddenField in it)){
     throw TypeError(name + ': incorrect invocation!');
   } return it;
 };
-},{}],136:[function(require,module,exports){
+},{}],138:[function(require,module,exports){
 var isObject = require('./_is-object');
 module.exports = function(it){
   if(!isObject(it))throw TypeError(it + ' is not an object!');
   return it;
 };
-},{"./_is-object":178}],137:[function(require,module,exports){
+},{"./_is-object":180}],139:[function(require,module,exports){
 // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
 'use strict';
 var toObject = require('./_to-object')
@@ -28313,7 +29162,7 @@ module.exports = [].copyWithin || function copyWithin(target/*= 0*/, start/*= 0,
     from += inc;
   } return O;
 };
-},{"./_to-index":234,"./_to-length":237,"./_to-object":238}],138:[function(require,module,exports){
+},{"./_to-index":236,"./_to-length":239,"./_to-object":240}],140:[function(require,module,exports){
 // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
 'use strict';
 var toObject = require('./_to-object')
@@ -28329,7 +29178,7 @@ module.exports = function fill(value /*, start = 0, end = @length */){
   while(endPos > index)O[index++] = value;
   return O;
 };
-},{"./_to-index":234,"./_to-length":237,"./_to-object":238}],139:[function(require,module,exports){
+},{"./_to-index":236,"./_to-length":239,"./_to-object":240}],141:[function(require,module,exports){
 var forOf = require('./_for-of');
 
 module.exports = function(iter, ITERATOR){
@@ -28338,7 +29187,7 @@ module.exports = function(iter, ITERATOR){
   return result;
 };
 
-},{"./_for-of":166}],140:[function(require,module,exports){
+},{"./_for-of":168}],142:[function(require,module,exports){
 // false -> Array#indexOf
 // true  -> Array#includes
 var toIObject = require('./_to-iobject')
@@ -28360,7 +29209,7 @@ module.exports = function(IS_INCLUDES){
     } return !IS_INCLUDES && -1;
   };
 };
-},{"./_to-index":234,"./_to-iobject":236,"./_to-length":237}],141:[function(require,module,exports){
+},{"./_to-index":236,"./_to-iobject":238,"./_to-length":239}],143:[function(require,module,exports){
 // 0 -> Array#forEach
 // 1 -> Array#map
 // 2 -> Array#filter
@@ -28405,7 +29254,7 @@ module.exports = function(TYPE, $create){
     return IS_FIND_INDEX ? -1 : IS_SOME || IS_EVERY ? IS_EVERY : result;
   };
 };
-},{"./_array-species-create":144,"./_ctx":154,"./_iobject":174,"./_to-length":237,"./_to-object":238}],142:[function(require,module,exports){
+},{"./_array-species-create":146,"./_ctx":156,"./_iobject":176,"./_to-length":239,"./_to-object":240}],144:[function(require,module,exports){
 var aFunction = require('./_a-function')
   , toObject  = require('./_to-object')
   , IObject   = require('./_iobject')
@@ -28434,7 +29283,7 @@ module.exports = function(that, callbackfn, aLen, memo, isRight){
   }
   return memo;
 };
-},{"./_a-function":132,"./_iobject":174,"./_to-length":237,"./_to-object":238}],143:[function(require,module,exports){
+},{"./_a-function":134,"./_iobject":176,"./_to-length":239,"./_to-object":240}],145:[function(require,module,exports){
 var isObject = require('./_is-object')
   , isArray  = require('./_is-array')
   , SPECIES  = require('./_wks')('species');
@@ -28451,14 +29300,14 @@ module.exports = function(original){
     }
   } return C === undefined ? Array : C;
 };
-},{"./_is-array":176,"./_is-object":178,"./_wks":246}],144:[function(require,module,exports){
+},{"./_is-array":178,"./_is-object":180,"./_wks":248}],146:[function(require,module,exports){
 // 9.4.2.3 ArraySpeciesCreate(originalArray, length)
 var speciesConstructor = require('./_array-species-constructor');
 
 module.exports = function(original, length){
   return new (speciesConstructor(original))(length);
 };
-},{"./_array-species-constructor":143}],145:[function(require,module,exports){
+},{"./_array-species-constructor":145}],147:[function(require,module,exports){
 'use strict';
 var aFunction  = require('./_a-function')
   , isObject   = require('./_is-object')
@@ -28483,7 +29332,7 @@ module.exports = Function.bind || function bind(that /*, args... */){
   if(isObject(fn.prototype))bound.prototype = fn.prototype;
   return bound;
 };
-},{"./_a-function":132,"./_invoke":173,"./_is-object":178}],146:[function(require,module,exports){
+},{"./_a-function":134,"./_invoke":175,"./_is-object":180}],148:[function(require,module,exports){
 // getting tag from 19.1.3.6 Object.prototype.toString()
 var cof = require('./_cof')
   , TAG = require('./_wks')('toStringTag')
@@ -28507,13 +29356,13 @@ module.exports = function(it){
     // ES3 arguments fallback
     : (B = cof(O)) == 'Object' && typeof O.callee == 'function' ? 'Arguments' : B;
 };
-},{"./_cof":147,"./_wks":246}],147:[function(require,module,exports){
+},{"./_cof":149,"./_wks":248}],149:[function(require,module,exports){
 var toString = {}.toString;
 
 module.exports = function(it){
   return toString.call(it).slice(8, -1);
 };
-},{}],148:[function(require,module,exports){
+},{}],150:[function(require,module,exports){
 'use strict';
 var dP          = require('./_object-dp').f
   , create      = require('./_object-create')
@@ -28656,7 +29505,7 @@ module.exports = {
     setSpecies(NAME);
   }
 };
-},{"./_an-instance":135,"./_ctx":154,"./_defined":156,"./_descriptors":157,"./_for-of":166,"./_iter-define":182,"./_iter-step":184,"./_meta":191,"./_object-create":195,"./_object-dp":196,"./_redefine-all":215,"./_set-species":220}],149:[function(require,module,exports){
+},{"./_an-instance":137,"./_ctx":156,"./_defined":158,"./_descriptors":159,"./_for-of":168,"./_iter-define":184,"./_iter-step":186,"./_meta":193,"./_object-create":197,"./_object-dp":198,"./_redefine-all":217,"./_set-species":222}],151:[function(require,module,exports){
 // https://github.com/DavidBruant/Map-Set.prototype.toJSON
 var classof = require('./_classof')
   , from    = require('./_array-from-iterable');
@@ -28666,7 +29515,7 @@ module.exports = function(NAME){
     return from(this);
   };
 };
-},{"./_array-from-iterable":139,"./_classof":146}],150:[function(require,module,exports){
+},{"./_array-from-iterable":141,"./_classof":148}],152:[function(require,module,exports){
 'use strict';
 var redefineAll       = require('./_redefine-all')
   , getWeak           = require('./_meta').getWeak
@@ -28750,7 +29599,7 @@ module.exports = {
   },
   ufstore: uncaughtFrozenStore
 };
-},{"./_an-instance":135,"./_an-object":136,"./_array-methods":141,"./_for-of":166,"./_has":168,"./_is-object":178,"./_meta":191,"./_redefine-all":215}],151:[function(require,module,exports){
+},{"./_an-instance":137,"./_an-object":138,"./_array-methods":143,"./_for-of":168,"./_has":170,"./_is-object":180,"./_meta":193,"./_redefine-all":217}],153:[function(require,module,exports){
 'use strict';
 var global            = require('./_global')
   , $export           = require('./_export')
@@ -28836,10 +29685,10 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
 
   return C;
 };
-},{"./_an-instance":135,"./_export":161,"./_fails":163,"./_for-of":166,"./_global":167,"./_inherit-if-required":172,"./_is-object":178,"./_iter-detect":183,"./_meta":191,"./_redefine":216,"./_redefine-all":215,"./_set-to-string-tag":221}],152:[function(require,module,exports){
+},{"./_an-instance":137,"./_export":163,"./_fails":165,"./_for-of":168,"./_global":169,"./_inherit-if-required":174,"./_is-object":180,"./_iter-detect":185,"./_meta":193,"./_redefine":218,"./_redefine-all":217,"./_set-to-string-tag":223}],154:[function(require,module,exports){
 var core = module.exports = {version: '2.4.0'};
 if(typeof __e == 'number')__e = core; // eslint-disable-line no-undef
-},{}],153:[function(require,module,exports){
+},{}],155:[function(require,module,exports){
 'use strict';
 var $defineProperty = require('./_object-dp')
   , createDesc      = require('./_property-desc');
@@ -28848,7 +29697,7 @@ module.exports = function(object, index, value){
   if(index in object)$defineProperty.f(object, index, createDesc(0, value));
   else object[index] = value;
 };
-},{"./_object-dp":196,"./_property-desc":214}],154:[function(require,module,exports){
+},{"./_object-dp":198,"./_property-desc":216}],156:[function(require,module,exports){
 // optional / simple context binding
 var aFunction = require('./_a-function');
 module.exports = function(fn, that, length){
@@ -28869,7 +29718,7 @@ module.exports = function(fn, that, length){
     return fn.apply(that, arguments);
   };
 };
-},{"./_a-function":132}],155:[function(require,module,exports){
+},{"./_a-function":134}],157:[function(require,module,exports){
 'use strict';
 var anObject    = require('./_an-object')
   , toPrimitive = require('./_to-primitive')
@@ -28879,18 +29728,18 @@ module.exports = function(hint){
   if(hint !== 'string' && hint !== NUMBER && hint !== 'default')throw TypeError('Incorrect hint');
   return toPrimitive(anObject(this), hint != NUMBER);
 };
-},{"./_an-object":136,"./_to-primitive":239}],156:[function(require,module,exports){
+},{"./_an-object":138,"./_to-primitive":241}],158:[function(require,module,exports){
 // 7.2.1 RequireObjectCoercible(argument)
 module.exports = function(it){
   if(it == undefined)throw TypeError("Can't call method on  " + it);
   return it;
 };
-},{}],157:[function(require,module,exports){
+},{}],159:[function(require,module,exports){
 // Thank's IE8 for his funny defineProperty
 module.exports = !require('./_fails')(function(){
   return Object.defineProperty({}, 'a', {get: function(){ return 7; }}).a != 7;
 });
-},{"./_fails":163}],158:[function(require,module,exports){
+},{"./_fails":165}],160:[function(require,module,exports){
 var isObject = require('./_is-object')
   , document = require('./_global').document
   // in old IE typeof document.createElement is 'object'
@@ -28898,12 +29747,12 @@ var isObject = require('./_is-object')
 module.exports = function(it){
   return is ? document.createElement(it) : {};
 };
-},{"./_global":167,"./_is-object":178}],159:[function(require,module,exports){
+},{"./_global":169,"./_is-object":180}],161:[function(require,module,exports){
 // IE 8- don't enum bug keys
 module.exports = (
   'constructor,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,toLocaleString,toString,valueOf'
 ).split(',');
-},{}],160:[function(require,module,exports){
+},{}],162:[function(require,module,exports){
 // all enumerable object keys, includes symbols
 var getKeys = require('./_object-keys')
   , gOPS    = require('./_object-gops')
@@ -28919,7 +29768,7 @@ module.exports = function(it){
     while(symbols.length > i)if(isEnum.call(it, key = symbols[i++]))result.push(key);
   } return result;
 };
-},{"./_object-gops":202,"./_object-keys":205,"./_object-pie":206}],161:[function(require,module,exports){
+},{"./_object-gops":204,"./_object-keys":207,"./_object-pie":208}],163:[function(require,module,exports){
 var global    = require('./_global')
   , core      = require('./_core')
   , hide      = require('./_hide')
@@ -28963,7 +29812,7 @@ $export.W = 32;  // wrap
 $export.U = 64;  // safe
 $export.R = 128; // real proto method for `library` 
 module.exports = $export;
-},{"./_core":152,"./_ctx":154,"./_global":167,"./_hide":169,"./_redefine":216}],162:[function(require,module,exports){
+},{"./_core":154,"./_ctx":156,"./_global":169,"./_hide":171,"./_redefine":218}],164:[function(require,module,exports){
 var MATCH = require('./_wks')('match');
 module.exports = function(KEY){
   var re = /./;
@@ -28976,7 +29825,7 @@ module.exports = function(KEY){
     } catch(f){ /* empty */ }
   } return true;
 };
-},{"./_wks":246}],163:[function(require,module,exports){
+},{"./_wks":248}],165:[function(require,module,exports){
 module.exports = function(exec){
   try {
     return !!exec();
@@ -28984,7 +29833,7 @@ module.exports = function(exec){
     return true;
   }
 };
-},{}],164:[function(require,module,exports){
+},{}],166:[function(require,module,exports){
 'use strict';
 var hide     = require('./_hide')
   , redefine = require('./_redefine')
@@ -29013,7 +29862,7 @@ module.exports = function(KEY, length, exec){
     );
   }
 };
-},{"./_defined":156,"./_fails":163,"./_hide":169,"./_redefine":216,"./_wks":246}],165:[function(require,module,exports){
+},{"./_defined":158,"./_fails":165,"./_hide":171,"./_redefine":218,"./_wks":248}],167:[function(require,module,exports){
 'use strict';
 // 21.2.5.3 get RegExp.prototype.flags
 var anObject = require('./_an-object');
@@ -29027,7 +29876,7 @@ module.exports = function(){
   if(that.sticky)     result += 'y';
   return result;
 };
-},{"./_an-object":136}],166:[function(require,module,exports){
+},{"./_an-object":138}],168:[function(require,module,exports){
 var ctx         = require('./_ctx')
   , call        = require('./_iter-call')
   , isArrayIter = require('./_is-array-iter')
@@ -29053,17 +29902,17 @@ var exports = module.exports = function(iterable, entries, fn, that, ITERATOR){
 };
 exports.BREAK  = BREAK;
 exports.RETURN = RETURN;
-},{"./_an-object":136,"./_ctx":154,"./_is-array-iter":175,"./_iter-call":180,"./_to-length":237,"./core.get-iterator-method":247}],167:[function(require,module,exports){
+},{"./_an-object":138,"./_ctx":156,"./_is-array-iter":177,"./_iter-call":182,"./_to-length":239,"./core.get-iterator-method":249}],169:[function(require,module,exports){
 // https://github.com/zloirock/core-js/issues/86#issuecomment-115759028
 var global = module.exports = typeof window != 'undefined' && window.Math == Math
   ? window : typeof self != 'undefined' && self.Math == Math ? self : Function('return this')();
 if(typeof __g == 'number')__g = global; // eslint-disable-line no-undef
-},{}],168:[function(require,module,exports){
+},{}],170:[function(require,module,exports){
 var hasOwnProperty = {}.hasOwnProperty;
 module.exports = function(it, key){
   return hasOwnProperty.call(it, key);
 };
-},{}],169:[function(require,module,exports){
+},{}],171:[function(require,module,exports){
 var dP         = require('./_object-dp')
   , createDesc = require('./_property-desc');
 module.exports = require('./_descriptors') ? function(object, key, value){
@@ -29072,13 +29921,13 @@ module.exports = require('./_descriptors') ? function(object, key, value){
   object[key] = value;
   return object;
 };
-},{"./_descriptors":157,"./_object-dp":196,"./_property-desc":214}],170:[function(require,module,exports){
+},{"./_descriptors":159,"./_object-dp":198,"./_property-desc":216}],172:[function(require,module,exports){
 module.exports = require('./_global').document && document.documentElement;
-},{"./_global":167}],171:[function(require,module,exports){
+},{"./_global":169}],173:[function(require,module,exports){
 module.exports = !require('./_descriptors') && !require('./_fails')(function(){
   return Object.defineProperty(require('./_dom-create')('div'), 'a', {get: function(){ return 7; }}).a != 7;
 });
-},{"./_descriptors":157,"./_dom-create":158,"./_fails":163}],172:[function(require,module,exports){
+},{"./_descriptors":159,"./_dom-create":160,"./_fails":165}],174:[function(require,module,exports){
 var isObject       = require('./_is-object')
   , setPrototypeOf = require('./_set-proto').set;
 module.exports = function(that, target, C){
@@ -29087,7 +29936,7 @@ module.exports = function(that, target, C){
     setPrototypeOf(that, P);
   } return that;
 };
-},{"./_is-object":178,"./_set-proto":219}],173:[function(require,module,exports){
+},{"./_is-object":180,"./_set-proto":221}],175:[function(require,module,exports){
 // fast apply, http://jsperf.lnkit.com/fast-apply/5
 module.exports = function(fn, args, that){
   var un = that === undefined;
@@ -29104,13 +29953,13 @@ module.exports = function(fn, args, that){
                       : fn.call(that, args[0], args[1], args[2], args[3]);
   } return              fn.apply(that, args);
 };
-},{}],174:[function(require,module,exports){
+},{}],176:[function(require,module,exports){
 // fallback for non-array-like ES3 and non-enumerable old V8 strings
 var cof = require('./_cof');
 module.exports = Object('z').propertyIsEnumerable(0) ? Object : function(it){
   return cof(it) == 'String' ? it.split('') : Object(it);
 };
-},{"./_cof":147}],175:[function(require,module,exports){
+},{"./_cof":149}],177:[function(require,module,exports){
 // check on default Array iterator
 var Iterators  = require('./_iterators')
   , ITERATOR   = require('./_wks')('iterator')
@@ -29119,24 +29968,24 @@ var Iterators  = require('./_iterators')
 module.exports = function(it){
   return it !== undefined && (Iterators.Array === it || ArrayProto[ITERATOR] === it);
 };
-},{"./_iterators":185,"./_wks":246}],176:[function(require,module,exports){
+},{"./_iterators":187,"./_wks":248}],178:[function(require,module,exports){
 // 7.2.2 IsArray(argument)
 var cof = require('./_cof');
 module.exports = Array.isArray || function isArray(arg){
   return cof(arg) == 'Array';
 };
-},{"./_cof":147}],177:[function(require,module,exports){
+},{"./_cof":149}],179:[function(require,module,exports){
 // 20.1.2.3 Number.isInteger(number)
 var isObject = require('./_is-object')
   , floor    = Math.floor;
 module.exports = function isInteger(it){
   return !isObject(it) && isFinite(it) && floor(it) === it;
 };
-},{"./_is-object":178}],178:[function(require,module,exports){
+},{"./_is-object":180}],180:[function(require,module,exports){
 module.exports = function(it){
   return typeof it === 'object' ? it !== null : typeof it === 'function';
 };
-},{}],179:[function(require,module,exports){
+},{}],181:[function(require,module,exports){
 // 7.2.8 IsRegExp(argument)
 var isObject = require('./_is-object')
   , cof      = require('./_cof')
@@ -29145,7 +29994,7 @@ module.exports = function(it){
   var isRegExp;
   return isObject(it) && ((isRegExp = it[MATCH]) !== undefined ? !!isRegExp : cof(it) == 'RegExp');
 };
-},{"./_cof":147,"./_is-object":178,"./_wks":246}],180:[function(require,module,exports){
+},{"./_cof":149,"./_is-object":180,"./_wks":248}],182:[function(require,module,exports){
 // call something on iterator step with safe closing on error
 var anObject = require('./_an-object');
 module.exports = function(iterator, fn, value, entries){
@@ -29158,7 +30007,7 @@ module.exports = function(iterator, fn, value, entries){
     throw e;
   }
 };
-},{"./_an-object":136}],181:[function(require,module,exports){
+},{"./_an-object":138}],183:[function(require,module,exports){
 'use strict';
 var create         = require('./_object-create')
   , descriptor     = require('./_property-desc')
@@ -29172,7 +30021,7 @@ module.exports = function(Constructor, NAME, next){
   Constructor.prototype = create(IteratorPrototype, {next: descriptor(1, next)});
   setToStringTag(Constructor, NAME + ' Iterator');
 };
-},{"./_hide":169,"./_object-create":195,"./_property-desc":214,"./_set-to-string-tag":221,"./_wks":246}],182:[function(require,module,exports){
+},{"./_hide":171,"./_object-create":197,"./_property-desc":216,"./_set-to-string-tag":223,"./_wks":248}],184:[function(require,module,exports){
 'use strict';
 var LIBRARY        = require('./_library')
   , $export        = require('./_export')
@@ -29243,7 +30092,7 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCED
   }
   return methods;
 };
-},{"./_export":161,"./_has":168,"./_hide":169,"./_iter-create":181,"./_iterators":185,"./_library":187,"./_object-gpo":203,"./_redefine":216,"./_set-to-string-tag":221,"./_wks":246}],183:[function(require,module,exports){
+},{"./_export":163,"./_has":170,"./_hide":171,"./_iter-create":183,"./_iterators":187,"./_library":189,"./_object-gpo":205,"./_redefine":218,"./_set-to-string-tag":223,"./_wks":248}],185:[function(require,module,exports){
 var ITERATOR     = require('./_wks')('iterator')
   , SAFE_CLOSING = false;
 
@@ -29265,13 +30114,13 @@ module.exports = function(exec, skipClosing){
   } catch(e){ /* empty */ }
   return safe;
 };
-},{"./_wks":246}],184:[function(require,module,exports){
+},{"./_wks":248}],186:[function(require,module,exports){
 module.exports = function(done, value){
   return {value: value, done: !!done};
 };
-},{}],185:[function(require,module,exports){
+},{}],187:[function(require,module,exports){
 module.exports = {};
-},{}],186:[function(require,module,exports){
+},{}],188:[function(require,module,exports){
 var getKeys   = require('./_object-keys')
   , toIObject = require('./_to-iobject');
 module.exports = function(object, el){
@@ -29282,9 +30131,9 @@ module.exports = function(object, el){
     , key;
   while(length > index)if(O[key = keys[index++]] === el)return key;
 };
-},{"./_object-keys":205,"./_to-iobject":236}],187:[function(require,module,exports){
+},{"./_object-keys":207,"./_to-iobject":238}],189:[function(require,module,exports){
 module.exports = false;
-},{}],188:[function(require,module,exports){
+},{}],190:[function(require,module,exports){
 // 20.2.2.14 Math.expm1(x)
 var $expm1 = Math.expm1;
 module.exports = (!$expm1
@@ -29295,17 +30144,17 @@ module.exports = (!$expm1
 ) ? function expm1(x){
   return (x = +x) == 0 ? x : x > -1e-6 && x < 1e-6 ? x + x * x / 2 : Math.exp(x) - 1;
 } : $expm1;
-},{}],189:[function(require,module,exports){
+},{}],191:[function(require,module,exports){
 // 20.2.2.20 Math.log1p(x)
 module.exports = Math.log1p || function log1p(x){
   return (x = +x) > -1e-8 && x < 1e-8 ? x - x * x / 2 : Math.log(1 + x);
 };
-},{}],190:[function(require,module,exports){
+},{}],192:[function(require,module,exports){
 // 20.2.2.28 Math.sign(x)
 module.exports = Math.sign || function sign(x){
   return (x = +x) == 0 || x != x ? x : x < 0 ? -1 : 1;
 };
-},{}],191:[function(require,module,exports){
+},{}],193:[function(require,module,exports){
 var META     = require('./_uid')('meta')
   , isObject = require('./_is-object')
   , has      = require('./_has')
@@ -29359,7 +30208,7 @@ var meta = module.exports = {
   getWeak:  getWeak,
   onFreeze: onFreeze
 };
-},{"./_fails":163,"./_has":168,"./_is-object":178,"./_object-dp":196,"./_uid":243}],192:[function(require,module,exports){
+},{"./_fails":165,"./_has":170,"./_is-object":180,"./_object-dp":198,"./_uid":245}],194:[function(require,module,exports){
 var Map     = require('./es6.map')
   , $export = require('./_export')
   , shared  = require('./_shared')('metadata')
@@ -29411,7 +30260,7 @@ module.exports = {
   key: toMetaKey,
   exp: exp
 };
-},{"./_export":161,"./_shared":223,"./es6.map":278,"./es6.weak-map":384}],193:[function(require,module,exports){
+},{"./_export":163,"./_shared":225,"./es6.map":280,"./es6.weak-map":386}],195:[function(require,module,exports){
 var global    = require('./_global')
   , macrotask = require('./_task').set
   , Observer  = global.MutationObserver || global.WebKitMutationObserver
@@ -29480,7 +30329,7 @@ module.exports = function(){
     } last = task;
   };
 };
-},{"./_cof":147,"./_global":167,"./_task":233}],194:[function(require,module,exports){
+},{"./_cof":149,"./_global":169,"./_task":235}],196:[function(require,module,exports){
 'use strict';
 // 19.1.2.1 Object.assign(target, source, ...)
 var getKeys  = require('./_object-keys')
@@ -29514,7 +30363,7 @@ module.exports = !$assign || require('./_fails')(function(){
     while(length > j)if(isEnum.call(S, key = keys[j++]))T[key] = S[key];
   } return T;
 } : $assign;
-},{"./_fails":163,"./_iobject":174,"./_object-gops":202,"./_object-keys":205,"./_object-pie":206,"./_to-object":238}],195:[function(require,module,exports){
+},{"./_fails":165,"./_iobject":176,"./_object-gops":204,"./_object-keys":207,"./_object-pie":208,"./_to-object":240}],197:[function(require,module,exports){
 // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
 var anObject    = require('./_an-object')
   , dPs         = require('./_object-dps')
@@ -29557,7 +30406,7 @@ module.exports = Object.create || function create(O, Properties){
   return Properties === undefined ? result : dPs(result, Properties);
 };
 
-},{"./_an-object":136,"./_dom-create":158,"./_enum-bug-keys":159,"./_html":170,"./_object-dps":197,"./_shared-key":222}],196:[function(require,module,exports){
+},{"./_an-object":138,"./_dom-create":160,"./_enum-bug-keys":161,"./_html":172,"./_object-dps":199,"./_shared-key":224}],198:[function(require,module,exports){
 var anObject       = require('./_an-object')
   , IE8_DOM_DEFINE = require('./_ie8-dom-define')
   , toPrimitive    = require('./_to-primitive')
@@ -29574,7 +30423,7 @@ exports.f = require('./_descriptors') ? Object.defineProperty : function defineP
   if('value' in Attributes)O[P] = Attributes.value;
   return O;
 };
-},{"./_an-object":136,"./_descriptors":157,"./_ie8-dom-define":171,"./_to-primitive":239}],197:[function(require,module,exports){
+},{"./_an-object":138,"./_descriptors":159,"./_ie8-dom-define":173,"./_to-primitive":241}],199:[function(require,module,exports){
 var dP       = require('./_object-dp')
   , anObject = require('./_an-object')
   , getKeys  = require('./_object-keys');
@@ -29588,7 +30437,7 @@ module.exports = require('./_descriptors') ? Object.defineProperties : function 
   while(length > i)dP.f(O, P = keys[i++], Properties[P]);
   return O;
 };
-},{"./_an-object":136,"./_descriptors":157,"./_object-dp":196,"./_object-keys":205}],198:[function(require,module,exports){
+},{"./_an-object":138,"./_descriptors":159,"./_object-dp":198,"./_object-keys":207}],200:[function(require,module,exports){
 // Forced replacement prototype accessors methods
 module.exports = require('./_library')|| !require('./_fails')(function(){
   var K = Math.random();
@@ -29596,7 +30445,7 @@ module.exports = require('./_library')|| !require('./_fails')(function(){
   __defineSetter__.call(null, K, function(){ /* empty */});
   delete require('./_global')[K];
 });
-},{"./_fails":163,"./_global":167,"./_library":187}],199:[function(require,module,exports){
+},{"./_fails":165,"./_global":169,"./_library":189}],201:[function(require,module,exports){
 var pIE            = require('./_object-pie')
   , createDesc     = require('./_property-desc')
   , toIObject      = require('./_to-iobject')
@@ -29613,7 +30462,7 @@ exports.f = require('./_descriptors') ? gOPD : function getOwnPropertyDescriptor
   } catch(e){ /* empty */ }
   if(has(O, P))return createDesc(!pIE.f.call(O, P), O[P]);
 };
-},{"./_descriptors":157,"./_has":168,"./_ie8-dom-define":171,"./_object-pie":206,"./_property-desc":214,"./_to-iobject":236,"./_to-primitive":239}],200:[function(require,module,exports){
+},{"./_descriptors":159,"./_has":170,"./_ie8-dom-define":173,"./_object-pie":208,"./_property-desc":216,"./_to-iobject":238,"./_to-primitive":241}],202:[function(require,module,exports){
 // fallback for IE11 buggy Object.getOwnPropertyNames with iframe and window
 var toIObject = require('./_to-iobject')
   , gOPN      = require('./_object-gopn').f
@@ -29634,7 +30483,7 @@ module.exports.f = function getOwnPropertyNames(it){
   return windowNames && toString.call(it) == '[object Window]' ? getWindowNames(it) : gOPN(toIObject(it));
 };
 
-},{"./_object-gopn":201,"./_to-iobject":236}],201:[function(require,module,exports){
+},{"./_object-gopn":203,"./_to-iobject":238}],203:[function(require,module,exports){
 // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
 var $keys      = require('./_object-keys-internal')
   , hiddenKeys = require('./_enum-bug-keys').concat('length', 'prototype');
@@ -29642,9 +30491,9 @@ var $keys      = require('./_object-keys-internal')
 exports.f = Object.getOwnPropertyNames || function getOwnPropertyNames(O){
   return $keys(O, hiddenKeys);
 };
-},{"./_enum-bug-keys":159,"./_object-keys-internal":204}],202:[function(require,module,exports){
+},{"./_enum-bug-keys":161,"./_object-keys-internal":206}],204:[function(require,module,exports){
 exports.f = Object.getOwnPropertySymbols;
-},{}],203:[function(require,module,exports){
+},{}],205:[function(require,module,exports){
 // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
 var has         = require('./_has')
   , toObject    = require('./_to-object')
@@ -29658,7 +30507,7 @@ module.exports = Object.getPrototypeOf || function(O){
     return O.constructor.prototype;
   } return O instanceof Object ? ObjectProto : null;
 };
-},{"./_has":168,"./_shared-key":222,"./_to-object":238}],204:[function(require,module,exports){
+},{"./_has":170,"./_shared-key":224,"./_to-object":240}],206:[function(require,module,exports){
 var has          = require('./_has')
   , toIObject    = require('./_to-iobject')
   , arrayIndexOf = require('./_array-includes')(false)
@@ -29676,7 +30525,7 @@ module.exports = function(object, names){
   }
   return result;
 };
-},{"./_array-includes":140,"./_has":168,"./_shared-key":222,"./_to-iobject":236}],205:[function(require,module,exports){
+},{"./_array-includes":142,"./_has":170,"./_shared-key":224,"./_to-iobject":238}],207:[function(require,module,exports){
 // 19.1.2.14 / 15.2.3.14 Object.keys(O)
 var $keys       = require('./_object-keys-internal')
   , enumBugKeys = require('./_enum-bug-keys');
@@ -29684,9 +30533,9 @@ var $keys       = require('./_object-keys-internal')
 module.exports = Object.keys || function keys(O){
   return $keys(O, enumBugKeys);
 };
-},{"./_enum-bug-keys":159,"./_object-keys-internal":204}],206:[function(require,module,exports){
+},{"./_enum-bug-keys":161,"./_object-keys-internal":206}],208:[function(require,module,exports){
 exports.f = {}.propertyIsEnumerable;
-},{}],207:[function(require,module,exports){
+},{}],209:[function(require,module,exports){
 // most Object methods by ES6 should accept primitives
 var $export = require('./_export')
   , core    = require('./_core')
@@ -29697,7 +30546,7 @@ module.exports = function(KEY, exec){
   exp[KEY] = exec(fn);
   $export($export.S + $export.F * fails(function(){ fn(1); }), 'Object', exp);
 };
-},{"./_core":152,"./_export":161,"./_fails":163}],208:[function(require,module,exports){
+},{"./_core":154,"./_export":163,"./_fails":165}],210:[function(require,module,exports){
 var getKeys   = require('./_object-keys')
   , toIObject = require('./_to-iobject')
   , isEnum    = require('./_object-pie').f;
@@ -29714,7 +30563,7 @@ module.exports = function(isEntries){
     } return result;
   };
 };
-},{"./_object-keys":205,"./_object-pie":206,"./_to-iobject":236}],209:[function(require,module,exports){
+},{"./_object-keys":207,"./_object-pie":208,"./_to-iobject":238}],211:[function(require,module,exports){
 // all object keys, includes non-enumerable and symbols
 var gOPN     = require('./_object-gopn')
   , gOPS     = require('./_object-gops')
@@ -29725,7 +30574,7 @@ module.exports = Reflect && Reflect.ownKeys || function ownKeys(it){
     , getSymbols = gOPS.f;
   return getSymbols ? keys.concat(getSymbols(it)) : keys;
 };
-},{"./_an-object":136,"./_global":167,"./_object-gopn":201,"./_object-gops":202}],210:[function(require,module,exports){
+},{"./_an-object":138,"./_global":169,"./_object-gopn":203,"./_object-gops":204}],212:[function(require,module,exports){
 var $parseFloat = require('./_global').parseFloat
   , $trim       = require('./_string-trim').trim;
 
@@ -29734,7 +30583,7 @@ module.exports = 1 / $parseFloat(require('./_string-ws') + '-0') !== -Infinity ?
     , result = $parseFloat(string);
   return result === 0 && string.charAt(0) == '-' ? -0 : result;
 } : $parseFloat;
-},{"./_global":167,"./_string-trim":231,"./_string-ws":232}],211:[function(require,module,exports){
+},{"./_global":169,"./_string-trim":233,"./_string-ws":234}],213:[function(require,module,exports){
 var $parseInt = require('./_global').parseInt
   , $trim     = require('./_string-trim').trim
   , ws        = require('./_string-ws')
@@ -29744,7 +30593,7 @@ module.exports = $parseInt(ws + '08') !== 8 || $parseInt(ws + '0x16') !== 22 ? f
   var string = $trim(String(str), 3);
   return $parseInt(string, (radix >>> 0) || (hex.test(string) ? 16 : 10));
 } : $parseInt;
-},{"./_global":167,"./_string-trim":231,"./_string-ws":232}],212:[function(require,module,exports){
+},{"./_global":169,"./_string-trim":233,"./_string-ws":234}],214:[function(require,module,exports){
 'use strict';
 var path      = require('./_path')
   , invoke    = require('./_invoke')
@@ -29768,9 +30617,9 @@ module.exports = function(/* ...pargs */){
     return invoke(fn, args, that);
   };
 };
-},{"./_a-function":132,"./_invoke":173,"./_path":213}],213:[function(require,module,exports){
+},{"./_a-function":134,"./_invoke":175,"./_path":215}],215:[function(require,module,exports){
 module.exports = require('./_global');
-},{"./_global":167}],214:[function(require,module,exports){
+},{"./_global":169}],216:[function(require,module,exports){
 module.exports = function(bitmap, value){
   return {
     enumerable  : !(bitmap & 1),
@@ -29779,13 +30628,13 @@ module.exports = function(bitmap, value){
     value       : value
   };
 };
-},{}],215:[function(require,module,exports){
+},{}],217:[function(require,module,exports){
 var redefine = require('./_redefine');
 module.exports = function(target, src, safe){
   for(var key in src)redefine(target, key, src[key], safe);
   return target;
 };
-},{"./_redefine":216}],216:[function(require,module,exports){
+},{"./_redefine":218}],218:[function(require,module,exports){
 var global    = require('./_global')
   , hide      = require('./_hide')
   , has       = require('./_has')
@@ -29818,7 +30667,7 @@ require('./_core').inspectSource = function(it){
 })(Function.prototype, TO_STRING, function toString(){
   return typeof this == 'function' && this[SRC] || $toString.call(this);
 });
-},{"./_core":152,"./_global":167,"./_has":168,"./_hide":169,"./_uid":243}],217:[function(require,module,exports){
+},{"./_core":154,"./_global":169,"./_has":170,"./_hide":171,"./_uid":245}],219:[function(require,module,exports){
 module.exports = function(regExp, replace){
   var replacer = replace === Object(replace) ? function(part){
     return replace[part];
@@ -29827,12 +30676,12 @@ module.exports = function(regExp, replace){
     return String(it).replace(regExp, replacer);
   };
 };
-},{}],218:[function(require,module,exports){
+},{}],220:[function(require,module,exports){
 // 7.2.9 SameValue(x, y)
 module.exports = Object.is || function is(x, y){
   return x === y ? x !== 0 || 1 / x === 1 / y : x != x && y != y;
 };
-},{}],219:[function(require,module,exports){
+},{}],221:[function(require,module,exports){
 // Works with __proto__ only. Old v8 can't work with null proto objects.
 /* eslint-disable no-proto */
 var isObject = require('./_is-object')
@@ -29858,7 +30707,7 @@ module.exports = {
     }({}, false) : undefined),
   check: check
 };
-},{"./_an-object":136,"./_ctx":154,"./_is-object":178,"./_object-gopd":199}],220:[function(require,module,exports){
+},{"./_an-object":138,"./_ctx":156,"./_is-object":180,"./_object-gopd":201}],222:[function(require,module,exports){
 'use strict';
 var global      = require('./_global')
   , dP          = require('./_object-dp')
@@ -29872,7 +30721,7 @@ module.exports = function(KEY){
     get: function(){ return this; }
   });
 };
-},{"./_descriptors":157,"./_global":167,"./_object-dp":196,"./_wks":246}],221:[function(require,module,exports){
+},{"./_descriptors":159,"./_global":169,"./_object-dp":198,"./_wks":248}],223:[function(require,module,exports){
 var def = require('./_object-dp').f
   , has = require('./_has')
   , TAG = require('./_wks')('toStringTag');
@@ -29880,20 +30729,20 @@ var def = require('./_object-dp').f
 module.exports = function(it, tag, stat){
   if(it && !has(it = stat ? it : it.prototype, TAG))def(it, TAG, {configurable: true, value: tag});
 };
-},{"./_has":168,"./_object-dp":196,"./_wks":246}],222:[function(require,module,exports){
+},{"./_has":170,"./_object-dp":198,"./_wks":248}],224:[function(require,module,exports){
 var shared = require('./_shared')('keys')
   , uid    = require('./_uid');
 module.exports = function(key){
   return shared[key] || (shared[key] = uid(key));
 };
-},{"./_shared":223,"./_uid":243}],223:[function(require,module,exports){
+},{"./_shared":225,"./_uid":245}],225:[function(require,module,exports){
 var global = require('./_global')
   , SHARED = '__core-js_shared__'
   , store  = global[SHARED] || (global[SHARED] = {});
 module.exports = function(key){
   return store[key] || (store[key] = {});
 };
-},{"./_global":167}],224:[function(require,module,exports){
+},{"./_global":169}],226:[function(require,module,exports){
 // 7.3.20 SpeciesConstructor(O, defaultConstructor)
 var anObject  = require('./_an-object')
   , aFunction = require('./_a-function')
@@ -29902,7 +30751,7 @@ module.exports = function(O, D){
   var C = anObject(O).constructor, S;
   return C === undefined || (S = anObject(C)[SPECIES]) == undefined ? D : aFunction(S);
 };
-},{"./_a-function":132,"./_an-object":136,"./_wks":246}],225:[function(require,module,exports){
+},{"./_a-function":134,"./_an-object":138,"./_wks":248}],227:[function(require,module,exports){
 var fails = require('./_fails');
 
 module.exports = function(method, arg){
@@ -29910,7 +30759,7 @@ module.exports = function(method, arg){
     arg ? method.call(null, function(){}, 1) : method.call(null);
   });
 };
-},{"./_fails":163}],226:[function(require,module,exports){
+},{"./_fails":165}],228:[function(require,module,exports){
 var toInteger = require('./_to-integer')
   , defined   = require('./_defined');
 // true  -> String#at
@@ -29928,7 +30777,7 @@ module.exports = function(TO_STRING){
       : TO_STRING ? s.slice(i, i + 2) : (a - 0xd800 << 10) + (b - 0xdc00) + 0x10000;
   };
 };
-},{"./_defined":156,"./_to-integer":235}],227:[function(require,module,exports){
+},{"./_defined":158,"./_to-integer":237}],229:[function(require,module,exports){
 // helper for String#{startsWith, endsWith, includes}
 var isRegExp = require('./_is-regexp')
   , defined  = require('./_defined');
@@ -29937,7 +30786,7 @@ module.exports = function(that, searchString, NAME){
   if(isRegExp(searchString))throw TypeError('String#' + NAME + " doesn't accept regex!");
   return String(defined(that));
 };
-},{"./_defined":156,"./_is-regexp":179}],228:[function(require,module,exports){
+},{"./_defined":158,"./_is-regexp":181}],230:[function(require,module,exports){
 var $export = require('./_export')
   , fails   = require('./_fails')
   , defined = require('./_defined')
@@ -29957,7 +30806,7 @@ module.exports = function(NAME, exec){
     return test !== test.toLowerCase() || test.split('"').length > 3;
   }), 'String', O);
 };
-},{"./_defined":156,"./_export":161,"./_fails":163}],229:[function(require,module,exports){
+},{"./_defined":158,"./_export":163,"./_fails":165}],231:[function(require,module,exports){
 // https://github.com/tc39/proposal-string-pad-start-end
 var toLength = require('./_to-length')
   , repeat   = require('./_string-repeat')
@@ -29975,7 +30824,7 @@ module.exports = function(that, maxLength, fillString, left){
   return left ? stringFiller + S : S + stringFiller;
 };
 
-},{"./_defined":156,"./_string-repeat":230,"./_to-length":237}],230:[function(require,module,exports){
+},{"./_defined":158,"./_string-repeat":232,"./_to-length":239}],232:[function(require,module,exports){
 'use strict';
 var toInteger = require('./_to-integer')
   , defined   = require('./_defined');
@@ -29988,7 +30837,7 @@ module.exports = function repeat(count){
   for(;n > 0; (n >>>= 1) && (str += str))if(n & 1)res += str;
   return res;
 };
-},{"./_defined":156,"./_to-integer":235}],231:[function(require,module,exports){
+},{"./_defined":158,"./_to-integer":237}],233:[function(require,module,exports){
 var $export = require('./_export')
   , defined = require('./_defined')
   , fails   = require('./_fails')
@@ -30019,10 +30868,10 @@ var trim = exporter.trim = function(string, TYPE){
 };
 
 module.exports = exporter;
-},{"./_defined":156,"./_export":161,"./_fails":163,"./_string-ws":232}],232:[function(require,module,exports){
+},{"./_defined":158,"./_export":163,"./_fails":165,"./_string-ws":234}],234:[function(require,module,exports){
 module.exports = '\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003' +
   '\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF';
-},{}],233:[function(require,module,exports){
+},{}],235:[function(require,module,exports){
 var ctx                = require('./_ctx')
   , invoke             = require('./_invoke')
   , html               = require('./_html')
@@ -30098,7 +30947,7 @@ module.exports = {
   set:   setTask,
   clear: clearTask
 };
-},{"./_cof":147,"./_ctx":154,"./_dom-create":158,"./_global":167,"./_html":170,"./_invoke":173}],234:[function(require,module,exports){
+},{"./_cof":149,"./_ctx":156,"./_dom-create":160,"./_global":169,"./_html":172,"./_invoke":175}],236:[function(require,module,exports){
 var toInteger = require('./_to-integer')
   , max       = Math.max
   , min       = Math.min;
@@ -30106,34 +30955,34 @@ module.exports = function(index, length){
   index = toInteger(index);
   return index < 0 ? max(index + length, 0) : min(index, length);
 };
-},{"./_to-integer":235}],235:[function(require,module,exports){
+},{"./_to-integer":237}],237:[function(require,module,exports){
 // 7.1.4 ToInteger
 var ceil  = Math.ceil
   , floor = Math.floor;
 module.exports = function(it){
   return isNaN(it = +it) ? 0 : (it > 0 ? floor : ceil)(it);
 };
-},{}],236:[function(require,module,exports){
+},{}],238:[function(require,module,exports){
 // to indexed object, toObject with fallback for non-array-like ES3 strings
 var IObject = require('./_iobject')
   , defined = require('./_defined');
 module.exports = function(it){
   return IObject(defined(it));
 };
-},{"./_defined":156,"./_iobject":174}],237:[function(require,module,exports){
+},{"./_defined":158,"./_iobject":176}],239:[function(require,module,exports){
 // 7.1.15 ToLength
 var toInteger = require('./_to-integer')
   , min       = Math.min;
 module.exports = function(it){
   return it > 0 ? min(toInteger(it), 0x1fffffffffffff) : 0; // pow(2, 53) - 1 == 9007199254740991
 };
-},{"./_to-integer":235}],238:[function(require,module,exports){
+},{"./_to-integer":237}],240:[function(require,module,exports){
 // 7.1.13 ToObject(argument)
 var defined = require('./_defined');
 module.exports = function(it){
   return Object(defined(it));
 };
-},{"./_defined":156}],239:[function(require,module,exports){
+},{"./_defined":158}],241:[function(require,module,exports){
 // 7.1.1 ToPrimitive(input [, PreferredType])
 var isObject = require('./_is-object');
 // instead of the ES6 spec version, we didn't implement @@toPrimitive case
@@ -30146,7 +30995,7 @@ module.exports = function(it, S){
   if(!S && typeof (fn = it.toString) == 'function' && !isObject(val = fn.call(it)))return val;
   throw TypeError("Can't convert object to primitive value");
 };
-},{"./_is-object":178}],240:[function(require,module,exports){
+},{"./_is-object":180}],242:[function(require,module,exports){
 'use strict';
 if(require('./_descriptors')){
   var LIBRARY             = require('./_library')
@@ -30626,7 +31475,7 @@ if(require('./_descriptors')){
     if(!LIBRARY && !CORRECT_ITER_NAME)hide(TypedArrayPrototype, ITERATOR, $iterator);
   };
 } else module.exports = function(){ /* empty */ };
-},{"./_an-instance":135,"./_array-copy-within":137,"./_array-fill":138,"./_array-includes":140,"./_array-methods":141,"./_classof":146,"./_ctx":154,"./_descriptors":157,"./_export":161,"./_fails":163,"./_global":167,"./_has":168,"./_hide":169,"./_is-array-iter":175,"./_is-object":178,"./_iter-detect":183,"./_iterators":185,"./_library":187,"./_object-create":195,"./_object-dp":196,"./_object-gopd":199,"./_object-gopn":201,"./_object-gpo":203,"./_property-desc":214,"./_redefine-all":215,"./_same-value":218,"./_set-species":220,"./_species-constructor":224,"./_to-index":234,"./_to-integer":235,"./_to-length":237,"./_to-object":238,"./_to-primitive":239,"./_typed":242,"./_typed-buffer":241,"./_uid":243,"./_wks":246,"./core.get-iterator-method":247,"./es6.array.iterator":259}],241:[function(require,module,exports){
+},{"./_an-instance":137,"./_array-copy-within":139,"./_array-fill":140,"./_array-includes":142,"./_array-methods":143,"./_classof":148,"./_ctx":156,"./_descriptors":159,"./_export":163,"./_fails":165,"./_global":169,"./_has":170,"./_hide":171,"./_is-array-iter":177,"./_is-object":180,"./_iter-detect":185,"./_iterators":187,"./_library":189,"./_object-create":197,"./_object-dp":198,"./_object-gopd":201,"./_object-gopn":203,"./_object-gpo":205,"./_property-desc":216,"./_redefine-all":217,"./_same-value":220,"./_set-species":222,"./_species-constructor":226,"./_to-index":236,"./_to-integer":237,"./_to-length":239,"./_to-object":240,"./_to-primitive":241,"./_typed":244,"./_typed-buffer":243,"./_uid":245,"./_wks":248,"./core.get-iterator-method":249,"./es6.array.iterator":261}],243:[function(require,module,exports){
 'use strict';
 var global         = require('./_global')
   , DESCRIPTORS    = require('./_descriptors')
@@ -30900,7 +31749,7 @@ setToStringTag($DataView, DATA_VIEW);
 hide($DataView[PROTOTYPE], $typed.VIEW, true);
 exports[ARRAY_BUFFER] = $ArrayBuffer;
 exports[DATA_VIEW] = $DataView;
-},{"./_an-instance":135,"./_array-fill":138,"./_descriptors":157,"./_fails":163,"./_global":167,"./_hide":169,"./_library":187,"./_object-dp":196,"./_object-gopn":201,"./_redefine-all":215,"./_set-to-string-tag":221,"./_to-integer":235,"./_to-length":237,"./_typed":242}],242:[function(require,module,exports){
+},{"./_an-instance":137,"./_array-fill":140,"./_descriptors":159,"./_fails":165,"./_global":169,"./_hide":171,"./_library":189,"./_object-dp":198,"./_object-gopn":203,"./_redefine-all":217,"./_set-to-string-tag":223,"./_to-integer":237,"./_to-length":239,"./_typed":244}],244:[function(require,module,exports){
 var global = require('./_global')
   , hide   = require('./_hide')
   , uid    = require('./_uid')
@@ -30927,13 +31776,13 @@ module.exports = {
   TYPED:  TYPED,
   VIEW:   VIEW
 };
-},{"./_global":167,"./_hide":169,"./_uid":243}],243:[function(require,module,exports){
+},{"./_global":169,"./_hide":171,"./_uid":245}],245:[function(require,module,exports){
 var id = 0
   , px = Math.random();
 module.exports = function(key){
   return 'Symbol('.concat(key === undefined ? '' : key, ')_', (++id + px).toString(36));
 };
-},{}],244:[function(require,module,exports){
+},{}],246:[function(require,module,exports){
 var global         = require('./_global')
   , core           = require('./_core')
   , LIBRARY        = require('./_library')
@@ -30943,9 +31792,9 @@ module.exports = function(name){
   var $Symbol = core.Symbol || (core.Symbol = LIBRARY ? {} : global.Symbol || {});
   if(name.charAt(0) != '_' && !(name in $Symbol))defineProperty($Symbol, name, {value: wksExt.f(name)});
 };
-},{"./_core":152,"./_global":167,"./_library":187,"./_object-dp":196,"./_wks-ext":245}],245:[function(require,module,exports){
+},{"./_core":154,"./_global":169,"./_library":189,"./_object-dp":198,"./_wks-ext":247}],247:[function(require,module,exports){
 exports.f = require('./_wks');
-},{"./_wks":246}],246:[function(require,module,exports){
+},{"./_wks":248}],248:[function(require,module,exports){
 var store      = require('./_shared')('wks')
   , uid        = require('./_uid')
   , Symbol     = require('./_global').Symbol
@@ -30957,7 +31806,7 @@ var $exports = module.exports = function(name){
 };
 
 $exports.store = store;
-},{"./_global":167,"./_shared":223,"./_uid":243}],247:[function(require,module,exports){
+},{"./_global":169,"./_shared":225,"./_uid":245}],249:[function(require,module,exports){
 var classof   = require('./_classof')
   , ITERATOR  = require('./_wks')('iterator')
   , Iterators = require('./_iterators');
@@ -30966,21 +31815,21 @@ module.exports = require('./_core').getIteratorMethod = function(it){
     || it['@@iterator']
     || Iterators[classof(it)];
 };
-},{"./_classof":146,"./_core":152,"./_iterators":185,"./_wks":246}],248:[function(require,module,exports){
+},{"./_classof":148,"./_core":154,"./_iterators":187,"./_wks":248}],250:[function(require,module,exports){
 // https://github.com/benjamingr/RexExp.escape
 var $export = require('./_export')
   , $re     = require('./_replacer')(/[\\^$*+?.()|[\]{}]/g, '\\$&');
 
 $export($export.S, 'RegExp', {escape: function escape(it){ return $re(it); }});
 
-},{"./_export":161,"./_replacer":217}],249:[function(require,module,exports){
+},{"./_export":163,"./_replacer":219}],251:[function(require,module,exports){
 // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
 var $export = require('./_export');
 
 $export($export.P, 'Array', {copyWithin: require('./_array-copy-within')});
 
 require('./_add-to-unscopables')('copyWithin');
-},{"./_add-to-unscopables":134,"./_array-copy-within":137,"./_export":161}],250:[function(require,module,exports){
+},{"./_add-to-unscopables":136,"./_array-copy-within":139,"./_export":163}],252:[function(require,module,exports){
 'use strict';
 var $export = require('./_export')
   , $every  = require('./_array-methods')(4);
@@ -30991,14 +31840,14 @@ $export($export.P + $export.F * !require('./_strict-method')([].every, true), 'A
     return $every(this, callbackfn, arguments[1]);
   }
 });
-},{"./_array-methods":141,"./_export":161,"./_strict-method":225}],251:[function(require,module,exports){
+},{"./_array-methods":143,"./_export":163,"./_strict-method":227}],253:[function(require,module,exports){
 // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
 var $export = require('./_export');
 
 $export($export.P, 'Array', {fill: require('./_array-fill')});
 
 require('./_add-to-unscopables')('fill');
-},{"./_add-to-unscopables":134,"./_array-fill":138,"./_export":161}],252:[function(require,module,exports){
+},{"./_add-to-unscopables":136,"./_array-fill":140,"./_export":163}],254:[function(require,module,exports){
 'use strict';
 var $export = require('./_export')
   , $filter = require('./_array-methods')(2);
@@ -31009,7 +31858,7 @@ $export($export.P + $export.F * !require('./_strict-method')([].filter, true), '
     return $filter(this, callbackfn, arguments[1]);
   }
 });
-},{"./_array-methods":141,"./_export":161,"./_strict-method":225}],253:[function(require,module,exports){
+},{"./_array-methods":143,"./_export":163,"./_strict-method":227}],255:[function(require,module,exports){
 'use strict';
 // 22.1.3.9 Array.prototype.findIndex(predicate, thisArg = undefined)
 var $export = require('./_export')
@@ -31024,7 +31873,7 @@ $export($export.P + $export.F * forced, 'Array', {
   }
 });
 require('./_add-to-unscopables')(KEY);
-},{"./_add-to-unscopables":134,"./_array-methods":141,"./_export":161}],254:[function(require,module,exports){
+},{"./_add-to-unscopables":136,"./_array-methods":143,"./_export":163}],256:[function(require,module,exports){
 'use strict';
 // 22.1.3.8 Array.prototype.find(predicate, thisArg = undefined)
 var $export = require('./_export')
@@ -31039,7 +31888,7 @@ $export($export.P + $export.F * forced, 'Array', {
   }
 });
 require('./_add-to-unscopables')(KEY);
-},{"./_add-to-unscopables":134,"./_array-methods":141,"./_export":161}],255:[function(require,module,exports){
+},{"./_add-to-unscopables":136,"./_array-methods":143,"./_export":163}],257:[function(require,module,exports){
 'use strict';
 var $export  = require('./_export')
   , $forEach = require('./_array-methods')(0)
@@ -31051,7 +31900,7 @@ $export($export.P + $export.F * !STRICT, 'Array', {
     return $forEach(this, callbackfn, arguments[1]);
   }
 });
-},{"./_array-methods":141,"./_export":161,"./_strict-method":225}],256:[function(require,module,exports){
+},{"./_array-methods":143,"./_export":163,"./_strict-method":227}],258:[function(require,module,exports){
 'use strict';
 var ctx            = require('./_ctx')
   , $export        = require('./_export')
@@ -31090,7 +31939,7 @@ $export($export.S + $export.F * !require('./_iter-detect')(function(iter){ Array
   }
 });
 
-},{"./_create-property":153,"./_ctx":154,"./_export":161,"./_is-array-iter":175,"./_iter-call":180,"./_iter-detect":183,"./_to-length":237,"./_to-object":238,"./core.get-iterator-method":247}],257:[function(require,module,exports){
+},{"./_create-property":155,"./_ctx":156,"./_export":163,"./_is-array-iter":177,"./_iter-call":182,"./_iter-detect":185,"./_to-length":239,"./_to-object":240,"./core.get-iterator-method":249}],259:[function(require,module,exports){
 'use strict';
 var $export       = require('./_export')
   , $indexOf      = require('./_array-includes')(false)
@@ -31106,12 +31955,12 @@ $export($export.P + $export.F * (NEGATIVE_ZERO || !require('./_strict-method')($
       : $indexOf(this, searchElement, arguments[1]);
   }
 });
-},{"./_array-includes":140,"./_export":161,"./_strict-method":225}],258:[function(require,module,exports){
+},{"./_array-includes":142,"./_export":163,"./_strict-method":227}],260:[function(require,module,exports){
 // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
 var $export = require('./_export');
 
 $export($export.S, 'Array', {isArray: require('./_is-array')});
-},{"./_export":161,"./_is-array":176}],259:[function(require,module,exports){
+},{"./_export":163,"./_is-array":178}],261:[function(require,module,exports){
 'use strict';
 var addToUnscopables = require('./_add-to-unscopables')
   , step             = require('./_iter-step')
@@ -31146,7 +31995,7 @@ Iterators.Arguments = Iterators.Array;
 addToUnscopables('keys');
 addToUnscopables('values');
 addToUnscopables('entries');
-},{"./_add-to-unscopables":134,"./_iter-define":182,"./_iter-step":184,"./_iterators":185,"./_to-iobject":236}],260:[function(require,module,exports){
+},{"./_add-to-unscopables":136,"./_iter-define":184,"./_iter-step":186,"./_iterators":187,"./_to-iobject":238}],262:[function(require,module,exports){
 'use strict';
 // 22.1.3.13 Array.prototype.join(separator)
 var $export   = require('./_export')
@@ -31159,7 +32008,7 @@ $export($export.P + $export.F * (require('./_iobject') != Object || !require('./
     return arrayJoin.call(toIObject(this), separator === undefined ? ',' : separator);
   }
 });
-},{"./_export":161,"./_iobject":174,"./_strict-method":225,"./_to-iobject":236}],261:[function(require,module,exports){
+},{"./_export":163,"./_iobject":176,"./_strict-method":227,"./_to-iobject":238}],263:[function(require,module,exports){
 'use strict';
 var $export       = require('./_export')
   , toIObject     = require('./_to-iobject')
@@ -31182,7 +32031,7 @@ $export($export.P + $export.F * (NEGATIVE_ZERO || !require('./_strict-method')($
     return -1;
   }
 });
-},{"./_export":161,"./_strict-method":225,"./_to-integer":235,"./_to-iobject":236,"./_to-length":237}],262:[function(require,module,exports){
+},{"./_export":163,"./_strict-method":227,"./_to-integer":237,"./_to-iobject":238,"./_to-length":239}],264:[function(require,module,exports){
 'use strict';
 var $export = require('./_export')
   , $map    = require('./_array-methods')(1);
@@ -31193,7 +32042,7 @@ $export($export.P + $export.F * !require('./_strict-method')([].map, true), 'Arr
     return $map(this, callbackfn, arguments[1]);
   }
 });
-},{"./_array-methods":141,"./_export":161,"./_strict-method":225}],263:[function(require,module,exports){
+},{"./_array-methods":143,"./_export":163,"./_strict-method":227}],265:[function(require,module,exports){
 'use strict';
 var $export        = require('./_export')
   , createProperty = require('./_create-property');
@@ -31213,7 +32062,7 @@ $export($export.S + $export.F * require('./_fails')(function(){
     return result;
   }
 });
-},{"./_create-property":153,"./_export":161,"./_fails":163}],264:[function(require,module,exports){
+},{"./_create-property":155,"./_export":163,"./_fails":165}],266:[function(require,module,exports){
 'use strict';
 var $export = require('./_export')
   , $reduce = require('./_array-reduce');
@@ -31224,7 +32073,7 @@ $export($export.P + $export.F * !require('./_strict-method')([].reduceRight, tru
     return $reduce(this, callbackfn, arguments.length, arguments[1], true);
   }
 });
-},{"./_array-reduce":142,"./_export":161,"./_strict-method":225}],265:[function(require,module,exports){
+},{"./_array-reduce":144,"./_export":163,"./_strict-method":227}],267:[function(require,module,exports){
 'use strict';
 var $export = require('./_export')
   , $reduce = require('./_array-reduce');
@@ -31235,7 +32084,7 @@ $export($export.P + $export.F * !require('./_strict-method')([].reduce, true), '
     return $reduce(this, callbackfn, arguments.length, arguments[1], false);
   }
 });
-},{"./_array-reduce":142,"./_export":161,"./_strict-method":225}],266:[function(require,module,exports){
+},{"./_array-reduce":144,"./_export":163,"./_strict-method":227}],268:[function(require,module,exports){
 'use strict';
 var $export    = require('./_export')
   , html       = require('./_html')
@@ -31264,7 +32113,7 @@ $export($export.P + $export.F * require('./_fails')(function(){
     return cloned;
   }
 });
-},{"./_cof":147,"./_export":161,"./_fails":163,"./_html":170,"./_to-index":234,"./_to-length":237}],267:[function(require,module,exports){
+},{"./_cof":149,"./_export":163,"./_fails":165,"./_html":172,"./_to-index":236,"./_to-length":239}],269:[function(require,module,exports){
 'use strict';
 var $export = require('./_export')
   , $some   = require('./_array-methods')(3);
@@ -31275,7 +32124,7 @@ $export($export.P + $export.F * !require('./_strict-method')([].some, true), 'Ar
     return $some(this, callbackfn, arguments[1]);
   }
 });
-},{"./_array-methods":141,"./_export":161,"./_strict-method":225}],268:[function(require,module,exports){
+},{"./_array-methods":143,"./_export":163,"./_strict-method":227}],270:[function(require,module,exports){
 'use strict';
 var $export   = require('./_export')
   , aFunction = require('./_a-function')
@@ -31299,14 +32148,14 @@ $export($export.P + $export.F * (fails(function(){
       : $sort.call(toObject(this), aFunction(comparefn));
   }
 });
-},{"./_a-function":132,"./_export":161,"./_fails":163,"./_strict-method":225,"./_to-object":238}],269:[function(require,module,exports){
+},{"./_a-function":134,"./_export":163,"./_fails":165,"./_strict-method":227,"./_to-object":240}],271:[function(require,module,exports){
 require('./_set-species')('Array');
-},{"./_set-species":220}],270:[function(require,module,exports){
+},{"./_set-species":222}],272:[function(require,module,exports){
 // 20.3.3.1 / 15.9.4.4 Date.now()
 var $export = require('./_export');
 
 $export($export.S, 'Date', {now: function(){ return new Date().getTime(); }});
-},{"./_export":161}],271:[function(require,module,exports){
+},{"./_export":163}],273:[function(require,module,exports){
 'use strict';
 // 20.3.4.36 / 15.9.5.43 Date.prototype.toISOString()
 var $export = require('./_export')
@@ -31335,7 +32184,7 @@ $export($export.P + $export.F * (fails(function(){
       ':' + lz(d.getUTCSeconds()) + '.' + (m > 99 ? m : '0' + lz(m)) + 'Z';
   }
 });
-},{"./_export":161,"./_fails":163}],272:[function(require,module,exports){
+},{"./_export":163,"./_fails":165}],274:[function(require,module,exports){
 'use strict';
 var $export     = require('./_export')
   , toObject    = require('./_to-object')
@@ -31350,12 +32199,12 @@ $export($export.P + $export.F * require('./_fails')(function(){
     return typeof pv == 'number' && !isFinite(pv) ? null : O.toISOString();
   }
 });
-},{"./_export":161,"./_fails":163,"./_to-object":238,"./_to-primitive":239}],273:[function(require,module,exports){
+},{"./_export":163,"./_fails":165,"./_to-object":240,"./_to-primitive":241}],275:[function(require,module,exports){
 var TO_PRIMITIVE = require('./_wks')('toPrimitive')
   , proto        = Date.prototype;
 
 if(!(TO_PRIMITIVE in proto))require('./_hide')(proto, TO_PRIMITIVE, require('./_date-to-primitive'));
-},{"./_date-to-primitive":155,"./_hide":169,"./_wks":246}],274:[function(require,module,exports){
+},{"./_date-to-primitive":157,"./_hide":171,"./_wks":248}],276:[function(require,module,exports){
 var DateProto    = Date.prototype
   , INVALID_DATE = 'Invalid Date'
   , TO_STRING    = 'toString'
@@ -31367,12 +32216,12 @@ if(new Date(NaN) + '' != INVALID_DATE){
     return value === value ? $toString.call(this) : INVALID_DATE;
   });
 }
-},{"./_redefine":216}],275:[function(require,module,exports){
+},{"./_redefine":218}],277:[function(require,module,exports){
 // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg, args...)
 var $export = require('./_export');
 
 $export($export.P, 'Function', {bind: require('./_bind')});
-},{"./_bind":145,"./_export":161}],276:[function(require,module,exports){
+},{"./_bind":147,"./_export":163}],278:[function(require,module,exports){
 'use strict';
 var isObject       = require('./_is-object')
   , getPrototypeOf = require('./_object-gpo')
@@ -31386,7 +32235,7 @@ if(!(HAS_INSTANCE in FunctionProto))require('./_object-dp').f(FunctionProto, HAS
   while(O = getPrototypeOf(O))if(this.prototype === O)return true;
   return false;
 }});
-},{"./_is-object":178,"./_object-dp":196,"./_object-gpo":203,"./_wks":246}],277:[function(require,module,exports){
+},{"./_is-object":180,"./_object-dp":198,"./_object-gpo":205,"./_wks":248}],279:[function(require,module,exports){
 var dP         = require('./_object-dp').f
   , createDesc = require('./_property-desc')
   , has        = require('./_has')
@@ -31412,7 +32261,7 @@ NAME in FProto || require('./_descriptors') && dP(FProto, NAME, {
     }
   }
 });
-},{"./_descriptors":157,"./_has":168,"./_object-dp":196,"./_property-desc":214}],278:[function(require,module,exports){
+},{"./_descriptors":159,"./_has":170,"./_object-dp":198,"./_property-desc":216}],280:[function(require,module,exports){
 'use strict';
 var strong = require('./_collection-strong');
 
@@ -31430,7 +32279,7 @@ module.exports = require('./_collection')('Map', function(get){
     return strong.def(this, key === 0 ? 0 : key, value);
   }
 }, strong, true);
-},{"./_collection":151,"./_collection-strong":148}],279:[function(require,module,exports){
+},{"./_collection":153,"./_collection-strong":150}],281:[function(require,module,exports){
 // 20.2.2.3 Math.acosh(x)
 var $export = require('./_export')
   , log1p   = require('./_math-log1p')
@@ -31449,7 +32298,7 @@ $export($export.S + $export.F * !($acosh
       : log1p(x - 1 + sqrt(x - 1) * sqrt(x + 1));
   }
 });
-},{"./_export":161,"./_math-log1p":189}],280:[function(require,module,exports){
+},{"./_export":163,"./_math-log1p":191}],282:[function(require,module,exports){
 // 20.2.2.5 Math.asinh(x)
 var $export = require('./_export')
   , $asinh  = Math.asinh;
@@ -31460,7 +32309,7 @@ function asinh(x){
 
 // Tor Browser bug: Math.asinh(0) -> -0 
 $export($export.S + $export.F * !($asinh && 1 / $asinh(0) > 0), 'Math', {asinh: asinh});
-},{"./_export":161}],281:[function(require,module,exports){
+},{"./_export":163}],283:[function(require,module,exports){
 // 20.2.2.7 Math.atanh(x)
 var $export = require('./_export')
   , $atanh  = Math.atanh;
@@ -31471,7 +32320,7 @@ $export($export.S + $export.F * !($atanh && 1 / $atanh(-0) < 0), 'Math', {
     return (x = +x) == 0 ? x : Math.log((1 + x) / (1 - x)) / 2;
   }
 });
-},{"./_export":161}],282:[function(require,module,exports){
+},{"./_export":163}],284:[function(require,module,exports){
 // 20.2.2.9 Math.cbrt(x)
 var $export = require('./_export')
   , sign    = require('./_math-sign');
@@ -31481,7 +32330,7 @@ $export($export.S, 'Math', {
     return sign(x = +x) * Math.pow(Math.abs(x), 1 / 3);
   }
 });
-},{"./_export":161,"./_math-sign":190}],283:[function(require,module,exports){
+},{"./_export":163,"./_math-sign":192}],285:[function(require,module,exports){
 // 20.2.2.11 Math.clz32(x)
 var $export = require('./_export');
 
@@ -31490,7 +32339,7 @@ $export($export.S, 'Math', {
     return (x >>>= 0) ? 31 - Math.floor(Math.log(x + 0.5) * Math.LOG2E) : 32;
   }
 });
-},{"./_export":161}],284:[function(require,module,exports){
+},{"./_export":163}],286:[function(require,module,exports){
 // 20.2.2.12 Math.cosh(x)
 var $export = require('./_export')
   , exp     = Math.exp;
@@ -31500,13 +32349,13 @@ $export($export.S, 'Math', {
     return (exp(x = +x) + exp(-x)) / 2;
   }
 });
-},{"./_export":161}],285:[function(require,module,exports){
+},{"./_export":163}],287:[function(require,module,exports){
 // 20.2.2.14 Math.expm1(x)
 var $export = require('./_export')
   , $expm1  = require('./_math-expm1');
 
 $export($export.S + $export.F * ($expm1 != Math.expm1), 'Math', {expm1: $expm1});
-},{"./_export":161,"./_math-expm1":188}],286:[function(require,module,exports){
+},{"./_export":163,"./_math-expm1":190}],288:[function(require,module,exports){
 // 20.2.2.16 Math.fround(x)
 var $export   = require('./_export')
   , sign      = require('./_math-sign')
@@ -31533,7 +32382,7 @@ $export($export.S, 'Math', {
     return $sign * result;
   }
 });
-},{"./_export":161,"./_math-sign":190}],287:[function(require,module,exports){
+},{"./_export":163,"./_math-sign":192}],289:[function(require,module,exports){
 // 20.2.2.17 Math.hypot([value1[, value2[, … ]]])
 var $export = require('./_export')
   , abs     = Math.abs;
@@ -31559,7 +32408,7 @@ $export($export.S, 'Math', {
     return larg === Infinity ? Infinity : larg * Math.sqrt(sum);
   }
 });
-},{"./_export":161}],288:[function(require,module,exports){
+},{"./_export":163}],290:[function(require,module,exports){
 // 20.2.2.18 Math.imul(x, y)
 var $export = require('./_export')
   , $imul   = Math.imul;
@@ -31577,7 +32426,7 @@ $export($export.S + $export.F * require('./_fails')(function(){
     return 0 | xl * yl + ((UINT16 & xn >>> 16) * yl + xl * (UINT16 & yn >>> 16) << 16 >>> 0);
   }
 });
-},{"./_export":161,"./_fails":163}],289:[function(require,module,exports){
+},{"./_export":163,"./_fails":165}],291:[function(require,module,exports){
 // 20.2.2.21 Math.log10(x)
 var $export = require('./_export');
 
@@ -31586,12 +32435,12 @@ $export($export.S, 'Math', {
     return Math.log(x) / Math.LN10;
   }
 });
-},{"./_export":161}],290:[function(require,module,exports){
+},{"./_export":163}],292:[function(require,module,exports){
 // 20.2.2.20 Math.log1p(x)
 var $export = require('./_export');
 
 $export($export.S, 'Math', {log1p: require('./_math-log1p')});
-},{"./_export":161,"./_math-log1p":189}],291:[function(require,module,exports){
+},{"./_export":163,"./_math-log1p":191}],293:[function(require,module,exports){
 // 20.2.2.22 Math.log2(x)
 var $export = require('./_export');
 
@@ -31600,12 +32449,12 @@ $export($export.S, 'Math', {
     return Math.log(x) / Math.LN2;
   }
 });
-},{"./_export":161}],292:[function(require,module,exports){
+},{"./_export":163}],294:[function(require,module,exports){
 // 20.2.2.28 Math.sign(x)
 var $export = require('./_export');
 
 $export($export.S, 'Math', {sign: require('./_math-sign')});
-},{"./_export":161,"./_math-sign":190}],293:[function(require,module,exports){
+},{"./_export":163,"./_math-sign":192}],295:[function(require,module,exports){
 // 20.2.2.30 Math.sinh(x)
 var $export = require('./_export')
   , expm1   = require('./_math-expm1')
@@ -31621,7 +32470,7 @@ $export($export.S + $export.F * require('./_fails')(function(){
       : (exp(x - 1) - exp(-x - 1)) * (Math.E / 2);
   }
 });
-},{"./_export":161,"./_fails":163,"./_math-expm1":188}],294:[function(require,module,exports){
+},{"./_export":163,"./_fails":165,"./_math-expm1":190}],296:[function(require,module,exports){
 // 20.2.2.33 Math.tanh(x)
 var $export = require('./_export')
   , expm1   = require('./_math-expm1')
@@ -31634,7 +32483,7 @@ $export($export.S, 'Math', {
     return a == Infinity ? 1 : b == Infinity ? -1 : (a - b) / (exp(x) + exp(-x));
   }
 });
-},{"./_export":161,"./_math-expm1":188}],295:[function(require,module,exports){
+},{"./_export":163,"./_math-expm1":190}],297:[function(require,module,exports){
 // 20.2.2.34 Math.trunc(x)
 var $export = require('./_export');
 
@@ -31643,7 +32492,7 @@ $export($export.S, 'Math', {
     return (it > 0 ? Math.floor : Math.ceil)(it);
   }
 });
-},{"./_export":161}],296:[function(require,module,exports){
+},{"./_export":163}],298:[function(require,module,exports){
 'use strict';
 var global            = require('./_global')
   , has               = require('./_has')
@@ -31713,12 +32562,12 @@ if(!$Number(' 0o1') || !$Number('0b1') || $Number('+0x1')){
   proto.constructor = $Number;
   require('./_redefine')(global, NUMBER, $Number);
 }
-},{"./_cof":147,"./_descriptors":157,"./_fails":163,"./_global":167,"./_has":168,"./_inherit-if-required":172,"./_object-create":195,"./_object-dp":196,"./_object-gopd":199,"./_object-gopn":201,"./_redefine":216,"./_string-trim":231,"./_to-primitive":239}],297:[function(require,module,exports){
+},{"./_cof":149,"./_descriptors":159,"./_fails":165,"./_global":169,"./_has":170,"./_inherit-if-required":174,"./_object-create":197,"./_object-dp":198,"./_object-gopd":201,"./_object-gopn":203,"./_redefine":218,"./_string-trim":233,"./_to-primitive":241}],299:[function(require,module,exports){
 // 20.1.2.1 Number.EPSILON
 var $export = require('./_export');
 
 $export($export.S, 'Number', {EPSILON: Math.pow(2, -52)});
-},{"./_export":161}],298:[function(require,module,exports){
+},{"./_export":163}],300:[function(require,module,exports){
 // 20.1.2.2 Number.isFinite(number)
 var $export   = require('./_export')
   , _isFinite = require('./_global').isFinite;
@@ -31728,12 +32577,12 @@ $export($export.S, 'Number', {
     return typeof it == 'number' && _isFinite(it);
   }
 });
-},{"./_export":161,"./_global":167}],299:[function(require,module,exports){
+},{"./_export":163,"./_global":169}],301:[function(require,module,exports){
 // 20.1.2.3 Number.isInteger(number)
 var $export = require('./_export');
 
 $export($export.S, 'Number', {isInteger: require('./_is-integer')});
-},{"./_export":161,"./_is-integer":177}],300:[function(require,module,exports){
+},{"./_export":163,"./_is-integer":179}],302:[function(require,module,exports){
 // 20.1.2.4 Number.isNaN(number)
 var $export = require('./_export');
 
@@ -31742,7 +32591,7 @@ $export($export.S, 'Number', {
     return number != number;
   }
 });
-},{"./_export":161}],301:[function(require,module,exports){
+},{"./_export":163}],303:[function(require,module,exports){
 // 20.1.2.5 Number.isSafeInteger(number)
 var $export   = require('./_export')
   , isInteger = require('./_is-integer')
@@ -31753,27 +32602,27 @@ $export($export.S, 'Number', {
     return isInteger(number) && abs(number) <= 0x1fffffffffffff;
   }
 });
-},{"./_export":161,"./_is-integer":177}],302:[function(require,module,exports){
+},{"./_export":163,"./_is-integer":179}],304:[function(require,module,exports){
 // 20.1.2.6 Number.MAX_SAFE_INTEGER
 var $export = require('./_export');
 
 $export($export.S, 'Number', {MAX_SAFE_INTEGER: 0x1fffffffffffff});
-},{"./_export":161}],303:[function(require,module,exports){
+},{"./_export":163}],305:[function(require,module,exports){
 // 20.1.2.10 Number.MIN_SAFE_INTEGER
 var $export = require('./_export');
 
 $export($export.S, 'Number', {MIN_SAFE_INTEGER: -0x1fffffffffffff});
-},{"./_export":161}],304:[function(require,module,exports){
+},{"./_export":163}],306:[function(require,module,exports){
 var $export     = require('./_export')
   , $parseFloat = require('./_parse-float');
 // 20.1.2.12 Number.parseFloat(string)
 $export($export.S + $export.F * (Number.parseFloat != $parseFloat), 'Number', {parseFloat: $parseFloat});
-},{"./_export":161,"./_parse-float":210}],305:[function(require,module,exports){
+},{"./_export":163,"./_parse-float":212}],307:[function(require,module,exports){
 var $export   = require('./_export')
   , $parseInt = require('./_parse-int');
 // 20.1.2.13 Number.parseInt(string, radix)
 $export($export.S + $export.F * (Number.parseInt != $parseInt), 'Number', {parseInt: $parseInt});
-},{"./_export":161,"./_parse-int":211}],306:[function(require,module,exports){
+},{"./_export":163,"./_parse-int":213}],308:[function(require,module,exports){
 'use strict';
 var $export      = require('./_export')
   , toInteger    = require('./_to-integer')
@@ -31887,7 +32736,7 @@ $export($export.P + $export.F * (!!$toFixed && (
     } return m;
   }
 });
-},{"./_a-number-value":133,"./_export":161,"./_fails":163,"./_string-repeat":230,"./_to-integer":235}],307:[function(require,module,exports){
+},{"./_a-number-value":135,"./_export":163,"./_fails":165,"./_string-repeat":232,"./_to-integer":237}],309:[function(require,module,exports){
 'use strict';
 var $export      = require('./_export')
   , $fails       = require('./_fails')
@@ -31906,24 +32755,24 @@ $export($export.P + $export.F * ($fails(function(){
     return precision === undefined ? $toPrecision.call(that) : $toPrecision.call(that, precision); 
   }
 });
-},{"./_a-number-value":133,"./_export":161,"./_fails":163}],308:[function(require,module,exports){
+},{"./_a-number-value":135,"./_export":163,"./_fails":165}],310:[function(require,module,exports){
 // 19.1.3.1 Object.assign(target, source)
 var $export = require('./_export');
 
 $export($export.S + $export.F, 'Object', {assign: require('./_object-assign')});
-},{"./_export":161,"./_object-assign":194}],309:[function(require,module,exports){
+},{"./_export":163,"./_object-assign":196}],311:[function(require,module,exports){
 var $export = require('./_export')
 // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
 $export($export.S, 'Object', {create: require('./_object-create')});
-},{"./_export":161,"./_object-create":195}],310:[function(require,module,exports){
+},{"./_export":163,"./_object-create":197}],312:[function(require,module,exports){
 var $export = require('./_export');
 // 19.1.2.3 / 15.2.3.7 Object.defineProperties(O, Properties)
 $export($export.S + $export.F * !require('./_descriptors'), 'Object', {defineProperties: require('./_object-dps')});
-},{"./_descriptors":157,"./_export":161,"./_object-dps":197}],311:[function(require,module,exports){
+},{"./_descriptors":159,"./_export":163,"./_object-dps":199}],313:[function(require,module,exports){
 var $export = require('./_export');
 // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
 $export($export.S + $export.F * !require('./_descriptors'), 'Object', {defineProperty: require('./_object-dp').f});
-},{"./_descriptors":157,"./_export":161,"./_object-dp":196}],312:[function(require,module,exports){
+},{"./_descriptors":159,"./_export":163,"./_object-dp":198}],314:[function(require,module,exports){
 // 19.1.2.5 Object.freeze(O)
 var isObject = require('./_is-object')
   , meta     = require('./_meta').onFreeze;
@@ -31933,7 +32782,7 @@ require('./_object-sap')('freeze', function($freeze){
     return $freeze && isObject(it) ? $freeze(meta(it)) : it;
   };
 });
-},{"./_is-object":178,"./_meta":191,"./_object-sap":207}],313:[function(require,module,exports){
+},{"./_is-object":180,"./_meta":193,"./_object-sap":209}],315:[function(require,module,exports){
 // 19.1.2.6 Object.getOwnPropertyDescriptor(O, P)
 var toIObject                 = require('./_to-iobject')
   , $getOwnPropertyDescriptor = require('./_object-gopd').f;
@@ -31943,12 +32792,12 @@ require('./_object-sap')('getOwnPropertyDescriptor', function(){
     return $getOwnPropertyDescriptor(toIObject(it), key);
   };
 });
-},{"./_object-gopd":199,"./_object-sap":207,"./_to-iobject":236}],314:[function(require,module,exports){
+},{"./_object-gopd":201,"./_object-sap":209,"./_to-iobject":238}],316:[function(require,module,exports){
 // 19.1.2.7 Object.getOwnPropertyNames(O)
 require('./_object-sap')('getOwnPropertyNames', function(){
   return require('./_object-gopn-ext').f;
 });
-},{"./_object-gopn-ext":200,"./_object-sap":207}],315:[function(require,module,exports){
+},{"./_object-gopn-ext":202,"./_object-sap":209}],317:[function(require,module,exports){
 // 19.1.2.9 Object.getPrototypeOf(O)
 var toObject        = require('./_to-object')
   , $getPrototypeOf = require('./_object-gpo');
@@ -31958,7 +32807,7 @@ require('./_object-sap')('getPrototypeOf', function(){
     return $getPrototypeOf(toObject(it));
   };
 });
-},{"./_object-gpo":203,"./_object-sap":207,"./_to-object":238}],316:[function(require,module,exports){
+},{"./_object-gpo":205,"./_object-sap":209,"./_to-object":240}],318:[function(require,module,exports){
 // 19.1.2.11 Object.isExtensible(O)
 var isObject = require('./_is-object');
 
@@ -31967,7 +32816,7 @@ require('./_object-sap')('isExtensible', function($isExtensible){
     return isObject(it) ? $isExtensible ? $isExtensible(it) : true : false;
   };
 });
-},{"./_is-object":178,"./_object-sap":207}],317:[function(require,module,exports){
+},{"./_is-object":180,"./_object-sap":209}],319:[function(require,module,exports){
 // 19.1.2.12 Object.isFrozen(O)
 var isObject = require('./_is-object');
 
@@ -31976,7 +32825,7 @@ require('./_object-sap')('isFrozen', function($isFrozen){
     return isObject(it) ? $isFrozen ? $isFrozen(it) : false : true;
   };
 });
-},{"./_is-object":178,"./_object-sap":207}],318:[function(require,module,exports){
+},{"./_is-object":180,"./_object-sap":209}],320:[function(require,module,exports){
 // 19.1.2.13 Object.isSealed(O)
 var isObject = require('./_is-object');
 
@@ -31985,11 +32834,11 @@ require('./_object-sap')('isSealed', function($isSealed){
     return isObject(it) ? $isSealed ? $isSealed(it) : false : true;
   };
 });
-},{"./_is-object":178,"./_object-sap":207}],319:[function(require,module,exports){
+},{"./_is-object":180,"./_object-sap":209}],321:[function(require,module,exports){
 // 19.1.3.10 Object.is(value1, value2)
 var $export = require('./_export');
 $export($export.S, 'Object', {is: require('./_same-value')});
-},{"./_export":161,"./_same-value":218}],320:[function(require,module,exports){
+},{"./_export":163,"./_same-value":220}],322:[function(require,module,exports){
 // 19.1.2.14 Object.keys(O)
 var toObject = require('./_to-object')
   , $keys    = require('./_object-keys');
@@ -31999,7 +32848,7 @@ require('./_object-sap')('keys', function(){
     return $keys(toObject(it));
   };
 });
-},{"./_object-keys":205,"./_object-sap":207,"./_to-object":238}],321:[function(require,module,exports){
+},{"./_object-keys":207,"./_object-sap":209,"./_to-object":240}],323:[function(require,module,exports){
 // 19.1.2.15 Object.preventExtensions(O)
 var isObject = require('./_is-object')
   , meta     = require('./_meta').onFreeze;
@@ -32009,7 +32858,7 @@ require('./_object-sap')('preventExtensions', function($preventExtensions){
     return $preventExtensions && isObject(it) ? $preventExtensions(meta(it)) : it;
   };
 });
-},{"./_is-object":178,"./_meta":191,"./_object-sap":207}],322:[function(require,module,exports){
+},{"./_is-object":180,"./_meta":193,"./_object-sap":209}],324:[function(require,module,exports){
 // 19.1.2.17 Object.seal(O)
 var isObject = require('./_is-object')
   , meta     = require('./_meta').onFreeze;
@@ -32019,11 +32868,11 @@ require('./_object-sap')('seal', function($seal){
     return $seal && isObject(it) ? $seal(meta(it)) : it;
   };
 });
-},{"./_is-object":178,"./_meta":191,"./_object-sap":207}],323:[function(require,module,exports){
+},{"./_is-object":180,"./_meta":193,"./_object-sap":209}],325:[function(require,module,exports){
 // 19.1.3.19 Object.setPrototypeOf(O, proto)
 var $export = require('./_export');
 $export($export.S, 'Object', {setPrototypeOf: require('./_set-proto').set});
-},{"./_export":161,"./_set-proto":219}],324:[function(require,module,exports){
+},{"./_export":163,"./_set-proto":221}],326:[function(require,module,exports){
 'use strict';
 // 19.1.3.6 Object.prototype.toString()
 var classof = require('./_classof')
@@ -32034,17 +32883,17 @@ if(test + '' != '[object z]'){
     return '[object ' + classof(this) + ']';
   }, true);
 }
-},{"./_classof":146,"./_redefine":216,"./_wks":246}],325:[function(require,module,exports){
+},{"./_classof":148,"./_redefine":218,"./_wks":248}],327:[function(require,module,exports){
 var $export     = require('./_export')
   , $parseFloat = require('./_parse-float');
 // 18.2.4 parseFloat(string)
 $export($export.G + $export.F * (parseFloat != $parseFloat), {parseFloat: $parseFloat});
-},{"./_export":161,"./_parse-float":210}],326:[function(require,module,exports){
+},{"./_export":163,"./_parse-float":212}],328:[function(require,module,exports){
 var $export   = require('./_export')
   , $parseInt = require('./_parse-int');
 // 18.2.5 parseInt(string, radix)
 $export($export.G + $export.F * (parseInt != $parseInt), {parseInt: $parseInt});
-},{"./_export":161,"./_parse-int":211}],327:[function(require,module,exports){
+},{"./_export":163,"./_parse-int":213}],329:[function(require,module,exports){
 'use strict';
 var LIBRARY            = require('./_library')
   , global             = require('./_global')
@@ -32344,7 +33193,7 @@ $export($export.S + $export.F * !(USE_NATIVE && require('./_iter-detect')(functi
     return capability.promise;
   }
 });
-},{"./_a-function":132,"./_an-instance":135,"./_classof":146,"./_core":152,"./_ctx":154,"./_export":161,"./_for-of":166,"./_global":167,"./_is-object":178,"./_iter-detect":183,"./_library":187,"./_microtask":193,"./_redefine-all":215,"./_set-species":220,"./_set-to-string-tag":221,"./_species-constructor":224,"./_task":233,"./_wks":246}],328:[function(require,module,exports){
+},{"./_a-function":134,"./_an-instance":137,"./_classof":148,"./_core":154,"./_ctx":156,"./_export":163,"./_for-of":168,"./_global":169,"./_is-object":180,"./_iter-detect":185,"./_library":189,"./_microtask":195,"./_redefine-all":217,"./_set-species":222,"./_set-to-string-tag":223,"./_species-constructor":226,"./_task":235,"./_wks":248}],330:[function(require,module,exports){
 // 26.1.1 Reflect.apply(target, thisArgument, argumentsList)
 var $export   = require('./_export')
   , aFunction = require('./_a-function')
@@ -32361,7 +33210,7 @@ $export($export.S + $export.F * !require('./_fails')(function(){
     return rApply ? rApply(T, thisArgument, L) : fApply.call(T, thisArgument, L);
   }
 });
-},{"./_a-function":132,"./_an-object":136,"./_export":161,"./_fails":163,"./_global":167}],329:[function(require,module,exports){
+},{"./_a-function":134,"./_an-object":138,"./_export":163,"./_fails":165,"./_global":169}],331:[function(require,module,exports){
 // 26.1.2 Reflect.construct(target, argumentsList [, newTarget])
 var $export    = require('./_export')
   , create     = require('./_object-create')
@@ -32409,7 +33258,7 @@ $export($export.S + $export.F * (NEW_TARGET_BUG || ARGS_BUG), 'Reflect', {
     return isObject(result) ? result : instance;
   }
 });
-},{"./_a-function":132,"./_an-object":136,"./_bind":145,"./_export":161,"./_fails":163,"./_global":167,"./_is-object":178,"./_object-create":195}],330:[function(require,module,exports){
+},{"./_a-function":134,"./_an-object":138,"./_bind":147,"./_export":163,"./_fails":165,"./_global":169,"./_is-object":180,"./_object-create":197}],332:[function(require,module,exports){
 // 26.1.3 Reflect.defineProperty(target, propertyKey, attributes)
 var dP          = require('./_object-dp')
   , $export     = require('./_export')
@@ -32432,7 +33281,7 @@ $export($export.S + $export.F * require('./_fails')(function(){
     }
   }
 });
-},{"./_an-object":136,"./_export":161,"./_fails":163,"./_object-dp":196,"./_to-primitive":239}],331:[function(require,module,exports){
+},{"./_an-object":138,"./_export":163,"./_fails":165,"./_object-dp":198,"./_to-primitive":241}],333:[function(require,module,exports){
 // 26.1.4 Reflect.deleteProperty(target, propertyKey)
 var $export  = require('./_export')
   , gOPD     = require('./_object-gopd').f
@@ -32444,7 +33293,7 @@ $export($export.S, 'Reflect', {
     return desc && !desc.configurable ? false : delete target[propertyKey];
   }
 });
-},{"./_an-object":136,"./_export":161,"./_object-gopd":199}],332:[function(require,module,exports){
+},{"./_an-object":138,"./_export":163,"./_object-gopd":201}],334:[function(require,module,exports){
 'use strict';
 // 26.1.5 Reflect.enumerate(target)
 var $export  = require('./_export')
@@ -32471,7 +33320,7 @@ $export($export.S, 'Reflect', {
     return new Enumerate(target);
   }
 });
-},{"./_an-object":136,"./_export":161,"./_iter-create":181}],333:[function(require,module,exports){
+},{"./_an-object":138,"./_export":163,"./_iter-create":183}],335:[function(require,module,exports){
 // 26.1.7 Reflect.getOwnPropertyDescriptor(target, propertyKey)
 var gOPD     = require('./_object-gopd')
   , $export  = require('./_export')
@@ -32482,7 +33331,7 @@ $export($export.S, 'Reflect', {
     return gOPD.f(anObject(target), propertyKey);
   }
 });
-},{"./_an-object":136,"./_export":161,"./_object-gopd":199}],334:[function(require,module,exports){
+},{"./_an-object":138,"./_export":163,"./_object-gopd":201}],336:[function(require,module,exports){
 // 26.1.8 Reflect.getPrototypeOf(target)
 var $export  = require('./_export')
   , getProto = require('./_object-gpo')
@@ -32493,7 +33342,7 @@ $export($export.S, 'Reflect', {
     return getProto(anObject(target));
   }
 });
-},{"./_an-object":136,"./_export":161,"./_object-gpo":203}],335:[function(require,module,exports){
+},{"./_an-object":138,"./_export":163,"./_object-gpo":205}],337:[function(require,module,exports){
 // 26.1.6 Reflect.get(target, propertyKey [, receiver])
 var gOPD           = require('./_object-gopd')
   , getPrototypeOf = require('./_object-gpo')
@@ -32515,7 +33364,7 @@ function get(target, propertyKey/*, receiver*/){
 }
 
 $export($export.S, 'Reflect', {get: get});
-},{"./_an-object":136,"./_export":161,"./_has":168,"./_is-object":178,"./_object-gopd":199,"./_object-gpo":203}],336:[function(require,module,exports){
+},{"./_an-object":138,"./_export":163,"./_has":170,"./_is-object":180,"./_object-gopd":201,"./_object-gpo":205}],338:[function(require,module,exports){
 // 26.1.9 Reflect.has(target, propertyKey)
 var $export = require('./_export');
 
@@ -32524,7 +33373,7 @@ $export($export.S, 'Reflect', {
     return propertyKey in target;
   }
 });
-},{"./_export":161}],337:[function(require,module,exports){
+},{"./_export":163}],339:[function(require,module,exports){
 // 26.1.10 Reflect.isExtensible(target)
 var $export       = require('./_export')
   , anObject      = require('./_an-object')
@@ -32536,12 +33385,12 @@ $export($export.S, 'Reflect', {
     return $isExtensible ? $isExtensible(target) : true;
   }
 });
-},{"./_an-object":136,"./_export":161}],338:[function(require,module,exports){
+},{"./_an-object":138,"./_export":163}],340:[function(require,module,exports){
 // 26.1.11 Reflect.ownKeys(target)
 var $export = require('./_export');
 
 $export($export.S, 'Reflect', {ownKeys: require('./_own-keys')});
-},{"./_export":161,"./_own-keys":209}],339:[function(require,module,exports){
+},{"./_export":163,"./_own-keys":211}],341:[function(require,module,exports){
 // 26.1.12 Reflect.preventExtensions(target)
 var $export            = require('./_export')
   , anObject           = require('./_an-object')
@@ -32558,7 +33407,7 @@ $export($export.S, 'Reflect', {
     }
   }
 });
-},{"./_an-object":136,"./_export":161}],340:[function(require,module,exports){
+},{"./_an-object":138,"./_export":163}],342:[function(require,module,exports){
 // 26.1.14 Reflect.setPrototypeOf(target, proto)
 var $export  = require('./_export')
   , setProto = require('./_set-proto');
@@ -32574,7 +33423,7 @@ if(setProto)$export($export.S, 'Reflect', {
     }
   }
 });
-},{"./_export":161,"./_set-proto":219}],341:[function(require,module,exports){
+},{"./_export":163,"./_set-proto":221}],343:[function(require,module,exports){
 // 26.1.13 Reflect.set(target, propertyKey, V [, receiver])
 var dP             = require('./_object-dp')
   , gOPD           = require('./_object-gopd')
@@ -32606,7 +33455,7 @@ function set(target, propertyKey, V/*, receiver*/){
 }
 
 $export($export.S, 'Reflect', {set: set});
-},{"./_an-object":136,"./_export":161,"./_has":168,"./_is-object":178,"./_object-dp":196,"./_object-gopd":199,"./_object-gpo":203,"./_property-desc":214}],342:[function(require,module,exports){
+},{"./_an-object":138,"./_export":163,"./_has":170,"./_is-object":180,"./_object-dp":198,"./_object-gopd":201,"./_object-gpo":205,"./_property-desc":216}],344:[function(require,module,exports){
 var global            = require('./_global')
   , inheritIfRequired = require('./_inherit-if-required')
   , dP                = require('./_object-dp').f
@@ -32650,13 +33499,13 @@ if(require('./_descriptors') && (!CORRECT_NEW || require('./_fails')(function(){
 }
 
 require('./_set-species')('RegExp');
-},{"./_descriptors":157,"./_fails":163,"./_flags":165,"./_global":167,"./_inherit-if-required":172,"./_is-regexp":179,"./_object-dp":196,"./_object-gopn":201,"./_redefine":216,"./_set-species":220,"./_wks":246}],343:[function(require,module,exports){
+},{"./_descriptors":159,"./_fails":165,"./_flags":167,"./_global":169,"./_inherit-if-required":174,"./_is-regexp":181,"./_object-dp":198,"./_object-gopn":203,"./_redefine":218,"./_set-species":222,"./_wks":248}],345:[function(require,module,exports){
 // 21.2.5.3 get RegExp.prototype.flags()
 if(require('./_descriptors') && /./g.flags != 'g')require('./_object-dp').f(RegExp.prototype, 'flags', {
   configurable: true,
   get: require('./_flags')
 });
-},{"./_descriptors":157,"./_flags":165,"./_object-dp":196}],344:[function(require,module,exports){
+},{"./_descriptors":159,"./_flags":167,"./_object-dp":198}],346:[function(require,module,exports){
 // @@match logic
 require('./_fix-re-wks')('match', 1, function(defined, MATCH, $match){
   // 21.1.3.11 String.prototype.match(regexp)
@@ -32667,7 +33516,7 @@ require('./_fix-re-wks')('match', 1, function(defined, MATCH, $match){
     return fn !== undefined ? fn.call(regexp, O) : new RegExp(regexp)[MATCH](String(O));
   }, $match];
 });
-},{"./_fix-re-wks":164}],345:[function(require,module,exports){
+},{"./_fix-re-wks":166}],347:[function(require,module,exports){
 // @@replace logic
 require('./_fix-re-wks')('replace', 2, function(defined, REPLACE, $replace){
   // 21.1.3.14 String.prototype.replace(searchValue, replaceValue)
@@ -32680,7 +33529,7 @@ require('./_fix-re-wks')('replace', 2, function(defined, REPLACE, $replace){
       : $replace.call(String(O), searchValue, replaceValue);
   }, $replace];
 });
-},{"./_fix-re-wks":164}],346:[function(require,module,exports){
+},{"./_fix-re-wks":166}],348:[function(require,module,exports){
 // @@search logic
 require('./_fix-re-wks')('search', 1, function(defined, SEARCH, $search){
   // 21.1.3.15 String.prototype.search(regexp)
@@ -32691,7 +33540,7 @@ require('./_fix-re-wks')('search', 1, function(defined, SEARCH, $search){
     return fn !== undefined ? fn.call(regexp, O) : new RegExp(regexp)[SEARCH](String(O));
   }, $search];
 });
-},{"./_fix-re-wks":164}],347:[function(require,module,exports){
+},{"./_fix-re-wks":166}],349:[function(require,module,exports){
 // @@split logic
 require('./_fix-re-wks')('split', 2, function(defined, SPLIT, $split){
   'use strict';
@@ -32762,7 +33611,7 @@ require('./_fix-re-wks')('split', 2, function(defined, SPLIT, $split){
     return fn !== undefined ? fn.call(separator, O, limit) : $split.call(String(O), separator, limit);
   }, $split];
 });
-},{"./_fix-re-wks":164,"./_is-regexp":179}],348:[function(require,module,exports){
+},{"./_fix-re-wks":166,"./_is-regexp":181}],350:[function(require,module,exports){
 'use strict';
 require('./es6.regexp.flags');
 var anObject    = require('./_an-object')
@@ -32788,7 +33637,7 @@ if(require('./_fails')(function(){ return $toString.call({source: 'a', flags: 'b
     return $toString.call(this);
   });
 }
-},{"./_an-object":136,"./_descriptors":157,"./_fails":163,"./_flags":165,"./_redefine":216,"./es6.regexp.flags":343}],349:[function(require,module,exports){
+},{"./_an-object":138,"./_descriptors":159,"./_fails":165,"./_flags":167,"./_redefine":218,"./es6.regexp.flags":345}],351:[function(require,module,exports){
 'use strict';
 var strong = require('./_collection-strong');
 
@@ -32801,7 +33650,7 @@ module.exports = require('./_collection')('Set', function(get){
     return strong.def(this, value = value === 0 ? 0 : value, value);
   }
 }, strong);
-},{"./_collection":151,"./_collection-strong":148}],350:[function(require,module,exports){
+},{"./_collection":153,"./_collection-strong":150}],352:[function(require,module,exports){
 'use strict';
 // B.2.3.2 String.prototype.anchor(name)
 require('./_string-html')('anchor', function(createHTML){
@@ -32809,7 +33658,7 @@ require('./_string-html')('anchor', function(createHTML){
     return createHTML(this, 'a', 'name', name);
   }
 });
-},{"./_string-html":228}],351:[function(require,module,exports){
+},{"./_string-html":230}],353:[function(require,module,exports){
 'use strict';
 // B.2.3.3 String.prototype.big()
 require('./_string-html')('big', function(createHTML){
@@ -32817,7 +33666,7 @@ require('./_string-html')('big', function(createHTML){
     return createHTML(this, 'big', '', '');
   }
 });
-},{"./_string-html":228}],352:[function(require,module,exports){
+},{"./_string-html":230}],354:[function(require,module,exports){
 'use strict';
 // B.2.3.4 String.prototype.blink()
 require('./_string-html')('blink', function(createHTML){
@@ -32825,7 +33674,7 @@ require('./_string-html')('blink', function(createHTML){
     return createHTML(this, 'blink', '', '');
   }
 });
-},{"./_string-html":228}],353:[function(require,module,exports){
+},{"./_string-html":230}],355:[function(require,module,exports){
 'use strict';
 // B.2.3.5 String.prototype.bold()
 require('./_string-html')('bold', function(createHTML){
@@ -32833,7 +33682,7 @@ require('./_string-html')('bold', function(createHTML){
     return createHTML(this, 'b', '', '');
   }
 });
-},{"./_string-html":228}],354:[function(require,module,exports){
+},{"./_string-html":230}],356:[function(require,module,exports){
 'use strict';
 var $export = require('./_export')
   , $at     = require('./_string-at')(false);
@@ -32843,7 +33692,7 @@ $export($export.P, 'String', {
     return $at(this, pos);
   }
 });
-},{"./_export":161,"./_string-at":226}],355:[function(require,module,exports){
+},{"./_export":163,"./_string-at":228}],357:[function(require,module,exports){
 // 21.1.3.6 String.prototype.endsWith(searchString [, endPosition])
 'use strict';
 var $export   = require('./_export')
@@ -32864,7 +33713,7 @@ $export($export.P + $export.F * require('./_fails-is-regexp')(ENDS_WITH), 'Strin
       : that.slice(end - search.length, end) === search;
   }
 });
-},{"./_export":161,"./_fails-is-regexp":162,"./_string-context":227,"./_to-length":237}],356:[function(require,module,exports){
+},{"./_export":163,"./_fails-is-regexp":164,"./_string-context":229,"./_to-length":239}],358:[function(require,module,exports){
 'use strict';
 // B.2.3.6 String.prototype.fixed()
 require('./_string-html')('fixed', function(createHTML){
@@ -32872,7 +33721,7 @@ require('./_string-html')('fixed', function(createHTML){
     return createHTML(this, 'tt', '', '');
   }
 });
-},{"./_string-html":228}],357:[function(require,module,exports){
+},{"./_string-html":230}],359:[function(require,module,exports){
 'use strict';
 // B.2.3.7 String.prototype.fontcolor(color)
 require('./_string-html')('fontcolor', function(createHTML){
@@ -32880,7 +33729,7 @@ require('./_string-html')('fontcolor', function(createHTML){
     return createHTML(this, 'font', 'color', color);
   }
 });
-},{"./_string-html":228}],358:[function(require,module,exports){
+},{"./_string-html":230}],360:[function(require,module,exports){
 'use strict';
 // B.2.3.8 String.prototype.fontsize(size)
 require('./_string-html')('fontsize', function(createHTML){
@@ -32888,7 +33737,7 @@ require('./_string-html')('fontsize', function(createHTML){
     return createHTML(this, 'font', 'size', size);
   }
 });
-},{"./_string-html":228}],359:[function(require,module,exports){
+},{"./_string-html":230}],361:[function(require,module,exports){
 var $export        = require('./_export')
   , toIndex        = require('./_to-index')
   , fromCharCode   = String.fromCharCode
@@ -32912,7 +33761,7 @@ $export($export.S + $export.F * (!!$fromCodePoint && $fromCodePoint.length != 1)
     } return res.join('');
   }
 });
-},{"./_export":161,"./_to-index":234}],360:[function(require,module,exports){
+},{"./_export":163,"./_to-index":236}],362:[function(require,module,exports){
 // 21.1.3.7 String.prototype.includes(searchString, position = 0)
 'use strict';
 var $export  = require('./_export')
@@ -32925,7 +33774,7 @@ $export($export.P + $export.F * require('./_fails-is-regexp')(INCLUDES), 'String
       .indexOf(searchString, arguments.length > 1 ? arguments[1] : undefined);
   }
 });
-},{"./_export":161,"./_fails-is-regexp":162,"./_string-context":227}],361:[function(require,module,exports){
+},{"./_export":163,"./_fails-is-regexp":164,"./_string-context":229}],363:[function(require,module,exports){
 'use strict';
 // B.2.3.9 String.prototype.italics()
 require('./_string-html')('italics', function(createHTML){
@@ -32933,7 +33782,7 @@ require('./_string-html')('italics', function(createHTML){
     return createHTML(this, 'i', '', '');
   }
 });
-},{"./_string-html":228}],362:[function(require,module,exports){
+},{"./_string-html":230}],364:[function(require,module,exports){
 'use strict';
 var $at  = require('./_string-at')(true);
 
@@ -32951,7 +33800,7 @@ require('./_iter-define')(String, 'String', function(iterated){
   this._i += point.length;
   return {value: point, done: false};
 });
-},{"./_iter-define":182,"./_string-at":226}],363:[function(require,module,exports){
+},{"./_iter-define":184,"./_string-at":228}],365:[function(require,module,exports){
 'use strict';
 // B.2.3.10 String.prototype.link(url)
 require('./_string-html')('link', function(createHTML){
@@ -32959,7 +33808,7 @@ require('./_string-html')('link', function(createHTML){
     return createHTML(this, 'a', 'href', url);
   }
 });
-},{"./_string-html":228}],364:[function(require,module,exports){
+},{"./_string-html":230}],366:[function(require,module,exports){
 var $export   = require('./_export')
   , toIObject = require('./_to-iobject')
   , toLength  = require('./_to-length');
@@ -32978,14 +33827,14 @@ $export($export.S, 'String', {
     } return res.join('');
   }
 });
-},{"./_export":161,"./_to-iobject":236,"./_to-length":237}],365:[function(require,module,exports){
+},{"./_export":163,"./_to-iobject":238,"./_to-length":239}],367:[function(require,module,exports){
 var $export = require('./_export');
 
 $export($export.P, 'String', {
   // 21.1.3.13 String.prototype.repeat(count)
   repeat: require('./_string-repeat')
 });
-},{"./_export":161,"./_string-repeat":230}],366:[function(require,module,exports){
+},{"./_export":163,"./_string-repeat":232}],368:[function(require,module,exports){
 'use strict';
 // B.2.3.11 String.prototype.small()
 require('./_string-html')('small', function(createHTML){
@@ -32993,7 +33842,7 @@ require('./_string-html')('small', function(createHTML){
     return createHTML(this, 'small', '', '');
   }
 });
-},{"./_string-html":228}],367:[function(require,module,exports){
+},{"./_string-html":230}],369:[function(require,module,exports){
 // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
 'use strict';
 var $export     = require('./_export')
@@ -33012,7 +33861,7 @@ $export($export.P + $export.F * require('./_fails-is-regexp')(STARTS_WITH), 'Str
       : that.slice(index, index + search.length) === search;
   }
 });
-},{"./_export":161,"./_fails-is-regexp":162,"./_string-context":227,"./_to-length":237}],368:[function(require,module,exports){
+},{"./_export":163,"./_fails-is-regexp":164,"./_string-context":229,"./_to-length":239}],370:[function(require,module,exports){
 'use strict';
 // B.2.3.12 String.prototype.strike()
 require('./_string-html')('strike', function(createHTML){
@@ -33020,7 +33869,7 @@ require('./_string-html')('strike', function(createHTML){
     return createHTML(this, 'strike', '', '');
   }
 });
-},{"./_string-html":228}],369:[function(require,module,exports){
+},{"./_string-html":230}],371:[function(require,module,exports){
 'use strict';
 // B.2.3.13 String.prototype.sub()
 require('./_string-html')('sub', function(createHTML){
@@ -33028,7 +33877,7 @@ require('./_string-html')('sub', function(createHTML){
     return createHTML(this, 'sub', '', '');
   }
 });
-},{"./_string-html":228}],370:[function(require,module,exports){
+},{"./_string-html":230}],372:[function(require,module,exports){
 'use strict';
 // B.2.3.14 String.prototype.sup()
 require('./_string-html')('sup', function(createHTML){
@@ -33036,7 +33885,7 @@ require('./_string-html')('sup', function(createHTML){
     return createHTML(this, 'sup', '', '');
   }
 });
-},{"./_string-html":228}],371:[function(require,module,exports){
+},{"./_string-html":230}],373:[function(require,module,exports){
 'use strict';
 // 21.1.3.25 String.prototype.trim()
 require('./_string-trim')('trim', function($trim){
@@ -33044,7 +33893,7 @@ require('./_string-trim')('trim', function($trim){
     return $trim(this, 3);
   };
 });
-},{"./_string-trim":231}],372:[function(require,module,exports){
+},{"./_string-trim":233}],374:[function(require,module,exports){
 'use strict';
 // ECMAScript 6 symbols shim
 var global         = require('./_global')
@@ -33280,7 +34129,7 @@ setToStringTag($Symbol, 'Symbol');
 setToStringTag(Math, 'Math', true);
 // 24.3.3 JSON[@@toStringTag]
 setToStringTag(global.JSON, 'JSON', true);
-},{"./_an-object":136,"./_descriptors":157,"./_enum-keys":160,"./_export":161,"./_fails":163,"./_global":167,"./_has":168,"./_hide":169,"./_is-array":176,"./_keyof":186,"./_library":187,"./_meta":191,"./_object-create":195,"./_object-dp":196,"./_object-gopd":199,"./_object-gopn":201,"./_object-gopn-ext":200,"./_object-gops":202,"./_object-keys":205,"./_object-pie":206,"./_property-desc":214,"./_redefine":216,"./_set-to-string-tag":221,"./_shared":223,"./_to-iobject":236,"./_to-primitive":239,"./_uid":243,"./_wks":246,"./_wks-define":244,"./_wks-ext":245}],373:[function(require,module,exports){
+},{"./_an-object":138,"./_descriptors":159,"./_enum-keys":162,"./_export":163,"./_fails":165,"./_global":169,"./_has":170,"./_hide":171,"./_is-array":178,"./_keyof":188,"./_library":189,"./_meta":193,"./_object-create":197,"./_object-dp":198,"./_object-gopd":201,"./_object-gopn":203,"./_object-gopn-ext":202,"./_object-gops":204,"./_object-keys":207,"./_object-pie":208,"./_property-desc":216,"./_redefine":218,"./_set-to-string-tag":223,"./_shared":225,"./_to-iobject":238,"./_to-primitive":241,"./_uid":245,"./_wks":248,"./_wks-define":246,"./_wks-ext":247}],375:[function(require,module,exports){
 'use strict';
 var $export      = require('./_export')
   , $typed       = require('./_typed')
@@ -33327,66 +34176,66 @@ $export($export.P + $export.U + $export.F * require('./_fails')(function(){
 });
 
 require('./_set-species')(ARRAY_BUFFER);
-},{"./_an-object":136,"./_export":161,"./_fails":163,"./_global":167,"./_is-object":178,"./_set-species":220,"./_species-constructor":224,"./_to-index":234,"./_to-length":237,"./_typed":242,"./_typed-buffer":241}],374:[function(require,module,exports){
+},{"./_an-object":138,"./_export":163,"./_fails":165,"./_global":169,"./_is-object":180,"./_set-species":222,"./_species-constructor":226,"./_to-index":236,"./_to-length":239,"./_typed":244,"./_typed-buffer":243}],376:[function(require,module,exports){
 var $export = require('./_export');
 $export($export.G + $export.W + $export.F * !require('./_typed').ABV, {
   DataView: require('./_typed-buffer').DataView
 });
-},{"./_export":161,"./_typed":242,"./_typed-buffer":241}],375:[function(require,module,exports){
+},{"./_export":163,"./_typed":244,"./_typed-buffer":243}],377:[function(require,module,exports){
 require('./_typed-array')('Float32', 4, function(init){
   return function Float32Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":240}],376:[function(require,module,exports){
+},{"./_typed-array":242}],378:[function(require,module,exports){
 require('./_typed-array')('Float64', 8, function(init){
   return function Float64Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":240}],377:[function(require,module,exports){
+},{"./_typed-array":242}],379:[function(require,module,exports){
 require('./_typed-array')('Int16', 2, function(init){
   return function Int16Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":240}],378:[function(require,module,exports){
+},{"./_typed-array":242}],380:[function(require,module,exports){
 require('./_typed-array')('Int32', 4, function(init){
   return function Int32Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":240}],379:[function(require,module,exports){
+},{"./_typed-array":242}],381:[function(require,module,exports){
 require('./_typed-array')('Int8', 1, function(init){
   return function Int8Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":240}],380:[function(require,module,exports){
+},{"./_typed-array":242}],382:[function(require,module,exports){
 require('./_typed-array')('Uint16', 2, function(init){
   return function Uint16Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":240}],381:[function(require,module,exports){
+},{"./_typed-array":242}],383:[function(require,module,exports){
 require('./_typed-array')('Uint32', 4, function(init){
   return function Uint32Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":240}],382:[function(require,module,exports){
+},{"./_typed-array":242}],384:[function(require,module,exports){
 require('./_typed-array')('Uint8', 1, function(init){
   return function Uint8Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":240}],383:[function(require,module,exports){
+},{"./_typed-array":242}],385:[function(require,module,exports){
 require('./_typed-array')('Uint8', 1, function(init){
   return function Uint8ClampedArray(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 }, true);
-},{"./_typed-array":240}],384:[function(require,module,exports){
+},{"./_typed-array":242}],386:[function(require,module,exports){
 'use strict';
 var each         = require('./_array-methods')(0)
   , redefine     = require('./_redefine')
@@ -33443,7 +34292,7 @@ if(new $WeakMap().set((Object.freeze || Object)(tmp), 7).get(tmp) != 7){
     });
   });
 }
-},{"./_array-methods":141,"./_collection":151,"./_collection-weak":150,"./_is-object":178,"./_meta":191,"./_object-assign":194,"./_redefine":216}],385:[function(require,module,exports){
+},{"./_array-methods":143,"./_collection":153,"./_collection-weak":152,"./_is-object":180,"./_meta":193,"./_object-assign":196,"./_redefine":218}],387:[function(require,module,exports){
 'use strict';
 var weak = require('./_collection-weak');
 
@@ -33456,7 +34305,7 @@ require('./_collection')('WeakSet', function(get){
     return weak.def(this, value, true);
   }
 }, weak, false, true);
-},{"./_collection":151,"./_collection-weak":150}],386:[function(require,module,exports){
+},{"./_collection":153,"./_collection-weak":152}],388:[function(require,module,exports){
 'use strict';
 // https://github.com/tc39/Array.prototype.includes
 var $export   = require('./_export')
@@ -33469,7 +34318,7 @@ $export($export.P, 'Array', {
 });
 
 require('./_add-to-unscopables')('includes');
-},{"./_add-to-unscopables":134,"./_array-includes":140,"./_export":161}],387:[function(require,module,exports){
+},{"./_add-to-unscopables":136,"./_array-includes":142,"./_export":163}],389:[function(require,module,exports){
 // https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-09/sept-25.md#510-globalasap-for-enqueuing-a-microtask
 var $export   = require('./_export')
   , microtask = require('./_microtask')()
@@ -33482,7 +34331,7 @@ $export($export.G, {
     microtask(domain ? domain.bind(fn) : fn);
   }
 });
-},{"./_cof":147,"./_export":161,"./_global":167,"./_microtask":193}],388:[function(require,module,exports){
+},{"./_cof":149,"./_export":163,"./_global":169,"./_microtask":195}],390:[function(require,module,exports){
 // https://github.com/ljharb/proposal-is-error
 var $export = require('./_export')
   , cof     = require('./_cof');
@@ -33492,12 +34341,12 @@ $export($export.S, 'Error', {
     return cof(it) === 'Error';
   }
 });
-},{"./_cof":147,"./_export":161}],389:[function(require,module,exports){
+},{"./_cof":149,"./_export":163}],391:[function(require,module,exports){
 // https://github.com/DavidBruant/Map-Set.prototype.toJSON
 var $export  = require('./_export');
 
 $export($export.P + $export.R, 'Map', {toJSON: require('./_collection-to-json')('Map')});
-},{"./_collection-to-json":149,"./_export":161}],390:[function(require,module,exports){
+},{"./_collection-to-json":151,"./_export":163}],392:[function(require,module,exports){
 // https://gist.github.com/BrendanEich/4294d5c212a6d2254703
 var $export = require('./_export');
 
@@ -33509,7 +34358,7 @@ $export($export.S, 'Math', {
     return $x1 + (y1 >>> 0) + (($x0 & $y0 | ($x0 | $y0) & ~($x0 + $y0 >>> 0)) >>> 31) | 0;
   }
 });
-},{"./_export":161}],391:[function(require,module,exports){
+},{"./_export":163}],393:[function(require,module,exports){
 // https://gist.github.com/BrendanEich/4294d5c212a6d2254703
 var $export = require('./_export');
 
@@ -33526,7 +34375,7 @@ $export($export.S, 'Math', {
     return u1 * v1 + (t >> 16) + ((u0 * v1 >>> 0) + (t & UINT16) >> 16);
   }
 });
-},{"./_export":161}],392:[function(require,module,exports){
+},{"./_export":163}],394:[function(require,module,exports){
 // https://gist.github.com/BrendanEich/4294d5c212a6d2254703
 var $export = require('./_export');
 
@@ -33538,7 +34387,7 @@ $export($export.S, 'Math', {
     return $x1 - (y1 >>> 0) - ((~$x0 & $y0 | ~($x0 ^ $y0) & $x0 - $y0 >>> 0) >>> 31) | 0;
   }
 });
-},{"./_export":161}],393:[function(require,module,exports){
+},{"./_export":163}],395:[function(require,module,exports){
 // https://gist.github.com/BrendanEich/4294d5c212a6d2254703
 var $export = require('./_export');
 
@@ -33555,7 +34404,7 @@ $export($export.S, 'Math', {
     return u1 * v1 + (t >>> 16) + ((u0 * v1 >>> 0) + (t & UINT16) >>> 16);
   }
 });
-},{"./_export":161}],394:[function(require,module,exports){
+},{"./_export":163}],396:[function(require,module,exports){
 'use strict';
 var $export         = require('./_export')
   , toObject        = require('./_to-object')
@@ -33568,7 +34417,7 @@ require('./_descriptors') && $export($export.P + require('./_object-forced-pam')
     $defineProperty.f(toObject(this), P, {get: aFunction(getter), enumerable: true, configurable: true});
   }
 });
-},{"./_a-function":132,"./_descriptors":157,"./_export":161,"./_object-dp":196,"./_object-forced-pam":198,"./_to-object":238}],395:[function(require,module,exports){
+},{"./_a-function":134,"./_descriptors":159,"./_export":163,"./_object-dp":198,"./_object-forced-pam":200,"./_to-object":240}],397:[function(require,module,exports){
 'use strict';
 var $export         = require('./_export')
   , toObject        = require('./_to-object')
@@ -33581,7 +34430,7 @@ require('./_descriptors') && $export($export.P + require('./_object-forced-pam')
     $defineProperty.f(toObject(this), P, {set: aFunction(setter), enumerable: true, configurable: true});
   }
 });
-},{"./_a-function":132,"./_descriptors":157,"./_export":161,"./_object-dp":196,"./_object-forced-pam":198,"./_to-object":238}],396:[function(require,module,exports){
+},{"./_a-function":134,"./_descriptors":159,"./_export":163,"./_object-dp":198,"./_object-forced-pam":200,"./_to-object":240}],398:[function(require,module,exports){
 // https://github.com/tc39/proposal-object-values-entries
 var $export  = require('./_export')
   , $entries = require('./_object-to-array')(true);
@@ -33591,7 +34440,7 @@ $export($export.S, 'Object', {
     return $entries(it);
   }
 });
-},{"./_export":161,"./_object-to-array":208}],397:[function(require,module,exports){
+},{"./_export":163,"./_object-to-array":210}],399:[function(require,module,exports){
 // https://github.com/tc39/proposal-object-getownpropertydescriptors
 var $export        = require('./_export')
   , ownKeys        = require('./_own-keys')
@@ -33611,7 +34460,7 @@ $export($export.S, 'Object', {
     return result;
   }
 });
-},{"./_create-property":153,"./_export":161,"./_object-gopd":199,"./_own-keys":209,"./_to-iobject":236}],398:[function(require,module,exports){
+},{"./_create-property":155,"./_export":163,"./_object-gopd":201,"./_own-keys":211,"./_to-iobject":238}],400:[function(require,module,exports){
 'use strict';
 var $export                  = require('./_export')
   , toObject                 = require('./_to-object')
@@ -33630,7 +34479,7 @@ require('./_descriptors') && $export($export.P + require('./_object-forced-pam')
     } while(O = getPrototypeOf(O));
   }
 });
-},{"./_descriptors":157,"./_export":161,"./_object-forced-pam":198,"./_object-gopd":199,"./_object-gpo":203,"./_to-object":238,"./_to-primitive":239}],399:[function(require,module,exports){
+},{"./_descriptors":159,"./_export":163,"./_object-forced-pam":200,"./_object-gopd":201,"./_object-gpo":205,"./_to-object":240,"./_to-primitive":241}],401:[function(require,module,exports){
 'use strict';
 var $export                  = require('./_export')
   , toObject                 = require('./_to-object')
@@ -33649,7 +34498,7 @@ require('./_descriptors') && $export($export.P + require('./_object-forced-pam')
     } while(O = getPrototypeOf(O));
   }
 });
-},{"./_descriptors":157,"./_export":161,"./_object-forced-pam":198,"./_object-gopd":199,"./_object-gpo":203,"./_to-object":238,"./_to-primitive":239}],400:[function(require,module,exports){
+},{"./_descriptors":159,"./_export":163,"./_object-forced-pam":200,"./_object-gopd":201,"./_object-gpo":205,"./_to-object":240,"./_to-primitive":241}],402:[function(require,module,exports){
 // https://github.com/tc39/proposal-object-values-entries
 var $export = require('./_export')
   , $values = require('./_object-to-array')(false);
@@ -33659,7 +34508,7 @@ $export($export.S, 'Object', {
     return $values(it);
   }
 });
-},{"./_export":161,"./_object-to-array":208}],401:[function(require,module,exports){
+},{"./_export":163,"./_object-to-array":210}],403:[function(require,module,exports){
 'use strict';
 // https://github.com/zenparsing/es-observable
 var $export     = require('./_export')
@@ -33859,7 +34708,7 @@ hide($Observable.prototype, OBSERVABLE, function(){ return this; });
 $export($export.G, {Observable: $Observable});
 
 require('./_set-species')('Observable');
-},{"./_a-function":132,"./_an-instance":135,"./_an-object":136,"./_core":152,"./_export":161,"./_for-of":166,"./_global":167,"./_hide":169,"./_microtask":193,"./_redefine-all":215,"./_set-species":220,"./_wks":246}],402:[function(require,module,exports){
+},{"./_a-function":134,"./_an-instance":137,"./_an-object":138,"./_core":154,"./_export":163,"./_for-of":168,"./_global":169,"./_hide":171,"./_microtask":195,"./_redefine-all":217,"./_set-species":222,"./_wks":248}],404:[function(require,module,exports){
 var metadata                  = require('./_metadata')
   , anObject                  = require('./_an-object')
   , toMetaKey                 = metadata.key
@@ -33868,7 +34717,7 @@ var metadata                  = require('./_metadata')
 metadata.exp({defineMetadata: function defineMetadata(metadataKey, metadataValue, target, targetKey){
   ordinaryDefineOwnMetadata(metadataKey, metadataValue, anObject(target), toMetaKey(targetKey));
 }});
-},{"./_an-object":136,"./_metadata":192}],403:[function(require,module,exports){
+},{"./_an-object":138,"./_metadata":194}],405:[function(require,module,exports){
 var metadata               = require('./_metadata')
   , anObject               = require('./_an-object')
   , toMetaKey              = metadata.key
@@ -33884,7 +34733,7 @@ metadata.exp({deleteMetadata: function deleteMetadata(metadataKey, target /*, ta
   targetMetadata['delete'](targetKey);
   return !!targetMetadata.size || store['delete'](target);
 }});
-},{"./_an-object":136,"./_metadata":192}],404:[function(require,module,exports){
+},{"./_an-object":138,"./_metadata":194}],406:[function(require,module,exports){
 var Set                     = require('./es6.set')
   , from                    = require('./_array-from-iterable')
   , metadata                = require('./_metadata')
@@ -33904,7 +34753,7 @@ var ordinaryMetadataKeys = function(O, P){
 metadata.exp({getMetadataKeys: function getMetadataKeys(target /*, targetKey */){
   return ordinaryMetadataKeys(anObject(target), arguments.length < 2 ? undefined : toMetaKey(arguments[1]));
 }});
-},{"./_an-object":136,"./_array-from-iterable":139,"./_metadata":192,"./_object-gpo":203,"./es6.set":349}],405:[function(require,module,exports){
+},{"./_an-object":138,"./_array-from-iterable":141,"./_metadata":194,"./_object-gpo":205,"./es6.set":351}],407:[function(require,module,exports){
 var metadata               = require('./_metadata')
   , anObject               = require('./_an-object')
   , getPrototypeOf         = require('./_object-gpo')
@@ -33922,7 +34771,7 @@ var ordinaryGetMetadata = function(MetadataKey, O, P){
 metadata.exp({getMetadata: function getMetadata(metadataKey, target /*, targetKey */){
   return ordinaryGetMetadata(metadataKey, anObject(target), arguments.length < 3 ? undefined : toMetaKey(arguments[2]));
 }});
-},{"./_an-object":136,"./_metadata":192,"./_object-gpo":203}],406:[function(require,module,exports){
+},{"./_an-object":138,"./_metadata":194,"./_object-gpo":205}],408:[function(require,module,exports){
 var metadata                = require('./_metadata')
   , anObject                = require('./_an-object')
   , ordinaryOwnMetadataKeys = metadata.keys
@@ -33931,7 +34780,7 @@ var metadata                = require('./_metadata')
 metadata.exp({getOwnMetadataKeys: function getOwnMetadataKeys(target /*, targetKey */){
   return ordinaryOwnMetadataKeys(anObject(target), arguments.length < 2 ? undefined : toMetaKey(arguments[1]));
 }});
-},{"./_an-object":136,"./_metadata":192}],407:[function(require,module,exports){
+},{"./_an-object":138,"./_metadata":194}],409:[function(require,module,exports){
 var metadata               = require('./_metadata')
   , anObject               = require('./_an-object')
   , ordinaryGetOwnMetadata = metadata.get
@@ -33941,7 +34790,7 @@ metadata.exp({getOwnMetadata: function getOwnMetadata(metadataKey, target /*, ta
   return ordinaryGetOwnMetadata(metadataKey, anObject(target)
     , arguments.length < 3 ? undefined : toMetaKey(arguments[2]));
 }});
-},{"./_an-object":136,"./_metadata":192}],408:[function(require,module,exports){
+},{"./_an-object":138,"./_metadata":194}],410:[function(require,module,exports){
 var metadata               = require('./_metadata')
   , anObject               = require('./_an-object')
   , getPrototypeOf         = require('./_object-gpo')
@@ -33958,7 +34807,7 @@ var ordinaryHasMetadata = function(MetadataKey, O, P){
 metadata.exp({hasMetadata: function hasMetadata(metadataKey, target /*, targetKey */){
   return ordinaryHasMetadata(metadataKey, anObject(target), arguments.length < 3 ? undefined : toMetaKey(arguments[2]));
 }});
-},{"./_an-object":136,"./_metadata":192,"./_object-gpo":203}],409:[function(require,module,exports){
+},{"./_an-object":138,"./_metadata":194,"./_object-gpo":205}],411:[function(require,module,exports){
 var metadata               = require('./_metadata')
   , anObject               = require('./_an-object')
   , ordinaryHasOwnMetadata = metadata.has
@@ -33968,7 +34817,7 @@ metadata.exp({hasOwnMetadata: function hasOwnMetadata(metadataKey, target /*, ta
   return ordinaryHasOwnMetadata(metadataKey, anObject(target)
     , arguments.length < 3 ? undefined : toMetaKey(arguments[2]));
 }});
-},{"./_an-object":136,"./_metadata":192}],410:[function(require,module,exports){
+},{"./_an-object":138,"./_metadata":194}],412:[function(require,module,exports){
 var metadata                  = require('./_metadata')
   , anObject                  = require('./_an-object')
   , aFunction                 = require('./_a-function')
@@ -33984,12 +34833,12 @@ metadata.exp({metadata: function metadata(metadataKey, metadataValue){
     );
   };
 }});
-},{"./_a-function":132,"./_an-object":136,"./_metadata":192}],411:[function(require,module,exports){
+},{"./_a-function":134,"./_an-object":138,"./_metadata":194}],413:[function(require,module,exports){
 // https://github.com/DavidBruant/Map-Set.prototype.toJSON
 var $export  = require('./_export');
 
 $export($export.P + $export.R, 'Set', {toJSON: require('./_collection-to-json')('Set')});
-},{"./_collection-to-json":149,"./_export":161}],412:[function(require,module,exports){
+},{"./_collection-to-json":151,"./_export":163}],414:[function(require,module,exports){
 'use strict';
 // https://github.com/mathiasbynens/String.prototype.at
 var $export = require('./_export')
@@ -34000,7 +34849,7 @@ $export($export.P, 'String', {
     return $at(this, pos);
   }
 });
-},{"./_export":161,"./_string-at":226}],413:[function(require,module,exports){
+},{"./_export":163,"./_string-at":228}],415:[function(require,module,exports){
 'use strict';
 // https://tc39.github.io/String.prototype.matchAll/
 var $export     = require('./_export')
@@ -34031,7 +34880,7 @@ $export($export.P, 'String', {
     return new $RegExpStringIterator(rx, S);
   }
 });
-},{"./_defined":156,"./_export":161,"./_flags":165,"./_is-regexp":179,"./_iter-create":181,"./_to-length":237}],414:[function(require,module,exports){
+},{"./_defined":158,"./_export":163,"./_flags":167,"./_is-regexp":181,"./_iter-create":183,"./_to-length":239}],416:[function(require,module,exports){
 'use strict';
 // https://github.com/tc39/proposal-string-pad-start-end
 var $export = require('./_export')
@@ -34042,7 +34891,7 @@ $export($export.P, 'String', {
     return $pad(this, maxLength, arguments.length > 1 ? arguments[1] : undefined, false);
   }
 });
-},{"./_export":161,"./_string-pad":229}],415:[function(require,module,exports){
+},{"./_export":163,"./_string-pad":231}],417:[function(require,module,exports){
 'use strict';
 // https://github.com/tc39/proposal-string-pad-start-end
 var $export = require('./_export')
@@ -34053,7 +34902,7 @@ $export($export.P, 'String', {
     return $pad(this, maxLength, arguments.length > 1 ? arguments[1] : undefined, true);
   }
 });
-},{"./_export":161,"./_string-pad":229}],416:[function(require,module,exports){
+},{"./_export":163,"./_string-pad":231}],418:[function(require,module,exports){
 'use strict';
 // https://github.com/sebmarkbage/ecmascript-string-left-right-trim
 require('./_string-trim')('trimLeft', function($trim){
@@ -34061,7 +34910,7 @@ require('./_string-trim')('trimLeft', function($trim){
     return $trim(this, 1);
   };
 }, 'trimStart');
-},{"./_string-trim":231}],417:[function(require,module,exports){
+},{"./_string-trim":233}],419:[function(require,module,exports){
 'use strict';
 // https://github.com/sebmarkbage/ecmascript-string-left-right-trim
 require('./_string-trim')('trimRight', function($trim){
@@ -34069,16 +34918,16 @@ require('./_string-trim')('trimRight', function($trim){
     return $trim(this, 2);
   };
 }, 'trimEnd');
-},{"./_string-trim":231}],418:[function(require,module,exports){
+},{"./_string-trim":233}],420:[function(require,module,exports){
 require('./_wks-define')('asyncIterator');
-},{"./_wks-define":244}],419:[function(require,module,exports){
+},{"./_wks-define":246}],421:[function(require,module,exports){
 require('./_wks-define')('observable');
-},{"./_wks-define":244}],420:[function(require,module,exports){
+},{"./_wks-define":246}],422:[function(require,module,exports){
 // https://github.com/ljharb/proposal-global
 var $export = require('./_export');
 
 $export($export.S, 'System', {global: require('./_global')});
-},{"./_export":161,"./_global":167}],421:[function(require,module,exports){
+},{"./_export":163,"./_global":169}],423:[function(require,module,exports){
 var $iterators    = require('./es6.array.iterator')
   , redefine      = require('./_redefine')
   , global        = require('./_global')
@@ -34101,14 +34950,14 @@ for(var collections = ['NodeList', 'DOMTokenList', 'MediaList', 'StyleSheetList'
     for(key in $iterators)if(!proto[key])redefine(proto, key, $iterators[key], true);
   }
 }
-},{"./_global":167,"./_hide":169,"./_iterators":185,"./_redefine":216,"./_wks":246,"./es6.array.iterator":259}],422:[function(require,module,exports){
+},{"./_global":169,"./_hide":171,"./_iterators":187,"./_redefine":218,"./_wks":248,"./es6.array.iterator":261}],424:[function(require,module,exports){
 var $export = require('./_export')
   , $task   = require('./_task');
 $export($export.G + $export.B, {
   setImmediate:   $task.set,
   clearImmediate: $task.clear
 });
-},{"./_export":161,"./_task":233}],423:[function(require,module,exports){
+},{"./_export":163,"./_task":235}],425:[function(require,module,exports){
 // ie9- setTimeout & setInterval additional parameters fix
 var global     = require('./_global')
   , $export    = require('./_export')
@@ -34129,7 +34978,7 @@ $export($export.G + $export.B + $export.F * MSIE, {
   setTimeout:  wrap(global.setTimeout),
   setInterval: wrap(global.setInterval)
 });
-},{"./_export":161,"./_global":167,"./_invoke":173,"./_partial":212}],424:[function(require,module,exports){
+},{"./_export":163,"./_global":169,"./_invoke":175,"./_partial":214}],426:[function(require,module,exports){
 require('./modules/es6.symbol');
 require('./modules/es6.object.create');
 require('./modules/es6.object.define-property');
@@ -34306,7 +35155,7 @@ require('./modules/web.timers');
 require('./modules/web.immediate');
 require('./modules/web.dom.iterable');
 module.exports = require('./modules/_core');
-},{"./modules/_core":152,"./modules/es6.array.copy-within":249,"./modules/es6.array.every":250,"./modules/es6.array.fill":251,"./modules/es6.array.filter":252,"./modules/es6.array.find":254,"./modules/es6.array.find-index":253,"./modules/es6.array.for-each":255,"./modules/es6.array.from":256,"./modules/es6.array.index-of":257,"./modules/es6.array.is-array":258,"./modules/es6.array.iterator":259,"./modules/es6.array.join":260,"./modules/es6.array.last-index-of":261,"./modules/es6.array.map":262,"./modules/es6.array.of":263,"./modules/es6.array.reduce":265,"./modules/es6.array.reduce-right":264,"./modules/es6.array.slice":266,"./modules/es6.array.some":267,"./modules/es6.array.sort":268,"./modules/es6.array.species":269,"./modules/es6.date.now":270,"./modules/es6.date.to-iso-string":271,"./modules/es6.date.to-json":272,"./modules/es6.date.to-primitive":273,"./modules/es6.date.to-string":274,"./modules/es6.function.bind":275,"./modules/es6.function.has-instance":276,"./modules/es6.function.name":277,"./modules/es6.map":278,"./modules/es6.math.acosh":279,"./modules/es6.math.asinh":280,"./modules/es6.math.atanh":281,"./modules/es6.math.cbrt":282,"./modules/es6.math.clz32":283,"./modules/es6.math.cosh":284,"./modules/es6.math.expm1":285,"./modules/es6.math.fround":286,"./modules/es6.math.hypot":287,"./modules/es6.math.imul":288,"./modules/es6.math.log10":289,"./modules/es6.math.log1p":290,"./modules/es6.math.log2":291,"./modules/es6.math.sign":292,"./modules/es6.math.sinh":293,"./modules/es6.math.tanh":294,"./modules/es6.math.trunc":295,"./modules/es6.number.constructor":296,"./modules/es6.number.epsilon":297,"./modules/es6.number.is-finite":298,"./modules/es6.number.is-integer":299,"./modules/es6.number.is-nan":300,"./modules/es6.number.is-safe-integer":301,"./modules/es6.number.max-safe-integer":302,"./modules/es6.number.min-safe-integer":303,"./modules/es6.number.parse-float":304,"./modules/es6.number.parse-int":305,"./modules/es6.number.to-fixed":306,"./modules/es6.number.to-precision":307,"./modules/es6.object.assign":308,"./modules/es6.object.create":309,"./modules/es6.object.define-properties":310,"./modules/es6.object.define-property":311,"./modules/es6.object.freeze":312,"./modules/es6.object.get-own-property-descriptor":313,"./modules/es6.object.get-own-property-names":314,"./modules/es6.object.get-prototype-of":315,"./modules/es6.object.is":319,"./modules/es6.object.is-extensible":316,"./modules/es6.object.is-frozen":317,"./modules/es6.object.is-sealed":318,"./modules/es6.object.keys":320,"./modules/es6.object.prevent-extensions":321,"./modules/es6.object.seal":322,"./modules/es6.object.set-prototype-of":323,"./modules/es6.object.to-string":324,"./modules/es6.parse-float":325,"./modules/es6.parse-int":326,"./modules/es6.promise":327,"./modules/es6.reflect.apply":328,"./modules/es6.reflect.construct":329,"./modules/es6.reflect.define-property":330,"./modules/es6.reflect.delete-property":331,"./modules/es6.reflect.enumerate":332,"./modules/es6.reflect.get":335,"./modules/es6.reflect.get-own-property-descriptor":333,"./modules/es6.reflect.get-prototype-of":334,"./modules/es6.reflect.has":336,"./modules/es6.reflect.is-extensible":337,"./modules/es6.reflect.own-keys":338,"./modules/es6.reflect.prevent-extensions":339,"./modules/es6.reflect.set":341,"./modules/es6.reflect.set-prototype-of":340,"./modules/es6.regexp.constructor":342,"./modules/es6.regexp.flags":343,"./modules/es6.regexp.match":344,"./modules/es6.regexp.replace":345,"./modules/es6.regexp.search":346,"./modules/es6.regexp.split":347,"./modules/es6.regexp.to-string":348,"./modules/es6.set":349,"./modules/es6.string.anchor":350,"./modules/es6.string.big":351,"./modules/es6.string.blink":352,"./modules/es6.string.bold":353,"./modules/es6.string.code-point-at":354,"./modules/es6.string.ends-with":355,"./modules/es6.string.fixed":356,"./modules/es6.string.fontcolor":357,"./modules/es6.string.fontsize":358,"./modules/es6.string.from-code-point":359,"./modules/es6.string.includes":360,"./modules/es6.string.italics":361,"./modules/es6.string.iterator":362,"./modules/es6.string.link":363,"./modules/es6.string.raw":364,"./modules/es6.string.repeat":365,"./modules/es6.string.small":366,"./modules/es6.string.starts-with":367,"./modules/es6.string.strike":368,"./modules/es6.string.sub":369,"./modules/es6.string.sup":370,"./modules/es6.string.trim":371,"./modules/es6.symbol":372,"./modules/es6.typed.array-buffer":373,"./modules/es6.typed.data-view":374,"./modules/es6.typed.float32-array":375,"./modules/es6.typed.float64-array":376,"./modules/es6.typed.int16-array":377,"./modules/es6.typed.int32-array":378,"./modules/es6.typed.int8-array":379,"./modules/es6.typed.uint16-array":380,"./modules/es6.typed.uint32-array":381,"./modules/es6.typed.uint8-array":382,"./modules/es6.typed.uint8-clamped-array":383,"./modules/es6.weak-map":384,"./modules/es6.weak-set":385,"./modules/es7.array.includes":386,"./modules/es7.asap":387,"./modules/es7.error.is-error":388,"./modules/es7.map.to-json":389,"./modules/es7.math.iaddh":390,"./modules/es7.math.imulh":391,"./modules/es7.math.isubh":392,"./modules/es7.math.umulh":393,"./modules/es7.object.define-getter":394,"./modules/es7.object.define-setter":395,"./modules/es7.object.entries":396,"./modules/es7.object.get-own-property-descriptors":397,"./modules/es7.object.lookup-getter":398,"./modules/es7.object.lookup-setter":399,"./modules/es7.object.values":400,"./modules/es7.observable":401,"./modules/es7.reflect.define-metadata":402,"./modules/es7.reflect.delete-metadata":403,"./modules/es7.reflect.get-metadata":405,"./modules/es7.reflect.get-metadata-keys":404,"./modules/es7.reflect.get-own-metadata":407,"./modules/es7.reflect.get-own-metadata-keys":406,"./modules/es7.reflect.has-metadata":408,"./modules/es7.reflect.has-own-metadata":409,"./modules/es7.reflect.metadata":410,"./modules/es7.set.to-json":411,"./modules/es7.string.at":412,"./modules/es7.string.match-all":413,"./modules/es7.string.pad-end":414,"./modules/es7.string.pad-start":415,"./modules/es7.string.trim-left":416,"./modules/es7.string.trim-right":417,"./modules/es7.symbol.async-iterator":418,"./modules/es7.symbol.observable":419,"./modules/es7.system.global":420,"./modules/web.dom.iterable":421,"./modules/web.immediate":422,"./modules/web.timers":423}],425:[function(require,module,exports){
+},{"./modules/_core":154,"./modules/es6.array.copy-within":251,"./modules/es6.array.every":252,"./modules/es6.array.fill":253,"./modules/es6.array.filter":254,"./modules/es6.array.find":256,"./modules/es6.array.find-index":255,"./modules/es6.array.for-each":257,"./modules/es6.array.from":258,"./modules/es6.array.index-of":259,"./modules/es6.array.is-array":260,"./modules/es6.array.iterator":261,"./modules/es6.array.join":262,"./modules/es6.array.last-index-of":263,"./modules/es6.array.map":264,"./modules/es6.array.of":265,"./modules/es6.array.reduce":267,"./modules/es6.array.reduce-right":266,"./modules/es6.array.slice":268,"./modules/es6.array.some":269,"./modules/es6.array.sort":270,"./modules/es6.array.species":271,"./modules/es6.date.now":272,"./modules/es6.date.to-iso-string":273,"./modules/es6.date.to-json":274,"./modules/es6.date.to-primitive":275,"./modules/es6.date.to-string":276,"./modules/es6.function.bind":277,"./modules/es6.function.has-instance":278,"./modules/es6.function.name":279,"./modules/es6.map":280,"./modules/es6.math.acosh":281,"./modules/es6.math.asinh":282,"./modules/es6.math.atanh":283,"./modules/es6.math.cbrt":284,"./modules/es6.math.clz32":285,"./modules/es6.math.cosh":286,"./modules/es6.math.expm1":287,"./modules/es6.math.fround":288,"./modules/es6.math.hypot":289,"./modules/es6.math.imul":290,"./modules/es6.math.log10":291,"./modules/es6.math.log1p":292,"./modules/es6.math.log2":293,"./modules/es6.math.sign":294,"./modules/es6.math.sinh":295,"./modules/es6.math.tanh":296,"./modules/es6.math.trunc":297,"./modules/es6.number.constructor":298,"./modules/es6.number.epsilon":299,"./modules/es6.number.is-finite":300,"./modules/es6.number.is-integer":301,"./modules/es6.number.is-nan":302,"./modules/es6.number.is-safe-integer":303,"./modules/es6.number.max-safe-integer":304,"./modules/es6.number.min-safe-integer":305,"./modules/es6.number.parse-float":306,"./modules/es6.number.parse-int":307,"./modules/es6.number.to-fixed":308,"./modules/es6.number.to-precision":309,"./modules/es6.object.assign":310,"./modules/es6.object.create":311,"./modules/es6.object.define-properties":312,"./modules/es6.object.define-property":313,"./modules/es6.object.freeze":314,"./modules/es6.object.get-own-property-descriptor":315,"./modules/es6.object.get-own-property-names":316,"./modules/es6.object.get-prototype-of":317,"./modules/es6.object.is":321,"./modules/es6.object.is-extensible":318,"./modules/es6.object.is-frozen":319,"./modules/es6.object.is-sealed":320,"./modules/es6.object.keys":322,"./modules/es6.object.prevent-extensions":323,"./modules/es6.object.seal":324,"./modules/es6.object.set-prototype-of":325,"./modules/es6.object.to-string":326,"./modules/es6.parse-float":327,"./modules/es6.parse-int":328,"./modules/es6.promise":329,"./modules/es6.reflect.apply":330,"./modules/es6.reflect.construct":331,"./modules/es6.reflect.define-property":332,"./modules/es6.reflect.delete-property":333,"./modules/es6.reflect.enumerate":334,"./modules/es6.reflect.get":337,"./modules/es6.reflect.get-own-property-descriptor":335,"./modules/es6.reflect.get-prototype-of":336,"./modules/es6.reflect.has":338,"./modules/es6.reflect.is-extensible":339,"./modules/es6.reflect.own-keys":340,"./modules/es6.reflect.prevent-extensions":341,"./modules/es6.reflect.set":343,"./modules/es6.reflect.set-prototype-of":342,"./modules/es6.regexp.constructor":344,"./modules/es6.regexp.flags":345,"./modules/es6.regexp.match":346,"./modules/es6.regexp.replace":347,"./modules/es6.regexp.search":348,"./modules/es6.regexp.split":349,"./modules/es6.regexp.to-string":350,"./modules/es6.set":351,"./modules/es6.string.anchor":352,"./modules/es6.string.big":353,"./modules/es6.string.blink":354,"./modules/es6.string.bold":355,"./modules/es6.string.code-point-at":356,"./modules/es6.string.ends-with":357,"./modules/es6.string.fixed":358,"./modules/es6.string.fontcolor":359,"./modules/es6.string.fontsize":360,"./modules/es6.string.from-code-point":361,"./modules/es6.string.includes":362,"./modules/es6.string.italics":363,"./modules/es6.string.iterator":364,"./modules/es6.string.link":365,"./modules/es6.string.raw":366,"./modules/es6.string.repeat":367,"./modules/es6.string.small":368,"./modules/es6.string.starts-with":369,"./modules/es6.string.strike":370,"./modules/es6.string.sub":371,"./modules/es6.string.sup":372,"./modules/es6.string.trim":373,"./modules/es6.symbol":374,"./modules/es6.typed.array-buffer":375,"./modules/es6.typed.data-view":376,"./modules/es6.typed.float32-array":377,"./modules/es6.typed.float64-array":378,"./modules/es6.typed.int16-array":379,"./modules/es6.typed.int32-array":380,"./modules/es6.typed.int8-array":381,"./modules/es6.typed.uint16-array":382,"./modules/es6.typed.uint32-array":383,"./modules/es6.typed.uint8-array":384,"./modules/es6.typed.uint8-clamped-array":385,"./modules/es6.weak-map":386,"./modules/es6.weak-set":387,"./modules/es7.array.includes":388,"./modules/es7.asap":389,"./modules/es7.error.is-error":390,"./modules/es7.map.to-json":391,"./modules/es7.math.iaddh":392,"./modules/es7.math.imulh":393,"./modules/es7.math.isubh":394,"./modules/es7.math.umulh":395,"./modules/es7.object.define-getter":396,"./modules/es7.object.define-setter":397,"./modules/es7.object.entries":398,"./modules/es7.object.get-own-property-descriptors":399,"./modules/es7.object.lookup-getter":400,"./modules/es7.object.lookup-setter":401,"./modules/es7.object.values":402,"./modules/es7.observable":403,"./modules/es7.reflect.define-metadata":404,"./modules/es7.reflect.delete-metadata":405,"./modules/es7.reflect.get-metadata":407,"./modules/es7.reflect.get-metadata-keys":406,"./modules/es7.reflect.get-own-metadata":409,"./modules/es7.reflect.get-own-metadata-keys":408,"./modules/es7.reflect.has-metadata":410,"./modules/es7.reflect.has-own-metadata":411,"./modules/es7.reflect.metadata":412,"./modules/es7.set.to-json":413,"./modules/es7.string.at":414,"./modules/es7.string.match-all":415,"./modules/es7.string.pad-end":416,"./modules/es7.string.pad-start":417,"./modules/es7.string.trim-left":418,"./modules/es7.string.trim-right":419,"./modules/es7.symbol.async-iterator":420,"./modules/es7.symbol.observable":421,"./modules/es7.system.global":422,"./modules/web.dom.iterable":423,"./modules/web.immediate":424,"./modules/web.timers":425}],427:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -34468,7 +35317,7 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],426:[function(require,module,exports){
+},{}],428:[function(require,module,exports){
 (function (process,global){
 /**
  * Copyright (c) 2014, Facebook, Inc.
@@ -35140,7 +35989,7 @@ process.umask = function() { return 0; };
 );
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"_process":425}],427:[function(require,module,exports){
+},{"_process":427}],429:[function(require,module,exports){
 'use strict'
 
 let MemoryHelper = {

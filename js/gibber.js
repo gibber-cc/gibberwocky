@@ -38,6 +38,12 @@ let Gibber = {
     window.Lookup        = this.WavePattern
     window.channels      = this.MIDI.channels
     window.MIDI          = this.MIDI
+    window.Max           = this.Max
+
+    window.signals       = this.Max.signals
+    window.params        = this.Max.params
+    window.namespace     = this.Max.namespace
+    window.devices       = this.Max.devices
 
     Gibber.__gen.export( window ) 
 
@@ -47,7 +53,6 @@ let Gibber = {
 
   init() {
     this.$   = Gibber.Utility.create
-
 
     this.Environment.init( Gibber )
     this.Theory.init( Gibber )
@@ -60,6 +65,7 @@ let Gibber = {
       this.Communication.init( Gibber ) 
     }
 
+    this.Scheduler.init( this )
     //this.currentTrack = this.Track( this, 1 ) // TODO: how to determine actual "id" from Max?
     
     this.initSingletons( window )
@@ -172,7 +178,7 @@ let Gibber = {
     }
   },
 
-  addSequencingToMethod( obj, methodName, priority, overrideName ) {
+  addSequencingToMethod( obj, methodName, priority, overrideName, mode='live' ) {
     
     if( !obj.sequences ) obj.sequences = {}
     if( overrideName === undefined ) overrideName = methodName 
@@ -186,7 +192,7 @@ let Gibber = {
 
       if( obj.sequences[ methodName ][ id ] ) obj.sequences[ methodName ][ id ].clear()
 
-      obj.sequences[ methodName ][ id ] = seq = Gibber.Seq( values, timings, overrideName, obj, priority )
+      obj.sequences[ methodName ][ id ] = seq = Gibber.Seq( values, timings, overrideName, obj, priority, mode )
 
       // if the target is another sequencer (like for per-sequencer velocity control) it won't
       // have an id property.. use existing trackID property instead.

@@ -9,17 +9,29 @@ let Communication = {
     input:false,
     output:false
   },
-  
+
+  liveSocket:null,
+  maxSocket: null,
+
+  callbacks: {
+    schemas: {
+      live:null,
+      max: null
+    }
+  },
+
+
+  count:0,
   init( _Gibber ) { 
     Gibber = _Gibber
 
-    //this.createWebSocket( Gibber.Live.init, this.livePort, 'live' )
-    this.createWebSocket( Gibber.Max.init,  this.maxPort,  'max'  )
+    //this.liveSocket = this.createWebSocket( Gibber.Live.init, this.livePort, '127.0.0.1', 'live' )
+    this.maxSocket  = this.createWebSocket( Gibber.Max.init,  this.maxPort,  '127.0.0.1', 'max'  )
 
     this.send = this.send.bind( Communication )
   },
 
-  createWebSocket( init, __port, clientName ) {
+  createWebSocket( init, port=8081, host='127.0.0.1', clientName ) {
     if ( this.connected ) return
 
     if ( 'WebSocket' in window ) {
@@ -30,9 +42,7 @@ let Communication = {
         this.connectMsg.innerText += '.'
       }
 
-      let host = this.querystring.host || '127.0.0.1',
-          port = this.querystring.port || __port,
-          address = "ws://" + host + ":" + port
+      const address = "ws://" + host + ":" + port
       
       this.wsocket = new WebSocket( address )
       
@@ -60,33 +70,38 @@ let Communication = {
         this.connectTask = setTimeout( this.createWebSocket.bind( Communication ) , 2000 )
       }.bind( Communication )
 
+      let socket = this.wsocket
       this.wsocket.onmessage = function( ev ) {
         //Gibber.log('msg:', ev )
-        this.handleMessage( ev )
+        this.handleMessage( ev, socket )
       }.bind( Communication )
 
       this.wsocket.onerror = function( ev ) {
         Gibber.log( 'WebSocket error' )
       }.bind( Communication )
 
+      this.wsocket.clientName = clientName
+
     } else {
       post( 'WebSockets are not available in this browser!!!' );
     }
-  
+
+    return this.wsocket
   },
 
-  callbacks: {},
 
-  count:0,
 
-  handleMessage( _msg ) {
-    let id, key, data, msg
+  handleMessage( _msg, socket ) {
+    let id, key, data, msg, isLiveMsg=true
     
     if( _msg.data.charAt( 0 ) === '{' ) {
       data = _msg.data
       key = null
-      if( Communication.callbacks.scene ) {
-        Communication.callbacks.scene( JSON.parse( data ) )
+      const json = JSON.parse( data )
+      const schema = json.namespaces !== undefined ? 'max' : 'live'
+
+      if( Communication.callbacks.schemas[ schema ] ) {
+        Communication.callbacks.schemas[ schema]( JSON.parse( data ) )
       }
     }else if( _msg.data.includes( 'snapshot' ) ) {
       data = _msg.data.substr( 9 ).split(' ')
@@ -106,17 +121,27 @@ let Communication = {
       return
     }else{
       msg = _msg.data.split( ' ' )
-      id = msg[ 0 ]
-      key = msg[ 1 ]
 
-      if( key === 'err' ) {
-        data = msg.slice( 2 ).join( ' ' )
+      isLiveMsg = msg.length > 2
+
+      if( isLiveMsg ) {
+        id = msg[ 0 ]
+        key = msg[ 1 ]
+        data = msg.slice( 2 )
+
+        if( key === 'err' ) data = data.join(' ')
+
       }else{
-        data = msg[ 2 ]
+        key = msg[ 0 ]
+        if( key === 'err' ) {
+          data = msg.slice( 1 ).join( ' ' )
+        }else{
+          data = msg[ 1 ]
+        }
       }
     }
     
-    if( id === undefined ) return
+    if( id === undefined && isLiveMsg === true ) return
 
     if( Communication.debug.input ) {
       if( id !== undefined ) { 
@@ -131,7 +156,8 @@ let Communication = {
         if( data === undefined ) {
           console.log( 'faulty ws seq message', _msg.data )
         }else{
-          Gibber.Scheduler.seq( data );
+          const from = socket === Communication.liveSocket ? 'live' : 'max' 
+          Gibber.Scheduler.seq( data, socket.clientName );
         }
         break;
 
@@ -152,10 +178,13 @@ let Communication = {
     }
   },
 
-  send( code ) {
+  send( code, to='live' ) {
     if( Communication.connected ) {
+      //if( code === true ) debugger
       if( Communication.debug.output ) Gibber.log( 'beat:', Gibber.Scheduler.currentBeat, 'msg:', code  )
-      Communication.wsocket.send( code )
+      
+      const socket = to === 'live' ? Communication.liveSocket : Communication.maxSocket
+      socket.send( code )
     }
   },
 

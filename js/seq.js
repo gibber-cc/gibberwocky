@@ -11,7 +11,7 @@ let seqclosure = function( Gibber ) {
     _seqs: [],
     type: 'sequence',
 
-    create( values, timings, key, object = null, priority=0 ) {
+    create( values, timings, key, object = null, priority=0, mode='live' ) {
       let seq = Object.create( this )
 
       if( values.isGen ) values  = Gibber.WavePattern( values )
@@ -36,12 +36,14 @@ let seqclosure = function( Gibber ) {
         priority,
         trackID:-1,
         octave:0,
-        autorun:[]
+        autorun:[],
+        mode
       })
 
+      seq.__client = object.__client
       seq.autorun.init = false
 
-      if( key === 'note' || key === 'midinote' ) {
+      if( key.indexOf( 'note' ) > -1 ) {
         let __velocity = null 
         seq.velocity = v => {
           if( v !== undefined ) {
@@ -121,7 +123,9 @@ let seqclosure = function( Gibber ) {
         this.values = valuesPattern
       }
 
-      if( this.key === 'note' ) {
+      // only apply for 'note' messages, but need to check for longer keys due to 
+      // max/msp addressing
+      if( this.key.indexOf( 'midinote' ) === -1 && this.key.indexOf( 'note' ) > -1 ) {
         if( this.values.filters.findIndex( v => v.type === 'note' ) === -1 ) {
           // round the values for transformation to midinotes... XXX what about for Max version?
           this.values.filters.push( args => { 
@@ -134,7 +138,7 @@ let seqclosure = function( Gibber ) {
           noteFilter.type = 'note'
           this.values.filters.push( noteFilter )
         }
-      } else if( this.key === 'chord' ) {
+      } else if( this.key.indexOf( 'midichord' ) === -1 && this.key.indexOf( 'chord' ) > -1  ) {
 
         this.values.filters.push( args => {
           let chord = args[ 0 ], out
@@ -269,7 +273,7 @@ let seqclosure = function( Gibber ) {
       if( this.running ) return
       this.running = true
       //console.log( 'starting with offset', this.offset ) 
-      Gibber.Scheduler.addMessage( this, Big( this.offset ), true, this.priority )     
+      Gibber.Scheduler.addMessage( this, Big( this.offset ), true, this.priority, this.object.__client )     
       
       return this
     },
@@ -352,7 +356,7 @@ let seqclosure = function( Gibber ) {
             }
 
             let msg = this.externalMessages[ this.key ]( value, beat + _beatOffset, this.trackID, this )
-            scheduler.msgs.push( msg, priority > this.priority ? priority : this.priority )
+            scheduler.msgs.push( [msg, this.__client ])
           
           } else { // schedule internal method / function call immediately
 
