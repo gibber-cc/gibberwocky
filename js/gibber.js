@@ -134,18 +134,19 @@ let Gibber = {
       this.Seq._seqs[ i ].clear()
     }
     
-    setTimeout( () => {
-      for( let key in Gibber.currentTrack.markup.textMarkers ) {
-        let marker = Gibber.currentTrack.markup.textMarkers[ key ]
+    if( Gibber.currentTrack !== null ) {
+      setTimeout( () => {
+        for( let key in Gibber.currentTrack.markup.textMarkers ) {
+          let marker = Gibber.currentTrack.markup.textMarkers[ key ]
 
-        if( Array.isArray( marker ) ) {
-          marker.forEach( m => m.clear() )
-        }else{
-          if( marker.clear ) marker.clear() 
+          if( Array.isArray( marker ) ) {
+            marker.forEach( m => m.clear() )
+          }else{
+            if( marker.clear ) marker.clear() 
+          }
         }
-      }
-    }, 250 )
-
+      }, 250 )
+    }
     Gibber.Gen.clear()
     Gibber.Environment.clear()
     Gibber.publish( 'clear' )
@@ -178,12 +179,14 @@ let Gibber = {
     }
   },
 
-  addSequencingToMethod( obj, methodName, priority, overrideName, mode='live' ) {
+  addSequencingToMethod( obj, methodName, priority, overrideName, mode ) {
     
     if( !obj.sequences ) obj.sequences = {}
     if( overrideName === undefined ) overrideName = methodName 
     
     let lastId = 0
+    if( mode !== undefined && (obj.__client === undefined || obj.__client === null ) ) obj.__client = mode
+
     obj[ methodName ].seq = function( values, timings, id=0, delay=0 ) {
       let seq
       lastId = id
@@ -312,6 +315,8 @@ let Gibber = {
             Gibber.Gen.connected.push( __v )
           }
 
+          debugger
+
           if( hasGen === true ) { 
             Gibber.Communication.send( `gen ${parameter.id} "${__v.out()}"` )
           }else{
@@ -394,7 +399,7 @@ let Gibber = {
 
     p.properties = parameter
 
-    Gibber.addSequencingToMethod( obj, methodName, 0, seqKey )
+    Gibber.addSequencingToMethod( obj, methodName, 0, seqKey, mode )
   },
 
   

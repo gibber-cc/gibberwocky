@@ -102,12 +102,12 @@ let Channel = {
     }
 
     Gibber.Environment.codeMarkup.prepareObject( channel ) 
-    Gibber.addSequencingToMethod( channel, 'note' )
-    Gibber.addSequencingToMethod( channel, 'chord' )
-    Gibber.addSequencingToMethod( channel, 'velocity', 1 )
-    Gibber.addSequencingToMethod( channel, 'duration', 1 )
-    Gibber.addSequencingToMethod( channel, 'midinote' )
-    Gibber.addSequencingToMethod( channel, 'midichord' )
+    Gibber.addSequencingToMethod( channel, 'note', null, null, 'midi' )
+    Gibber.addSequencingToMethod( channel, 'chord', null, null, 'midi' )
+    Gibber.addSequencingToMethod( channel, 'velocity', 1, null, 'midi' )
+    Gibber.addSequencingToMethod( channel, 'duration', 1, null, 'midi' )
+    Gibber.addSequencingToMethod( channel, 'midinote', null, null, 'midi' )
+    Gibber.addSequencingToMethod( channel, 'midichord', null, null, 'midi' )
 
     for( let i = 0; i < 128; i++ ) {
       const ccnum = i
@@ -125,7 +125,7 @@ let Channel = {
         }
       })
 
-      Gibber.addMethod( channel, 'cc'+ccnum, channel.number, ccnum  ) 
+      Gibber.addMethod( channel, 'cc'+ccnum, channel.number, ccnum, 'midi' ) 
       //Gibber.addSequencingToMethod( channel, 'cc'+i  )
     }
 

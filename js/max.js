@@ -46,44 +46,56 @@ module.exports = function( Gibber ) {
     processMOM() {
       for( let signalNumber of Max.MOM.signals ) {
         Max.signals[ signalNumber ] = function( genGraph ) {
-          if( typeof genGraph === 'number' ) {
-            genGraph = Gibber.Gen.functions.param( genGraph )
-          }
+          // getter
+          if( genGraph === undefined ) return Max.signals[ signalNumber ].genGraph
+
+          //if( typeof genGraph === 'number' ) {
+          //  genGraph = Gibber.Gen.functions.param( genGraph )
+          //}
           
-          Max.addIdToUgen( signalNumber, genGraph )
+          //Max.addIdToUgen( signalNumber, genGraph )
 
-          if( Gibber.Gen.connected.find( e => e.id === signalNumber ) === undefined ) {
-            Gibber.Gen.connected.push( genGraph )
-          }
+          //if( Gibber.Gen.connected.find( e => e.id === signalNumber ) === undefined ) {
+          //  Gibber.Gen.connected.push( genGraph )
+          //}
 
-          Gibber.Gen.lastConnected = genGraph
+          Gibber.Gen.lastConnected.unshift( genGraph.render('gen') )
 
-          if( '__widget__' in genGraph ) {
-            genGraph.__widget__.place()
-          }
+          //if( '__widget__' in genGraph ) {
+          //  genGraph.__widget__.place()
+          //}
 
-          Gibber.Communication.send( `sig ${signalNumber} expr "${genGraph.out()}"`, 'max' )
+          Gibber.Communication.send( `sig ${signalNumber} expr "${genGraph.render('gen').out()}"`, 'max' )
           if( genGraph.isGen ) {
             Gibber.Environment.codeMarkup.TEST = genGraph
           }
+
+          Max.signals[ signalNumber ].genGraph = genGraph
         }
         Max.signals[ signalNumber ].id = signalNumber
+        Max.signals[ signalNumber ].__client = 'max'
+
+        Gibber.addSequencingToMethod( Max.signals, signalNumber, 0, null, 'max' )
       }
 
       Max.params.path = 'set'
       for( let param of Max.MOM.root.params ) {
         Gibber.addMethod( Max.params, param.varname, null, null, 'max' )
+        Max.params[ param.varname ].__client = 'max'
       }
 
       for( let receive in Max.MOM.receives ) {
         Max.receives[ receive ] = function( v ) {
           Gibber.Communication.send( `${receive} ${v}`, 'max' )
         }
+
+        Max.receives[ receive ].__client = 'max'
         Gibber.addSequencingToMethod( Max.receives, receive, 0, 'max' )
       }
 
       for( let device of Max.MOM.root.devices ) {
         Max.devices[ device.path ] = makeDevice( device )
+        Max.devices[ device.path ].__client = 'max'
       }
 
       Gibber.Environment.momView.init( Gibber )
@@ -105,7 +117,7 @@ module.exports = function( Gibber ) {
         // whenever a property on the namespace is accessed
         get( target, prop, receiver ) {
           // if the property is undefined...
-          if( target[ prop ] === undefined && prop !== 'markup' && prop !== 'seq' && prop !== 'sequences' ) {
+          if( target[ prop ] === undefined && prop !== 'markup' && prop !== 'seq' && prop !== 'sequences' && prop !== '__client' ) {
             target[ prop ] = Max.namespace( prop, target )
             target[ prop ].address = addr + ' ' + prop 
           }
@@ -115,6 +127,7 @@ module.exports = function( Gibber ) {
       })
 
       target[ str ] = proxy 
+      target.__client = 'max'
 
       Gibber.addSequencingToMethod( target, str, 0, addr, 'max' )           
 

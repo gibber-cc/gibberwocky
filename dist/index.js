@@ -4645,7 +4645,7 @@ module.exports = function( Marker ) {
       state.push( node.value )
     },
     Identifier( node, state, cb ) {
-      state.push( node.name )
+      state.push( strip( node.name ) )
     },
     AssignmentExpression( expression, state, cb ) {
       // the only assignments we're interested in for annotation purposes are
@@ -4711,7 +4711,9 @@ module.exports = function( Marker ) {
     MemberExpression( node, state, cb ) {
       // XXX why was this here?
       //if( node.object.name === 'tracks' ) state.length = 0
-      console.log( 'member' )
+
+      // for any member name, make sure to get rid of potential quotes surrounding it using
+      // the strip function.
       
       if( node.object.type !== 'Identifier' ) {
         if( node.property ) {
@@ -4782,12 +4784,17 @@ const Waveform = {
         const state = cm.__state
         
         if( node.callee.name !== 'Lookup' ) {
-          const track  = window[ state[0] ][ state[1] ]
+          const objName = `${state[0]}`
+          const track  = window.signals[0]//window[ objName ][ state[1] ]
+          let wave
+          if( state.length > 2 ) {
+            wave = track[ node.callee.object.property.value][ node.arguments[2].value ] 
+          }else{
+            wave = track() 
+          }
 
-          const seq = track[ node.callee.object.property.value][ node.arguments[2].value ] 
-
-          if( seq !== undefined && seq.values.type === 'WavePattern' ) {
-            widget.gen = seq.values
+          if( wave !== undefined && wave.values.type === 'WavePattern' ) {
+            widget.gen = wave.values
             widget.gen.paramID += '_' + node.arguments[2].value
             //widget.gen.widget = widget
           }
@@ -5279,12 +5286,12 @@ let Channel = {
     }
 
     Gibber.Environment.codeMarkup.prepareObject( channel ) 
-    Gibber.addSequencingToMethod( channel, 'note' )
-    Gibber.addSequencingToMethod( channel, 'chord' )
-    Gibber.addSequencingToMethod( channel, 'velocity', 1 )
-    Gibber.addSequencingToMethod( channel, 'duration', 1 )
-    Gibber.addSequencingToMethod( channel, 'midinote' )
-    Gibber.addSequencingToMethod( channel, 'midichord' )
+    Gibber.addSequencingToMethod( channel, 'note', null, null, 'midi' )
+    Gibber.addSequencingToMethod( channel, 'chord', null, null, 'midi' )
+    Gibber.addSequencingToMethod( channel, 'velocity', 1, null, 'midi' )
+    Gibber.addSequencingToMethod( channel, 'duration', 1, null, 'midi' )
+    Gibber.addSequencingToMethod( channel, 'midinote', null, null, 'midi' )
+    Gibber.addSequencingToMethod( channel, 'midichord', null, null, 'midi' )
 
     for( let i = 0; i < 128; i++ ) {
       const ccnum = i
@@ -5302,7 +5309,7 @@ let Channel = {
         }
       })
 
-      Gibber.addMethod( channel, 'cc'+ccnum, channel.number, ccnum  ) 
+      Gibber.addMethod( channel, 'cc'+ccnum, channel.number, ccnum, 'midi' ) 
       //Gibber.addSequencingToMethod( channel, 'cc'+i  )
     }
 
@@ -7469,18 +7476,19 @@ let Gibber = {
       this.Seq._seqs[ i ].clear()
     }
     
-    setTimeout( () => {
-      for( let key in Gibber.currentTrack.markup.textMarkers ) {
-        let marker = Gibber.currentTrack.markup.textMarkers[ key ]
+    if( Gibber.currentTrack !== null ) {
+      setTimeout( () => {
+        for( let key in Gibber.currentTrack.markup.textMarkers ) {
+          let marker = Gibber.currentTrack.markup.textMarkers[ key ]
 
-        if( Array.isArray( marker ) ) {
-          marker.forEach( m => m.clear() )
-        }else{
-          if( marker.clear ) marker.clear() 
+          if( Array.isArray( marker ) ) {
+            marker.forEach( m => m.clear() )
+          }else{
+            if( marker.clear ) marker.clear() 
+          }
         }
-      }
-    }, 250 )
-
+      }, 250 )
+    }
     Gibber.Gen.clear()
     Gibber.Environment.clear()
     Gibber.publish( 'clear' )
@@ -7513,12 +7521,14 @@ let Gibber = {
     }
   },
 
-  addSequencingToMethod( obj, methodName, priority, overrideName, mode='live' ) {
+  addSequencingToMethod( obj, methodName, priority, overrideName, mode ) {
     
     if( !obj.sequences ) obj.sequences = {}
     if( overrideName === undefined ) overrideName = methodName 
     
     let lastId = 0
+    if( mode !== undefined && (obj.__client === undefined || obj.__client === null ) ) obj.__client = mode
+
     obj[ methodName ].seq = function( values, timings, id=0, delay=0 ) {
       let seq
       lastId = id
@@ -7647,6 +7657,8 @@ let Gibber = {
             Gibber.Gen.connected.push( __v )
           }
 
+          debugger
+
           if( hasGen === true ) { 
             Gibber.Communication.send( `gen ${parameter.id} "${__v.out()}"` )
           }else{
@@ -7729,7 +7741,7 @@ let Gibber = {
 
     p.properties = parameter
 
-    Gibber.addSequencingToMethod( obj, methodName, 0, seqKey )
+    Gibber.addSequencingToMethod( obj, methodName, 0, seqKey, mode )
   },
 
   
@@ -9257,44 +9269,57 @@ module.exports = function( Gibber ) {
     processMOM() {
       for( let signalNumber of Max.MOM.signals ) {
         Max.signals[ signalNumber ] = function( genGraph ) {
-          if( typeof genGraph === 'number' ) {
-            genGraph = Gibber.Gen.functions.param( genGraph )
-          }
+          // getter
+          if( genGraph === undefined ) return Max.signals[ signalNumber ].genGraph
+
+          //if( typeof genGraph === 'number' ) {
+          //  genGraph = Gibber.Gen.functions.param( genGraph )
+          //}
           
-          Max.addIdToUgen( signalNumber, genGraph )
+          //Max.addIdToUgen( signalNumber, genGraph )
 
-          if( Gibber.Gen.connected.find( e => e.id === signalNumber ) === undefined ) {
-            Gibber.Gen.connected.push( genGraph )
-          }
+          //if( Gibber.Gen.connected.find( e => e.id === signalNumber ) === undefined ) {
+          //  Gibber.Gen.connected.push( genGraph )
+          //}
 
-          Gibber.Gen.lastConnected = genGraph
+          Gibber.Gen.lastConnected.unshift( genGraph.render('gen') )
 
-          if( '__widget__' in genGraph ) {
-            genGraph.__widget__.place()
-          }
+          //if( '__widget__' in genGraph ) {
+          //  genGraph.__widget__.place()
+          //}
 
-          Gibber.Communication.send( `sig ${signalNumber} expr "${genGraph.out()}"`, 'max' )
+          console.log( 'render:', genGraph.render('gen') )
+          Gibber.Communication.send( `sig ${signalNumber} expr "${genGraph.render('gen').out()}"`, 'max' )
           if( genGraph.isGen ) {
             Gibber.Environment.codeMarkup.TEST = genGraph
           }
+
+          Max.signals[ signalNumber ].genGraph = genGraph
         }
         Max.signals[ signalNumber ].id = signalNumber
+        Max.signals[ signalNumber ].__client = 'max'
+
+        Gibber.addSequencingToMethod( Max.signals, signalNumber, 0, null, 'max' )
       }
 
       Max.params.path = 'set'
       for( let param of Max.MOM.root.params ) {
         Gibber.addMethod( Max.params, param.varname, null, null, 'max' )
+        Max.params[ param.varname ].__client = 'max'
       }
 
       for( let receive in Max.MOM.receives ) {
         Max.receives[ receive ] = function( v ) {
           Gibber.Communication.send( `${receive} ${v}`, 'max' )
         }
+
+        Max.receives[ receive ].__client = 'max'
         Gibber.addSequencingToMethod( Max.receives, receive, 0, 'max' )
       }
 
       for( let device of Max.MOM.root.devices ) {
         Max.devices[ device.path ] = makeDevice( device )
+        Max.devices[ device.path ].__client = 'max'
       }
 
       Gibber.Environment.momView.init( Gibber )
@@ -9316,7 +9341,7 @@ module.exports = function( Gibber ) {
         // whenever a property on the namespace is accessed
         get( target, prop, receiver ) {
           // if the property is undefined...
-          if( target[ prop ] === undefined && prop !== 'markup' && prop !== 'seq' && prop !== 'sequences' ) {
+          if( target[ prop ] === undefined && prop !== 'markup' && prop !== 'seq' && prop !== 'sequences' && prop !== '__client' ) {
             target[ prop ] = Max.namespace( prop, target )
             target[ prop ].address = addr + ' ' + prop 
           }
@@ -9326,6 +9351,7 @@ module.exports = function( Gibber ) {
       })
 
       target[ str ] = proxy 
+      target.__client = 'max'
 
       Gibber.addSequencingToMethod( target, str, 0, addr, 'max' )           
 
@@ -10097,18 +10123,18 @@ const create = function( spec ) {
 			d[ value.name ] = function( v ) {
 				Gibber.Communication.send( `set ${d.path} ${value.name} ${v}` )           
 			} 
-			Gibber.addSequencingToMethod( d, value.name, 0 )
+      Gibber.addSequencingToMethod( d, value.name, 0, null, 'max' )
 		}
 
     // create MIDI sequencing functions
     // pass d.path + method name to force sequencer to use external sequencing methods defined
     // start ~ line 82. velocity and duration are only used internally.
-		Gibber.addSequencingToMethod( d, 'midinote',  0, d.path+'midinote' ) 
-		Gibber.addSequencingToMethod( d, 'note',      0, d.path+'note' ) 
-		Gibber.addSequencingToMethod( d, 'midichord', 0, d.path+'midichord' ) 
-		Gibber.addSequencingToMethod( d, 'chord',     0, d.path+'chord' ) 
-		Gibber.addSequencingToMethod( d, 'velocity', 1 ) 
-		Gibber.addSequencingToMethod( d, 'duration', 1 ) 
+		Gibber.addSequencingToMethod( d, 'midinote',  0, d.path+'midinote', 'max' ) 
+		Gibber.addSequencingToMethod( d, 'note',      0, d.path+'note', 'max' ) 
+		Gibber.addSequencingToMethod( d, 'midichord', 0, d.path+'midichord', 'max' ) 
+		Gibber.addSequencingToMethod( d, 'chord',     0, d.path+'chord', 'max' ) 
+		Gibber.addSequencingToMethod( d, 'velocity', 1, null, 'max' ) 
+		Gibber.addSequencingToMethod( d, 'duration', 1, null, 'max' ) 
 
     d.stop = ()=> {
       for( let key in d.sequences ) {
@@ -11520,6 +11546,7 @@ let seqclosure = function( Gibber ) {
       })
 
       seq.__client = object.__client
+
       seq.autorun.init = false
 
       if( key.indexOf( 'note' ) > -1 ) {

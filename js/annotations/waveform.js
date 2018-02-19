@@ -49,12 +49,17 @@ const Waveform = {
         const state = cm.__state
         
         if( node.callee.name !== 'Lookup' ) {
-          const track  = window[ state[0] ][ state[1] ]
+          const objName = `${state[0]}`
+          const track  = window.signals[0]//window[ objName ][ state[1] ]
+          let wave
+          if( state.length > 2 ) {
+            wave = track[ node.callee.object.property.value][ node.arguments[2].value ] 
+          }else{
+            wave = track() 
+          }
 
-          const seq = track[ node.callee.object.property.value][ node.arguments[2].value ] 
-
-          if( seq !== undefined && seq.values.type === 'WavePattern' ) {
-            widget.gen = seq.values
+          if( wave !== undefined && wave.values.type === 'WavePattern' ) {
+            widget.gen = wave.values
             widget.gen.paramID += '_' + node.arguments[2].value
             //widget.gen.widget = widget
           }

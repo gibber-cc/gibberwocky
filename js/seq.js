@@ -41,6 +41,7 @@ let seqclosure = function( Gibber ) {
       })
 
       seq.__client = object.__client
+
       seq.autorun.init = false
 
       if( key.indexOf( 'note' ) > -1 ) {
