@@ -88,6 +88,7 @@ let Environment = {
     for( let sync of syncs ) {
       document.querySelector( '#' + sync + 'SyncRadio' ).onclick = ()=> {
         Gibber.Scheduler.__sync__ = sync
+        localStorage.setItem('sync', sync)
       }
     }
   },

@@ -71,7 +71,7 @@ const create = function( spec ) {
 		// create functions to set the value of all exposed device parameters
 		for( let value of d.values ) {
 			d[ value.name ] = function( v ) {
-				Gibber.Communication.send( `set ${d.path} ${value.name} ${v}` )           
+				Gibber.Communication.send( `set ${d.path} ${value.name} ${v}`, 'max' )           
 			} 
       Gibber.addSequencingToMethod( d, value.name, 0, null, 'max' )
 		}

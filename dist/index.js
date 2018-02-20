@@ -5903,7 +5903,7 @@ let Communication = {
     this.send = this.send.bind( Communication )
   },
 
-  createWebSocket( init, port=8081, host='127.0.0.1', clientName ) {
+  createWebSocket( init, port, host, clientName ) {
     if ( this.connected ) return
 
     if ( 'WebSocket' in window ) {
@@ -5939,7 +5939,12 @@ let Communication = {
         }
 
         // set up an auto-reconnect task:
-        this.connectTask = setTimeout( this.createWebSocket.bind( Communication ) , 2000 )
+        
+        this.connectTask = setTimeout( this.createWebSocket.bind( 
+          Communication, 
+          clientName === 'live' ? Gibber.Live.init : Gibber.Max.init,
+          port, host, clientName ) , 2000 )
+
       }.bind( Communication )
 
       let socket = this.wsocket
@@ -6169,6 +6174,7 @@ let Environment = {
     for( let sync of syncs ) {
       document.querySelector( '#' + sync + 'SyncRadio' ).onclick = ()=> {
         Gibber.Scheduler.__sync__ = sync
+        localStorage.setItem('sync', sync)
       }
     }
   },
@@ -10166,7 +10172,7 @@ const create = function( spec ) {
 		// create functions to set the value of all exposed device parameters
 		for( let value of d.values ) {
 			d[ value.name ] = function( v ) {
-				Gibber.Communication.send( `set ${d.path} ${value.name} ${v}` )           
+				Gibber.Communication.send( `set ${d.path} ${value.name} ${v}`, 'max' )           
 			} 
       Gibber.addSequencingToMethod( d, value.name, 0, null, 'max' )
 		}
