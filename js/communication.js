@@ -1,8 +1,8 @@
 let Gibber = null
 
 let Communication = {
-  livePort: 8081,
-  maxPort:  8082,
+  livePort: 8082,
+  maxPort:  8081,
   socketInitialized: false,
   connectMsg: null,
   debug: {
@@ -77,7 +77,7 @@ let Communication = {
       }.bind( Communication )
 
       this.wsocket.onerror = function( ev ) {
-        Gibber.log( 'WebSocket error' )
+        Gibber.log( `gibberwocky.${clientName} was not able to connect.` )
       }.bind( Communication )
 
       this.wsocket.clientName = clientName

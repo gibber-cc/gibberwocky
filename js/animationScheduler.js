@@ -1,4 +1,5 @@
 const Queue = require( './priorityqueue.js' )
+let Gibber = null
 
 let Scheduler = {
   currentTime : performance.now(),
@@ -9,7 +10,8 @@ let Scheduler = {
     phase:0,
   },
 
-  init() {
+  init( __Gibber ) {
+    Gibber = __Gibber
     window.requestAnimationFrame( this.onAnimationFrame ) 
   },
 

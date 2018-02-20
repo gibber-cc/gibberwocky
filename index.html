@@ -4587,6 +4587,7 @@ module.exports = ( in1, min=0, max=1 ) => {
 
 },{"./floor.js":27,"./gen.js":30,"./memo.js":42,"./sub.js":65}],74:[function(require,module,exports){
 const Queue = require( './priorityqueue.js' )
+let Gibber = null
 
 let Scheduler = {
   currentTime : performance.now(),
@@ -4597,7 +4598,8 @@ let Scheduler = {
     phase:0,
   },
 
-  init() {
+  init( __Gibber ) {
+    Gibber = __Gibber
     window.requestAnimationFrame( this.onAnimationFrame ) 
   },
 
@@ -6740,8 +6742,8 @@ return Marker
 let Gibber = null
 
 let Communication = {
-  livePort: 8081,
-  maxPort:  8082,
+  livePort: 8082,
+  maxPort:  8081,
   socketInitialized: false,
   connectMsg: null,
   debug: {
@@ -6816,7 +6818,7 @@ let Communication = {
       }.bind( Communication )
 
       this.wsocket.onerror = function( ev ) {
-        Gibber.log( 'WebSocket error' )
+        Gibber.log( `gibberwocky.${clientName} was not able to connect.` )
       }.bind( Communication )
 
       this.wsocket.clientName = clientName
@@ -6983,10 +6985,11 @@ let Environment = {
     this.sidebar = document.querySelector( '#sidebar' )
     this.sidebar.isVisible = 1
     //this.lomView.init( Gibber )
-    this.animationScheduler.init()
+    this.animationScheduler.init( Gibber )
     this.codeMarkup.init()
     this.editorWidth = document.querySelector( '#editor' ).style.width
 
+    this.setupClockSelection()
     //this.toggleSidebar()
   },
 
@@ -7028,6 +7031,15 @@ let Environment = {
       window.addEventListener( 'mouseup', mouseup )
     })
 
+  },
+
+  setupClockSelection() {
+    const syncs = ['max','live','clock']
+    for( let sync of syncs ) {
+      document.querySelector( '#' + sync + 'SyncRadio' ).onclick = ()=> {
+        Gibber.Scheduler.__sync__ = sync
+      }
+    }
   },
 
   createCodeMirror() {

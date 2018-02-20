@@ -35,10 +35,11 @@ let Environment = {
     this.sidebar = document.querySelector( '#sidebar' )
     this.sidebar.isVisible = 1
     //this.lomView.init( Gibber )
-    this.animationScheduler.init()
+    this.animationScheduler.init( Gibber )
     this.codeMarkup.init()
     this.editorWidth = document.querySelector( '#editor' ).style.width
 
+    this.setupClockSelection()
     //this.toggleSidebar()
   },
 
@@ -80,6 +81,15 @@ let Environment = {
       window.addEventListener( 'mouseup', mouseup )
     })
 
+  },
+
+  setupClockSelection() {
+    const syncs = ['max','live','clock']
+    for( let sync of syncs ) {
+      document.querySelector( '#' + sync + 'SyncRadio' ).onclick = ()=> {
+        Gibber.Scheduler.__sync__ = sync
+      }
+    }
   },
 
   createCodeMirror() {
