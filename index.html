@@ -8416,7 +8416,7 @@ let Gibber = {
   addSequencingToMethod( obj, methodName, priority, overrideName, mode ) {
     
     if( !obj.sequences ) obj.sequences = {}
-    if( overrideName === undefined ) overrideName = methodName 
+    if( overrideName === undefined || overrideName === null ) overrideName = methodName 
     
     let lastId = 0
     if( mode !== undefined && (obj.__client === undefined || obj.__client === null ) ) obj.__client = mode
