@@ -188,6 +188,7 @@ let Gibber = {
     if( mode !== undefined && (obj.__client === undefined || obj.__client === null ) ) obj.__client = mode
 
     obj[ methodName ].seq = function( values, timings, id=0, delay=0 ) {
+      console.log('sequence!')
       let seq
       lastId = id
 
@@ -212,7 +213,7 @@ let Gibber = {
       seq.start()
 
       // avoid this for gibber objects that don't communicate with Live such as Scale
-      if( obj.id !== undefined ) Gibber.Communication.send( `select_track ${obj.id}` )
+      if( mode === 'live' && obj.id !== undefined ) Gibber.Communication.send( `select_track ${obj.id}` )
 
       // setup code annotations to place values and widget onto pattern object
       // not gen~ object
@@ -278,8 +279,7 @@ let Gibber = {
         p,
         trackID = isNaN( _trackID ) ? obj.id : _trackID
 
-
-    let  seqKey = mode === 'live' ? `${trackID} ${obj.id} ${parameter.id}` : `${obj.address} ${methodName}`
+    let  seqKey = mode === 'live' ? `${trackID} ${obj.id} ${parameter.id}` : `${parameter} ${methodName}`
 
     //console.log( "add method trackID", trackID )
 
@@ -288,7 +288,7 @@ let Gibber = {
     Gibber.Seq.proto.externalMessages[ seqKey ] = ( value, beat ) => {
       let msg = mode === 'live' 
         ? `add ${beat} set ${parameter.id} ${value}`
-        : `add ${beat} ${obj.path} ${methodName} ${value}`
+        : `add ${beat} set ${parameter} ${methodName} ${value}`
               
       return msg
     }
@@ -344,8 +344,6 @@ let Gibber = {
               Gibber.Gen.connected.splice( idx, 1 )
             }
 
-            console.log( 'WP' )
-
             _v.wavePattern = Gibber.WavePattern( _v )
             
             _v.wavePattern.genReplace = function( out ) { 
@@ -398,6 +396,7 @@ let Gibber = {
           
           v = hasGen === true ? __v : _v
         }else{
+          v = typeof _v === 'object' && _v.isGen ? ( hasGen === true ? _v.render( 'gen' ) : _v.render('genish') ) : _v
           if( v.isGen ) {
             if( hasGen ) {
               if( mode === 'live' )
@@ -411,12 +410,13 @@ let Gibber = {
             delete Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
           }
 
-          v = typeof _v === 'object' && _v.isGen ? ( hasGen === true ? _v.render( 'gen' ) : _v.render('genish') ) : _v
-
+         
           if( mode === 'live' ) {
             Gibber.Communication.send( `set ${parameter.id} ${v}`, 'live' )
           }else if( mode === 'max' ) {
-            Gibber.Communication.send( `sig ${parameter.id} expr "out1=${v};"`, 'max' )
+            // how to know if this is a signal? shouldn't be assuming this.
+            Gibber.Communication.send( `set ${parameter} ${methodName} ${v}`, 'max' ) 
+            // Gibber.Communication.send( `sig ${parameter.id} expr "out1=${v};"`, 'max' )
           }
         }
       }else{
