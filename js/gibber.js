@@ -188,7 +188,6 @@ let Gibber = {
     if( mode !== undefined && (obj.__client === undefined || obj.__client === null ) ) obj.__client = mode
 
     obj[ methodName ].seq = function( values, timings, id=0, delay=0 ) {
-      console.log('sequence!')
       let seq
       lastId = id
 
@@ -295,7 +294,7 @@ let Gibber = {
 
     obj[ methodName ] = p = ( _v ) => {
 
-      if( p.properties.quantized === 1 ) _v = Math.round( _v )
+      if( p.properties !== undefined && p.properties.quantized === 1 ) _v = Math.round( _v )
 
       const hasGen = Gibber.__gen.enabled
 
