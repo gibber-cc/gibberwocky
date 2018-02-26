@@ -10993,6 +10993,73 @@ steps[42].rotate.seq( 1,1 )
 // reverse all steps each measure
 steps.reverse.seq( 1, 2 )`,
 
+['using waveforms to generate patterns']:
+`/* Periodic Functions as Patterns */
+
+// Gibberwocky enables you to define continuous signals that are
+// periodically sampled to create patterns, a common technique in
+// the modular synthesis community that was popularized in live coding
+// by the Impromptu and Extempore environments. For example, to use a sine oscillator 
+// to generate a pattern constrained to a musical scale:
+
+// assumes you're using the gibberwocky help patch
+bass = devices['bass']
+bass.note.seq(
+  sine( 1, 0, 4 ), // period (in beats), center, amplitude
+  1/8
+)
+
+bass.octave(-2)
+
+// as you can see from the visualization, this creates a sine oscillator
+// with a period of 4 beats, an amplitude of 4 and a center (bias) of 0.
+// sine() is a convenience method in gibberwocky; we could recreate this
+// waveform using low-level Gen/genish functions:
+
+bass.note.seq(
+  mul( cycle( btof(4) ), 4 ),
+  1/8
+)
+
+// ... or for a straight line:
+bass.note.seq(
+  mul( phasor( btof(8)), 8 ),
+  1/8
+)
+
+// of course we can use a pattern for our rhythm:
+bass.note.seq(
+  sine( 8, 0, 7 ),
+  Euclid(5,16)
+  1
+)
+
+bass.note[1].timings.rotate.seq( 1,1 )
+
+// a Lookup object can lookup a value in an array based on a signal.
+// For example, in the sequence below the pattern alternates between
+// 1/16, 1/8, and 1/4 notes based on a phasor:
+bass.note.seq(
+  0, 
+  Lookup( beats(4), [1/16,1/8,1/4] )               
+)
+
+
+// here's an example specifically sequencing a snare drum pattern:
+devices['drums'].midinote.seq(
+  38,
+  Lookup( beats(4), [ 1/32, 1/16, 1/8, 1/4 ] )      
+)
+// as one final example, in multi-samplers / drum machines different
+// midi notes trigger different sounds. Using signals to control 
+// select sounds can yield interesting patterns over time. also note
+// that with our sine ugen we can pass an initial phase between 0-1.
+// passing .75 means our sine oscillator starts at its lowest point,
+// which in this case triggers the kick drum sound on beat 1
+devices['drums'].midinote.seq(
+  sine( 1, 40, 4, .75 ),
+  1/16
+)`
 }
 
 module.exports = Examples
