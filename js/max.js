@@ -46,6 +46,7 @@ module.exports = function( Gibber ) {
     processMOM() {
       for( let signalNumber of Max.MOM.signals ) {
         Max.signals[ signalNumber ] = function( genGraph ) {
+          console.log( 'setting signal' )
           // getter
           if( genGraph === undefined ) return Max.signals[ signalNumber ].genGraph
 
@@ -72,6 +73,7 @@ module.exports = function( Gibber ) {
           }
 
           Max.signals[ signalNumber ].genGraph = rendered
+          Max.signals[ signalNumber ].genGraph.__client = 'max'
         }
         Max.signals[ signalNumber ].id = signalNumber
         Max.signals[ signalNumber ].__client = 'max'

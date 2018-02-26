@@ -19,9 +19,13 @@ const waveObjects = {
     const ugen = genAbstract.ugens.add( bias, genAbstract.ugens.mul( sine, amp ) )
     ugen.__phase = initPhase
 
+    //__cycle.__onrender = ()=> __cycle.rendered.__client = ugen.__client
+
     ugen.__onrender = ()=> {
+      __cycle.rendered.__client = ugen.__client
 
       ugen.frequency = v => {
+        __cycle.__client = ugen.__client
         if( v === undefined ) {
           return freq
         }else{
@@ -31,7 +35,7 @@ const waveObjects = {
         }
       }
 
-      Gibber.addSequencingToMethod( ugen, 'frequency' )
+      Gibber.addSequencingToMethod( ugen, 'frequency', 0, null, 'max' )
 
       ugen.bias = v => {
         if( v === undefined ) {

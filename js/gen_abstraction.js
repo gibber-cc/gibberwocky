@@ -38,7 +38,7 @@ assignInputProperties( genishGraph, abstractGraph ) {
 },
 */
 
-const defineMethod = function( obj, methodName, param, priority=0 ) {
+const defineMethod = function( obj, methodName, param, priority=0, mode='internal' ) {
   obj[ methodName ] = v => {
     if( v === undefined ) return param.value
     
@@ -48,13 +48,15 @@ const defineMethod = function( obj, methodName, param, priority=0 ) {
   
   if( !obj.sequences ) obj.sequences = {}
 
-  obj[ methodName ].seq = function( values, timings, id=0, delay=0 ) {
+  obj[ methodName ].seq = function( values, timings, id=0, delay=0, mode='internal' ) {
     if( obj.sequences[ methodName ] === undefined ) obj.sequences[ methodName ] = []
 
     if( obj.sequences[ methodName ][ id ] !== undefined ) obj.sequences[ methodName ][ id ].clear()
 
-    const seq = Gibber.Seq( values, timings, methodName, obj, priority )
+    const seq = Gibber.Seq( values, timings, methodName, obj, priority, mode )
     obj.sequences[ methodName ][ id ] = seq 
+
+    obj.__client = mode
 
     seq.__tick = seq.tick
     seq.tick = function( ...args ) {
@@ -82,7 +84,7 @@ const defineMethod = function( obj, methodName, param, priority=0 ) {
     // avoid this for gibber objects that don't communicate with Live such as Scale
     if( obj.id !== undefined ) Gibber.Communication.send( `select_track ${obj.id}` )
 
-    return seq
+      return seq
   }
     
   obj[ methodName ].seq.delay = v => obj[ methodName ][ lastId ].delay( v )
@@ -98,6 +100,17 @@ const defineMethod = function( obj, methodName, param, priority=0 ) {
   }
 }
 
+const assignClient = function( node, client ) {
+  if( typeof node === 'object' ) {
+    if( node.inputs !== undefined ) {
+      node.inputs.forEach( input => {
+        input.__client = client
+        assignClient( input )
+      })
+    }
+  }
+}
+
 module.exports = function( Gibber ) {
   const gen = genreq( Gibber )
   const genfunctions = {}
@@ -105,7 +118,7 @@ module.exports = function( Gibber ) {
   gen.export( genfunctions )
 
   const __ugenproto__ = {
-    render( mode ) {
+    render( mode, client='live' ) {
       let inputs = [], inputNum = 0
 
       this.mode = mode
@@ -119,7 +132,7 @@ module.exports = function( Gibber ) {
       for( let input of this.inputs ) {
         // use input.render as check to make sure this isn't a properties dictionary
         if( typeof input === 'object' && input.render !== undefined ) {
-          inputs.push( input.render( mode ) )
+          inputs.push( input.render( mode, client ) )
         }else{
           if( mode === 'genish' && typeof input === 'number' ) { // replace numbers with params
             let _input =  genish.param( input )
@@ -143,6 +156,11 @@ module.exports = function( Gibber ) {
       this.rendered = ugen
       this.rendered.paramID = this.paramID
       this.rendered.track = this.track
+
+      this.rendered.__client = client 
+
+      assignClient( this.rendered, client )
+
 
       if( typeof this.__onrender === 'function' ) { this.__onrender() }
 
@@ -269,7 +287,7 @@ module.exports = function( Gibber ) {
           }
         }
 
-        Gibber.addSequencingToMethod( _add, 'frequency' )
+        Gibber.addSequencingToMethod( _add, 'frequency', 0, null, 'max' )
         Gibber.addSequencingToMethod( _add, 'amp' )
         Gibber.addSequencingToMethod( _add, 'center' )
 

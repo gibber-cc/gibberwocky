@@ -44,45 +44,47 @@ let seqclosure = function( Gibber ) {
 
       seq.autorun.init = false
 
-      if( key.indexOf( 'note' ) > -1 ) {
-        let __velocity = null 
-        seq.velocity = v => {
-          if( v !== undefined ) {
-            __velocity = v
-          }
-          
-          let output = __velocity
-          if( output === null ) {
-            let track = null
-            while( track === null ) {
-              track = seq.object
+      if( typeof key === 'string' ) {
+        if( key.indexOf( 'note' ) > -1 ) {
+          let __velocity = null 
+          seq.velocity = v => {
+            if( v !== undefined ) {
+              __velocity = v
             }
+            
+            let output = __velocity
+            if( output === null ) {
+              let track = null
+              while( track === null ) {
+                track = seq.object
+              }
 
-            output = track.velocity()
-          }
-          return output
-        }
-
-        Gibber.addSequencingToMethod( seq, 'velocity', 1 )
-
-        let __duration = null 
-        seq.duration = v => {
-          if( v !== undefined ) {
-            __duration = v
-          }
-          let output = __duration
-          if( output === null ) {
-            let track = null
-            while( track === null ) {
-              track = seq.object
+              output = track.velocity()
             }
-
-            output = track.duration()
+            return output
           }
-          return output
-        }
 
-        Gibber.addSequencingToMethod( seq, 'duration', 1 )
+          Gibber.addSequencingToMethod( seq, 'velocity', 1 )
+
+          let __duration = null 
+          seq.duration = v => {
+            if( v !== undefined ) {
+              __duration = v
+            }
+            let output = __duration
+            if( output === null ) {
+              let track = null
+              while( track === null ) {
+                track = seq.object
+              }
+
+              output = track.duration()
+            }
+            return output
+          }
+
+          Gibber.addSequencingToMethod( seq, 'duration', 1 )
+        }
       }
       
       seq.init()
@@ -124,42 +126,45 @@ let seqclosure = function( Gibber ) {
         this.values = valuesPattern
       }
 
-      // only apply for 'note' messages, but need to check for longer keys due to 
-      // max/msp addressing
-      if( this.key.indexOf( 'midinote' ) === -1 && this.key.indexOf( 'note' ) > -1 ) {
-        if( this.values.filters.findIndex( v => v.type === 'note' ) === -1 ) {
-          // round the values for transformation to midinotes... XXX what about for Max version?
-          this.values.filters.push( args => { 
-            if( typeof args[0] !== 'string' ) args[0] = Math.round( args[0] )
 
-            return args 
-          })
+      if( typeof this.key === 'string' ) {
+        // only apply for 'note' messages, but need to check for longer keys due to 
+        // max/msp addressing
+        if( this.key.indexOf( 'midinote' ) === -1 && this.key.indexOf( 'note' ) > -1 ) {
+          if( this.values.filters.findIndex( v => v.type === 'note' ) === -1 ) {
+            // round the values for transformation to midinotes... XXX what about for Max version?
+            this.values.filters.push( args => { 
+              if( typeof args[0] !== 'string' ) args[0] = Math.round( args[0] )
 
-          const noteFilter = this.__noteFilter.bind( this ) 
-          noteFilter.type = 'note'
-          this.values.filters.push( noteFilter )
-        }
-      } else if( this.key.indexOf( 'midichord' ) === -1 && this.key.indexOf( 'chord' ) > -1  ) {
+              return args 
+            })
 
-        this.values.filters.push( args => {
-          let chord = args[ 0 ], out
-
-          if( typeof chord === 'string' ) {
-            let chordObj = Gibber.Theory.Chord.create( chord )
-
-            out = chordObj.notes 
-          }else{
-            if( typeof chord === 'function' ) chord = chord()
-            out = chord.map( Gibber.Theory.Note.convertToMIDI )
-            if( this.octave !== 0 || this.object.octave() !== 0 ) {
-              out = this.octave !== 0 ? out.map( v => v + ( this.octave * 12 ) ) : out.map( v=> v + ( this.object.octave() * 12 ) )
-            }
+            const noteFilter = this.__noteFilter.bind( this ) 
+            noteFilter.type = 'note'
+            this.values.filters.push( noteFilter )
           }
+        } else if( this.key.indexOf( 'midichord' ) === -1 && this.key.indexOf( 'chord' ) > -1  ) {
 
-          args[0] = out
-          
-          return args
-        })
+          this.values.filters.push( args => {
+            let chord = args[ 0 ], out
+
+            if( typeof chord === 'string' ) {
+              let chordObj = Gibber.Theory.Chord.create( chord )
+
+              out = chordObj.notes 
+            }else{
+              if( typeof chord === 'function' ) chord = chord()
+              out = chord.map( Gibber.Theory.Note.convertToMIDI )
+              if( this.octave !== 0 || this.object.octave() !== 0 ) {
+                out = this.octave !== 0 ? out.map( v => v + ( this.octave * 12 ) ) : out.map( v=> v + ( this.object.octave() * 12 ) )
+              }
+            }
+
+            args[0] = out
+            
+            return args
+          })
+        }
       }
       
        //XXX implement per sequence velocity

@@ -6763,13 +6763,17 @@ let Gen  = {
     for( let key of Gen.functions[ name ].properties ) { 
 
       let value = params[ count++ ]
-      obj[ key ] = ( v ) => {
+      obj[ key ] = v => {
         if( v === undefined ) {
           return value
         }else{
           value = v
           if( obj.active ) {
-            Gibber.Communication.send( `genp ${obj.paramID} ${obj[ key ].uid} ${v}` ) 
+            if( obj.__client === 'live' ) {
+              Gibber.Communication.send( `genp ${obj.paramID} ${obj[ key ].uid} ${v}` ) 
+            }else if( obj.__client === 'max' ) {
+              Gibber.Communication.send( `sig ${obj.paramID} param ${obj[ key ].uid} ${v}`, 'max' ) 
+            }
           }
         }
       }
@@ -6980,7 +6984,7 @@ let Gen  = {
         }
       }
 
-      Gibber.addSequencingToMethod( _add, 'frequency' )
+      Gibber.addSequencingToMethod( _add, 'frequency', 0, null, 'max' )
       Gibber.addSequencingToMethod( _add, 'amp' )
       Gibber.addSequencingToMethod( _add, 'center' )
 
@@ -7090,7 +7094,7 @@ assignInputProperties( genishGraph, abstractGraph ) {
 },
 */
 
-const defineMethod = function( obj, methodName, param, priority=0 ) {
+const defineMethod = function( obj, methodName, param, priority=0, mode='internal' ) {
   obj[ methodName ] = v => {
     if( v === undefined ) return param.value
     
@@ -7100,13 +7104,15 @@ const defineMethod = function( obj, methodName, param, priority=0 ) {
   
   if( !obj.sequences ) obj.sequences = {}
 
-  obj[ methodName ].seq = function( values, timings, id=0, delay=0 ) {
+  obj[ methodName ].seq = function( values, timings, id=0, delay=0, mode='internal' ) {
     if( obj.sequences[ methodName ] === undefined ) obj.sequences[ methodName ] = []
 
     if( obj.sequences[ methodName ][ id ] !== undefined ) obj.sequences[ methodName ][ id ].clear()
 
-    const seq = Gibber.Seq( values, timings, methodName, obj, priority )
+    const seq = Gibber.Seq( values, timings, methodName, obj, priority, mode )
     obj.sequences[ methodName ][ id ] = seq 
+
+    obj.__client = mode
 
     seq.__tick = seq.tick
     seq.tick = function( ...args ) {
@@ -7134,7 +7140,7 @@ const defineMethod = function( obj, methodName, param, priority=0 ) {
     // avoid this for gibber objects that don't communicate with Live such as Scale
     if( obj.id !== undefined ) Gibber.Communication.send( `select_track ${obj.id}` )
 
-    return seq
+      return seq
   }
     
   obj[ methodName ].seq.delay = v => obj[ methodName ][ lastId ].delay( v )
@@ -7150,6 +7156,17 @@ const defineMethod = function( obj, methodName, param, priority=0 ) {
   }
 }
 
+const assignClient = function( node, client ) {
+  if( typeof node === 'object' ) {
+    if( node.inputs !== undefined ) {
+      node.inputs.forEach( input => {
+        input.__client = client
+        assignClient( input )
+      })
+    }
+  }
+}
+
 module.exports = function( Gibber ) {
   const gen = genreq( Gibber )
   const genfunctions = {}
@@ -7157,7 +7174,7 @@ module.exports = function( Gibber ) {
   gen.export( genfunctions )
 
   const __ugenproto__ = {
-    render( mode ) {
+    render( mode, client='live' ) {
       let inputs = [], inputNum = 0
 
       this.mode = mode
@@ -7171,7 +7188,7 @@ module.exports = function( Gibber ) {
       for( let input of this.inputs ) {
         // use input.render as check to make sure this isn't a properties dictionary
         if( typeof input === 'object' && input.render !== undefined ) {
-          inputs.push( input.render( mode ) )
+          inputs.push( input.render( mode, client ) )
         }else{
           if( mode === 'genish' && typeof input === 'number' ) { // replace numbers with params
             let _input =  genish.param( input )
@@ -7195,6 +7212,11 @@ module.exports = function( Gibber ) {
       this.rendered = ugen
       this.rendered.paramID = this.paramID
       this.rendered.track = this.track
+
+      this.rendered.__client = client 
+
+      assignClient( this.rendered, client )
+
 
       if( typeof this.__onrender === 'function' ) { this.__onrender() }
 
@@ -7321,7 +7343,7 @@ module.exports = function( Gibber ) {
           }
         }
 
-        Gibber.addSequencingToMethod( _add, 'frequency' )
+        Gibber.addSequencingToMethod( _add, 'frequency', 0, null, 'max' )
         Gibber.addSequencingToMethod( _add, 'amp' )
         Gibber.addSequencingToMethod( _add, 'center' )
 
@@ -7553,7 +7575,6 @@ let Gibber = {
     if( mode !== undefined && (obj.__client === undefined || obj.__client === null ) ) obj.__client = mode
 
     obj[ methodName ].seq = function( values, timings, id=0, delay=0 ) {
-      console.log('sequence!')
       let seq
       lastId = id
 
@@ -7649,7 +7670,8 @@ let Gibber = {
     //console.log( "add method trackID", trackID )
 
     if( mode === 'live' && methodName === null ) methodName = parameter.name
-
+    
+    if( parameter === null ) parameter = ''
     Gibber.Seq.proto.externalMessages[ seqKey ] = ( value, beat ) => {
       let msg = mode === 'live' 
         ? `add ${beat} set ${parameter.id} ${value}`
@@ -7658,15 +7680,19 @@ let Gibber = {
       return msg
     }
 
-    obj[ methodName ] = p = ( _v ) => {
+    obj[ methodName ] = p = _v => {
 
-      if( p.properties.quantized === 1 ) _v = Math.round( _v )
+      if( p.properties !== null && p.properties.quantized === 1 ) _v = Math.round( _v )
 
       const hasGen = Gibber.__gen.enabled
 
       if( _v !== undefined ) {
+        _v.__client = mode
+
         if( typeof _v === 'object' && _v.isGen ) {
-          let __v = hasGen === true ? _v.render( 'gen' ) : _v.render( 'genish' )
+          let __v = hasGen === true ? _v.render( 'gen', mode ) : _v.render( 'genish', mode )
+
+          __v.__client = _v.__client = mode
 
           if( hasGen ) {
             __v.assignTrackAndParamID( trackID, parameter.id )
@@ -7694,7 +7720,6 @@ let Gibber = {
             }else{
               Gibber.Communication.send( `sig ${parameter.id} expr "${__v.out()}"`, 'max' )
             } 
-            console.log( genAlreadyAssigned )
             if( genAlreadyAssigned === true ) {
               prevGen.clear()
               prevGen.shouldStop = true
@@ -7761,7 +7786,8 @@ let Gibber = {
           
           v = hasGen === true ? __v : _v
         }else{
-          v = typeof _v === 'object' && _v.isGen ? ( hasGen === true ? _v.render( 'gen' ) : _v.render('genish') ) : _v
+          v = typeof _v === 'object' && _v.isGen ? ( hasGen === true ? _v.render( 'gen', mode ) : _v.render('genish', mode ) ) : _v
+          v.__client = mode
           if( v.isGen ) {
             if( hasGen ) {
               if( mode === 'live' )
@@ -7780,7 +7806,9 @@ let Gibber = {
             Gibber.Communication.send( `set ${parameter.id} ${v}`, 'live' )
           }else if( mode === 'max' ) {
             // how to know if this is a signal? shouldn't be assuming this.
-            Gibber.Communication.send( `set ${parameter} ${methodName} ${v}`, 'max' ) 
+            if( parameter !== null ) {
+              Gibber.Communication.send( `set ${parameter} ${methodName} ${v}`, 'max' ) 
+            }
             // Gibber.Communication.send( `sig ${parameter.id} expr "out1=${v};"`, 'max' )
           }
         }
@@ -9319,6 +9347,7 @@ module.exports = function( Gibber ) {
     processMOM() {
       for( let signalNumber of Max.MOM.signals ) {
         Max.signals[ signalNumber ] = function( genGraph ) {
+          console.log( 'setting signal' )
           // getter
           if( genGraph === undefined ) return Max.signals[ signalNumber ].genGraph
 
@@ -9345,6 +9374,7 @@ module.exports = function( Gibber ) {
           }
 
           Max.signals[ signalNumber ].genGraph = rendered
+          Max.signals[ signalNumber ].genGraph.__client = 'max'
         }
         Max.signals[ signalNumber ].id = signalNumber
         Max.signals[ signalNumber ].__client = 'max'
@@ -11601,45 +11631,47 @@ let seqclosure = function( Gibber ) {
 
       seq.autorun.init = false
 
-      if( key.indexOf( 'note' ) > -1 ) {
-        let __velocity = null 
-        seq.velocity = v => {
-          if( v !== undefined ) {
-            __velocity = v
-          }
-          
-          let output = __velocity
-          if( output === null ) {
-            let track = null
-            while( track === null ) {
-              track = seq.object
+      if( typeof key === 'string' ) {
+        if( key.indexOf( 'note' ) > -1 ) {
+          let __velocity = null 
+          seq.velocity = v => {
+            if( v !== undefined ) {
+              __velocity = v
             }
+            
+            let output = __velocity
+            if( output === null ) {
+              let track = null
+              while( track === null ) {
+                track = seq.object
+              }
 
-            output = track.velocity()
-          }
-          return output
-        }
-
-        Gibber.addSequencingToMethod( seq, 'velocity', 1 )
-
-        let __duration = null 
-        seq.duration = v => {
-          if( v !== undefined ) {
-            __duration = v
-          }
-          let output = __duration
-          if( output === null ) {
-            let track = null
-            while( track === null ) {
-              track = seq.object
+              output = track.velocity()
             }
-
-            output = track.duration()
+            return output
           }
-          return output
-        }
 
-        Gibber.addSequencingToMethod( seq, 'duration', 1 )
+          Gibber.addSequencingToMethod( seq, 'velocity', 1 )
+
+          let __duration = null 
+          seq.duration = v => {
+            if( v !== undefined ) {
+              __duration = v
+            }
+            let output = __duration
+            if( output === null ) {
+              let track = null
+              while( track === null ) {
+                track = seq.object
+              }
+
+              output = track.duration()
+            }
+            return output
+          }
+
+          Gibber.addSequencingToMethod( seq, 'duration', 1 )
+        }
       }
       
       seq.init()
@@ -11681,42 +11713,45 @@ let seqclosure = function( Gibber ) {
         this.values = valuesPattern
       }
 
-      // only apply for 'note' messages, but need to check for longer keys due to 
-      // max/msp addressing
-      if( this.key.indexOf( 'midinote' ) === -1 && this.key.indexOf( 'note' ) > -1 ) {
-        if( this.values.filters.findIndex( v => v.type === 'note' ) === -1 ) {
-          // round the values for transformation to midinotes... XXX what about for Max version?
-          this.values.filters.push( args => { 
-            if( typeof args[0] !== 'string' ) args[0] = Math.round( args[0] )
 
-            return args 
-          })
+      if( typeof this.key === 'string' ) {
+        // only apply for 'note' messages, but need to check for longer keys due to 
+        // max/msp addressing
+        if( this.key.indexOf( 'midinote' ) === -1 && this.key.indexOf( 'note' ) > -1 ) {
+          if( this.values.filters.findIndex( v => v.type === 'note' ) === -1 ) {
+            // round the values for transformation to midinotes... XXX what about for Max version?
+            this.values.filters.push( args => { 
+              if( typeof args[0] !== 'string' ) args[0] = Math.round( args[0] )
 
-          const noteFilter = this.__noteFilter.bind( this ) 
-          noteFilter.type = 'note'
-          this.values.filters.push( noteFilter )
-        }
-      } else if( this.key.indexOf( 'midichord' ) === -1 && this.key.indexOf( 'chord' ) > -1  ) {
+              return args 
+            })
 
-        this.values.filters.push( args => {
-          let chord = args[ 0 ], out
-
-          if( typeof chord === 'string' ) {
-            let chordObj = Gibber.Theory.Chord.create( chord )
-
-            out = chordObj.notes 
-          }else{
-            if( typeof chord === 'function' ) chord = chord()
-            out = chord.map( Gibber.Theory.Note.convertToMIDI )
-            if( this.octave !== 0 || this.object.octave() !== 0 ) {
-              out = this.octave !== 0 ? out.map( v => v + ( this.octave * 12 ) ) : out.map( v=> v + ( this.object.octave() * 12 ) )
-            }
+            const noteFilter = this.__noteFilter.bind( this ) 
+            noteFilter.type = 'note'
+            this.values.filters.push( noteFilter )
           }
+        } else if( this.key.indexOf( 'midichord' ) === -1 && this.key.indexOf( 'chord' ) > -1  ) {
 
-          args[0] = out
-          
-          return args
-        })
+          this.values.filters.push( args => {
+            let chord = args[ 0 ], out
+
+            if( typeof chord === 'string' ) {
+              let chordObj = Gibber.Theory.Chord.create( chord )
+
+              out = chordObj.notes 
+            }else{
+              if( typeof chord === 'function' ) chord = chord()
+              out = chord.map( Gibber.Theory.Note.convertToMIDI )
+              if( this.octave !== 0 || this.object.octave() !== 0 ) {
+                out = this.octave !== 0 ? out.map( v => v + ( this.octave * 12 ) ) : out.map( v=> v + ( this.object.octave() * 12 ) )
+              }
+            }
+
+            args[0] = out
+            
+            return args
+          })
+        }
       }
       
        //XXX implement per sequence velocity
@@ -13190,9 +13225,13 @@ const waveObjects = {
     const ugen = genAbstract.ugens.add( bias, genAbstract.ugens.mul( sine, amp ) )
     ugen.__phase = initPhase
 
+    //__cycle.__onrender = ()=> __cycle.rendered.__client = ugen.__client
+
     ugen.__onrender = ()=> {
+      __cycle.rendered.__client = ugen.__client
 
       ugen.frequency = v => {
+        __cycle.__client = ugen.__client
         if( v === undefined ) {
           return freq
         }else{
@@ -13202,7 +13241,7 @@ const waveObjects = {
         }
       }
 
-      Gibber.addSequencingToMethod( ugen, 'frequency' )
+      Gibber.addSequencingToMethod( ugen, 'frequency', 0, null, 'max' )
 
       ugen.bias = v => {
         if( v === undefined ) {

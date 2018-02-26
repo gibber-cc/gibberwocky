@@ -283,7 +283,8 @@ let Gibber = {
     //console.log( "add method trackID", trackID )
 
     if( mode === 'live' && methodName === null ) methodName = parameter.name
-
+    
+    if( parameter === null ) parameter = ''
     Gibber.Seq.proto.externalMessages[ seqKey ] = ( value, beat ) => {
       let msg = mode === 'live' 
         ? `add ${beat} set ${parameter.id} ${value}`
@@ -292,15 +293,19 @@ let Gibber = {
       return msg
     }
 
-    obj[ methodName ] = p = ( _v ) => {
+    obj[ methodName ] = p = _v => {
 
-      if( p.properties !== undefined && p.properties.quantized === 1 ) _v = Math.round( _v )
+      if( p.properties !== null && p.properties.quantized === 1 ) _v = Math.round( _v )
 
       const hasGen = Gibber.__gen.enabled
 
       if( _v !== undefined ) {
+        _v.__client = mode
+
         if( typeof _v === 'object' && _v.isGen ) {
-          let __v = hasGen === true ? _v.render( 'gen' ) : _v.render( 'genish' )
+          let __v = hasGen === true ? _v.render( 'gen', mode ) : _v.render( 'genish', mode )
+
+          __v.__client = _v.__client = mode
 
           if( hasGen ) {
             __v.assignTrackAndParamID( trackID, parameter.id )
@@ -328,7 +333,6 @@ let Gibber = {
             }else{
               Gibber.Communication.send( `sig ${parameter.id} expr "${__v.out()}"`, 'max' )
             } 
-            console.log( genAlreadyAssigned )
             if( genAlreadyAssigned === true ) {
               prevGen.clear()
               prevGen.shouldStop = true
@@ -395,7 +399,8 @@ let Gibber = {
           
           v = hasGen === true ? __v : _v
         }else{
-          v = typeof _v === 'object' && _v.isGen ? ( hasGen === true ? _v.render( 'gen' ) : _v.render('genish') ) : _v
+          v = typeof _v === 'object' && _v.isGen ? ( hasGen === true ? _v.render( 'gen', mode ) : _v.render('genish', mode ) ) : _v
+          v.__client = mode
           if( v.isGen ) {
             if( hasGen ) {
               if( mode === 'live' )
@@ -414,7 +419,9 @@ let Gibber = {
             Gibber.Communication.send( `set ${parameter.id} ${v}`, 'live' )
           }else if( mode === 'max' ) {
             // how to know if this is a signal? shouldn't be assuming this.
-            Gibber.Communication.send( `set ${parameter} ${methodName} ${v}`, 'max' ) 
+            if( parameter !== null ) {
+              Gibber.Communication.send( `set ${parameter} ${methodName} ${v}`, 'max' ) 
+            }
             // Gibber.Communication.send( `sig ${parameter.id} expr "out1=${v};"`, 'max' )
           }
         }

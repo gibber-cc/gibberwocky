@@ -54,13 +54,17 @@ let Gen  = {
     for( let key of Gen.functions[ name ].properties ) { 
 
       let value = params[ count++ ]
-      obj[ key ] = ( v ) => {
+      obj[ key ] = v => {
         if( v === undefined ) {
           return value
         }else{
           value = v
           if( obj.active ) {
-            Gibber.Communication.send( `genp ${obj.paramID} ${obj[ key ].uid} ${v}` ) 
+            if( obj.__client === 'live' ) {
+              Gibber.Communication.send( `genp ${obj.paramID} ${obj[ key ].uid} ${v}` ) 
+            }else if( obj.__client === 'max' ) {
+              Gibber.Communication.send( `sig ${obj.paramID} param ${obj[ key ].uid} ${v}`, 'max' ) 
+            }
           }
         }
       }
@@ -271,7 +275,7 @@ let Gen  = {
         }
       }
 
-      Gibber.addSequencingToMethod( _add, 'frequency' )
+      Gibber.addSequencingToMethod( _add, 'frequency', 0, null, 'max' )
       Gibber.addSequencingToMethod( _add, 'amp' )
       Gibber.addSequencingToMethod( _add, 'center' )
 
