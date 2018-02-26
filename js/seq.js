@@ -17,6 +17,8 @@ let seqclosure = function( Gibber ) {
       if( values.isGen ) values  = Gibber.WavePattern( values )
       if( timings !== undefined && timings.isGen ) timings = Gibber.WavePattern( timings )
 
+      if( mode === 'max' ) object.id = object.path
+
       if( timings === undefined ) {
         if( object.autorun === undefined ) {
           object.autorun = [ seq ]
@@ -230,17 +232,31 @@ let seqclosure = function( Gibber ) {
 
     externalMessages: {
       note( number, beat, trackID, seq ) {
-        // let msgstring = "add " + beat + " " + t + " " + n + " " + v + " " + d
         const velocity = seq.velocity()
         const duration = seq.duration()
 
-        return `${trackID} add ${beat} note ${number} ${velocity} ${duration}` 
+        let msg = ''
+        if( seq.__client === 'max' ) {
+          msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
+        }else{
+          msg = `${trackID} add ${beat} ${noteOrMIDINote} ${number} ${velocity} ${duration}` 
+        }
+
+        return msg 
       },
+
       midinote( number, beat, trackID, seq ) {
         const velocity = seq.velocity()
         const duration = seq.duration()
 
-        return `${trackID} add ${beat} note ${number} ${velocity} ${duration}`        
+        let msg = ''
+        if( seq.__client === 'max' ) {
+          msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
+        }else{
+          msg = `${trackID} add ${beat} ${noteOrMIDINote} ${number} ${velocity} ${duration}` 
+        }
+
+        return msg 
       },
       //duration( value, beat, trackID ) {
       //  return `${trackID} add ${beat} duration ${value}` 
@@ -252,26 +268,45 @@ let seqclosure = function( Gibber ) {
 
       chord( chord, beat, trackID ) {
         //console.log( chord )
-        let msg = []
+        let msgs = []
 
         for( let i = 0; i < chord.length; i++ ) {
-          msg.push( `${trackID} add ${beat} note ${chord[i]}` )
+          let msg = ''
+          if( seq.__client === 'max' ) {
+            msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
+          }else{
+            msg = `${trackID} add ${beat} ${noteOrMIDINote} ${number} ${velocity} ${duration}` 
+          }
+          msgs.push( msg )
         }
 
-        return msg
+        return msgs
       },
       midichord( chord, beat, trackID ) {
         //console.log( chord )
-        let msg = []
+        let msgs = []
 
         for( let i = 0; i < chord.length; i++ ) {
-          msg.push( `${trackID} add ${beat} note ${chord[i]}` )
+          let msg = ''
+          if( seq.__client === 'max' ) {
+            msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
+          }else{
+            msg = `${trackID} add ${beat} ${noteOrMIDINote} ${number} ${velocity} ${duration}` 
+          }
+          msgs.push( msg )
         }
 
-        return msg
+        return msgs
       },
-      cc( number, value, beat ) {
-        return `${trackID} add ${beat} cc ${number} ${value}`
+      cc( number, value, beat, trackID ) {
+        let msg = ''
+        if( seq.__client === 'max' ) {
+          msg = `add ${beat} cc ${trackID} ${number} ${velocity} ${duration}`        
+        }else{
+          msg = `${trackID} add ${beat} ${noteOrMIDINote} ${number} ${velocity} ${duration}` 
+        }
+
+        return msg 
       },
     },
 

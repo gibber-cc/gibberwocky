@@ -12,7 +12,8 @@ let Steps = {
       let values = _steps[ _key ].split(''),
           key = parseInt( _key )
 
-      let seq = Gibber.Seq( values, 1 / values.length, 'midinote', track, 0 )
+      //Gibber.addSequencingToMethod( d, 'midinote',  0, d.path+'midinote', 'max' ) 
+      let seq = Gibber.Seq( values, 1 / values.length, 'midinote', track, 0, track.__client )
       seq.trackID = track.id
 
       seq.values.filters.push( function( args ) {
@@ -25,8 +26,9 @@ let Steps = {
 
         // TODO: is there a better way to get access to beat, beatOffset and scheduler?
         if( velocity !== 0 ) {
-          let msg = seq.externalMessages[ 'velocity' ]( velocity, seq.values.beat + seq.values.beatOffset, seq.trackID )
-          seq.values.scheduler.msgs.push( msg ) 
+          //let msg = seq.externalMessages[ 'velocity' ]( velocity, seq.values.beat + seq.values.beatOffset, seq.trackID )
+          //seq.values.scheduler.msgs.push( msg ) 
+          seq.velocity( velocity )
         }
 
         args[ 0 ] = sym === '.' ? Gibber.Seq.DO_NOT_OUTPUT : key

@@ -9800,12 +9800,12 @@ signals[0]( cycle(1) )
 // Often times we want to specify a center point (bias) for our sine oscillator, in addition to 
 // a specific amplitude and frequency. The lfo() function provides a simpler syntax for doing this:
 
-// frequency, amplitude, bias
+// frequency, bias, amplitude 
 mylfo = lfo( 2, .2, .7 )
 
 signals[0]( mylfo )
 
-// We can also easily sequence parameters of our LFO XXX CURRENTLY BROKEN:
+// We can also easily sequence parameters of our LFO
 
 mylfo.frequency.seq( [ .5,1,2,4 ], 2 )
 
@@ -11604,6 +11604,8 @@ let seqclosure = function( Gibber ) {
       if( values.isGen ) values  = Gibber.WavePattern( values )
       if( timings !== undefined && timings.isGen ) timings = Gibber.WavePattern( timings )
 
+      if( mode === 'max' ) object.id = object.path
+
       if( timings === undefined ) {
         if( object.autorun === undefined ) {
           object.autorun = [ seq ]
@@ -11817,17 +11819,31 @@ let seqclosure = function( Gibber ) {
 
     externalMessages: {
       note( number, beat, trackID, seq ) {
-        // let msgstring = "add " + beat + " " + t + " " + n + " " + v + " " + d
         const velocity = seq.velocity()
         const duration = seq.duration()
 
-        return `${trackID} add ${beat} note ${number} ${velocity} ${duration}` 
+        let msg = ''
+        if( seq.__client === 'max' ) {
+          msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
+        }else{
+          msg = `${trackID} add ${beat} ${noteOrMIDINote} ${number} ${velocity} ${duration}` 
+        }
+
+        return msg 
       },
+
       midinote( number, beat, trackID, seq ) {
         const velocity = seq.velocity()
         const duration = seq.duration()
 
-        return `${trackID} add ${beat} note ${number} ${velocity} ${duration}`        
+        let msg = ''
+        if( seq.__client === 'max' ) {
+          msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
+        }else{
+          msg = `${trackID} add ${beat} ${noteOrMIDINote} ${number} ${velocity} ${duration}` 
+        }
+
+        return msg 
       },
       //duration( value, beat, trackID ) {
       //  return `${trackID} add ${beat} duration ${value}` 
@@ -11839,26 +11855,45 @@ let seqclosure = function( Gibber ) {
 
       chord( chord, beat, trackID ) {
         //console.log( chord )
-        let msg = []
+        let msgs = []
 
         for( let i = 0; i < chord.length; i++ ) {
-          msg.push( `${trackID} add ${beat} note ${chord[i]}` )
+          let msg = ''
+          if( seq.__client === 'max' ) {
+            msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
+          }else{
+            msg = `${trackID} add ${beat} ${noteOrMIDINote} ${number} ${velocity} ${duration}` 
+          }
+          msgs.push( msg )
         }
 
-        return msg
+        return msgs
       },
       midichord( chord, beat, trackID ) {
         //console.log( chord )
-        let msg = []
+        let msgs = []
 
         for( let i = 0; i < chord.length; i++ ) {
-          msg.push( `${trackID} add ${beat} note ${chord[i]}` )
+          let msg = ''
+          if( seq.__client === 'max' ) {
+            msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
+          }else{
+            msg = `${trackID} add ${beat} ${noteOrMIDINote} ${number} ${velocity} ${duration}` 
+          }
+          msgs.push( msg )
         }
 
-        return msg
+        return msgs
       },
-      cc( number, value, beat ) {
-        return `${trackID} add ${beat} cc ${number} ${value}`
+      cc( number, value, beat, trackID ) {
+        let msg = ''
+        if( seq.__client === 'max' ) {
+          msg = `add ${beat} cc ${trackID} ${number} ${velocity} ${duration}`        
+        }else{
+          msg = `${trackID} add ${beat} ${noteOrMIDINote} ${number} ${velocity} ${duration}` 
+        }
+
+        return msg 
       },
     },
 
@@ -12003,7 +12038,8 @@ let Steps = {
       let values = _steps[ _key ].split(''),
           key = parseInt( _key )
 
-      let seq = Gibber.Seq( values, 1 / values.length, 'midinote', track, 0 )
+      //Gibber.addSequencingToMethod( d, 'midinote',  0, d.path+'midinote', 'max' ) 
+      let seq = Gibber.Seq( values, 1 / values.length, 'midinote', track, 0, track.__client )
       seq.trackID = track.id
 
       seq.values.filters.push( function( args ) {
@@ -12016,8 +12052,9 @@ let Steps = {
 
         // TODO: is there a better way to get access to beat, beatOffset and scheduler?
         if( velocity !== 0 ) {
-          let msg = seq.externalMessages[ 'velocity' ]( velocity, seq.values.beat + seq.values.beatOffset, seq.trackID )
-          seq.values.scheduler.msgs.push( msg ) 
+          //let msg = seq.externalMessages[ 'velocity' ]( velocity, seq.values.beat + seq.values.beatOffset, seq.trackID )
+          //seq.values.scheduler.msgs.push( msg ) 
+          seq.velocity( velocity )
         }
 
         args[ 0 ] = sym === '.' ? Gibber.Seq.DO_NOT_OUTPUT : key
