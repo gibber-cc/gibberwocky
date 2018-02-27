@@ -22,8 +22,10 @@ let Communication = {
 
 
   count:0,
-  init( _Gibber ) { 
+  init( _Gibber, props ) {
     Gibber = _Gibber
+
+    Object.assign( this, props )
 
     this.liveSocket = this.createWebSocket( Gibber.Live.init, this.livePort, '127.0.0.1', 'live' )
     this.maxSocket  = this.createWebSocket( Gibber.Max.init,  this.maxPort,  '127.0.0.1', 'max'  )
@@ -44,12 +46,14 @@ let Communication = {
 
       const address = "ws://" + host + ":" + port
       
-      this.wsocket = new WebSocket( address )
+      const wsocket = this.wsocket = new WebSocket( address )
       
       this.wsocket.onopen = function(ev) {        
         //Gibber.log( 'CONNECTED to ' + address )
         Gibber.log( `gibberwocky.${clientName} is ready to burble.` )
         this.connected = true
+
+        Communication[ clientName + 'Socket' ] = this.wsocket
         
         init()
         // cancel the auto-reconnect task:
@@ -67,11 +71,17 @@ let Communication = {
         }
 
         // set up an auto-reconnect task:
-        
-        this.connectTask = setTimeout( this.createWebSocket.bind( 
-          Communication, 
-          clientName === 'live' ? Gibber.Live.init : Gibber.Max.init,
-          port, host, clientName ) , 2000 )
+
+        if( wsocket.errorCount < 3 ) {
+          this.connectTask = setTimeout( this.createWebSocket.bind( 
+            Communication, 
+            clientName === 'live' ? Gibber.Live.init : Gibber.Max.init,
+            port, host, clientName ) 
+          , 2000 )
+
+        }else{
+          Gibber.log( `too many failed connection attempts to ${clientName}. no more connections will be attempted. refresh the page to try again.\n\n` )
+        }
 
       }.bind( Communication )
 
@@ -186,7 +196,7 @@ let Communication = {
   },
 
   send( code, to='live' ) {
-    if( Communication.connected ) {
+    if( Communication[ to + 'Socket'].readyState === 1 ) {
       //if( code === true ) debugger
       if( Communication.debug.output ) Gibber.log( 'beat:', Gibber.Scheduler.currentBeat, 'msg:', code  )
       

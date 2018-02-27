@@ -187,7 +187,6 @@ const MIDI = {
       } else if (msg.data[0] === 0xfc ) { // pause
         MIDI.running = false
       } else if( msg.data[0] === 248 && MIDI.running === true  ) { // MIDI beat clock
-
         if( MIDI.timestamps.length > 0 ) {
           const diff = msg.timeStamp - MIDI.lastClockTime
           if( diff < 10 ) console.log( 'diff:', diff )

@@ -5894,8 +5894,10 @@ let Communication = {
 
 
   count:0,
-  init( _Gibber ) { 
+  init( _Gibber, props ) {
     Gibber = _Gibber
+
+    Object.assign( this, props )
 
     this.liveSocket = this.createWebSocket( Gibber.Live.init, this.livePort, '127.0.0.1', 'live' )
     this.maxSocket  = this.createWebSocket( Gibber.Max.init,  this.maxPort,  '127.0.0.1', 'max'  )
@@ -5916,12 +5918,14 @@ let Communication = {
 
       const address = "ws://" + host + ":" + port
       
-      this.wsocket = new WebSocket( address )
+      const wsocket = this.wsocket = new WebSocket( address )
       
       this.wsocket.onopen = function(ev) {        
         //Gibber.log( 'CONNECTED to ' + address )
         Gibber.log( `gibberwocky.${clientName} is ready to burble.` )
         this.connected = true
+
+        Communication[ clientName + 'Socket' ] = this.wsocket
         
         init()
         // cancel the auto-reconnect task:
@@ -5939,11 +5943,17 @@ let Communication = {
         }
 
         // set up an auto-reconnect task:
-        
-        this.connectTask = setTimeout( this.createWebSocket.bind( 
-          Communication, 
-          clientName === 'live' ? Gibber.Live.init : Gibber.Max.init,
-          port, host, clientName ) , 2000 )
+
+        if( wsocket.errorCount < 3 ) {
+          this.connectTask = setTimeout( this.createWebSocket.bind( 
+            Communication, 
+            clientName === 'live' ? Gibber.Live.init : Gibber.Max.init,
+            port, host, clientName ) 
+          , 2000 )
+
+        }else{
+          Gibber.log( `too many failed connection attempts to ${clientName}. no more connections will be attempted. refresh the page to try again.\n\n` )
+        }
 
       }.bind( Communication )
 
@@ -6058,7 +6068,7 @@ let Communication = {
   },
 
   send( code, to='live' ) {
-    if( Communication.connected ) {
+    if( Communication[ to + 'Socket'].readyState === 1 ) {
       //if( code === true ) debugger
       if( Communication.debug.output ) Gibber.log( 'beat:', Gibber.Scheduler.currentBeat, 'msg:', code  )
       
@@ -10772,7 +10782,6 @@ const MIDI = {
       } else if (msg.data[0] === 0xfc ) { // pause
         MIDI.running = false
       } else if( msg.data[0] === 248 && MIDI.running === true  ) { // MIDI beat clock
-
         if( MIDI.timestamps.length > 0 ) {
           const diff = msg.timeStamp - MIDI.lastClockTime
           if( diff < 10 ) console.log( 'diff:', diff )
@@ -13303,7 +13312,17 @@ let Utility = {
     return 1 / ( beats * ( 60 / bpm ) ) 
   },
 
+  run( url ) {
+    fetch( url )
+      .then( data => data.text() )
+      .then( source => {
+        const func = new Function( source )
+        func()
+      })
+  },
+
   export( destination ) {
+    destination.run = Utility.run
     destination.rndf = Utility.rndf
     destination.rndi = Utility.rndi
     destination.Rndf = Utility.Rndf
@@ -13682,7 +13701,7 @@ const waveObjects = {
 
     ugen.__onrender = ()=> {
 
-      ugen[0] = v => {
+      ugen.period = v => {
         if( v === undefined ) {
           return periodInMeasures
         }else{
@@ -13693,9 +13712,9 @@ const waveObjects = {
         }
       }
 
-      Gibber.addSequencingToMethod( ugen, '0' )
+      Gibber.addSequencingToMethod( ugen, 'period' )
 
-      ugen[1] = v => {
+      ugen.bias = v => {
         if( v === undefined ) {
           return center
         }else{
@@ -13704,9 +13723,9 @@ const waveObjects = {
         }
       }
 
-      Gibber.addSequencingToMethod( ugen, '1' )
+      Gibber.addSequencingToMethod( ugen, 'bias' )
       
-      ugen[2] = v => {
+      ugen.amp = v => {
         if( v === undefined ) {
           return amp 
         }else{
@@ -13715,7 +13734,7 @@ const waveObjects = {
         }
       }
 
-      Gibber.addSequencingToMethod( ugen, '2' )   
+      Gibber.addSequencingToMethod( ugen, 'amp' )   
     }
 
     ugen.phase = value => {
@@ -13826,15 +13845,16 @@ const waveObjects = {
     return ugen
   },
 
-  line( periodInMeasures=1, min=0, max=1 ) {
+  line( periodInMeasures=1, start=0, end=1 ) {
     const line = genAbstract.ugens.beats( periodInMeasures * 4 )
 
     // note messages are rounded in note filter, found in seq.js
-    const ugen = genAbstract.ugens.add( min, genAbstract.ugens.mul( line, max-min ) )
+    const diff = genAbstract.ugens.sub( end, start )
+    const ugen = genAbstract.ugens.add( start, genAbstract.ugens.mul( line, diff ) )
 
     ugen.__onrender = ()=> {
 
-      ugen[0] = v => {
+      ugen.period = v => {
         if( v === undefined ) {
           return periodInMeasures
         }else{
@@ -13843,7 +13863,31 @@ const waveObjects = {
         }
       }
 
-      Gibber.addSequencingToMethod( ugen, '0' )
+      Gibber.addSequencingToMethod( ugen, 'period' )
+
+      ugen.start = v => {
+        if( v === undefined ) {
+          return start
+        }else{
+          start = v
+          diff[1]( start )
+          ugen[0]( start )
+        }
+      }
+
+      Gibber.addSequencingToMethod( ugen, 'start' )
+
+      ugen.end = v => {
+        if( v === undefined ) {
+          return end
+        }else{
+          end = v
+          diff[0]( end )
+        }
+      }
+
+      Gibber.addSequencingToMethod( ugen, 'end' )
+
     }
 
 

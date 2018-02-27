@@ -173,7 +173,17 @@ let Utility = {
     return 1 / ( beats * ( 60 / bpm ) ) 
   },
 
+  run( url ) {
+    fetch( url )
+      .then( data => data.text() )
+      .then( source => {
+        const func = new Function( source )
+        func()
+      })
+  },
+
   export( destination ) {
+    destination.run = Utility.run
     destination.rndf = Utility.rndf
     destination.rndi = Utility.rndi
     destination.Rndf = Utility.Rndf

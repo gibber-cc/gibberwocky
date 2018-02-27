@@ -134,7 +134,7 @@ const waveObjects = {
 
     ugen.__onrender = ()=> {
 
-      ugen[0] = v => {
+      ugen.period = v => {
         if( v === undefined ) {
           return periodInMeasures
         }else{
@@ -145,9 +145,9 @@ const waveObjects = {
         }
       }
 
-      Gibber.addSequencingToMethod( ugen, '0' )
+      Gibber.addSequencingToMethod( ugen, 'period' )
 
-      ugen[1] = v => {
+      ugen.bias = v => {
         if( v === undefined ) {
           return center
         }else{
@@ -156,9 +156,9 @@ const waveObjects = {
         }
       }
 
-      Gibber.addSequencingToMethod( ugen, '1' )
+      Gibber.addSequencingToMethod( ugen, 'bias' )
       
-      ugen[2] = v => {
+      ugen.amp = v => {
         if( v === undefined ) {
           return amp 
         }else{
@@ -167,7 +167,7 @@ const waveObjects = {
         }
       }
 
-      Gibber.addSequencingToMethod( ugen, '2' )   
+      Gibber.addSequencingToMethod( ugen, 'amp' )   
     }
 
     ugen.phase = value => {
@@ -278,15 +278,16 @@ const waveObjects = {
     return ugen
   },
 
-  line( periodInMeasures=1, min=0, max=1 ) {
+  line( periodInMeasures=1, start=0, end=1 ) {
     const line = genAbstract.ugens.beats( periodInMeasures * 4 )
 
     // note messages are rounded in note filter, found in seq.js
-    const ugen = genAbstract.ugens.add( min, genAbstract.ugens.mul( line, max-min ) )
+    const diff = genAbstract.ugens.sub( end, start )
+    const ugen = genAbstract.ugens.add( start, genAbstract.ugens.mul( line, diff ) )
 
     ugen.__onrender = ()=> {
 
-      ugen[0] = v => {
+      ugen.period = v => {
         if( v === undefined ) {
           return periodInMeasures
         }else{
@@ -295,7 +296,31 @@ const waveObjects = {
         }
       }
 
-      Gibber.addSequencingToMethod( ugen, '0' )
+      Gibber.addSequencingToMethod( ugen, 'period' )
+
+      ugen.start = v => {
+        if( v === undefined ) {
+          return start
+        }else{
+          start = v
+          diff[1]( start )
+          ugen[0]( start )
+        }
+      }
+
+      Gibber.addSequencingToMethod( ugen, 'start' )
+
+      ugen.end = v => {
+        if( v === undefined ) {
+          return end
+        }else{
+          end = v
+          diff[0]( end )
+        }
+      }
+
+      Gibber.addSequencingToMethod( ugen, 'end' )
+
     }
 
 
