@@ -7,32 +7,12 @@ let Steps = {
     
     stepseq.seqs = {}
 
-    //  create( values, timings, key, object = null, priority=0 )
     for ( let _key in _steps ) {
       let values = _steps[ _key ],
           key = parseInt( _key )
 
       let seq = Gibber.Seq( key, Gibber.Hex( values ), 'midinote', track, 0 )
       seq.trackID = track.id
-
-      //seq.values.filters.push( function( args ) {
-      //  let sym = args[ 0 ],
-      //      velocity = ( parseInt( sym, 16 ) * 8 ) - 1
-
-      //  if( isNaN( velocity ) ) {
-      //    velocity = 0
-      //  }
-
-      //  // TODO: is there a better way to get access to beat, beatOffset and scheduler?
-      //  if( velocity !== 0 ) {
-      //    let msg = seq.externalMessages[ 'velocity' ]( velocity, seq.values.beat + seq.values.beatOffset, seq.trackID )
-      //    seq.values.scheduler.msgs.push( msg ) 
-      //  }
-
-      //  args[ 0 ] = sym === '.' ? Gibber.Seq.DO_NOT_OUTPUT : key
-
-      //  return args
-      //})
 
       stepseq.seqs[ _key ] = seq
       stepseq[ _key ] = seq.values
@@ -68,7 +48,13 @@ let Steps = {
     }
   },
 
-  clear() { this.stop() },
+  clear() { 
+    this.stop() 
+
+    for( let key in this.seqs ) {
+      this.seqs[ key ].timings.clear()
+    }
+  },
 
   /*
    *rotate( amt ) {

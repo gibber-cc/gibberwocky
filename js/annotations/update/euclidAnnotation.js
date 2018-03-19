@@ -20,7 +20,7 @@ module.exports = ( patternObject, marker, className, cm, track ) => {
   pos.to.ch -= 1
   cm.replaceRange( val, pos.from, pos.to )
 
-  patternObject.commentMarker = cm.markText( pos.from, end, { className, atomic:false}) //replacedWith:element })
+  patternObject.commentMarker = cm.markText( pos.from, end, { className, atomic:false })
 
   track.markup.textMarkers[ className ] = {}
 

@@ -2,9 +2,6 @@ const Utility = require( '../../utility.js' )
 const $ = Utility.create
 const EuclidAnnotation = require( '../update/euclidAnnotation.js' )
 
-
-// const Identifier = function( patternNode, state, seq, patternType, containerNode, seqNumber ) {
-//module.exports = ( patternObject, marker, className, cm, track ) => {
 module.exports = function( node, cm, track, objectName, state, cb ) {
   const Marker = Gibber.Environment.codeMarkup 
   const steps = node.arguments[ 0 ].properties
@@ -13,58 +10,58 @@ module.exports = function( node, cm, track, objectName, state, cb ) {
   track.markup.textMarkers[ 'step' ] = []
   track.markup.textMarkers[ 'step' ].children = []
 
-  //const mark = ( _step, _key, _cm, _track ) => {
-  //  for( let i = 0; i < _step.value.length; i++ ) {
-  //    let pos = { loc:{ start:{}, end:{}} }
-  //    Object.assign( pos.loc.start, _step.loc.start )
-  //    Object.assign( pos.loc.end  , _step.loc.end   )
-  //    pos.loc.start.ch += i
-  //    pos.loc.end.ch = pos.loc.start.ch + 1
-  //    let posMark = _cm.markText( pos.loc.start, pos.loc.end, { className:`step_${_key}_${i}` })
-  //    _track.markup.textMarkers.step[ _key ].pattern[ i ] = posMark
-  //  }
-  //}
+  const hexSteps = window[ objectName ]
+  const objectClassName = objectName + '_steps'
 
+  let count = 0
   for( let key in steps ) {
     let step = steps[ key ].value
 
     if( step && step.value ) { // ensure it is a correctly formed step
       step.loc.start.line += Marker.offset.vertical - 1
       step.loc.end.line   += Marker.offset.vertical - 1
-      step.loc.start.ch   = step.loc.start.column + 1
-      step.loc.end.ch     = step.loc.end.column - 1
+      step.loc.start.ch   = step.loc.end.column - 1
+      step.loc.end.ch     = step.loc.end.column 
 
-      let marker = cm.markText( step.loc.start, step.loc.end, { className:`step${key}` } )
-      track.markup.textMarkers.step[ key ] = marker
+      const pattern = hexSteps.seqs[ steps[ key ].key.value ].timings
 
-      track.markup.textMarkers.step[ key ].pattern = []
+      // we estimate whether or not a comma was used to separate between
+      // key / value pairs. If there's more than one pattern and this
+      // isn't the last time through the for loop, we assume there is a 
+      // comma (otherwise an error would occur).
+      const useComma = count++ != steps.length - 1 && steps.length > 1
 
-      mark( step, key, cm, track )
+      if( useComma === true ) {
+        // move off of end quote to comma
+        step.loc.start.ch += 1
+        step.loc.end.ch += 1
 
-      let count = 0, span, update,
-        _key = steps[ key ].key.value,
-        patternObject = window[ objectName ].seqs[ _key ].values
+        // replace comma with a comma and a space
+        cm.replaceRange( ", ", step.loc.start, step.loc.end )
 
-      update = () => {
-        let currentIdx = update.currentIndex // count++ % step.value.length
+        step.loc.start.ch += 1
+        step.loc.end.ch += 1
+      }else{
+        // replace end quote with a quote and a space
+        cm.replaceRange( "' ", step.loc.start, step.loc.end )
 
-        if( span !== undefined ) {
-          span.remove( 'euclid0' )
-          span.remove( 'euclid1' )
-        }
-
-        let spanName = `.step_${key}_${currentIdx}`,
-          currentValue = patternObject.update.value.pop() //step.value[ currentIdx ]
-
-        span = $( spanName )
-
-        if( currentValue !== Gibber.Seq.DO_NOT_OUTPUT ) {
-          span.add( 'euclid1' )
-          setTimeout( ()=> { span.remove( 'euclid1' ) }, 50 )
-        }
-
-        span.add( 'euclid0' )
+        step.loc.start.ch += 1
+        step.loc.end.ch += 1
       }
+
+      let className = objectClassName + '_' + key 
+
+      let marker = cm.markText( step.loc.start, step.loc.end, { className } )
+      pattern.update = EuclidAnnotation( pattern, marker, className, cm, track )
+      pattern.patternName = className
+
+      // store value changes in array and then pop them every time the annotation is updated
+      pattern.update.value = []
+
+      Marker._addPatternFilter( pattern )
+
+      pattern.marker = marker
+      /*
 
       patternObject._onchange = () => {
         let delay = Utility.beatsToMs( 1,  Gibber.Scheduler.bpm )
@@ -73,11 +70,7 @@ module.exports = function( node, cm, track, objectName, state, cb ) {
           mark( step, key, cm, track )
         }, delay ) 
       }
-
-      patternObject.update = update
-      patternObject.update.value = []
-
-      Marker._addPatternFilter( patternObject )
+      */
     }
   }
 
