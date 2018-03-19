@@ -192,6 +192,7 @@ module.exports = function( Gibber ) {
     ugens:{},
   
     // determine whether or not gen is licensed
+    // look for error message in environment.js
     checkForLicense() {
       const volume = Gibber.Live.tracks[0].volume()
       __gen.enabled = true
@@ -202,6 +203,7 @@ module.exports = function( Gibber ) {
         setTimeout( ()=> {
           Gibber.Live.tracks[0].volume( volume )
           Gibber.Environment.suppressErrors = false
+          Gibber.Communication.send( 'ungen ' + Gibber.Live.tracks[0].volume.properties.id, 'live' )
         }, 50 )
       }, 250 * 8 )
 

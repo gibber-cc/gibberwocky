@@ -2,6 +2,7 @@ module.exports = function( Gibber ) {
 
 let Live = {
   init() {
+    console.log( 'Live init!' )
     Gibber.Communication.callbacks.schemas.live = Live.handleScene
     Gibber.Communication.send( 'get_scene', 'live' )
   },

@@ -5358,7 +5358,6 @@ let Scheduler = {
   },
 
   sync( mode = 'internal' ) {
-    console.log( 'SYNC:', mode )
     const tempSync = this.__sync__
 
     this.__sync__ = mode// === 'internal' 
@@ -5476,8 +5475,8 @@ let Scheduler = {
       const msg  = __msg[ 0 ]
       const mode = __msg[ 1 ]
 
-      if( Array.isArray( msg) ) { // for chords etc.
-        msg.forEach( Gibber.Communication.send )
+      if( Array.isArray( msg ) ) { // for chords etc.
+        msg.forEach( _msg => Gibber.Communication.send( _msg, mode ) )
       }else{
         Gibber.Communication.send( msg, mode )
       }
@@ -5873,8 +5872,8 @@ return Marker
 let Gibber = null
 
 let Communication = {
-  livePort: 8082,
-  maxPort:  8081,
+  livePort: 8081,
+  maxPort:  8082,
   socketInitialized: false,
   connectMsg: null,
   debug: {
@@ -5900,7 +5899,7 @@ let Communication = {
     Object.assign( this, props )
 
     this.liveSocket = this.createWebSocket( Gibber.Live.init, this.livePort, '127.0.0.1', 'live' )
-    this.maxSocket  = this.createWebSocket( Gibber.Max.init,  this.maxPort,  '127.0.0.1', 'max'  )
+    //this.maxSocket  = this.createWebSocket( Gibber.Max.init,  this.maxPort,  '127.0.0.1', 'max'  )
 
     this.send = this.send.bind( Communication )
   },
@@ -5919,6 +5918,7 @@ let Communication = {
       const address = "ws://" + host + ":" + port
       
       const wsocket = this.wsocket = new WebSocket( address )
+      wsocket.errorCount = 0
       
       this.wsocket.onopen = function(ev) {        
         //Gibber.log( 'CONNECTED to ' + address )
@@ -5944,7 +5944,7 @@ let Communication = {
 
         // set up an auto-reconnect task:
 
-        if( wsocket.errorCount < 3 ) {
+        if( this.wsocket.errorCount < 3 ) {
           this.connectTask = setTimeout( this.createWebSocket.bind( 
             Communication, 
             clientName === 'live' ? Gibber.Live.init : Gibber.Max.init,
@@ -5964,7 +5964,7 @@ let Communication = {
       }.bind( Communication )
 
       this.wsocket.onerror = function( ev ) {
-        Gibber.log( `gibberwocky.${clientName} was not able to connect.` )
+        Gibber.log( `gibberwocky.${clientName} was not able to connect.`, this.wsocket )
       }.bind( Communication )
 
       this.wsocket.clientName = clientName
@@ -5988,25 +5988,28 @@ let Communication = {
       const schema = json.namespaces !== undefined ? 'max' : 'live'
 
       if( Communication.callbacks.schemas[ schema ] ) {
-        Communication.callbacks.schemas[ schema]( JSON.parse( data ) )
+        Communication.callbacks.schemas[ schema ]( JSON.parse( data ) )
       }
     }else if( _msg.data.includes( 'snapshot' ) ) {
       data = _msg.data.substr( 9 ).split(' ')
-      for ( let i = 0; i < data.length; i += 2 ) {
-        let param_id = data[ i ]
-        let param_value = data[ i+1 ] 
 
-        if( socket === Communication.liveSocket ) {
-          if( param_value < 0 ) {
-            param_value = 0
-          }else if( param_value > 1 ) {
-            param_value = 1
+      // if we're not using genish.js for modulation...
+      if( Gibber.__gen.enabled !== false ) {
+        for ( let i = 0; i < data.length; i += 2 ) {
+          let param_id = data[ i ]
+          let param_value = data[ i+1 ] 
+
+          if( socket === Communication.liveSocket ) {
+            if( param_value < 0 ) {
+              param_value = 0
+            }else if( param_value > 1 ) {
+              param_value = 1
+            }
           }
+            
+          Gibber.Environment.codeMarkup.waveform.updateWidget( param_id, 1 - param_value )
         }
-          
-        Gibber.Environment.codeMarkup.waveform.updateWidget( param_id, 1 - param_value )
       }
-
       return
     }else{
       msg = _msg.data.split( ' ' )
@@ -6074,6 +6077,8 @@ let Communication = {
       
       const socket = to === 'live' ? Communication.liveSocket : Communication.maxSocket
       socket.send( code )
+    }else{
+      Gibber.log( `socket ${to} not ready for messaging.` )
     }
   },
 
@@ -6270,7 +6275,9 @@ let Environment = {
     if( Environment.suppressErrors === false ) {
       if( args[0] === 'error Gen not authorized on this install' ) {
         Gibber.__gen.enabled = false
-        args[0] = 'error Compiling Gen graphs is not authorized for this install of Max; using genish.js for modulation'
+        //args[0] = 'error Compiling Gen graphs is not authorized for this install of Max; using genish.js for modulation'
+        Gibber.log( 'Gen is not authorized on this computer; using genish.js for modulation.' )
+        return
       }
 
       let consoleItem = Environment.createConsoleItem( args )
@@ -7258,6 +7265,7 @@ module.exports = function( Gibber ) {
     ugens:{},
   
     // determine whether or not gen is licensed
+    // look for error message in environment.js
     checkForLicense() {
       const volume = Gibber.Live.tracks[0].volume()
       __gen.enabled = true
@@ -7268,6 +7276,7 @@ module.exports = function( Gibber ) {
         setTimeout( ()=> {
           Gibber.Live.tracks[0].volume( volume )
           Gibber.Environment.suppressErrors = false
+          Gibber.Communication.send( 'ungen ' + Gibber.Live.tracks[0].volume.properties.id, 'live' )
         }, 50 )
       }, 250 * 8 )
 
@@ -8147,6 +8156,7 @@ module.exports = function( Gibber ) {
 
 let Live = {
   init() {
+    console.log( 'Live init!' )
     Gibber.Communication.callbacks.schemas.live = Live.handleScene
     Gibber.Communication.send( 'get_scene', 'live' )
   },
@@ -11948,7 +11958,7 @@ let seqclosure = function( Gibber ) {
       seq.autorun.init = false
 
       if( typeof key === 'string' ) {
-        if( key.indexOf( 'note' ) > -1 ) {
+        if( key.indexOf( 'note' ) > -1 || key.indexOf( 'chord' ) > -1 ) {
           let __velocity = null 
           seq.velocity = v => {
             if( v !== undefined ) {
@@ -12140,7 +12150,7 @@ let seqclosure = function( Gibber ) {
         if( seq.__client === 'max' ) {
           msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
         }else{
-          msg = `${trackID} add ${beat} ${noteOrMIDINote} ${number} ${velocity} ${duration}` 
+          msg = `${trackID} add ${beat} note ${number} ${velocity} ${duration}` 
         }
 
         return msg 
@@ -12154,7 +12164,7 @@ let seqclosure = function( Gibber ) {
         if( seq.__client === 'max' ) {
           msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
         }else{
-          msg = `${trackID} add ${beat} ${noteOrMIDINote} ${number} ${velocity} ${duration}` 
+          msg = `${trackID} add ${beat} note ${number} ${velocity} ${duration}` 
         }
 
         return msg 
@@ -12167,7 +12177,27 @@ let seqclosure = function( Gibber ) {
       //  return `${trackID} add ${beat} velocity ${value}` 
       //},
 
-      chord( chord, beat, trackID ) {
+      chord( chord, beat, trackID, seq ) {
+        //console.log( chord )
+        let msgs = []
+
+        const velocity = seq.velocity()
+        const duration = seq.duration()
+
+        for( let i = 0; i < chord.length; i++ ) {
+          let msg = ''
+          const number = chord[ i ]
+          if( seq.__client === 'max' ) {
+            msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
+          }else{
+            msg = `${trackID} add ${beat} note ${number} ${velocity} ${duration}` 
+          }
+          msgs.push( msg )
+        }
+
+        return msgs
+      },
+      midichord( chord, beat, trackID, seq ) {
         //console.log( chord )
         let msgs = []
 
@@ -12176,35 +12206,19 @@ let seqclosure = function( Gibber ) {
           if( seq.__client === 'max' ) {
             msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
           }else{
-            msg = `${trackID} add ${beat} ${noteOrMIDINote} ${number} ${velocity} ${duration}` 
+            msg = `${trackID} add ${beat} note ${number} ${velocity} ${duration}` 
           }
           msgs.push( msg )
         }
 
         return msgs
       },
-      midichord( chord, beat, trackID ) {
-        //console.log( chord )
-        let msgs = []
-
-        for( let i = 0; i < chord.length; i++ ) {
-          let msg = ''
-          if( seq.__client === 'max' ) {
-            msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
-          }else{
-            msg = `${trackID} add ${beat} ${noteOrMIDINote} ${number} ${velocity} ${duration}` 
-          }
-          msgs.push( msg )
-        }
-
-        return msgs
-      },
-      cc( number, value, beat, trackID ) {
+      cc( number, value, beat, trackID, seq ) {
         let msg = ''
         if( seq.__client === 'max' ) {
           msg = `add ${beat} cc ${trackID} ${number} ${velocity} ${duration}`        
         }else{
-          msg = `${trackID} add ${beat} ${noteOrMIDINote} ${number} ${velocity} ${duration}` 
+          msg = `${trackID} add ${beat} cc ${number} ${velocity} ${duration}` 
         }
 
         return msg 
@@ -13937,6 +13951,7 @@ const WavePattern = {
         if( pattern.update !== undefined ) {
           pattern.update.__currentIndex.push( roundedSignalValue )
         }
+
       }
 
       let output = outputBeforeFilters
@@ -13949,7 +13964,6 @@ const WavePattern = {
         // mark the last placed value by the visualization as having a "hit", 
         // which will cause a dot to be drawn on the sparkline.
         const idx = 60 + Math.round( pattern.nextTime * 16  )
-        const oldValue = pattern.widget.values[ idx ]
 
         pattern.widget.values[ idx ] = { value: signalValue, type:'hit' }
       }

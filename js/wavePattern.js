@@ -39,6 +39,7 @@ const WavePattern = {
         if( pattern.update !== undefined ) {
           pattern.update.__currentIndex.push( roundedSignalValue )
         }
+
       }
 
       let output = outputBeforeFilters
@@ -51,7 +52,6 @@ const WavePattern = {
         // mark the last placed value by the visualization as having a "hit", 
         // which will cause a dot to be drawn on the sparkline.
         const idx = 60 + Math.round( pattern.nextTime * 16  )
-        const oldValue = pattern.widget.values[ idx ]
 
         pattern.widget.values[ idx ] = { value: signalValue, type:'hit' }
       }

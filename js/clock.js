@@ -31,7 +31,6 @@ let Scheduler = {
   },
 
   sync( mode = 'internal' ) {
-    console.log( 'SYNC:', mode )
     const tempSync = this.__sync__
 
     this.__sync__ = mode// === 'internal' 
@@ -149,8 +148,8 @@ let Scheduler = {
       const msg  = __msg[ 0 ]
       const mode = __msg[ 1 ]
 
-      if( Array.isArray( msg) ) { // for chords etc.
-        msg.forEach( Gibber.Communication.send )
+      if( Array.isArray( msg ) ) { // for chords etc.
+        msg.forEach( _msg => Gibber.Communication.send( _msg, mode ) )
       }else{
         Gibber.Communication.send( msg, mode )
       }

@@ -47,7 +47,7 @@ let seqclosure = function( Gibber ) {
       seq.autorun.init = false
 
       if( typeof key === 'string' ) {
-        if( key.indexOf( 'note' ) > -1 ) {
+        if( key.indexOf( 'note' ) > -1 || key.indexOf( 'chord' ) > -1 ) {
           let __velocity = null 
           seq.velocity = v => {
             if( v !== undefined ) {
@@ -239,7 +239,7 @@ let seqclosure = function( Gibber ) {
         if( seq.__client === 'max' ) {
           msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
         }else{
-          msg = `${trackID} add ${beat} ${noteOrMIDINote} ${number} ${velocity} ${duration}` 
+          msg = `${trackID} add ${beat} note ${number} ${velocity} ${duration}` 
         }
 
         return msg 
@@ -253,7 +253,7 @@ let seqclosure = function( Gibber ) {
         if( seq.__client === 'max' ) {
           msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
         }else{
-          msg = `${trackID} add ${beat} ${noteOrMIDINote} ${number} ${velocity} ${duration}` 
+          msg = `${trackID} add ${beat} note ${number} ${velocity} ${duration}` 
         }
 
         return msg 
@@ -266,7 +266,27 @@ let seqclosure = function( Gibber ) {
       //  return `${trackID} add ${beat} velocity ${value}` 
       //},
 
-      chord( chord, beat, trackID ) {
+      chord( chord, beat, trackID, seq ) {
+        //console.log( chord )
+        let msgs = []
+
+        const velocity = seq.velocity()
+        const duration = seq.duration()
+
+        for( let i = 0; i < chord.length; i++ ) {
+          let msg = ''
+          const number = chord[ i ]
+          if( seq.__client === 'max' ) {
+            msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
+          }else{
+            msg = `${trackID} add ${beat} note ${number} ${velocity} ${duration}` 
+          }
+          msgs.push( msg )
+        }
+
+        return msgs
+      },
+      midichord( chord, beat, trackID, seq ) {
         //console.log( chord )
         let msgs = []
 
@@ -275,35 +295,19 @@ let seqclosure = function( Gibber ) {
           if( seq.__client === 'max' ) {
             msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
           }else{
-            msg = `${trackID} add ${beat} ${noteOrMIDINote} ${number} ${velocity} ${duration}` 
+            msg = `${trackID} add ${beat} note ${number} ${velocity} ${duration}` 
           }
           msgs.push( msg )
         }
 
         return msgs
       },
-      midichord( chord, beat, trackID ) {
-        //console.log( chord )
-        let msgs = []
-
-        for( let i = 0; i < chord.length; i++ ) {
-          let msg = ''
-          if( seq.__client === 'max' ) {
-            msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
-          }else{
-            msg = `${trackID} add ${beat} ${noteOrMIDINote} ${number} ${velocity} ${duration}` 
-          }
-          msgs.push( msg )
-        }
-
-        return msgs
-      },
-      cc( number, value, beat, trackID ) {
+      cc( number, value, beat, trackID, seq ) {
         let msg = ''
         if( seq.__client === 'max' ) {
           msg = `add ${beat} cc ${trackID} ${number} ${velocity} ${duration}`        
         }else{
-          msg = `${trackID} add ${beat} ${noteOrMIDINote} ${number} ${velocity} ${duration}` 
+          msg = `${trackID} add ${beat} cc ${number} ${velocity} ${duration}` 
         }
 
         return msg 

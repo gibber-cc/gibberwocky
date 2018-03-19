@@ -1,8 +1,8 @@
 let Gibber = null
 
 let Communication = {
-  livePort: 8082,
-  maxPort:  8081,
+  livePort: 8081,
+  maxPort:  8082,
   socketInitialized: false,
   connectMsg: null,
   debug: {
@@ -28,7 +28,7 @@ let Communication = {
     Object.assign( this, props )
 
     this.liveSocket = this.createWebSocket( Gibber.Live.init, this.livePort, '127.0.0.1', 'live' )
-    this.maxSocket  = this.createWebSocket( Gibber.Max.init,  this.maxPort,  '127.0.0.1', 'max'  )
+    //this.maxSocket  = this.createWebSocket( Gibber.Max.init,  this.maxPort,  '127.0.0.1', 'max'  )
 
     this.send = this.send.bind( Communication )
   },
@@ -47,6 +47,7 @@ let Communication = {
       const address = "ws://" + host + ":" + port
       
       const wsocket = this.wsocket = new WebSocket( address )
+      wsocket.errorCount = 0
       
       this.wsocket.onopen = function(ev) {        
         //Gibber.log( 'CONNECTED to ' + address )
@@ -72,7 +73,7 @@ let Communication = {
 
         // set up an auto-reconnect task:
 
-        if( wsocket.errorCount < 3 ) {
+        if( this.wsocket.errorCount < 3 ) {
           this.connectTask = setTimeout( this.createWebSocket.bind( 
             Communication, 
             clientName === 'live' ? Gibber.Live.init : Gibber.Max.init,
@@ -92,7 +93,7 @@ let Communication = {
       }.bind( Communication )
 
       this.wsocket.onerror = function( ev ) {
-        Gibber.log( `gibberwocky.${clientName} was not able to connect.` )
+        Gibber.log( `gibberwocky.${clientName} was not able to connect.`, this.wsocket )
       }.bind( Communication )
 
       this.wsocket.clientName = clientName
@@ -116,25 +117,28 @@ let Communication = {
       const schema = json.namespaces !== undefined ? 'max' : 'live'
 
       if( Communication.callbacks.schemas[ schema ] ) {
-        Communication.callbacks.schemas[ schema]( JSON.parse( data ) )
+        Communication.callbacks.schemas[ schema ]( JSON.parse( data ) )
       }
     }else if( _msg.data.includes( 'snapshot' ) ) {
       data = _msg.data.substr( 9 ).split(' ')
-      for ( let i = 0; i < data.length; i += 2 ) {
-        let param_id = data[ i ]
-        let param_value = data[ i+1 ] 
 
-        if( socket === Communication.liveSocket ) {
-          if( param_value < 0 ) {
-            param_value = 0
-          }else if( param_value > 1 ) {
-            param_value = 1
+      // if we're not using genish.js for modulation...
+      if( Gibber.__gen.enabled !== false ) {
+        for ( let i = 0; i < data.length; i += 2 ) {
+          let param_id = data[ i ]
+          let param_value = data[ i+1 ] 
+
+          if( socket === Communication.liveSocket ) {
+            if( param_value < 0 ) {
+              param_value = 0
+            }else if( param_value > 1 ) {
+              param_value = 1
+            }
           }
+            
+          Gibber.Environment.codeMarkup.waveform.updateWidget( param_id, 1 - param_value )
         }
-          
-        Gibber.Environment.codeMarkup.waveform.updateWidget( param_id, 1 - param_value )
       }
-
       return
     }else{
       msg = _msg.data.split( ' ' )
@@ -202,6 +206,8 @@ let Communication = {
       
       const socket = to === 'live' ? Communication.liveSocket : Communication.maxSocket
       socket.send( code )
+    }else{
+      Gibber.log( `socket ${to} not ready for messaging.` )
     }
   },
 

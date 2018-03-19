@@ -174,7 +174,9 @@ let Environment = {
     if( Environment.suppressErrors === false ) {
       if( args[0] === 'error Gen not authorized on this install' ) {
         Gibber.__gen.enabled = false
-        args[0] = 'error Compiling Gen graphs is not authorized for this install of Max; using genish.js for modulation'
+        //args[0] = 'error Compiling Gen graphs is not authorized for this install of Max; using genish.js for modulation'
+        Gibber.log( 'Gen is not authorized on this computer; using genish.js for modulation.' )
+        return
       }
 
       let consoleItem = Environment.createConsoleItem( args )
