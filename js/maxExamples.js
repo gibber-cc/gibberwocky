@@ -862,35 +862,23 @@ drums.midinote.seq(
 )
 
 // core beat from planet rock by afrika bambaataa
-// with a tom replacing the cowbell
+// assumes 808 impulse with a cowbell
+// for the sample assigned to midinote 71
 // beat copied from http://808.pixll.de/anzeigen.php?m=15
 
-// kick, alternating patterns for each measure
-drums.midinote.seq(
-  36,
-  Hex('82008224')
-)
+// in this example, we use HexSteps to create multiple
+// hex sequences and tersely assign them to a track.
 
-// snare
-drums.midinote.seq(
-  38,
-  Hex('0808'),
-  1
-)
-
-// closed hat
-drums.midinote.seq(
-  42,
-  Hex('bbbf'),
-  2
-)
-
-// cowbell
-drums.midinote.seq(
-  45,
-  Hex('ab5a'),
-  3
-)
+h = HexSteps({
+  // kick
+  36:'82008224',
+  // snare
+  38:'0808',
+  // closed hat
+  42:'bbbf',
+  // "cowbell"
+  45:'ab5a'
+}, tracks[1] )
 `,
 
 ['using 1D cellular automata']:
