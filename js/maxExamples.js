@@ -888,7 +888,7 @@ h = HexSteps({
   42:'bbbf',
   // "cowbell"
   45:'ab5a'
-}, tracks[1] )
+}, devices.drums )
 `,
 
 ['using 1D cellular automata']:
