@@ -4,10 +4,20 @@ const Examples = {
  * This introduction assumes that your controlling the gibberwocky
  * object's help patch in Max. Otherwise your mileage will vary.
  *
+ * First, make sure that audio is enabled in Max/MSP and that the
+ * global transport is running. You can find the global transport
+ * under Extras > GlobalTransport in the Max/MSP menubar.
+ *
+ * Next, make sure that gibberwocky is syncing to Max/MSP by
+ * choosing config > Clock Sync > Max from the gibberwocky
+ * sidebar.
+ *
+ * To execute any line of  code, hit Ctrl+Enter. Feel free to
+ * modify and re-execute at any time. To stop all running 
+ * sequences, hit Ctrl+. (period).
+ *
  * After playing around here, check out some of the tutorials
- * found in the sidebar on the right. To execute any line of
- * code, hit Ctrl+Enter. Feel free to modify and re-execute
- * at any time. To stop all running sequences, hit Ctrl+. (period).
+ * found in the sidebar under demos > max demos..
  */
 
 // start kick drum on Max for Live device

@@ -17,7 +17,6 @@ module.exports = function( Gibber ) {
 
     handleScene( msg ) {
       Max.id = Communication.querystring.track
-      console.log( 'max scene:', msg )
 
       if( msg.namespaces !== undefined ) {
         Max.MOM = msg

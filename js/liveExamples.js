@@ -1,5 +1,10 @@
 module.exports = {
   introduction:`/* gibberwocky.live - introduction
+ * IMPORTANT: gibberwocky can be used with a number of different
+ * communication protocols; this tutorial is designed to communicate
+ * with Ableton Live. If you'd like to learn about using gibberwocky
+ * with Max/MSP/Jitter, choose demos > max demos > introduction from
+ * the sidebar.
  * 
  * This introduction assumes that you have the gibberwocky.demo.als
  * project open and running in Live. If not, it's easy to make your own
@@ -7,13 +12,19 @@ module.exports = {
  * Live's master track, and an instance of the gibberwocky_midi plugin
  * on any track you'd like to control with gibberwokcy.
  *
+ * First, ensure that gibberwocky is syncing to Live by choosing
+ * config > Clock Sync > Live from the sidebar. This setting will be
+ * preserved between gibberwocky sessions; you shouldn't have to set
+ * it again.
+ *
+ * Second, make sure that the transport is running in Live (hit play).
+ *
  * To execute any line of code, hit Ctrl+Enter. 
  * To stop all running sequences, hit Ctrl+. (period), or execute clear() 
  * (Ctrl+. doesn't work on some non-US keyboards).
  *
- * Make sure Live's transport is running (hit play). When you've played
- * around with this demo, start working your way through the tutorials
- * listed in the 'demos' tab in the sidebar.
+ * When you've played around with this demo, start working your way
+ * through the tutorials listed under demos > live demos in the sidebar.
  */
 
 // start kick drum using impulse (preset 606) on tracks[0]

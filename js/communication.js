@@ -39,7 +39,6 @@ let Communication = {
   },
 
   createWebSocket( init, port, host, clientName ) {
-    console.log( 'creating ' + clientName )
     if ( this.connected[ clientName ] === true ) return
 
     let wsocket = null
@@ -64,7 +63,6 @@ let Communication = {
 
         Communication[ clientName + 'Socket' ] = wsocket
         
-        console.log( 'INIT:', clientName )
         init()
         // cancel the auto-reconnect task:
         if ( this.connectTask !== undefined ) clearTimeout( this.connectTask )
