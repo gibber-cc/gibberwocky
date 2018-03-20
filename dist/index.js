@@ -5952,8 +5952,8 @@ return Marker
 let Gibber = null
 
 let Communication = {
-  livePort: 8081,
-  maxPort:  8082,
+  livePort: 8082,
+  maxPort:  8081,
   socketInitialized: false,
   connectMsg: null,
   debug: {
@@ -5971,6 +5971,11 @@ let Communication = {
     }
   },
 
+  connected:{
+    max:false,
+    live:false
+  },
+
 
   count:0,
   init( _Gibber, props ) {
@@ -5978,14 +5983,17 @@ let Communication = {
 
     Object.assign( this, props )
 
+    this.maxSocket  = this.createWebSocket( Gibber.Max.init,  this.maxPort,  '127.0.0.1', 'max'  )
     this.liveSocket = this.createWebSocket( Gibber.Live.init, this.livePort, '127.0.0.1', 'live' )
-    //this.maxSocket  = this.createWebSocket( Gibber.Max.init,  this.maxPort,  '127.0.0.1', 'max'  )
 
     this.send = this.send.bind( Communication )
   },
 
   createWebSocket( init, port, host, clientName ) {
-    if ( this.connected ) return
+    console.log( 'creating ' + clientName )
+    if ( this.connected[ clientName ] === true ) return
+
+    let wsocket = null
 
     if ( 'WebSocket' in window ) {
       //Gibber.log( 'Connecting' , this.querystring.host, this.querystring.port )
@@ -5997,34 +6005,35 @@ let Communication = {
 
       const address = "ws://" + host + ":" + port
       
-      const wsocket = this.wsocket = new WebSocket( address )
+      wsocket = new WebSocket( address )
       wsocket.errorCount = 0
       
-      this.wsocket.onopen = function(ev) {        
+      wsocket.onopen = function(ev) {        
         //Gibber.log( 'CONNECTED to ' + address )
         Gibber.log( `gibberwocky.${clientName} is ready to burble.` )
-        this.connected = true
+        this.connected[ clientName ] = true
 
-        Communication[ clientName + 'Socket' ] = this.wsocket
+        Communication[ clientName + 'Socket' ] = wsocket
         
+        console.log( 'INIT:', clientName )
         init()
         // cancel the auto-reconnect task:
         if ( this.connectTask !== undefined ) clearTimeout( this.connectTask )
           
         // apparently this first reply is necessary
-        this.wsocket.send( 'update on' )
+        wsocket.send( 'update on' )
       }.bind( Communication )
 
-      this.wsocket.onclose = function(ev) {
-        if( this.connected ) {
+      wsocket.onclose = function(ev) {
+        if( this.connected[ clientName ] ) {
           Gibber.log( 'disconnected from ' + address )
           this.connectMsg = null
-          this.connected = false
+          this.connected[ clientName ] = false
         }
 
         // set up an auto-reconnect task:
 
-        if( this.wsocket.errorCount < 3 ) {
+        if( wsocket.errorCount < 3 ) {
           this.connectTask = setTimeout( this.createWebSocket.bind( 
             Communication, 
             clientName === 'live' ? Gibber.Live.init : Gibber.Max.init,
@@ -6037,23 +6046,22 @@ let Communication = {
 
       }.bind( Communication )
 
-      let socket = this.wsocket
-      this.wsocket.onmessage = function( ev ) {
+      wsocket.onmessage = function( ev ) {
         //Gibber.log('msg:', ev )
-        this.handleMessage( ev, socket )
+        this.handleMessage( ev, wsocket )
       }.bind( Communication )
 
-      this.wsocket.onerror = function( ev ) {
-        Gibber.log( `gibberwocky.${clientName} was not able to connect.`, this.wsocket )
+      wsocket.onerror = function( ev ) {
+        Gibber.log( `gibberwocky.${clientName} was not able to connect.`, wsocket )
       }.bind( Communication )
 
-      this.wsocket.clientName = clientName
+      wsocket.clientName = clientName
 
     } else {
       post( 'WebSockets are not available in this browser!!!' );
     }
 
-    return this.wsocket
+    return wsocket
   },
 
 
@@ -6151,14 +6159,15 @@ let Communication = {
   },
 
   send( code, to='live' ) {
-    if( Communication[ to + 'Socket'].readyState === 1 ) {
+    if( Communication[ to + 'Socket' ].readyState === 1 ) {
       //if( code === true ) debugger
       if( Communication.debug.output ) Gibber.log( 'beat:', Gibber.Scheduler.currentBeat, 'msg:', code  )
       
       const socket = to === 'live' ? Communication.liveSocket : Communication.maxSocket
+
       socket.send( code )
     }else{
-      Gibber.log( `socket ${to} not ready for messaging.` )
+      Gibber.log( `socket ${to} is not ready for messaging.` )
     }
   },
 
@@ -8222,7 +8231,6 @@ module.exports = function( Gibber ) {
 
 let Live = {
   init() {
-    console.log( 'Live init!' )
     Gibber.Communication.callbacks.schemas.live = Live.handleScene
     Gibber.Communication.send( 'get_scene', 'live' )
   },
@@ -9386,12 +9394,13 @@ module.exports = function( Gibber ) {
     receives:{},
 
     init() {
-      Gibber.Communication.callbacks.schemas.max= Max.handleScene
+      Gibber.Communication.callbacks.schemas.max = Max.handleScene
       Gibber.Communication.send( 'get_scene', 'max' )     
     },
 
     handleScene( msg ) {
       Max.id = Communication.querystring.track
+      console.log( 'max scene:', msg )
 
       if( msg.namespaces !== undefined ) {
         Max.MOM = msg

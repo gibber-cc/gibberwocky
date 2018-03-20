@@ -11,12 +11,13 @@ module.exports = function( Gibber ) {
     receives:{},
 
     init() {
-      Gibber.Communication.callbacks.schemas.max= Max.handleScene
+      Gibber.Communication.callbacks.schemas.max = Max.handleScene
       Gibber.Communication.send( 'get_scene', 'max' )     
     },
 
     handleScene( msg ) {
       Max.id = Communication.querystring.track
+      console.log( 'max scene:', msg )
 
       if( msg.namespaces !== undefined ) {
         Max.MOM = msg
