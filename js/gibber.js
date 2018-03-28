@@ -348,7 +348,12 @@ let Gibber = {
               Gibber.Gen.connected.splice( idx, 1 )
             }
 
-            _v.wavePattern = Gibber.WavePattern( _v )
+            _v.wavePattern = Gibber.WavePattern( _v, null, mode )
+
+            if( mode === 'midi' ) {
+              _v.wavePattern.channel = _trackID
+              _v.wavePattern.ccnum = parameter
+            }
             
             _v.wavePattern.genReplace = function( out ) { 
               if( mode === 'live' ) {

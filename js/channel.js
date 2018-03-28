@@ -138,7 +138,7 @@ let Channel = {
         }
       })
 
-      Gibber.addMethod( channel, 'cc'+ccnum, channel.number, ccnum, 'midi' ) 
+      Gibber.addMethod( channel, 'cc'+ccnum, ccnum, channel.number, 'midi' ) 
       //Gibber.addSequencingToMethod( channel, 'cc'+i, null, null, 'midi'  )
     }
 

@@ -5,9 +5,12 @@ module.exports = function( Gibber ) {
 'use strict'
 
 const WavePattern = {
-  create( abstractGraph, values ) {
+  __connectedWidgets: null,
+
+  create( abstractGraph, values, mode=null ) {
     // might change due to proxy functionality, so use 'let'
     let graph = abstractGraph.render( 'genish' ) // convert abstraction to genish.js graph
+
 
     const patternOutputFnc = function( isViz = false ) {
       if( isViz && pattern.vizinit === false ) {
@@ -44,6 +47,13 @@ const WavePattern = {
 
       let output = outputBeforeFilters
 
+      if( mode === 'midi' ) {
+        if( pattern.widget === undefined ) {
+          console.log( pattern.paramID, Gibber.Environment.codeMarkup.waveform.widgets[ pattern.paramID ] )
+          pattern.widget = Gibber.Environment.codeMarkup.waveform.widgets[ pattern.paramID ]
+        }
+        isViz = false
+      }
 
       // if we are running the pattern solely to visualize the waveform data...
       if( isViz === true && pattern.vizinit && Gibber.Environment.annotations === true ) {
@@ -54,6 +64,10 @@ const WavePattern = {
         const idx = 60 + Math.round( pattern.nextTime * 16  )
 
         pattern.widget.values[ idx ] = { value: signalValue, type:'hit' }
+
+        if( mode === 'midi' ) {
+          Gibber.MIDI.send([ 0xb0 + pattern.channel, pattern.ccnum, Math.floor( signalValue ) ], 0 ) 
+        }
       }
 
       if( typeof pattern.genReplace === 'function' ) { pattern.genReplace( output ) }
@@ -76,7 +90,7 @@ const WavePattern = {
 
     // check whether or not to use raw signal values
     // or index into values array
-    pattern.__usesValues = values !== undefined
+    pattern.__usesValues = values !== undefined && values !== null
 
     if( abstractGraph.patterns === undefined ) {
       abstractGraph.patterns = []
@@ -157,7 +171,8 @@ const WavePattern = {
       initialized:false,
       vizinit:true,
       shouldStop:false,
-      __listeners:[]
+      __listeners:[],
+      mode
     })
 
     if( abstractGraph.paramID === undefined ) abstractGraph.paramID = pattern.paramID
@@ -169,9 +184,43 @@ const WavePattern = {
       Gibber.Environment.codeMarkup.waveform.widgets[ abstractGraph.paramID ] = pattern.widget
     }
 
+    if( mode === 'midi' ) { 
+      console.log( 'midi', pattern.paramID )
+      pattern.widget = Gibber.Environment.codeMarkup.waveform.widgets[ pattern.paramID ]
+    }
+      //  if( WavePattern.__connectedWidgets === null ) { // initialize
+    //    WavePattern.__connectedWidgets = []
+
+    //    const update = ()=> {
+    //      Gibber.Environment.animationScheduler.add( update, 1000/60 )
+    //      WavePattern.runWidgets()
+    //    }
+
+    //    Gibber.Environment.animationScheduler.add( update, 0 )
+
+    //  }
+    //  WavePattern.__connectedWidgets.push( pattern.widget )
+    //}
+
     Gibber.Gen.connected.push( pattern )
 
     return pattern
+  },
+
+
+  runWidgets: function () {
+    for( let widget of WavePattern.__connectedWidgets ) {
+      //if( id === 'dirty' ) continue
+
+      //const widget = Gibber.Environment.codeMarkup.genWidgets[ id ]
+      const value = widget.gen() 
+
+      Gibber.Environment.codeMarkup.updateWidget( id, value )
+      
+      //if( Gen.__solo === null || ( Gen.__solo.channel === widget.gen.channel && Gen.__solo.ccnum === widget.gen.ccnum) ) {
+      Gibber.MIDI.send([ 0xb0 + widget.gen.channel, widget.gen.ccnum, value ]) 
+      //}
+    }
   },
 
   runVisualization() {
