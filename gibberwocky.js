@@ -106,6 +106,24 @@ function get_devices_api(path) {
 	return tree;
 }
 
+function get_clip_api( path ) {
+	var api = new LiveAPI(path);
+	
+	var cached = lom_cache_dict.get(api.id);
+	if (cached != undefined) {
+		return JSON.parse(cached.stringify());
+	}
+	
+	var title = api.get("name")[0];
+	var tree = {
+		id: api.id,
+	}
+	
+	lom_cache_dict.setparse(api.id, JSON.stringify(tree));
+	
+	return tree;
+}
+
 function get_track_api(path, is_master) {
 	
 	var api = new LiveAPI(path);
@@ -116,6 +134,7 @@ function get_track_api(path, is_master) {
 		name: api.get("name")[0],
 		midi_input: api.get("has_midi_input")[0],	// 1 for midi tracks
 		devices: [],
+		clip_slots:[],
 		/* clip_slots, view ; mute, arm, routing, playing/fired slot, audio/midi IO, etc. */
 	};
 	
@@ -123,6 +142,12 @@ function get_track_api(path, is_master) {
 	for (var i=0; i<ndevices; i++) {
 		var dev = get_devices_api(path + " devices " + i);
 		if (dev) tree.devices.push(dev);
+	}
+	
+	var nclips = api.getcount("clip_slots");
+	for (var i=0; i<nclips; i++) {
+		var clip= get_clip_api(path + " clip_slots " + i);
+		if (clip) tree.clip_slots.push(clip);
 	}
 	
 	var mixer_path = path + " mixer_device";
@@ -176,4 +201,3 @@ function bang() {
 	// done:
 	outlet(0, "bang");
 }
-

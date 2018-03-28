@@ -167,16 +167,19 @@ const MIDI = {
     }
   },
 
-  send( msg, timestamp ) {
-    MIDI.output.send( msg, timestamp )
+  send( msg, timestamp, isNoteMsg=false, duration=-1 ) {
+    MIDI.output.send( msg, performance.now() + timestamp )
+    if( isNoteMsg === true ) { // send noteoff
+      msg[0] -= 16 // change to noteoff msg
+      MIDI.output.send( msg, timestamp + duration - 1  )
+    }
   },
 
+  beat:0, 
   handleMsg( msg ) {
-    if( msg.data[0] !== 248 ) {
-      //console.log( 'midi message:', msg.data[0], msg.data[1] )
-    }
+    //if( msg.data[0] !== 254 ) { console.log( 'midi message:', msg.data[0], msg.data[1] ) }
 
-    if( Gibber.Scheduler.__sync__ === true ) {
+    if( Gibber.Scheduler.__sync__ === 'clock' ) {
       if( msg.data[0] === 0xf2 ) { // stop
         MIDI.timestamps.length = 0
         MIDI.clockCount = 0
@@ -200,7 +203,7 @@ const MIDI = {
           Gibber.Scheduler.bpm = Math.round( Math.round( bpm *  100 ) / 100 )
    
           if( MIDI.clockCount++ === 23 ) {
-            Gibber.Scheduler.advanceBeat()
+            Gibber.Scheduler.seq( MIDI.beat++ % 4 , 'clock' )
             MIDI.clockCount = 0
           }
 
@@ -213,7 +216,7 @@ const MIDI = {
             MIDI.lastClockTime = msg.timeStamp
           }else{
             MIDI.lastClockTime = msg.timeStamp
-            Gibber.Scheduler.advanceBeat()
+            Gibber.Scheduler.seq( MIDI.beat++ % 4, 'clock' )
           }
 
           MIDI.clockCount++

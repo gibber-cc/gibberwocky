@@ -151,7 +151,11 @@ let Scheduler = {
       if( Array.isArray( msg ) ) { // for chords etc.
         msg.forEach( _msg => Gibber.Communication.send( _msg, mode ) )
       }else{
-        Gibber.Communication.send( msg, mode )
+        if( mode === 'midi' ) {
+          Gibber.MIDI.send( msg )
+        }else{
+          Gibber.Communication.send( msg, mode )
+        }
       }
     })
   },

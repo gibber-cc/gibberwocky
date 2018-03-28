@@ -238,8 +238,10 @@ let seqclosure = function( Gibber ) {
         let msg = ''
         if( seq.__client === 'max' ) {
           msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
-        }else{
+        }else if( seq.__client === 'live' ){
           msg = `${trackID} add ${beat} note ${number} ${velocity} ${duration}` 
+        }else{
+          msg = [ 0x90 + seq.object.number, number, velocity ]
         }
 
         return msg 
@@ -252,8 +254,10 @@ let seqclosure = function( Gibber ) {
         let msg = ''
         if( seq.__client === 'max' ) {
           msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
-        }else{
+        }else if( seq.__client === 'live' ){
           msg = `${trackID} add ${beat} note ${number} ${velocity} ${duration}` 
+        }else{
+          msg = [ 0x90 + seq.object.number, number, velocity ]
         }
 
         return msg 
@@ -278,8 +282,10 @@ let seqclosure = function( Gibber ) {
           const number = chord[ i ]
           if( seq.__client === 'max' ) {
             msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
-          }else{
+          }else if( seq.__client === 'live' ){
             msg = `${trackID} add ${beat} note ${number} ${velocity} ${duration}` 
+          }else{
+            msg = [ 0x90 + seq.object.number, number, velocity ]
           }
           msgs.push( msg )
         }
@@ -289,13 +295,17 @@ let seqclosure = function( Gibber ) {
       midichord( chord, beat, trackID, seq ) {
         //console.log( chord )
         let msgs = []
+        const velocity = seq.velocity()
+        const duration = seq.duration()
 
         for( let i = 0; i < chord.length; i++ ) {
           let msg = ''
           if( seq.__client === 'max' ) {
             msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
-          }else{
+          }else if( seq.__client === 'live' ){
             msg = `${trackID} add ${beat} note ${number} ${velocity} ${duration}` 
+          }else{
+            msg = [ 0x90 + seq.object.number, number, velocity ]
           }
           msgs.push( msg )
         }
@@ -305,10 +315,13 @@ let seqclosure = function( Gibber ) {
       cc( number, value, beat, trackID, seq ) {
         let msg = ''
         if( seq.__client === 'max' ) {
-          msg = `add ${beat} cc ${trackID} ${number} ${velocity} ${duration}`        
+          msg = `add ${beat} cc ${trackID} ${number} ${value}`        
+        }else if( seq.__client === 'live' ){
+          msg = `${trackID} add ${beat} cc ${number} ${value}` 
         }else{
-          msg = `${trackID} add ${beat} cc ${number} ${velocity} ${duration}` 
+          msg = [ 0xb0 + seq.object.number, number, value ]
         }
+        console.log( 'cc msg:', msg, seq.__client )
 
         return msg 
       },
@@ -401,7 +414,18 @@ let seqclosure = function( Gibber ) {
             }
 
             let msg = this.externalMessages[ this.key ]( value, beat + _beatOffset, this.trackID, this )
-            scheduler.msgs.push( [msg, this.__client ])
+
+            if( this.__client !== 'midi' ) {
+              scheduler.msgs.push( [msg, this.__client ])
+            }else{
+              if( this.key === 'note' || this.key === 'midinote' ) { 
+
+                //this.externalMessages[ this.key ]( value, Gibber.Utility.beatsToMs( _beatOffset ) )
+                Gibber.MIDI.send( msg, Gibber.Utility.beatsToMs( _beatOffset + 1, Gibber.Scheduler.bpm ),  true, this.duration() )
+              }else{
+                Gibber.MIDI.send( msg, Gibber.Utility.beatsToMs( _beatOffset + 1, Gibber.Scheduler.bpm ), false )
+              }
+            }
           
           } else { // schedule internal method / function call immediately
 
@@ -424,8 +448,19 @@ let seqclosure = function( Gibber ) {
 
   // create external messages for cc0, cc1, cc2 etc.
   for( let i = 0; i < 128; i++ ) {
-    proto.externalMessages[ 'cc' + i ] =  ( value, beat, trackID ) => {
-       return  `${trackID} add ${beat} cc ${i} ${value}`
+    proto.externalMessages[ 'cc' + i ] =  ( value, beat, trackID, seq ) => {
+      let msg = ''
+      let number = i
+
+      if( seq.__client === 'max' ) {
+        msg = `add ${beat} cc ${trackID} ${number} ${value}`        
+      }else if( seq.__client === 'live' ){
+        msg = `${trackID} add ${beat} cc ${number} ${value}` 
+      }else{
+        msg = [ 0xb0 + seq.object.number, number, value ]
+      }
+      
+      return msg
     }
   }
 

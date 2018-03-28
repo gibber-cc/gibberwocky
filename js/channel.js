@@ -18,12 +18,19 @@ let Channel = {
 
       __velocity: 64,
       __duration: 1000,
-      
+      __octave:   0,
+
+      octave( v ) {
+        if( v===undefined ) return channel.__octave
+
+        channel.__octave = v
+        return channel
+      },
       note( num, offset=null, doNotConvert=false ){
         const notenum = doNotConvert === true ? num : Gibber.Theory.Note.convertToMIDI( num )
         
         let msg = [ 0x90 + channel.number, notenum, channel.__velocity ]
-        const baseTime = offset !== null ? window.performance.now() + offset : window.performance.now()
+        const baseTime = offset !== null ? offset : 0 
 
         Gibber.MIDI.send( msg, baseTime )
         msg[0] = 0x80 + channel.number
@@ -35,7 +42,7 @@ let Channel = {
 
       midinote( num, offset=null ) {
         let msg = [ 0x90 + channel.number, num, channel.__velocity ]
-        const baseTime = offset !== null ? window.performance.now() + offset : window.performance.now()
+        const baseTime = offset !== null ? offset : 0 
 
         Gibber.MIDI.send( msg, baseTime )
         msg[0] = 0x80 + channel.number
@@ -43,11 +50,16 @@ let Channel = {
       },
       
       duration( value ) {
+        if( value === undefined ) { return channel.__duration }
+
         channel.__duration = value
+        return channel 
       },
       
       velocity( value ) {
+        if( value === undefined ) { return channel.__velocity }
         channel.__velocity = value 
+        return channel
       },
 
       mute( value ) {
@@ -113,8 +125,9 @@ let Channel = {
       const ccnum = i
       channel[ 'cc'+ccnum ] = ( val, offset = null ) => {
         let msg = [ 0xb0 + channel.number, ccnum, val ]
-        const baseTime = offset !== null ? window.performance.now() + offset : window.performance.now()
+        const baseTime = offset !== null ? offset : 0 
 
+        console.log( 'time:', baseTime )
         Gibber.MIDI.send( msg, baseTime )
       }
 
@@ -126,7 +139,7 @@ let Channel = {
       })
 
       Gibber.addMethod( channel, 'cc'+ccnum, channel.number, ccnum, 'midi' ) 
-      //Gibber.addSequencingToMethod( channel, 'cc'+i  )
+      //Gibber.addSequencingToMethod( channel, 'cc'+i, null, null, 'midi'  )
     }
 
     return channel

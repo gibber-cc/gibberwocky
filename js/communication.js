@@ -53,6 +53,7 @@ let Communication = {
 
       const address = "ws://" + host + ":" + port
       
+      console.log( 'init web socket:', clientName )
       wsocket = new WebSocket( address )
       wsocket.errorCount = 0
       
@@ -80,16 +81,16 @@ let Communication = {
 
         // set up an auto-reconnect task:
 
-        if( wsocket.errorCount < 3 ) {
-          this.connectTask = setTimeout( this.createWebSocket.bind( 
-            Communication, 
-            clientName === 'live' ? Gibber.Live.init : Gibber.Max.init,
-            port, host, clientName ) 
-          , 2000 )
+        //if( wsocket.errorCount++ < 3 ) {
+        //  this.connectTask = setTimeout( this.createWebSocket.bind( 
+        //    Communication, 
+        //    clientName === 'live' ? Gibber.Live.init : Gibber.Max.init,
+        //    port, host, clientName ) 
+        //  , 2000 )
 
-        }else{
-          Gibber.log( `too many failed connection attempts to ${clientName}. no more connections will be attempted. refresh the page to try again.\n\n` )
-        }
+        //}else{
+        //  Gibber.log( `too many failed connection attempts to ${clientName}. no more connections will be attempted. refresh the page to try again.\n\n` )
+        //}
 
       }.bind( Communication )
 
@@ -99,7 +100,11 @@ let Communication = {
       }.bind( Communication )
 
       wsocket.onerror = function( ev ) {
-        Gibber.log( `gibberwocky.${clientName} was not able to connect.`, wsocket )
+        Gibber.log( `gibberwocky.${clientName} was not able to connect.` )
+        if( wsocket.errorCount++ > 3 ) {
+          wsocket.close()
+          Gibber.log( `too many failed connection attempts to ${clientName}. no more connections will be attempted. refresh the page to try again.\n\n` )
+        }
       }.bind( Communication )
 
       wsocket.clientName = clientName

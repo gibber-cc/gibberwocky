@@ -5284,12 +5284,19 @@ let Channel = {
 
       __velocity: 64,
       __duration: 1000,
-      
+      __octave:   0,
+
+      octave( v ) {
+        if( v===undefined ) return channel.__octave
+
+        channel.__octave = v
+        return channel
+      },
       note( num, offset=null, doNotConvert=false ){
         const notenum = doNotConvert === true ? num : Gibber.Theory.Note.convertToMIDI( num )
         
         let msg = [ 0x90 + channel.number, notenum, channel.__velocity ]
-        const baseTime = offset !== null ? window.performance.now() + offset : window.performance.now()
+        const baseTime = offset !== null ? offset : 0 
 
         Gibber.MIDI.send( msg, baseTime )
         msg[0] = 0x80 + channel.number
@@ -5301,7 +5308,7 @@ let Channel = {
 
       midinote( num, offset=null ) {
         let msg = [ 0x90 + channel.number, num, channel.__velocity ]
-        const baseTime = offset !== null ? window.performance.now() + offset : window.performance.now()
+        const baseTime = offset !== null ? offset : 0 
 
         Gibber.MIDI.send( msg, baseTime )
         msg[0] = 0x80 + channel.number
@@ -5309,11 +5316,16 @@ let Channel = {
       },
       
       duration( value ) {
+        if( value === undefined ) { return channel.__duration }
+
         channel.__duration = value
+        return channel 
       },
       
       velocity( value ) {
+        if( value === undefined ) { return channel.__velocity }
         channel.__velocity = value 
+        return channel
       },
 
       mute( value ) {
@@ -5379,8 +5391,9 @@ let Channel = {
       const ccnum = i
       channel[ 'cc'+ccnum ] = ( val, offset = null ) => {
         let msg = [ 0xb0 + channel.number, ccnum, val ]
-        const baseTime = offset !== null ? window.performance.now() + offset : window.performance.now()
+        const baseTime = offset !== null ? offset : 0 
 
+        console.log( 'time:', baseTime )
         Gibber.MIDI.send( msg, baseTime )
       }
 
@@ -5392,7 +5405,7 @@ let Channel = {
       })
 
       Gibber.addMethod( channel, 'cc'+ccnum, channel.number, ccnum, 'midi' ) 
-      //Gibber.addSequencingToMethod( channel, 'cc'+i  )
+      //Gibber.addSequencingToMethod( channel, 'cc'+i, null, null, 'midi'  )
     }
 
     return channel
@@ -5558,7 +5571,11 @@ let Scheduler = {
       if( Array.isArray( msg ) ) { // for chords etc.
         msg.forEach( _msg => Gibber.Communication.send( _msg, mode ) )
       }else{
-        Gibber.Communication.send( msg, mode )
+        if( mode === 'midi' ) {
+          Gibber.MIDI.send( msg )
+        }else{
+          Gibber.Communication.send( msg, mode )
+        }
       }
     })
   },
@@ -6004,6 +6021,7 @@ let Communication = {
 
       const address = "ws://" + host + ":" + port
       
+      console.log( 'init web socket:', clientName )
       wsocket = new WebSocket( address )
       wsocket.errorCount = 0
       
@@ -6031,16 +6049,16 @@ let Communication = {
 
         // set up an auto-reconnect task:
 
-        if( wsocket.errorCount < 3 ) {
-          this.connectTask = setTimeout( this.createWebSocket.bind( 
-            Communication, 
-            clientName === 'live' ? Gibber.Live.init : Gibber.Max.init,
-            port, host, clientName ) 
-          , 2000 )
+        //if( wsocket.errorCount++ < 3 ) {
+        //  this.connectTask = setTimeout( this.createWebSocket.bind( 
+        //    Communication, 
+        //    clientName === 'live' ? Gibber.Live.init : Gibber.Max.init,
+        //    port, host, clientName ) 
+        //  , 2000 )
 
-        }else{
-          Gibber.log( `too many failed connection attempts to ${clientName}. no more connections will be attempted. refresh the page to try again.\n\n` )
-        }
+        //}else{
+        //  Gibber.log( `too many failed connection attempts to ${clientName}. no more connections will be attempted. refresh the page to try again.\n\n` )
+        //}
 
       }.bind( Communication )
 
@@ -6050,7 +6068,11 @@ let Communication = {
       }.bind( Communication )
 
       wsocket.onerror = function( ev ) {
-        Gibber.log( `gibberwocky.${clientName} was not able to connect.`, wsocket )
+        Gibber.log( `gibberwocky.${clientName} was not able to connect.` )
+        if( wsocket.errorCount++ > 3 ) {
+          wsocket.close()
+          Gibber.log( `too many failed connection attempts to ${clientName}. no more connections will be attempted. refresh the page to try again.\n\n` )
+        }
       }.bind( Communication )
 
       wsocket.clientName = clientName
@@ -7688,6 +7710,7 @@ let Gibber = {
 
       if( obj.sequences[ methodName ][ id ] ) obj.sequences[ methodName ][ id ].clear()
 
+      console.log( 'seq:', mode, obj )
       obj.sequences[ methodName ][ id ] = seq = Gibber.Seq( values, timings, overrideName, obj, priority, mode )
 
       // if the target is another sequencer (like for per-sequencer velocity control) it won't
@@ -7820,7 +7843,7 @@ let Gibber = {
           }
 
 
-          if( hasGen === true ) { 
+          if( hasGen === true && mode !== 'midi' ) { 
             if( mode === 'live' ) {
               Gibber.Communication.send( `gen ${parameter.id} "${__v.out()}"`, 'live' )
             }else{
@@ -10841,16 +10864,19 @@ const MIDI = {
     }
   },
 
-  send( msg, timestamp ) {
-    MIDI.output.send( msg, timestamp )
+  send( msg, timestamp, isNoteMsg=false, duration=-1 ) {
+    MIDI.output.send( msg, performance.now() + timestamp )
+    if( isNoteMsg === true ) { // send noteoff
+      msg[0] -= 16 // change to noteoff msg
+      MIDI.output.send( msg, timestamp + duration - 1  )
+    }
   },
 
+  beat:0, 
   handleMsg( msg ) {
-    if( msg.data[0] !== 248 ) {
-      //console.log( 'midi message:', msg.data[0], msg.data[1] )
-    }
+    //if( msg.data[0] !== 254 ) { console.log( 'midi message:', msg.data[0], msg.data[1] ) }
 
-    if( Gibber.Scheduler.__sync__ === true ) {
+    if( Gibber.Scheduler.__sync__ === 'clock' ) {
       if( msg.data[0] === 0xf2 ) { // stop
         MIDI.timestamps.length = 0
         MIDI.clockCount = 0
@@ -10874,7 +10900,7 @@ const MIDI = {
           Gibber.Scheduler.bpm = Math.round( Math.round( bpm *  100 ) / 100 )
    
           if( MIDI.clockCount++ === 23 ) {
-            Gibber.Scheduler.advanceBeat()
+            Gibber.Scheduler.seq( MIDI.beat++ % 4 , 'clock' )
             MIDI.clockCount = 0
           }
 
@@ -10887,7 +10913,7 @@ const MIDI = {
             MIDI.lastClockTime = msg.timeStamp
           }else{
             MIDI.lastClockTime = msg.timeStamp
-            Gibber.Scheduler.advanceBeat()
+            Gibber.Scheduler.seq( MIDI.beat++ % 4, 'clock' )
           }
 
           MIDI.clockCount++
@@ -12218,8 +12244,10 @@ let seqclosure = function( Gibber ) {
         let msg = ''
         if( seq.__client === 'max' ) {
           msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
-        }else{
+        }else if( seq.__client === 'live' ){
           msg = `${trackID} add ${beat} note ${number} ${velocity} ${duration}` 
+        }else{
+          msg = [ 0x90 + seq.object.number, number, velocity ]
         }
 
         return msg 
@@ -12232,8 +12260,10 @@ let seqclosure = function( Gibber ) {
         let msg = ''
         if( seq.__client === 'max' ) {
           msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
-        }else{
+        }else if( seq.__client === 'live' ){
           msg = `${trackID} add ${beat} note ${number} ${velocity} ${duration}` 
+        }else{
+          msg = [ 0x90 + seq.object.number, number, velocity ]
         }
 
         return msg 
@@ -12258,8 +12288,10 @@ let seqclosure = function( Gibber ) {
           const number = chord[ i ]
           if( seq.__client === 'max' ) {
             msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
-          }else{
+          }else if( seq.__client === 'live' ){
             msg = `${trackID} add ${beat} note ${number} ${velocity} ${duration}` 
+          }else{
+            msg = [ 0x90 + seq.object.number, number, velocity ]
           }
           msgs.push( msg )
         }
@@ -12269,13 +12301,17 @@ let seqclosure = function( Gibber ) {
       midichord( chord, beat, trackID, seq ) {
         //console.log( chord )
         let msgs = []
+        const velocity = seq.velocity()
+        const duration = seq.duration()
 
         for( let i = 0; i < chord.length; i++ ) {
           let msg = ''
           if( seq.__client === 'max' ) {
             msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
-          }else{
+          }else if( seq.__client === 'live' ){
             msg = `${trackID} add ${beat} note ${number} ${velocity} ${duration}` 
+          }else{
+            msg = [ 0x90 + seq.object.number, number, velocity ]
           }
           msgs.push( msg )
         }
@@ -12285,10 +12321,13 @@ let seqclosure = function( Gibber ) {
       cc( number, value, beat, trackID, seq ) {
         let msg = ''
         if( seq.__client === 'max' ) {
-          msg = `add ${beat} cc ${trackID} ${number} ${velocity} ${duration}`        
+          msg = `add ${beat} cc ${trackID} ${number} ${value}`        
+        }else if( seq.__client === 'live' ){
+          msg = `${trackID} add ${beat} cc ${number} ${value}` 
         }else{
-          msg = `${trackID} add ${beat} cc ${number} ${velocity} ${duration}` 
+          msg = [ 0xb0 + seq.object.number, number, value ]
         }
+        console.log( 'cc msg:', msg, seq.__client )
 
         return msg 
       },
@@ -12381,7 +12420,18 @@ let seqclosure = function( Gibber ) {
             }
 
             let msg = this.externalMessages[ this.key ]( value, beat + _beatOffset, this.trackID, this )
-            scheduler.msgs.push( [msg, this.__client ])
+
+            if( this.__client !== 'midi' ) {
+              scheduler.msgs.push( [msg, this.__client ])
+            }else{
+              if( this.key === 'note' || this.key === 'midinote' ) { 
+
+                //this.externalMessages[ this.key ]( value, Gibber.Utility.beatsToMs( _beatOffset ) )
+                Gibber.MIDI.send( msg, Gibber.Utility.beatsToMs( _beatOffset + 1, Gibber.Scheduler.bpm ),  true, this.duration() )
+              }else{
+                Gibber.MIDI.send( msg, Gibber.Utility.beatsToMs( _beatOffset + 1, Gibber.Scheduler.bpm ), false )
+              }
+            }
           
           } else { // schedule internal method / function call immediately
 
@@ -12404,8 +12454,19 @@ let seqclosure = function( Gibber ) {
 
   // create external messages for cc0, cc1, cc2 etc.
   for( let i = 0; i < 128; i++ ) {
-    proto.externalMessages[ 'cc' + i ] =  ( value, beat, trackID ) => {
-       return  `${trackID} add ${beat} cc ${i} ${value}`
+    proto.externalMessages[ 'cc' + i ] =  ( value, beat, trackID, seq ) => {
+      let msg = ''
+      let number = i
+
+      if( seq.__client === 'max' ) {
+        msg = `add ${beat} cc ${trackID} ${number} ${value}`        
+      }else if( seq.__client === 'live' ){
+        msg = `${trackID} add ${beat} cc ${number} ${value}` 
+      }else{
+        msg = [ 0xb0 + seq.object.number, number, value ]
+      }
+      
+      return msg
     }
   }
 

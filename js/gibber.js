@@ -195,6 +195,7 @@ let Gibber = {
 
       if( obj.sequences[ methodName ][ id ] ) obj.sequences[ methodName ][ id ].clear()
 
+      console.log( 'seq:', mode, obj )
       obj.sequences[ methodName ][ id ] = seq = Gibber.Seq( values, timings, overrideName, obj, priority, mode )
 
       // if the target is another sequencer (like for per-sequencer velocity control) it won't
@@ -327,7 +328,7 @@ let Gibber = {
           }
 
 
-          if( hasGen === true ) { 
+          if( hasGen === true && mode !== 'midi' ) { 
             if( mode === 'live' ) {
               Gibber.Communication.send( `gen ${parameter.id} "${__v.out()}"`, 'live' )
             }else{
