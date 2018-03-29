@@ -7953,6 +7953,10 @@ let Gibber = {
               Gibber.Communication.send( `set ${parameter} ${methodName} ${v}`, 'max' ) 
             }
             // Gibber.Communication.send( `sig ${parameter.id} expr "out1=${v};"`, 'max' )
+          }else if( mode === 'midi' ) {
+            let msg = [ 0xb0 + _trackID, parameter, v ]
+
+            Gibber.MIDI.send( msg, 0 )
           }
         }
       }else{
