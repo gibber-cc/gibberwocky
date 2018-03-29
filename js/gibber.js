@@ -195,7 +195,6 @@ let Gibber = {
 
       if( obj.sequences[ methodName ][ id ] ) obj.sequences[ methodName ][ id ].clear()
 
-      console.log( 'seq:', mode, obj )
       obj.sequences[ methodName ][ id ] = seq = Gibber.Seq( values, timings, overrideName, obj, priority, mode )
 
       // if the target is another sequencer (like for per-sequencer velocity control) it won't
@@ -279,19 +278,29 @@ let Gibber = {
         p,
         trackID = isNaN( _trackID ) ? obj.id : _trackID
 
-    let  seqKey = mode === 'live' ? `${trackID} ${obj.id} ${parameter.id}` : `${parameter} ${methodName}`
+    let  seqKey = null
+   
+    if( mode === 'live' ) {
+      seqKey = `${trackID} ${obj.id} ${parameter.id}`
+    }else if ( mode === 'max' ){
+      seqKey = `${parameter} ${methodName}`
+    }else{
+      seqKey = methodName
+    }
 
     //console.log( "add method trackID", trackID )
 
     if( mode === 'live' && methodName === null ) methodName = parameter.name
     
     if( parameter === null ) parameter = ''
-    Gibber.Seq.proto.externalMessages[ seqKey ] = ( value, beat ) => {
-      let msg = mode === 'live' 
-        ? `add ${beat} set ${parameter.id} ${value}`
-        : `add ${beat} set ${parameter} ${methodName} ${value}`
-              
-      return msg
+    if( typeof methodName === 'string' && methodName.indexOf('cc') === -1 ) {
+      Gibber.Seq.proto.externalMessages[ seqKey ] = ( value, beat ) => {
+        let msg = mode === 'live' 
+          ? `add ${beat} set ${parameter.id} ${value}`
+          : `add ${beat} set ${parameter} ${methodName} ${value}`
+                
+        return msg
+      }
     }
 
     obj[ methodName ] = p = _v => {

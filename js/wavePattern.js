@@ -49,9 +49,11 @@ const WavePattern = {
 
       if( mode === 'midi' ) {
         if( pattern.widget === undefined ) {
-          console.log( pattern.paramID, Gibber.Environment.codeMarkup.waveform.widgets[ pattern.paramID ] )
+          //console.log( pattern.paramID, Gibber.Environment.codeMarkup.waveform.widgets[ pattern.paramID ] )
           pattern.widget = Gibber.Environment.codeMarkup.waveform.widgets[ pattern.paramID ]
+
         }
+
         isViz = false
       }
 
@@ -66,6 +68,7 @@ const WavePattern = {
         pattern.widget.values[ idx ] = { value: signalValue, type:'hit' }
 
         if( mode === 'midi' ) {
+          Gibber.Environment.codeMarkup.waveform.updateWidget( abstractGraph.paramID, signalValue, false )
           Gibber.MIDI.send([ 0xb0 + pattern.channel, pattern.ccnum, Math.floor( signalValue ) ], 0 ) 
         }
       }
