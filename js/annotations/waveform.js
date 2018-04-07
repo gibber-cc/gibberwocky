@@ -10,7 +10,6 @@ const Waveform = {
   widgets: { dirty:false },
   
   createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject, track, isSeq=true ) {
-
     let widget = document.createElement( 'canvas' )
     widget.padding = 40
     widget.waveWidth = 60
@@ -83,12 +82,13 @@ const Waveform = {
     //for( let i = 0; i < 120; i++ ) widget.values[ i ] = 0
 
     let replaced = false
-    //if( isAssignment === false ) {
+    //if( isAssignment === false && isSeq === false ) {
     //  if( widget.gen !== null ) {
     //    let oldWidget = Waveform.widgets[ widget.gen.paramID ] 
 
     //    if( oldWidget !== undefined ) {
     //      //oldWidget.parentNode.removeChild( oldWidget )
+    //      console.log( 'replaced' )
     //      widget = oldWidget
     //      replaced = true
     //    } 
@@ -181,11 +181,15 @@ const Waveform = {
     const drawn = []
 
     for( let key in Waveform.widgets ) {
+      if( key === 'dirty' ) continue
+
       const widget = Waveform.widgets[ key ]
 
       // ensure that a widget does not get drawn more
       // than once per frame
       if( drawn.indexOf( widget ) !== -1 ) continue
+
+      
 
       if( typeof widget === 'object' && widget.ctx !== undefined ) {
 

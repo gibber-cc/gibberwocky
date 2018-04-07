@@ -304,7 +304,6 @@ let Gibber = {
     }
 
     obj[ methodName ] = p = _v => {
-
       if( p.properties !== null && p.properties.quantized === 1 ) _v = Math.round( _v )
 
       const hasGen = Gibber.__gen.enabled
@@ -317,22 +316,18 @@ let Gibber = {
 
           __v.__client = _v.__client = mode
 
+          const __id = isNaN( parameter ) ? parameter.id : parameter+'0000'+_trackID
           if( hasGen ) {
-            __v.assignTrackAndParamID( trackID, parameter.id )
+            _v.paramID = __id
+            __v.assignTrackAndParamID( trackID, __id ) 
           }else{
-            Gibber.__gen.assignTrackAndParamID.call( _v, trackID, parameter.id )
+            Gibber.__gen.assignTrackAndParamID.call( _v, trackID, __id )
           }
           
-          //_v.assignTrackAndParamID( trackID, parameter.id )
-
-          //// if a gen is not already connected to this parameter, push
-          //if( Gibber.Gen.connected.find( e => e.paramID === parameter.id ) === undefined ) {
-          //  Gibber.Gen.connected.push( _v )
-          //}
           // if a gen is not already connected to this parameter, push
-          const prevGen = Gibber.Gen.connected.find( e => e.paramID === parameter.id )
+          const prevGen = Gibber.Gen.connected.find( e => e.paramID === __id )
           const genAlreadyAssigned = prevGen !== undefined
-          if( genAlreadyAssigned === false ) {
+          if( genAlreadyAssigned === false && mode !== 'midi' ) {
             Gibber.Gen.connected.push( __v )
           }
 
@@ -346,14 +341,14 @@ let Gibber = {
             if( genAlreadyAssigned === true ) {
               prevGen.clear()
               prevGen.shouldStop = true
-              const idx = Gibber.Gen.connected.findIndex( e => e.paramID === parameter.id )
+              const idx = Gibber.Gen.connected.findIndex( e => e.paramID === __id )
               Gibber.Gen.connected.splice( idx, 1 )
             }
           }else{
             if( genAlreadyAssigned === true ) {
               prevGen.clear()
               prevGen.shouldStop = true
-              const idx = Gibber.Gen.connected.findIndex( e => e.paramID === parameter.id )
+              const idx = Gibber.Gen.connected.findIndex( e => e.paramID === __id )
               Gibber.Gen.connected.splice( idx, 1 )
             }
 
@@ -418,8 +413,9 @@ let Gibber = {
           v.__client = mode
           if( v.isGen ) {
             if( hasGen ) {
-              if( mode === 'live' )
+              if( mode === 'live' ) {
                 Gibber.Communication.send( `ungen ${parameter.id}`, 'live' )
+              }
             }
 
             let widget = Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
@@ -441,7 +437,18 @@ let Gibber = {
           }else if( mode === 'midi' ) {
             let msg = [ 0xb0 + _trackID, parameter, v ]
 
-            Gibber.MIDI.send( msg, 0 )
+            const __id = isNaN( parameter ) ? parameter.id : parameter+'0000'+_trackID
+            const prevGen = Gibber.Gen.connected.find( e => e.paramID === __id )
+            if( prevGen !== undefined ) {
+              prevGen.clear()
+              prevGen.shouldStop = true
+              const idx = Gibber.Gen.connected.findIndex( e => e.paramID === __id )
+              Gibber.Gen.connected.splice( idx, 1 )
+              Gibber.MIDI.send( msg, 100 )
+            }else{
+              Gibber.MIDI.send( msg, 0 )
+            }
+
           }
         }
       }else{

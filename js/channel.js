@@ -127,11 +127,10 @@ let Channel = {
         let msg = [ 0xb0 + channel.number, ccnum, val ]
         const baseTime = offset !== null ? offset : 0 
 
-        console.log( 'time:', baseTime )
         Gibber.MIDI.send( msg, baseTime )
       }
 
-      Object.assign( channel[ 'cc'+ccnum], {
+      Object.assign( channel[ 'cc'+ccnum ], {
         markup: {
           textClasses:{},
           cssClasses:{}
@@ -140,6 +139,19 @@ let Channel = {
 
       Gibber.addMethod( channel, 'cc'+ccnum, ccnum, channel.number, 'midi' ) 
       //Gibber.addSequencingToMethod( channel, 'cc'+i, null, null, 'midi'  )
+      channel[ 'cc'+ccnum ].stop = function() {
+        const id = ccnum+'0000'+channel.number
+        const prevGen = Gibber.Gen.connected.find( e => e.paramID === id )
+
+        console.log( id, prevGen )
+        
+        if( prevGen !== undefined ) {
+          prevGen.clear()
+          prevGen.shouldStop = true
+          const idx = Gibber.Gen.connected.findIndex( e => e.paramID === id ) 
+          Gibber.Gen.connected.splice( idx, 1 )
+        }
+      }
     }
 
     return channel

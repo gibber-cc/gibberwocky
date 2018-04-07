@@ -4827,7 +4827,6 @@ const Waveform = {
   widgets: { dirty:false },
   
   createWaveformWidget( line, closeParenStart, ch, isAssignment, node, cm, patternObject, track, isSeq=true ) {
-
     let widget = document.createElement( 'canvas' )
     widget.padding = 40
     widget.waveWidth = 60
@@ -4900,12 +4899,13 @@ const Waveform = {
     //for( let i = 0; i < 120; i++ ) widget.values[ i ] = 0
 
     let replaced = false
-    //if( isAssignment === false ) {
+    //if( isAssignment === false && isSeq === false ) {
     //  if( widget.gen !== null ) {
     //    let oldWidget = Waveform.widgets[ widget.gen.paramID ] 
 
     //    if( oldWidget !== undefined ) {
     //      //oldWidget.parentNode.removeChild( oldWidget )
+    //      console.log( 'replaced' )
     //      widget = oldWidget
     //      replaced = true
     //    } 
@@ -4998,11 +4998,15 @@ const Waveform = {
     const drawn = []
 
     for( let key in Waveform.widgets ) {
+      if( key === 'dirty' ) continue
+
       const widget = Waveform.widgets[ key ]
 
       // ensure that a widget does not get drawn more
       // than once per frame
       if( drawn.indexOf( widget ) !== -1 ) continue
+
+      
 
       if( typeof widget === 'object' && widget.ctx !== undefined ) {
 
@@ -5393,11 +5397,10 @@ let Channel = {
         let msg = [ 0xb0 + channel.number, ccnum, val ]
         const baseTime = offset !== null ? offset : 0 
 
-        console.log( 'time:', baseTime )
         Gibber.MIDI.send( msg, baseTime )
       }
 
-      Object.assign( channel[ 'cc'+ccnum], {
+      Object.assign( channel[ 'cc'+ccnum ], {
         markup: {
           textClasses:{},
           cssClasses:{}
@@ -5406,6 +5409,19 @@ let Channel = {
 
       Gibber.addMethod( channel, 'cc'+ccnum, ccnum, channel.number, 'midi' ) 
       //Gibber.addSequencingToMethod( channel, 'cc'+i, null, null, 'midi'  )
+      channel[ 'cc'+ccnum ].stop = function() {
+        const id = ccnum+'0000'+channel.number
+        const prevGen = Gibber.Gen.connected.find( e => e.paramID === id )
+
+        console.log( id, prevGen )
+        
+        if( prevGen !== undefined ) {
+          prevGen.clear()
+          prevGen.shouldStop = true
+          const idx = Gibber.Gen.connected.findIndex( e => e.paramID === id ) 
+          Gibber.Gen.connected.splice( idx, 1 )
+        }
+      }
     }
 
     return channel
@@ -7819,7 +7835,6 @@ let Gibber = {
     }
 
     obj[ methodName ] = p = _v => {
-
       if( p.properties !== null && p.properties.quantized === 1 ) _v = Math.round( _v )
 
       const hasGen = Gibber.__gen.enabled
@@ -7832,22 +7847,18 @@ let Gibber = {
 
           __v.__client = _v.__client = mode
 
+          const __id = isNaN( parameter ) ? parameter.id : parameter+'0000'+_trackID
           if( hasGen ) {
-            __v.assignTrackAndParamID( trackID, parameter.id )
+            _v.paramID = __id
+            __v.assignTrackAndParamID( trackID, __id ) 
           }else{
-            Gibber.__gen.assignTrackAndParamID.call( _v, trackID, parameter.id )
+            Gibber.__gen.assignTrackAndParamID.call( _v, trackID, __id )
           }
           
-          //_v.assignTrackAndParamID( trackID, parameter.id )
-
-          //// if a gen is not already connected to this parameter, push
-          //if( Gibber.Gen.connected.find( e => e.paramID === parameter.id ) === undefined ) {
-          //  Gibber.Gen.connected.push( _v )
-          //}
           // if a gen is not already connected to this parameter, push
-          const prevGen = Gibber.Gen.connected.find( e => e.paramID === parameter.id )
+          const prevGen = Gibber.Gen.connected.find( e => e.paramID === __id )
           const genAlreadyAssigned = prevGen !== undefined
-          if( genAlreadyAssigned === false ) {
+          if( genAlreadyAssigned === false && mode !== 'midi' ) {
             Gibber.Gen.connected.push( __v )
           }
 
@@ -7861,14 +7872,14 @@ let Gibber = {
             if( genAlreadyAssigned === true ) {
               prevGen.clear()
               prevGen.shouldStop = true
-              const idx = Gibber.Gen.connected.findIndex( e => e.paramID === parameter.id )
+              const idx = Gibber.Gen.connected.findIndex( e => e.paramID === __id )
               Gibber.Gen.connected.splice( idx, 1 )
             }
           }else{
             if( genAlreadyAssigned === true ) {
               prevGen.clear()
               prevGen.shouldStop = true
-              const idx = Gibber.Gen.connected.findIndex( e => e.paramID === parameter.id )
+              const idx = Gibber.Gen.connected.findIndex( e => e.paramID === __id )
               Gibber.Gen.connected.splice( idx, 1 )
             }
 
@@ -7933,8 +7944,9 @@ let Gibber = {
           v.__client = mode
           if( v.isGen ) {
             if( hasGen ) {
-              if( mode === 'live' )
+              if( mode === 'live' ) {
                 Gibber.Communication.send( `ungen ${parameter.id}`, 'live' )
+              }
             }
 
             let widget = Gibber.Environment.codeMarkup.waveform.widgets[ parameter.id ]
@@ -7956,7 +7968,18 @@ let Gibber = {
           }else if( mode === 'midi' ) {
             let msg = [ 0xb0 + _trackID, parameter, v ]
 
-            Gibber.MIDI.send( msg, 0 )
+            const __id = isNaN( parameter ) ? parameter.id : parameter+'0000'+_trackID
+            const prevGen = Gibber.Gen.connected.find( e => e.paramID === __id )
+            if( prevGen !== undefined ) {
+              prevGen.clear()
+              prevGen.shouldStop = true
+              const idx = Gibber.Gen.connected.findIndex( e => e.paramID === __id )
+              Gibber.Gen.connected.splice( idx, 1 )
+              Gibber.MIDI.send( msg, 100 )
+            }else{
+              Gibber.MIDI.send( msg, 0 )
+            }
+
           }
         }
       }else{
@@ -14618,6 +14641,7 @@ const waveObjects = {
 }
 
 },{}],125:[function(require,module,exports){
+
 const genish = require( 'genish.js' )
 
 module.exports = function( Gibber ) {
@@ -14679,7 +14703,7 @@ const WavePattern = {
 
       // if we are running the pattern solely to visualize the waveform data...
       if( isViz === true && pattern.vizinit && Gibber.Environment.annotations === true ) {
-        Gibber.Environment.codeMarkup.waveform.updateWidget( abstractGraph.paramID, signalValue, false )
+        Gibber.Environment.codeMarkup.waveform.updateWidget( pattern.paramID, signalValue, false )
       }else if( Gibber.Environment.annotations === true && pattern.widget !== undefined ) {
         // mark the last placed value by the visualization as having a "hit", 
         // which will cause a dot to be drawn on the sparkline.
@@ -14688,7 +14712,7 @@ const WavePattern = {
         pattern.widget.values[ idx ] = { value: signalValue, type:'hit' }
 
         if( mode === 'midi' ) {
-          Gibber.Environment.codeMarkup.waveform.updateWidget( abstractGraph.paramID, signalValue, false )
+          Gibber.Environment.codeMarkup.waveform.updateWidget( pattern.paramID, signalValue, false )
           Gibber.MIDI.send([ 0xb0 + pattern.channel, pattern.ccnum, Math.floor( signalValue ) ], 0 ) 
         }
       }
@@ -14771,6 +14795,10 @@ const WavePattern = {
         delete abstractGraph.widget
         pattern.running = false
       }
+      const idx = Gibber.Gen.connected.findIndex( e => e.paramID === pattern.id )
+      Gibber.Gen.connected.splice( idx, 1 )
+
+      pattern.shouldStop = true
     }
 
     Gibber.subscribe( 'clear', pattern.clear )
@@ -14783,7 +14811,7 @@ const WavePattern = {
       type: pattern.__usesValues ? 'Lookup' : 'WavePattern',
       graph,
       abstractGraph,
-      paramID:abstractGraph.paramID || Math.round( Math.random() * 1000000 ),
+      paramID:abstractGraph.paramID,// || Math.round( Math.random() * 1000000 ),
       _values:values,
       signalOut: genish.gen.createCallback( graph, mem, false, false, Float64Array ), 
       adjust: WavePattern.adjust.bind( pattern ),
@@ -14808,7 +14836,6 @@ const WavePattern = {
     }
 
     if( mode === 'midi' ) { 
-      console.log( 'midi', pattern.paramID )
       pattern.widget = Gibber.Environment.codeMarkup.waveform.widgets[ pattern.paramID ]
     }
       //  if( WavePattern.__connectedWidgets === null ) { // initialize
@@ -14954,6 +14981,7 @@ const WavePattern = {
 return WavePattern.create
 
 }
+
 
 
 },{"genish.js":37}],126:[function(require,module,exports){

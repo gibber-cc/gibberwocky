@@ -1,3 +1,4 @@
+
 const genish = require( 'genish.js' )
 
 module.exports = function( Gibber ) {
@@ -59,7 +60,7 @@ const WavePattern = {
 
       // if we are running the pattern solely to visualize the waveform data...
       if( isViz === true && pattern.vizinit && Gibber.Environment.annotations === true ) {
-        Gibber.Environment.codeMarkup.waveform.updateWidget( abstractGraph.paramID, signalValue, false )
+        Gibber.Environment.codeMarkup.waveform.updateWidget( pattern.paramID, signalValue, false )
       }else if( Gibber.Environment.annotations === true && pattern.widget !== undefined ) {
         // mark the last placed value by the visualization as having a "hit", 
         // which will cause a dot to be drawn on the sparkline.
@@ -68,7 +69,7 @@ const WavePattern = {
         pattern.widget.values[ idx ] = { value: signalValue, type:'hit' }
 
         if( mode === 'midi' ) {
-          Gibber.Environment.codeMarkup.waveform.updateWidget( abstractGraph.paramID, signalValue, false )
+          Gibber.Environment.codeMarkup.waveform.updateWidget( pattern.paramID, signalValue, false )
           Gibber.MIDI.send([ 0xb0 + pattern.channel, pattern.ccnum, Math.floor( signalValue ) ], 0 ) 
         }
       }
@@ -151,6 +152,10 @@ const WavePattern = {
         delete abstractGraph.widget
         pattern.running = false
       }
+      const idx = Gibber.Gen.connected.findIndex( e => e.paramID === pattern.id )
+      Gibber.Gen.connected.splice( idx, 1 )
+
+      pattern.shouldStop = true
     }
 
     Gibber.subscribe( 'clear', pattern.clear )
@@ -163,7 +168,7 @@ const WavePattern = {
       type: pattern.__usesValues ? 'Lookup' : 'WavePattern',
       graph,
       abstractGraph,
-      paramID:abstractGraph.paramID || Math.round( Math.random() * 1000000 ),
+      paramID:abstractGraph.paramID,// || Math.round( Math.random() * 1000000 ),
       _values:values,
       signalOut: genish.gen.createCallback( graph, mem, false, false, Float64Array ), 
       adjust: WavePattern.adjust.bind( pattern ),
@@ -188,7 +193,6 @@ const WavePattern = {
     }
 
     if( mode === 'midi' ) { 
-      console.log( 'midi', pattern.paramID )
       pattern.widget = Gibber.Environment.codeMarkup.waveform.widgets[ pattern.paramID ]
     }
       //  if( WavePattern.__connectedWidgets === null ) { // initialize
@@ -334,4 +338,5 @@ const WavePattern = {
 return WavePattern.create
 
 }
+
 
