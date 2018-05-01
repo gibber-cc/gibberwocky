@@ -5413,8 +5413,6 @@ let Channel = {
         const id = ccnum+'0000'+channel.number
         const prevGen = Gibber.Gen.connected.find( e => e.paramID === id )
 
-        console.log( id, prevGen )
-        
         if( prevGen !== undefined ) {
           prevGen.clear()
           prevGen.shouldStop = true
@@ -14811,7 +14809,7 @@ const WavePattern = {
       type: pattern.__usesValues ? 'Lookup' : 'WavePattern',
       graph,
       abstractGraph,
-      paramID:abstractGraph.paramID,// || Math.round( Math.random() * 1000000 ),
+      paramID:abstractGraph.paramID || Math.round( Math.random() * 1000000 ),
       _values:values,
       signalOut: genish.gen.createCallback( graph, mem, false, false, Float64Array ), 
       adjust: WavePattern.adjust.bind( pattern ),

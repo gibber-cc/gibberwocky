@@ -143,8 +143,6 @@ let Channel = {
         const id = ccnum+'0000'+channel.number
         const prevGen = Gibber.Gen.connected.find( e => e.paramID === id )
 
-        console.log( id, prevGen )
-        
         if( prevGen !== undefined ) {
           prevGen.clear()
           prevGen.shouldStop = true

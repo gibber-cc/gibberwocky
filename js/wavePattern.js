@@ -168,7 +168,7 @@ const WavePattern = {
       type: pattern.__usesValues ? 'Lookup' : 'WavePattern',
       graph,
       abstractGraph,
-      paramID:abstractGraph.paramID,// || Math.round( Math.random() * 1000000 ),
+      paramID:abstractGraph.paramID || Math.round( Math.random() * 1000000 ),
       _values:values,
       signalOut: genish.gen.createCallback( graph, mem, false, false, Float64Array ), 
       adjust: WavePattern.adjust.bind( pattern ),
