@@ -17,6 +17,7 @@ let Gibber = {
   currentTrack:  null,
   codemirror:    null,
   max:           null,
+  Audio:         null,
   '$':           null,
 
   export() {
@@ -49,6 +50,7 @@ let Gibber = {
 
     this.Theory.export( window )
     this.Utility.export( window )
+    this.Audio.export( window )
   },
 
   init() {
@@ -73,6 +75,8 @@ let Gibber = {
     this.__gen.init( this )
 
     this.export()
+
+    this.Audio.init()
   },
 
   singleton( target, key ) {
@@ -151,6 +155,7 @@ let Gibber = {
     Gibber.Environment.clear()
     Gibber.publish( 'clear' )
     Gibber.initSingletons( window )
+    Gibber.Audio.clear()
   },
 
   createPubSub() {
@@ -591,6 +596,8 @@ Gibber.__gen   = require( './gen_abstraction.js' )( Gibber )
 Gibber.Channel = require( './channel.js' )( Gibber )
 Gibber.MIDI    = require( './midi.js' )
 Gibber.WavePattern = require( './wavePattern.js' )( Gibber )
+
+Gibber.Audio = require( './audio.js' )( Gibber )
 
 Gibber.Gen = Gibber.__gen.gen
 module.exports = Gibber

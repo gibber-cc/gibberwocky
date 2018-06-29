@@ -36,9 +36,10 @@ let Scheduler = {
     this.__sync__ = mode// === 'internal' 
 
     if( this.__sync__ === 'internal' ) {
-      if( tempSync === true ) {
+      //if( tempSync === true ) {
+        this.animationClockInitialized = false 
         this.run()
-      }
+      //}
     }else{
       if( tempSync === false ) {
         this.animationClockInitialized = false
@@ -52,6 +53,8 @@ let Scheduler = {
     Gibber = __Gibber
     const sync = localStorage.getItem( 'sync' )
 
+    this.animationClock = Gibber.Environment.animationScheduler
+
     if( sync !== null && sync !== undefined ) { 
       this.sync( sync )
       switch( sync ) {
@@ -64,7 +67,6 @@ let Scheduler = {
       this.sync( 'max' )
     }
 
-    this.animationClock = Gibber.Environment.animationClock
   },
 
   run() {
@@ -74,24 +76,25 @@ let Scheduler = {
   },
 
   animationClockCallback( time ) {
-    if( this.animationClockInitialized === false ) {
-      this.animationOffset = this.lastBeat = time
-      this.animationClockInitialized = true
+    console.log( 'animation clock callback', time, Scheduler.animationClockInitialized )
+    if( Scheduler.animationClockInitialized === false ) {
+      Scheduler.animationOffset = Scheduler.lastBeat = time
+      Scheduler.animationClockInitialized = true
     }
     
-    this.beatCallback( time )
+    Scheduler.beatCallback( time )
   },
 
   beatCallback( time ) {
-    const timeDiff = time - this.lastBeat
-    const oneBeat = (60 / this.bpm) * 1000 
+    const timeDiff = time - Scheduler.lastBeat
+    const oneBeat = (60 / Scheduler.bpm) * 1000 
     if( timeDiff >= oneBeat ) {
-      this.advanceBeat()
-      this.lastBeat = time - (timeDiff - oneBeat) // preserve phase remainder
+      Scheduler.advance(1,this.currentBeat++)
+      Scheduler.lastBeat = time - (timeDiff - oneBeat) // preserve phase remainder
     }
 
-    if( this.__sync__ === false ) {
-      this.animationClock.add( this.beatCallback, 1 )
+    if( Scheduler.__sync__ === 'internal' ) {
+      Scheduler.animationClock.add( Scheduler.beatCallback, 1 )
     }
   },
 

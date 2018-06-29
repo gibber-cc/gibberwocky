@@ -84,7 +84,7 @@ let Environment = {
   },
 
   setupClockSelection() {
-    const syncs = ['max','live','clock']
+    const syncs = ['max','live','clock','internal']
     for( let sync of syncs ) {
       document.querySelector( '#' + sync + 'SyncRadio' ).onclick = ()=> {
         Gibber.Scheduler.__sync__ = sync

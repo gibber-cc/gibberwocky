@@ -26,10 +26,10 @@ let Scheduler = {
     return time
   },
 
-  runSoon( evt ) {
+  runSoon( evt, timestamp ) {
     
     try{
-      evt.func()
+      evt.func( timestamp )
     }catch(e) {
       console.log( 'annotation error:', e.toString() )
     }
@@ -44,7 +44,7 @@ let Scheduler = {
       // remove event
       this.queue.pop()
       
-      setTimeout( ()=> this.runSoon( nextEvent ) ) 
+      setTimeout( ()=> this.runSoon( nextEvent, timestamp ) ) 
       //try{
       //  nextEvent.func()
       //}catch( e ) {

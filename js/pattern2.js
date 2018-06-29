@@ -36,6 +36,7 @@ Object.assign( PatternPrototype, {
       Pattern.listeners[ name ].apply( this, args )
     }
   },
+
   range() {
     let start, end
     

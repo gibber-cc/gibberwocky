@@ -1,4 +1,4 @@
-(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.Gibberwocky = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 'use strict'
 
 let gen  = require('./gen.js')
@@ -1725,7 +1725,7 @@ let gen = {
 
 module.exports = gen
 
-},{"memory-helper":431}],31:[function(require,module,exports){
+},{"memory-helper":498}],31:[function(require,module,exports){
 'use strict'
 
 let gen  = require('./gen.js')
@@ -3717,6 +3717,6219 @@ module.exports = ( in1, min=0, max=1 ) => {
 }
 
 },{"./floor.js":27,"./gen.js":30,"./memo.js":42,"./sub.js":65}],74:[function(require,module,exports){
+let ugen = require( '../ugen.js' )
+
+let analyzer = Object.create( ugen )
+
+Object.assign( analyzer, {
+  __type__: 'analyzer',
+})
+
+module.exports = analyzer
+
+},{"../ugen.js":134}],75:[function(require,module,exports){
+module.exports = function( Gibberish ) {
+
+  const analyzers = {
+    SSD:    require( './singlesampledelay.js'  )( Gibberish ),
+    Follow: require( './follow.js'  )( Gibberish )
+  }
+
+  analyzers.export = target => {
+    for( let key in analyzers ) {
+      if( key !== 'export' ) {
+        target[ key ] = analyzers[ key ]
+      }
+    }
+  }
+
+return analyzers
+
+}
+
+},{"./follow.js":76,"./singlesampledelay.js":77}],76:[function(require,module,exports){
+const g = require('genish.js'),
+      analyzer = require('./analyzer.js'),
+      ugen = require('../ugen.js');
+
+const genish = g;
+
+module.exports = function (Gibberish) {
+
+  const Follow = inputProps => {
+
+    // main follow object is also the output
+    const follow = Object.create(analyzer);
+    follow.in = Object.create(ugen);
+    follow.id = Gibberish.factory.getUID();
+
+    const props = Object.assign({}, inputProps, Follow.defaults);
+    let isStereo = props.input.isStereo !== undefined ? props.input.isStereo : true;
+
+    // the input to the follow ugen is buffered in this ugen
+    follow.buffer = g.data(props.bufferSize, 1);
+
+    let avg; // output; make available outside jsdsp block
+    const _input = g.in('input');
+    const input = isStereo ? g.add(_input[0], _input[1]) : _input;
+
+    {
+      "use jsdsp";
+      // phase to write to follow buffer
+      const bufferPhaseOut = g.accum(1, 0, { max: props.bufferSize, min: 0 });
+
+      // hold running sum
+      const sum = g.data(1, 1, { meta: true });
+
+      sum[0] = genish.sub(genish.add(sum[0], input), g.peek(follow.buffer, bufferPhaseOut, { mode: 'simple' }));
+
+      avg = genish.div(sum[0], props.bufferSize);
+    }
+
+    if (!isStereo) {
+      Gibberish.factory(follow, avg, 'follow_out', props);
+
+      follow.callback.ugenName = follow.ugenName = `follow_out_${ follow.id }`;
+
+      // have to write custom callback for input to reuse components from output,
+      // specifically the memory from our buffer
+      let idx = follow.buffer.memory.values.idx;
+      let phase = 0;
+      let abs = Math.abs;
+      let callback = function (input, memory) {
+        'use strict';
+
+        memory[genish.add(idx, phase)] = abs(input);
+        phase++;
+        if (phase > genish.sub(props.bufferSize, 1)) {
+          phase = 0;
+        }
+
+        return 0;
+      };
+
+      Gibberish.factory(follow.in, input, 'follow_in', props, callback);
+
+      // lots of nonsense to make our custom function work
+      follow.in.callback.ugenName = follow.in.ugenName = `follow_in_${ follow.id }`;
+      follow.in.inputNames = ['input'];
+      follow.in.inputs = [input];
+      follow.in.input = props.input;
+      follow.in.type = 'analysis';
+
+      if (Gibberish.analyzers.indexOf(follow.in) === -1) {
+        Gibberish.analyzers.push(follow.in);
+      }
+
+      Gibberish.dirty(Gibberish.analyzers);
+    }
+
+    return follow;
+  };
+
+  Follow.defaults = {
+    bufferSize: 8192
+  };
+
+  return Follow;
+};
+},{"../ugen.js":134,"./analyzer.js":74,"genish.js":37}],77:[function(require,module,exports){
+const g = require( 'genish.js' ),
+      analyzer = require( './analyzer.js' ),
+      proxy    = require( '../workletProxy.js' ),
+      ugen     = require( '../ugen.js' )
+
+module.exports = function( Gibberish ) {
+ 
+const Delay = inputProps => {
+  let ssd = Object.create( analyzer )
+  ssd.__in  = Object.create( ugen )
+  ssd.__out = Object.create( ugen )
+
+  ssd.id = Gibberish.factory.getUID()
+
+  let props = Object.assign({}, Delay.defaults, inputProps )
+  let isStereo = props.isStereo 
+  
+  let input = g.in( 'input' )
+    
+  let historyL = g.history()
+
+  if( isStereo ) {
+    // right channel
+    let historyR = g.history()
+
+    Gibberish.factory( 
+      ssd.__out,
+      [ historyL.out, historyR.out ], 
+      'ssd_out', 
+      props,
+      null,
+      false
+    )
+
+    ssd.__out.callback.ugenName = ssd.__out.ugenName = 'ssd_out' + ssd.id
+
+    const idxL = ssd.__out.graph.memory.value.idx, 
+          idxR = idxL + 1,
+          memory = Gibberish.genish.gen.memory.heap
+
+    const callback = function( input ) {
+      'use strict'
+      memory[ idxL ] = input[0]
+      memory[ idxR ] = input[1]
+      return 0     
+    }
+    
+    Gibberish.factory( ssd.in, [ input[0],input[1] ], 'ssd_in', props, callback, false )
+
+    callback.ugenName = ssd.in.ugenName = 'ssd_in_' + ssd.id
+    ssd.in.inputNames = [ 'input' ]
+    ssd.in.inputs = [ props.input ]
+    ssd.in.input = props.input
+    ssd.type = 'analysis'
+
+    ssd.in.listen = function( ugen ) {
+      if( ugen !== undefined ) {
+        ssd.in.input = ugen
+        ssd.in.inputs = [ ugen ]
+      }
+
+      if( Gibberish.analyzers.indexOf( ssd.in ) === -1 ) {
+        Gibberish.analyzers.push( ssd.in )
+      }
+
+      Gibberish.dirty( Gibberish.analyzers )
+    }
+  }else{
+    Gibberish.factory( ssd.__out, historyL.out, 'ssd_out', props, null, false )
+
+    ssd.__out.callback.ugenName = ssd.__out.ugenName = 'ssd_out' + ssd.id
+
+    let idx = ssd.__out.graph.memory.value.idx 
+    let memory = Gibberish.genish.gen.memory.heap
+    let callback = function( input ) {
+      'use strict'
+      memory[ idx ] = input
+      return 0     
+    }
+    
+    Gibberish.factory( ssd.__in, input, 'ssd_in', {}, callback, false )
+
+    callback.ugenName = ssd.__in.ugenName = 'ssd_in_' + ssd.id
+    ssd.__in.inputNames = [ 'input' ]
+    ssd.__in.inputs = [ props.input ]
+    ssd.__in.input = props.input
+    ssd.type = 'analysis'
+
+    ssd.__in.listen = function( ugen ) {
+      //console.log( 'listening:', ugen, Gibberish.mode )
+      if( ugen !== undefined ) {
+        ssd.__in.input = ugen
+        ssd.__in.inputs = [ ugen ]
+      }
+
+      if( Gibberish.analyzers.indexOf( ssd.__in ) === -1 ) {
+        if( Gibberish.mode === 'worklet' ) {
+          Gibberish.analyzers.push( { id:ssd.id, prop:'in' })
+        }else{
+          Gibberish.analyzers.push( ssd.__in )
+        }
+      }
+
+      Gibberish.dirty( Gibberish.analyzers )
+      //console.log( 'in:', ssd.__in )
+    }
+
+  }
+
+  ssd.listen = ssd.__in.listen
+  ssd.__in.type = 'analysis'
+
+ 
+  ssd.__out.inputs = []
+
+  const out =  proxy( ['analysis','SSD'], props, ssd )
+  
+  Object.defineProperties( out, {
+    'out': {
+      set(v) {},
+      get() {
+        if( Gibberish.mode === 'worklet' ) {
+          return { id:out.id, prop:'out' }
+        }else{
+          return out.__out
+        }
+      }
+    },
+    //'in': {
+    //  set(v) {},
+    //  get() {
+    //    if( Gibberish.mode === 'worklet' ) {
+    //      console.log( 'returning ssd in' )
+    //      return { id:out.id, prop:'in' }
+    //    }else{
+    //      return out.__in
+    //    }
+    //  }
+    //},
+
+  })
+
+  return out
+}
+
+Delay.defaults = {
+  input:0,
+  isStereo:false
+}
+
+return Delay
+
+}
+
+},{"../ugen.js":134,"../workletProxy.js":137,"./analyzer.js":74,"genish.js":37}],78:[function(require,module,exports){
+const ugen = require( '../ugen.js' ),
+      g = require( 'genish.js' )
+
+module.exports = function( Gibberish ) {
+
+  const AD = function( argumentProps ) {
+    const ad = Object.create( ugen ),
+          attack  = g.in( 'attack' ),
+          decay   = g.in( 'decay' )
+
+    const props = Object.assign( {}, AD.defaults, argumentProps )
+
+    const graph = g.ad( attack, decay, { shape:props.shape, alpha:props.alpha })
+
+    ad.trigger = graph.trigger
+    
+    const __out = Gibberish.factory( ad, graph, ['envelopes','AD'], props )
+
+    return __out
+  }
+
+  AD.defaults = { attack:44100, decay:44100, shape:'exponential', alpha:5 } 
+
+  return AD
+
+}
+
+},{"../ugen.js":134,"genish.js":37}],79:[function(require,module,exports){
+const ugen = require( '../ugen.js' ),
+      g = require( 'genish.js' )
+
+module.exports = function( Gibberish ) {
+
+  const ADSR = function( argumentProps ) {
+    const adsr  = Object.create( ugen ),
+          attack  = g.in( 'attack' ),
+          decay   = g.in( 'decay' ),
+          sustain = g.in( 'sustain' ),
+          release = g.in( 'release' ),
+          sustainLevel = g.in( 'sustainLevel' )
+
+    const props = Object.assign( {}, ADSR.defaults, argumentProps )
+
+    Object.assign( adsr, props )
+
+    const graph = g.adsr( 
+      attack, decay, sustain, sustainLevel, release, 
+      { triggerRelease: props.triggerRelease, shape:props.shape, alpha:props.alpha } 
+    )
+
+    adsr.trigger = graph.trigger
+    adsr.advance = graph.release
+
+    const __out = Gibberish.factory( adsr, graph, ['envelopes','ADSR'], props )
+
+    return __out 
+  }
+
+  ADSR.defaults = { 
+    attack:22050, 
+    decay:22050, 
+    sustain:44100, 
+    sustainLevel:.6, 
+    release: 44100, 
+    triggerRelease:false,
+    shape:'exponential',
+    alpha:5 
+  } 
+
+  return ADSR
+}
+
+},{"../ugen.js":134,"genish.js":37}],80:[function(require,module,exports){
+const g = require( 'genish.js' )
+
+module.exports = function( Gibberish ) {
+
+  const Envelopes = {
+    AD     : require( './ad.js' )( Gibberish ),
+    ADSR   : require( './adsr.js' )( Gibberish ),
+    Ramp   : require( './ramp.js' )( Gibberish ),
+
+    export : target => {
+      for( let key in Envelopes ) {
+        if( key !== 'export' && key !== 'factory' ) {
+          target[ key ] = Envelopes[ key ]
+        }
+      }
+    },
+
+    factory( useADSR, shape, attack, decay, sustain, sustainLevel, release, triggerRelease=false ) {
+      let env
+
+      // deliberate use of single = to accomodate both 1 and true
+      if( useADSR != true ) {
+        env = g.ad( attack, decay, { shape }) 
+      }else {
+        env = g.adsr( attack, decay, sustain, sustainLevel, release, { shape, triggerRelease })
+      }
+
+      return env
+    }
+  } 
+
+  return Envelopes
+}
+
+},{"./ad.js":78,"./adsr.js":79,"./ramp.js":81,"genish.js":37}],81:[function(require,module,exports){
+const ugen = require( '../ugen.js' ),
+      g = require( 'genish.js' )
+
+module.exports = function( Gibberish ) {
+
+  const Ramp = function( argumentProps ) {
+    const ramp   = Object.create( ugen ),
+          length = g.in( 'length' ),
+          from   = g.in( 'from' ),
+          to     = g.in( 'to' )
+
+    const props = Object.assign({}, Ramp.defaults, argumentProps )
+
+    const reset = g.bang()
+
+    const phase = g.accum( g.div( 1, length ), reset, { shouldWrap:props.shouldLoop, shouldClamp:true }),
+          diff = g.sub( to, from ),
+          graph = g.add( from, g.mul( phase, diff ) )
+        
+    ramp.trigger = reset.trigger
+
+    const out = Gibberish.factory( ramp, graph, ['envelopes','ramp'], props )
+
+
+    return out
+  }
+
+  Ramp.defaults = { from:0, to:1, length:g.gen.samplerate, shouldLoop:false }
+
+  return Ramp
+
+}
+
+},{"../ugen.js":134,"genish.js":37}],82:[function(require,module,exports){
+/*
+ * https://github.com/antimatter15/heapqueue.js/blob/master/heapqueue.js
+ *
+ * This implementation is very loosely based off js-priority-queue
+ * by Adam Hooper from https://github.com/adamhooper/js-priority-queue
+ *
+ * The js-priority-queue implementation seemed a teensy bit bloated
+ * with its require.js dependency and multiple storage strategies
+ * when all but one were strongly discouraged. So here is a kind of
+ * condensed version of the functionality with only the features that
+ * I particularly needed.
+ *
+ * Using it is pretty simple, you just create an instance of HeapQueue
+ * while optionally specifying a comparator as the argument:
+ *
+ * var heapq = new HeapQueue();
+ *
+ * var customq = new HeapQueue(function(a, b){
+ *   // if b > a, return negative
+ *   // means that it spits out the smallest item first
+ *   return a - b;
+ * });
+ *
+ * Note that in this case, the default comparator is identical to
+ * the comparator which is used explicitly in the second queue.
+ *
+ * Once you've initialized the heapqueue, you can plop some new
+ * elements into the queue with the push method (vaguely reminiscent
+ * of typical javascript arays)
+ *
+ * heapq.push(42);
+ * heapq.push("kitten");
+ *
+ * The push method returns the new number of elements of the queue.
+ *
+ * You can push anything you'd like onto the queue, so long as your
+ * comparator function is capable of handling it. The default
+ * comparator is really stupid so it won't be able to handle anything
+ * other than an number by default.
+ *
+ * You can preview the smallest item by using peek.
+ *
+ * heapq.push(-9999);
+ * heapq.peek(); // ==> -9999
+ *
+ * The useful complement to to the push method is the pop method,
+ * which returns the smallest item and then removes it from the
+ * queue.
+ *
+ * heapq.push(1);
+ * heapq.push(2);
+ * heapq.push(3);
+ * heapq.pop(); // ==> 1
+ * heapq.pop(); // ==> 2
+ * heapq.pop(); // ==> 3
+ */
+let HeapQueue = function(cmp){
+  this.cmp = (cmp || function(a, b){ return a - b; });
+  this.length = 0;
+  this.data = [];
+}
+HeapQueue.prototype.peek = function(){
+  return this.data[0];
+};
+HeapQueue.prototype.push = function(value){
+  this.data.push(value);
+
+  var pos = this.data.length - 1,
+  parent, x;
+
+  while(pos > 0){
+    parent = (pos - 1) >>> 1;
+    if(this.cmp(this.data[pos], this.data[parent]) < 0){
+      x = this.data[parent];
+      this.data[parent] = this.data[pos];
+      this.data[pos] = x;
+      pos = parent;
+    }else break;
+  }
+  return this.length++;
+};
+HeapQueue.prototype.pop = function(){
+  var last_val = this.data.pop(),
+  ret = this.data[0];
+  if(this.data.length > 0){
+    this.data[0] = last_val;
+    var pos = 0,
+    last = this.data.length - 1,
+    left, right, minIndex, x;
+    while(1){
+      left = (pos << 1) + 1;
+      right = left + 1;
+      minIndex = pos;
+      if(left <= last && this.cmp(this.data[left], this.data[minIndex]) < 0) minIndex = left;
+      if(right <= last && this.cmp(this.data[right], this.data[minIndex]) < 0) minIndex = right;
+      if(minIndex !== pos){
+        x = this.data[minIndex];
+        this.data[minIndex] = this.data[pos];
+        this.data[pos] = x;
+        pos = minIndex;
+      }else break;
+    }
+  } else {
+    ret = last_val;
+  }
+  this.length--;
+  return ret;
+};
+
+module.exports = HeapQueue
+
+},{}],83:[function(require,module,exports){
+let g = require( 'genish.js' )
+ 
+// constructor for schroeder allpass filters
+let allPass = function( _input, length=500, feedback=.5 ) {
+  let index  = g.counter( 1,0,length ),
+      buffer = g.data( length ),
+      bufferSample = g.peek( buffer, index, { interp:'none', mode:'samples' }),
+      out = g.memo( g.add( g.mul( -1, _input), bufferSample ) )
+                
+  g.poke( buffer, g.add( _input, g.mul( bufferSample, feedback ) ), index )
+ 
+  return out
+}
+
+module.exports = allPass
+
+},{"genish.js":37}],84:[function(require,module,exports){
+let g = require( 'genish.js' ),
+    filter = require( './filter.js' )
+
+module.exports = function( Gibberish ) {
+
+  Gibberish.genish.biquad = ( input, cutoff, _Q, mode, isStereo ) => {
+    let a0,a1,a2,c,b1,b2,
+        in1a0,x1a1,x2a2,y1b1,y2b2,
+        in1a0_1,x1a1_1,x2a2_1,y1b1_1,y2b2_1
+
+    let returnValue
+    
+    const Q = g.memo( g.add( .5, g.mul( _Q, 22 ) ) )
+    let x1 = g.history(), x2 = g.history(), y1 = g.history(), y2 = g.history()
+    
+    let w0 = g.memo( g.mul( 2 * Math.PI, g.div( cutoff,  g.gen.samplerate ) ) ),
+        sinw0 = g.sin( w0 ),
+        cosw0 = g.cos( w0 ),
+        alpha = g.memo( g.div( sinw0, g.mul( 2, Q ) ) )
+
+    let oneMinusCosW = g.sub( 1, cosw0 )
+
+    switch( mode ) {
+      case 1:
+        a0 = g.memo( g.div( g.add( 1, cosw0) , 2) )
+        a1 = g.mul( g.add( 1, cosw0 ), -1 )
+        a2 = a0
+        c  = g.add( 1, alpha )
+        b1 = g.mul( -2 , cosw0 )
+        b2 = g.sub( 1, alpha )
+        break;
+      case 2:
+        a0 = g.mul( Q, alpha )
+        a1 = 0
+        a2 = g.mul( a0, -1 )
+        c  = g.add( 1, alpha )
+        b1 = g.mul( -2 , cosw0 )
+        b2 = g.sub( 1, alpha )
+        break;
+      default: // LP
+        a0 = g.memo( g.div( oneMinusCosW, 2) )
+        a1 = oneMinusCosW
+        a2 = a0
+        c  = g.add( 1, alpha )
+        b1 = g.mul( -2 , cosw0 )
+        b2 = g.sub( 1, alpha )
+    }
+
+    a0 = g.div( a0, c ); a1 = g.div( a1, c ); a2 = g.div( a2, c )
+    b1 = g.div( b1, c ); b2 = g.div( b2, c )
+
+    in1a0 = g.mul( x1.in( isStereo ? input[0] : input ), a0 )
+    x1a1  = g.mul( x2.in( x1.out ), a1 )
+    x2a2  = g.mul( x2.out,          a2 )
+
+    let sumLeft = g.add( in1a0, x1a1, x2a2 )
+
+    y1b1 = g.mul( y2.in( y1.out ), b1 )
+    y2b2 = g.mul( y2.out, b2 )
+
+    let sumRight = g.add( y1b1, y2b2 )
+
+    let diff = g.sub( sumLeft, sumRight )
+
+    y1.in( diff )
+
+    if( isStereo ) {
+      let x1_1 = g.history(), x2_1 = g.history(), y1_1 = g.history(), y2_1 = g.history()
+
+      in1a0_1 = g.mul( x1_1.in( input[1] ), a0 )
+      x1a1_1  = g.mul( x2_1.in( x1_1.out ), a1 )
+      x2a2_1  = g.mul( x2_1.out,            a2 )
+
+      let sumLeft_1 = g.add( in1a0_1, x1a1_1, x2a2_1 )
+
+      y1b1_1 = g.mul( y2_1.in( y1_1.out ), b1 )
+      y2b2_1 = g.mul( y2_1.out, b2 )
+
+      let sumRight_1 = g.add( y1b1_1, y2b2_1 )
+
+      let diff_1 = g.sub( sumLeft_1, sumRight_1 )
+
+      y1_1.in( diff_1 )
+      
+      returnValue = [ diff, diff_1 ]
+    }else{
+      returnValue = diff
+    }
+
+    return returnValue
+  }
+
+  let Biquad = inputProps => {
+    let biquad = Object.create( filter )
+    let props = Object.assign( {}, Biquad.defaults, inputProps ) 
+    
+    Object.assign( biquad, props )
+
+    let isStereo = biquad.input.isStereo
+
+    biquad.__createGraph = function() {
+      biquad.graph = Gibberish.genish.biquad( g.in('input'), g.mul( g.in('cutoff'), g.gen.samplerate / 4 ),  g.in('Q'), biquad.mode, isStereo )
+    }
+
+    biquad.__createGraph()
+    biquad.__requiresRecompilation = [ 'mode' ]
+
+    const __out = Gibberish.factory(
+      biquad,
+      biquad.graph,
+      ['filters','Filter12Biquad'], 
+      props
+    )
+
+    return __out
+  }
+
+  Biquad.defaults = {
+    input:0,
+    Q: .15,
+    cutoff:.05,
+    mode:0
+  }
+
+  return Biquad
+
+}
+
+
+},{"./filter.js":87,"genish.js":37}],85:[function(require,module,exports){
+let g = require( 'genish.js' )
+
+let combFilter = function( _input, combLength, damping=.5*.4, feedbackCoeff=.84 ) {
+  let lastSample   = g.history(),
+  	  readWriteIdx = g.counter( 1,0,combLength ),
+      combBuffer   = g.data( combLength ),
+	    out          = g.peek( combBuffer, readWriteIdx, { interp:'none', mode:'samples' }),
+      storeInput   = g.memo( g.add( g.mul( out, g.sub( 1, damping)), g.mul( lastSample.out, damping ) ) )
+      
+  lastSample.in( storeInput )
+ 
+  g.poke( combBuffer, g.add( _input, g.mul( storeInput, feedbackCoeff ) ), readWriteIdx )
+ 
+  return out
+}
+
+module.exports = combFilter
+
+},{"genish.js":37}],86:[function(require,module,exports){
+const g = require( 'genish.js' ),
+      filter = require( './filter.js' )
+
+module.exports = function( Gibberish ) {
+  Gibberish.genish.diodeZDF = ( input, _Q, freq, saturation, isStereo=false ) => {
+    const iT = 1 / g.gen.samplerate,
+          kz1 = g.history(0),
+          kz2 = g.history(0),
+          kz3 = g.history(0),
+          kz4 = g.history(0)
+
+    let   ka1 = 1.0,
+          ka2 = 0.5,
+          ka3 = 0.5,
+          ka4 = 0.5,
+          kindx = 0   
+
+    const Q = g.memo( g.add( .5, g.mul( _Q, 11 ) ) )
+    // kwd = 2 * $M_PI * acf[kindx]
+    const kwd = g.memo( g.mul( Math.PI * 2, freq ) )
+
+    // kwa = (2/iT) * tan(kwd * iT/2) 
+    const kwa =g.memo( g.mul( 2/iT, g.tan( g.mul( kwd, iT/2 ) ) ) )
+
+    // kG  = kwa * iT/2 
+    const kg = g.memo( g.mul( kwa, iT/2 ) )
+    
+    const kG4 = g.memo( g.mul( .5, g.div( kg, g.add( 1, kg ) ) ) )
+    const kG3 = g.memo( g.mul( .5, g.div( kg, g.sub( g.add( 1, kg ), g.mul( g.mul( .5, kg ), kG4 ) ) ) ) )
+    const kG2 = g.memo( g.mul( .5, g.div( kg, g.sub( g.add( 1, kg ), g.mul( g.mul( .5, kg ), kG3 ) ) ) ) )
+    const kG1 = g.memo( g.div( kg, g.sub( g.add( 1, kg ), g.mul( kg, kG2 ) ) ) )
+
+    const kGAMMA = g.memo( g.mul( g.mul( kG4, kG3 ) , g.mul( kG2, kG1 ) ) )
+
+    const kSG1 = g.memo( g.mul( g.mul( kG4, kG3 ), kG2 ) ) 
+
+    const kSG2 = g.memo( g.mul( kG4, kG3) )  
+    const kSG3 = kG4 
+    let kSG4 = 1.0 
+    // kk = 4.0*(kQ - 0.5)/(25.0 - 0.5)
+    const kalpha = g.memo( g.div( kg, g.add(1.0, kg) ) )
+
+    const kbeta1 = g.memo( g.div( 1.0, g.sub( g.add( 1, kg ), g.mul( kg, kG2 ) ) ) )
+    const kbeta2 = g.memo( g.div( 1.0, g.sub( g.add( 1, kg ), g.mul( g.mul( .5, kg ), kG3 ) ) ) )
+    const kbeta3 = g.memo( g.div( 1.0, g.sub( g.add( 1, kg ), g.mul( g.mul( .5, kg ), kG4 ) ) ) )
+    const kbeta4 = g.memo( g.div( 1.0, g.add( 1, kg ) ) ) 
+
+    const kgamma1 = g.memo( g.add( 1, g.mul( kG1, kG2 ) ) )
+    const kgamma2 = g.memo( g.add( 1, g.mul( kG2, kG3 ) ) )
+    const kgamma3 = g.memo( g.add( 1, g.mul( kG3, kG4 ) ) )
+
+    const kdelta1 = kg
+    const kdelta2 = g.memo( g.mul( 0.5, kg ) )
+    const kdelta3 = g.memo( g.mul( 0.5, kg ) )
+
+    const kepsilon1 = kG2
+    const kepsilon2 = kG3
+    const kepsilon3 = kG4
+
+    const klastcut = freq
+
+    //;; feedback inputs 
+    const kfb4 = g.memo( g.mul( kbeta4 , kz4.out ) ) 
+    const kfb3 = g.memo( g.mul( kbeta3, g.add( kz3.out, g.mul( kfb4, kdelta3 ) ) ) )
+    const kfb2 = g.memo( g.mul( kbeta2, g.add( kz2.out, g.mul( kfb3, kdelta2 ) ) ) )
+
+    //;; feedback process
+
+    const kfbo1 = g.memo( g.mul( kbeta1, g.add( kz1.out, g.mul( kfb2, kdelta1 ) ) ) ) 
+    const kfbo2 = g.memo( g.mul( kbeta2, g.add( kz2.out, g.mul( kfb3, kdelta2 ) ) ) ) 
+    const kfbo3 = g.memo( g.mul( kbeta3, g.add( kz3.out, g.mul( kfb4, kdelta3 ) ) ) ) 
+    const kfbo4 = kfb4
+
+    const kSIGMA = g.memo( 
+      g.add( 
+        g.add( 
+          g.mul( kSG1, kfbo1 ), 
+          g.mul( kSG2, kfbo2 )
+        ), 
+        g.add(
+          g.mul( kSG3, kfbo3 ), 
+          g.mul( kSG4, kfbo4 )
+        ) 
+      ) 
+    )
+
+    //const kSIGMA = 1
+    //;; non-linear processing
+    //if (knlp == 1) then
+    //  kin = (1.0 / tanh(ksaturation)) * tanh(ksaturation * kin)
+    //elseif (knlp == 2) then
+    //  kin = tanh(ksaturation * kin) 
+    //endif
+    //
+    //const kin = input 
+    let kin = input//g.memo( g.mul( g.div( 1, g.tanh( saturation ) ), g.tanh( g.mul( saturation, input ) ) ) )
+    kin = g.tanh( g.mul( saturation, kin ) )
+
+    const kun = g.div( g.sub( kin, g.mul( Q, kSIGMA ) ), g.add( 1, g.mul( Q, kGAMMA ) ) )
+    //const kun = g.div( 1, g.add( 1, g.mul( Q, kGAMMA ) ) )
+        //(kin - kk * kSIGMA) / (1.0 + kk * kGAMMA)
+
+    //;; 1st stage
+    let kxin = g.memo( g.add( g.add( g.mul( kun, kgamma1 ), kfb2), g.mul( kepsilon1, kfbo1 ) ) )
+    // (kun * kgamma1 + kfb2 + kepsilon1 * kfbo1)
+    let kv = g.memo( g.mul( g.sub( g.mul( ka1, kxin ), kz1.out ), kalpha ) )
+    //kv = (ka1 * kxin - kz1) * kalpha 
+    let klp = g.add( kv, kz1.out )
+    //klp = kv + kz1
+    kz1.in( g.add( klp, kv ) ) 
+    //kz1 = klp + kv
+
+        //;; 2nd stage
+    //kxin = (klp * kgamma2 + kfb3 + kepsilon2 * kfbo2)
+    //kv = (ka2 * kxin - kz2) * kalpha 
+    //klp = kv + kz2
+    //kz2 = klp + kv
+
+    kxin = g.memo( g.add( g.add( g.mul( klp, kgamma2 ), kfb3), g.mul( kepsilon2, kfbo2 ) ) )
+    // (kun * kgamma1 + kfb2 + kepsilon1 * kfbo1)
+    kv = g.memo( g.mul( g.sub( g.mul( ka2, kxin ), kz2.out ), kalpha ) )
+    //kv = (ka1 * kxin - kz1) * kalpha 
+    klp = g.add( kv, kz2.out ) 
+    //klp = kv + kz1
+    kz2.in( g.add( klp, kv ) ) 
+    //kz1 = klp + kv
+
+    //;; 3rd stage
+    //kxin = (klp * kgamma3 + kfb4 + kepsilon3 * kfbo3)
+    //kv = (ka3 * kxin - kz3) * kalpha 
+    //klp = kv + kz3
+    //kz3 = klp + kv
+
+    kxin = g.memo( g.add( g.add( g.mul( klp, kgamma3 ), kfb4), g.mul( kepsilon3, kfbo3 ) ) )
+    // (kun * kgamma1 + kfb2 + kepsilon1 * kfbo1)
+    kv = g.memo( g.mul( g.sub( g.mul( ka3, kxin ), kz3.out ), kalpha ) )
+    //kv = (ka1 * kxin - kz1) * kalpha 
+    klp = g.add( kv, kz3.out )
+    //klp = kv + kz1
+    kz3.in( g.add( klp, kv ) )
+    //kz1 = klp + kv
+
+    //;; 4th stage
+    //kv = (ka4 * klp - kz4) * kalpha 
+    //klp = kv + kz4
+    //kz4 = klp + kv
+
+    // (kun * kgamma1 + kfb2 + kepsilon1 * kfbo1)
+    kv = g.memo( g.mul( g.sub( g.mul( ka4, kxin ), kz4.out ), kalpha ) )
+    //kv = (ka1 * kxin - kz1) * kalpha 
+    klp = g.add( kv, kz4.out )
+    //klp = kv + kz1
+    kz4.in( g.add( klp, kv ) )
+
+    //kz1 = klp + kv
+    if( isStereo ) {
+      //let polesR = g.data([ 0,0,0,0 ], 1, { meta:true }),
+      //    rezzR = g.clamp( g.mul( polesR[3], rez ) ),
+      //    outputR = g.sub( input[1], rezzR )         
+
+      //polesR[0] = g.add( polesR[0], g.mul( g.add( g.mul(-1, polesR[0] ), outputR   ), cutoff ))
+      //polesR[1] = g.add( polesR[1], g.mul( g.add( g.mul(-1, polesR[1] ), polesR[0] ), cutoff ))
+      //polesR[2] = g.add( polesR[2], g.mul( g.add( g.mul(-1, polesR[2] ), polesR[1] ), cutoff ))
+      //polesR[3] = g.add( polesR[3], g.mul( g.add( g.mul(-1, polesR[3] ), polesR[2] ), cutoff ))
+
+      //let right = g.switch( isLowPass, polesR[3], g.sub( outputR, polesR[3] ) )
+
+      //returnValue = [left, right]
+    }else{
+     // returnValue = klp
+    }
+    //returnValue = klp
+    
+    return klp//returnValue// klp//returnValue
+ }
+
+  const DiodeZDF = inputProps => {
+    const zdf      = Object.create( filter )
+    const props    = Object.assign( {}, DiodeZDF.defaults, filter.defaults, inputProps )
+    const isStereo = props.input.isStereo 
+
+    Object.assign( zdf, props )
+
+    const __out = Gibberish.factory(
+      zdf, 
+      Gibberish.genish.diodeZDF( g.in('input'), g.in('Q'), g.in('cutoff'), g.in('saturation'), isStereo ), 
+      ['filters','Filter24TB303'],
+      props
+    )
+
+    return __out 
+  }
+
+  DiodeZDF.defaults = {
+    input:0,
+    Q: .65,
+    saturation: 1,
+    cutoff: 880,
+  }
+
+  return DiodeZDF
+
+}
+
+},{"./filter.js":87,"genish.js":37}],87:[function(require,module,exports){
+let ugen = require( '../ugen.js' )
+
+let filter = Object.create( ugen )
+
+Object.assign( filter, {
+  defaults: { bypass:false } 
+})
+
+module.exports = filter
+
+},{"../ugen.js":134}],88:[function(require,module,exports){
+let g = require( 'genish.js' ),
+    filter = require( './filter.js' )
+
+module.exports = function( Gibberish ) {
+
+  Gibberish.genish.filter24 = ( input, _rez, _cutoff, isLowPass, isStereo=false ) => {
+    let returnValue,
+        polesL = g.data([ 0,0,0,0 ], 1, { meta:true }),
+        peekProps = { interp:'none', mode:'simple' },
+        rez = g.memo( g.mul( _rez, 5 ) ),
+        cutoff = g.memo( g.div( _cutoff, 11025 ) ),
+        rezzL = g.clamp( g.mul( polesL[3], rez ) ),
+        outputL = g.sub( isStereo ? input[0] : input, rezzL ) 
+
+    polesL[0] = g.add( polesL[0], g.mul( g.add( g.mul(-1, polesL[0] ), outputL   ), cutoff ))
+    polesL[1] = g.add( polesL[1], g.mul( g.add( g.mul(-1, polesL[1] ), polesL[0] ), cutoff ))
+    polesL[2] = g.add( polesL[2], g.mul( g.add( g.mul(-1, polesL[2] ), polesL[1] ), cutoff ))
+    polesL[3] = g.add( polesL[3], g.mul( g.add( g.mul(-1, polesL[3] ), polesL[2] ), cutoff ))
+    
+    let left = g.switch( isLowPass, polesL[3], g.sub( outputL, polesL[3] ) )
+
+    if( isStereo ) {
+      let polesR = g.data([ 0,0,0,0 ], 1, { meta:true }),
+          rezzR = g.clamp( g.mul( polesR[3], rez ) ),
+          outputR = g.sub( input[1], rezzR )         
+
+      polesR[0] = g.add( polesR[0], g.mul( g.add( g.mul(-1, polesR[0] ), outputR   ), cutoff ))
+      polesR[1] = g.add( polesR[1], g.mul( g.add( g.mul(-1, polesR[1] ), polesR[0] ), cutoff ))
+      polesR[2] = g.add( polesR[2], g.mul( g.add( g.mul(-1, polesR[2] ), polesR[1] ), cutoff ))
+      polesR[3] = g.add( polesR[3], g.mul( g.add( g.mul(-1, polesR[3] ), polesR[2] ), cutoff ))
+
+      let right = g.switch( isLowPass, polesR[3], g.sub( outputR, polesR[3] ) )
+
+      returnValue = [left, right]
+    }else{
+      returnValue = left
+    }
+
+    return returnValue
+  }
+
+  let Filter24 = inputProps => {
+    let filter24   = Object.create( filter )
+    let props    = Object.assign( {}, Filter24.defaults, filter.defaults, inputProps )
+    let isStereo = props.input.isStereo 
+
+    const __out = Gibberish.factory(
+      filter24, 
+      Gibberish.genish.filter24( g.in('input'), g.in('Q'), g.in('cutoff'), g.in('isLowPass'), isStereo ), 
+      ['filters','Filter24Classic'],
+      props
+    )
+
+    return __out
+  }
+
+
+  Filter24.defaults = {
+    input:0,
+    Q: .25,
+    cutoff: 880,
+    isLowPass:1
+  }
+
+  return Filter24
+
+}
+
+
+},{"./filter.js":87,"genish.js":37}],89:[function(require,module,exports){
+module.exports = function( Gibberish ) {
+
+  const g = Gibberish.genish
+
+  const filters = {
+    Filter24Classic : require( './filter24.js'  )( Gibberish ),
+    Filter24Moog    : require( './ladderFilterZeroDelay.js' )( Gibberish ),
+    Filter24TB303   : require( './diodeFilterZDF.js' )( Gibberish ),
+    Filter12Biquad  : require( './biquad.js'    )( Gibberish ),
+    Filter12SVF     : require( './svf.js'       )( Gibberish ),
+    
+    // not for use by end-users
+    genish: {
+      Comb        : require( './combfilter.js' ),
+      AllPass     : require( './allpass.js' )
+    },
+
+    factory( input, cutoff, resonance, saturation = null, _props, isStereo = false ) {
+      let filteredOsc 
+
+      //if( props.filterType === 1 ) {
+      //  if( typeof props.cutoff !== 'object' && props.cutoff > 1 ) {
+      //    props.cutoff = .25
+      //  }
+      //  if( typeof props.cutoff !== 'object' && props.filterMult > .5 ) {
+      //    props.filterMult = .1
+      //  }
+      //}
+      let props = Object.assign({}, filters.defaults, _props )
+
+      switch( props.filterType ) {
+        case 1:
+          //isLowPass = g.param( 'lowPass', 1 ),
+          filteredOsc = g.filter24( input, g.in('Q'), cutoff, props.filterMode, isStereo )
+          break;
+        case 2:
+          filteredOsc = g.zd24( input, g.in('Q'), cutoff )
+          break;
+        case 3:
+          filteredOsc = g.diodeZDF( input, g.in('Q'), cutoff, g.in('saturation'), isStereo ) 
+          break;
+        case 4:
+          filteredOsc = g.svf( input, cutoff, g.sub( 1, g.in('Q')), props.filterMode, isStereo ) 
+          break; 
+        case 5:
+          filteredOsc = g.biquad( input, cutoff,  g.in('Q'), props.filterMode, isStereo ) 
+          break; 
+        default:
+          // return unfiltered signal
+          filteredOsc = input //g.filter24( oscWithGain, g.in('resonance'), cutoff, isLowPass )
+          break;
+      }
+
+      return filteredOsc
+    },
+
+    defaults: { filterMode: 0, filterType:0 }
+  }
+
+  filters.export = target => {
+    for( let key in filters ) {
+      if( key !== 'export' && key !== 'genish' ) {
+        target[ key ] = filters[ key ]
+      }
+    }
+  }
+
+return filters
+
+}
+
+},{"./allpass.js":83,"./biquad.js":84,"./combfilter.js":85,"./diodeFilterZDF.js":86,"./filter24.js":88,"./ladderFilterZeroDelay.js":90,"./svf.js":91}],90:[function(require,module,exports){
+const g = require( 'genish.js' ),
+      filterProto = require( './filter.js' )
+
+module.exports = function( Gibberish ) {
+
+  Gibberish.genish.zd24 = ( input, _Q, freq, isStereo=false ) => {
+    const iT = 1 / g.gen.samplerate,
+          z1 = g.history(0),
+          z2 = g.history(0),
+          z3 = g.history(0),
+          z4 = g.history(0)
+    
+    const Q = g.memo( g.add( .5, g.mul( _Q, 23 ) ) )
+    // kwd = 2 * $M_PI * acf[kindx]
+    const kwd = g.memo( g.mul( Math.PI * 2, freq ) )
+
+    // kwa = (2/iT) * tan(kwd * iT/2) 
+    const kwa =g.memo( g.mul( 2/iT, g.tan( g.mul( kwd, iT/2 ) ) ) )
+
+    // kG  = kwa * iT/2 
+    const kg = g.memo( g.mul( kwa, iT/2 ) )
+
+    // kk = 4.0*(kQ - 0.5)/(25.0 - 0.5)
+    const kk = g.memo( g.mul( 4, g.div( g.sub( Q, .5 ), 24.5 ) ) )
+
+    // kg_plus_1 = (1.0 + kg)
+    const kg_plus_1 = g.add( 1, kg )
+
+    // kG = kg / kg_plus_1 
+    const kG     = g.memo( g.div( kg, kg_plus_1 ) ),
+          kG_2   = g.memo( g.mul( kG, kG ) ),
+          kG_3   = g.mul( kG_2, kG ),
+          kGAMMA = g.mul( kG_2, kG_2 )
+
+    const kS1 = g.div( z1.out, kg_plus_1 ),
+          kS2 = g.div( z2.out, kg_plus_1 ),
+          kS3 = g.div( z3.out, kg_plus_1 ),
+          kS4 = g.div( z4.out, kg_plus_1 )
+
+    //kS = kG_3 * kS1  + kG_2 * kS2 + kG * kS3 + kS4 
+    const kS = g.memo( 
+      g.add(
+        g.add( g.mul(kG_3, kS1), g.mul( kG_2, kS2) ),
+        g.add( g.mul(kG, kS3), kS4 )
+      )
+    )
+
+    //ku = (kin - kk *  kS) / (1 + kk * kGAMMA)
+    const ku1 = g.sub( input, g.mul( kk, kS ) )
+    const ku2 = g.memo( g.add( 1, g.mul( kk, kGAMMA ) ) )
+    const ku  = g.memo( g.div( ku1, ku2 ) )
+
+    let kv =  g.memo( g.mul( g.sub( ku, z1.out ), kG ) )
+    let klp = g.memo( g.add( kv, z1.out ) )
+    z1.in( g.add( klp, kv ) )
+
+    kv  = g.memo( g.mul( g.sub( klp, z2.out ), kG ) )
+    klp = g.memo( g.add( kv, z2.out ) )
+    z2.in( g.add( klp, kv ) )
+
+    kv  = g.memo( g.mul( g.sub( klp, z3.out ), kG ) )
+    klp = g.memo( g.add( kv, z3.out ) )
+    z3.in( g.add( klp, kv ) )
+
+    kv  = g.memo( g.mul( g.sub( klp, z4.out ), kG ) )
+    klp = g.memo( g.add( kv, z4.out ) )
+    z4.in( g.add( klp, kv ) )
+
+
+    if( isStereo ) {
+      //let polesR = g.data([ 0,0,0,0 ], 1, { meta:true }),
+      //    rezzR = g.clamp( g.mul( polesR[3], rez ) ),
+      //    outputR = g.sub( input[1], rezzR )         
+
+      //polesR[0] = g.add( polesR[0], g.mul( g.add( g.mul(-1, polesR[0] ), outputR   ), cutoff ))
+      //polesR[1] = g.add( polesR[1], g.mul( g.add( g.mul(-1, polesR[1] ), polesR[0] ), cutoff ))
+      //polesR[2] = g.add( polesR[2], g.mul( g.add( g.mul(-1, polesR[2] ), polesR[1] ), cutoff ))
+      //polesR[3] = g.add( polesR[3], g.mul( g.add( g.mul(-1, polesR[3] ), polesR[2] ), cutoff ))
+
+      //let right = g.switch( isLowPass, polesR[3], g.sub( outputR, polesR[3] ) )
+
+      //returnValue = [left, right]
+    }//else{
+      //returnValue = klp
+    //}
+
+    return klp//returnValue
+  }
+
+  const Zd24 = inputProps => {
+    const filter   = Object.create( filterProto )
+    const props    = Object.assign( {}, Zd24.defaults, filter.defaults, inputProps )
+    const isStereo = props.input.isStereo 
+
+    const __out = Gibberish.factory(
+      filter, 
+      Gibberish.genish.zd24( g.in('input'), g.in('Q'), g.in('cutoff'), isStereo ), 
+      ['filters','Filter24Moog'],
+      props
+    )
+
+    return __out
+  }
+
+
+  Zd24.defaults = {
+    input:0,
+    Q: .75,
+    cutoff: 440,
+  }
+
+  return Zd24
+
+}
+
+
+},{"./filter.js":87,"genish.js":37}],91:[function(require,module,exports){
+const g = require( 'genish.js' ),
+      filter = require( './filter.js' )
+
+module.exports = function( Gibberish ) {
+  Gibberish.genish.svf = ( input, cutoff, Q, mode, isStereo ) => {
+    let d1 = g.data([0,0], 1, { meta:true }), d2 = g.data([0,0], 1, { meta:true }),
+        peekProps = { mode:'simple', interp:'none' }
+
+    let f1 = g.memo( g.mul( 2 * Math.PI, g.div( cutoff, g.gen.samplerate ) ) )
+    let oneOverQ = g.memo( g.div( 1, Q ) )
+    let l = g.memo( g.add( d2[0], g.mul( f1, d1[0] ) ) ),
+        h = g.memo( g.sub( g.sub( isStereo ? input[0] : input, l ), g.mul( Q, d1[0] ) ) ),
+        b = g.memo( g.add( g.mul( f1, h ), d1[0] ) ),
+        n = g.memo( g.add( h, l ) )
+
+    d1[0] = b
+    d2[0] = l
+
+    let out = g.selector( mode, l, h, b, n )
+
+    let returnValue
+    if( isStereo ) {
+      let d12 = g.data([0,0], 1, { meta:true }), d22 = g.data([0,0], 1, { meta:true })
+      let l2 = g.memo( g.add( d22[0], g.mul( f1, d12[0] ) ) ),
+          h2 = g.memo( g.sub( g.sub( input[1], l2 ), g.mul( Q, d12[0] ) ) ),
+          b2 = g.memo( g.add( g.mul( f1, h2 ), d12[0] ) ),
+          n2 = g.memo( g.add( h2, l2 ) )
+
+      d12[0] = b2
+      d22[0] = l2
+
+      let out2 = g.selector( mode, l2, h2, b2, n2 )
+
+      returnValue = [ out, out2 ]
+    }else{
+      returnValue = out
+    }
+
+    return returnValue
+  }
+
+  let SVF = inputProps => {
+    const svf = Object.create( filter )
+    const props = Object.assign( {}, SVF.defaults, filter.defaults, inputProps ) 
+
+    const isStereo = props.input.isStereo
+    
+    // XXX NEEDS REFACTORING
+    const __out = Gibberish.factory( 
+      svf,
+      Gibberish.genish.svf( g.in('input'), g.mul( g.in('cutoff'), g.gen.samplerate / 5 ), g.sub( 1, g.in('Q') ), g.in('mode'), isStereo ), 
+      ['filters','Filter12SVF'], 
+      props
+    )
+
+    return __out
+  }
+
+
+  SVF.defaults = {
+    input:0,
+    Q: .65,
+    cutoff:440,
+    mode:0
+  }
+
+  return SVF
+
+}
+
+
+},{"./filter.js":87,"genish.js":37}],92:[function(require,module,exports){
+let g = require( 'genish.js' ),
+    effect = require( './effect.js' )
+
+module.exports = function( Gibberish ) {
+ 
+let BitCrusher = inputProps => {
+  let props = Object.assign( { bitCrusherLength: 44100 }, BitCrusher.defaults, effect.defaults, inputProps ),
+      bitCrusher = Object.create( effect )
+
+  let isStereo = props.input.isStereo !== undefined ? props.input.isStereo : true 
+  
+  let input = g.in( 'input' ),
+      bitDepth = g.in( 'bitDepth' ),
+      sampleRate = g.in( 'sampleRate' ),
+      leftInput = isStereo ? input[ 0 ] : input,
+      rightInput = isStereo ? input[ 1 ] : null
+  
+  let storeL = g.history(0)
+  let sampleReduxCounter = g.counter( sampleRate, 0, 1 )
+
+  let bitMult = g.pow( g.mul( bitDepth, 16 ), 2 )
+  let crushedL = g.div( g.floor( g.mul( leftInput, bitMult ) ), bitMult )
+
+  let outL = g.switch(
+    sampleReduxCounter.wrap,
+    crushedL,
+    storeL.out
+  )
+
+  let out
+  if( isStereo ) {
+    let storeR = g.history(0)
+    let crushedR = g.div( g.floor( g.mul( rightInput, bitMult ) ), bitMult )
+
+    let outR = ternary( 
+      sampleReduxCounter.wrap,
+      crushedR,
+      storeL.out
+    )
+
+    out = Gibberish.factory( 
+      bitCrusher,
+      [ outL, outR ], 
+      ['fx','bitCrusher'], 
+      props 
+    )
+  }else{
+    out = Gibberish.factory( bitCrusher, outL, ['fx','bitCrusher'], props )
+  }
+  
+  return out 
+}
+
+BitCrusher.defaults = {
+  input:0,
+  bitDepth:.5,
+  sampleRate: .5
+}
+
+return BitCrusher
+
+}
+
+},{"./effect.js":98,"genish.js":37}],93:[function(require,module,exports){
+let g = require( 'genish.js' ),
+    effect = require( './effect.js' )
+
+module.exports = function( Gibberish ) {
+  let proto = Object.create( effect )
+
+  let Shuffler = inputProps => {
+    let bufferShuffler = Object.create( proto ),
+        bufferSize = 88200
+
+    let props = Object.assign( {}, Shuffler.defaults, effect.defaults, inputProps )
+
+    let isStereo = props.input.isStereo !== undefined ? props.input.isStereo : false
+    let phase = g.accum( 1,0,{ shouldWrap: false })
+
+    let input = g.in( 'input' ),
+        leftInput = isStereo ? input[ 0 ] : input,
+        rightInput = isStereo ? input[ 1 ] : null,
+        rateOfShuffling = g.in( 'rate' ),
+        chanceOfShuffling = g.in( 'chance' ),
+        reverseChance = g.in( 'reverseChance' ),
+        repitchChance = g.in( 'repitchChance' ),
+        repitchMin = g.in( 'repitchMin' ),
+        repitchMax = g.in( 'repitchMax' )
+
+    let pitchMemory = g.history(1)
+
+    let shouldShuffleCheck = g.eq( g.mod( phase, rateOfShuffling ), 0 )
+    let isShuffling = g.memo( g.sah( g.lt( g.noise(), chanceOfShuffling ), shouldShuffleCheck, 0 ) ) 
+
+    // if we are shuffling and on a repeat boundary...
+    let shuffleChanged = g.memo( g.and( shouldShuffleCheck, isShuffling ) )
+    let shouldReverse = g.lt( g.noise(), reverseChance ),
+        reverseMod = g.switch( shouldReverse, -1, 1 )
+
+    let pitch = g.ifelse( 
+      g.and( shuffleChanged, g.lt( g.noise(), repitchChance ) ),
+      g.memo( g.mul( g.add( repitchMin, g.mul( g.sub( repitchMax, repitchMin ), g.noise() ) ), reverseMod ) ),
+      reverseMod
+    )
+    
+    // only switch pitches on repeat boundaries
+    pitchMemory.in( g.switch( shuffleChanged, pitch, pitchMemory.out ) )
+
+    let fadeLength = g.memo( g.div( rateOfShuffling, 100 ) ),
+        fadeIncr = g.memo( g.div( 1, fadeLength ) )
+
+    let bufferL = g.data( bufferSize ), bufferR = isStereo ? g.data( bufferSize ) : null
+    let readPhase = g.accum( pitchMemory.out, 0, { shouldWrap:false }) 
+    let stutter = g.wrap( g.sub( g.mod( readPhase, bufferSize ), 22050 ), 0, bufferSize )
+
+    let normalSample = g.peek( bufferL, g.accum( 1, 0, { max:88200 }), { mode:'simple' })
+
+    let stutterSamplePhase = g.switch( isShuffling, stutter, g.mod( readPhase, bufferSize ) )
+    let stutterSample = g.memo( g.peek( 
+      bufferL, 
+      stutterSamplePhase,
+      { mode:'samples' }
+    ) )
+    
+    let stutterShouldFadeIn = g.and( shuffleChanged, isShuffling )
+    let stutterPhase = g.accum( 1, shuffleChanged, { shouldWrap: false })
+
+    let fadeInAmount = g.memo( g.div( stutterPhase, fadeLength ) )
+    let fadeOutAmount = g.div( g.sub( rateOfShuffling, stutterPhase ), g.sub( rateOfShuffling, fadeLength ) )
+    
+    let fadedStutter = g.ifelse(
+      g.lt( stutterPhase, fadeLength ),
+      g.memo( g.mul( g.switch( g.lt( fadeInAmount, 1 ), fadeInAmount, 1 ), stutterSample ) ),
+      g.gt( stutterPhase, g.sub( rateOfShuffling, fadeLength ) ),
+      g.memo( g.mul( g.gtp( fadeOutAmount, 0 ), stutterSample ) ),
+      stutterSample
+    )
+    
+    let outputL = g.mix( normalSample, fadedStutter, isShuffling ) 
+
+    let pokeL = g.poke( bufferL, leftInput, g.mod( g.add( phase, 44100 ), 88200 ) )
+
+    let panner = g.pan( outputL, outputL, g.in( 'pan' ) )
+    
+    let out = Gibberish.factory( 
+      bufferShuffler,
+      [panner.left, panner.right],
+      ['fx','shuffler'], 
+      props 
+    ) 
+
+    return out 
+  }
+  
+  Shuffler.defaults = {
+    input:0,
+    rate:22050,
+    chance:.25,
+    reverseChance:.5,
+    repitchChance:.5,
+    repitchMin:.5,
+    repitchMax:2,
+    pan:.5,
+    mix:.5
+  }
+
+  return Shuffler 
+}
+
+},{"./effect.js":98,"genish.js":37}],94:[function(require,module,exports){
+const g = require( 'genish.js' ),
+      effect = require( './effect.js' )
+  
+module.exports = function( Gibberish ) {
+ 
+let Chorus = inputProps => {
+  const props = Object.assign({}, Chorus.defaults, effect.defaults, inputProps )
+  
+  const chorus = Object.create( Gibberish.prototypes.ugen )
+
+  const input = g.in('input'),
+        freq1 = g.in('slowFrequency'),
+        freq2 = g.in('fastFrequency'),
+        amp1  = g.in('slowGain'),
+        amp2  = g.in('fastGain')
+
+  const isStereo = typeof props.input.isStereo !== 'undefined' ? props.input.isStereo : true 
+
+  const leftInput = isStereo ? input[0] : input
+
+  const win0   = g.env( 'inversewelch', 1024 ),
+        win120 = g.env( 'inversewelch', 1024, 0, .333 ),
+        win240 = g.env( 'inversewelch', 1024, 0, .666 )
+  
+  const slowPhasor = g.phasor( freq1, 0, { min:0 }),
+  		  slowPeek1  = g.mul( g.peek( win0,   slowPhasor ), amp1 ),
+        slowPeek2  = g.mul( g.peek( win120, slowPhasor ), amp1 ),
+        slowPeek3  = g.mul( g.peek( win240, slowPhasor ), amp1 )
+  
+  const fastPhasor = g.phasor( freq2, 0, { min:0 }),
+  	  	fastPeek1  = g.mul( g.peek( win0,   fastPhasor ), amp2 ),
+        fastPeek2  = g.mul( g.peek( win120, fastPhasor ), amp2 ),
+        fastPeek3  = g.mul( g.peek( win240, fastPhasor ), amp2 )
+
+  let sampleRate = Gibberish.mode === 'processor' ? Gibberish.processor.sampleRate : Gibberish.ctx.sampleRate
+   
+  const ms = sampleRate / 1000 
+  const maxDelayTime = 100 * ms
+
+  const time1 =  g.mul( g.add( slowPeek1, fastPeek1, 5 ), ms ),
+        time2 =  g.mul( g.add( slowPeek2, fastPeek2, 5 ), ms ),
+        time3 =  g.mul( g.add( slowPeek3, fastPeek3, 5 ), ms )
+
+  const delay1L = g.delay( leftInput, time1, { size:maxDelayTime }),
+        delay2L = g.delay( leftInput, time2, { size:maxDelayTime }),
+        delay3L = g.delay( leftInput, time3, { size:maxDelayTime })
+
+  
+  const leftOutput = g.add( delay1L, delay2L, delay3L )
+  if( isStereo ) {
+    const rightInput = input[1]
+    const delay1R = g.delay(rightInput, time1, { size:maxDelayTime }),
+          delay2R = g.delay(rightInput, time2, { size:maxDelayTime }),
+          delay3R = g.delay(rightInput, time3, { size:maxDelayTime })
+
+    // flip a couple delay lines for stereo effect?
+    const rightOutput = g.add( delay1R, delay2L, delay3R )
+    chorus.graph = [ g.add( delay1L, delay2R, delay3L ), rightOutput ]
+  }else{
+    chorus.graph = leftOutput
+  }
+  
+  const out = Gibberish.factory( chorus, chorus.graph, ['fx','chorus'], props )
+
+  return out 
+}
+
+Chorus.defaults = {
+  input:0,
+  slowFrequency: .18,
+  slowGain:1,
+  fastFrequency:6,
+  fastGain:.2
+}
+
+return Chorus
+
+}
+
+},{"./effect.js":98,"genish.js":37}],95:[function(require,module,exports){
+const g = require('genish.js'),
+      effect = require('./effect.js');
+
+const genish = g;
+
+"use jsdsp";
+
+const AllPassChain = (in1, in2, in3) => {
+  "use jsdsp";
+
+  /* in1 = predelay_out */
+  /* in2 = indiffusion1 */
+  /* in3 = indiffusion2 */
+
+  const sub1 = genish.sub(in1, 0);
+  const d1 = g.delay(sub1, 142);
+  sub1.inputs[1] = genish.mul(d1, in2);
+  const ap1_out = genish.add(genish.mul(sub1, in2), d1);
+
+  const sub2 = genish.sub(ap1_out, 0);
+  const d2 = g.delay(sub2, 107);
+  sub2.inputs[1] = genish.mul(d2, in2);
+  const ap2_out = genish.add(genish.mul(sub2, in2), d2);
+
+  const sub3 = genish.sub(ap2_out, 0);
+  const d3 = g.delay(sub3, 379);
+  sub3.inputs[1] = genish.mul(d3, in3);
+  const ap3_out = genish.add(genish.mul(sub3, in3), d3);
+
+  const sub4 = genish.sub(ap3_out, 0);
+  const d4 = g.delay(sub4, 277);
+  sub4.inputs[1] = genish.mul(d4, in3);
+  const ap4_out = genish.add(genish.mul(sub4, in3), d4);
+
+  return ap4_out;
+};
+
+/*const tank_outs = Tank( ap_out, decaydiffusion1, decaydiffusion2, damping, decay )*/
+const Tank = function (in1, in2, in3, in4, in5) {
+  "use jsdsp";
+
+  const outs = [[], [], [], [], []];
+
+  /* LEFT CHANNEL */
+  const leftStart = genish.add(in1, 0);
+  const delayInput = genish.add(leftStart, 0);
+  const delay1 = g.delay(delayInput, [genish.add(genish.mul(g.cycle(.1), 16), 672)], { size: 688 });
+  delayInput.inputs[1] = genish.mul(delay1, in2);
+  const delayOut = genish.sub(delay1, genish.mul(delayInput, in2));
+
+  const delay2 = g.delay(delayOut, [4453, 353, 3627, 1190]);
+  outs[3].push(genish.add(delay2.outputs[1], delay2.outputs[2]));
+  outs[2].push(delay2.outputs[3]);
+
+  const mz = g.history(0);
+  const ml = g.mix(delay2, mz.out, in4);
+  mz.in(ml);
+
+  const mout = genish.mul(ml, in5);
+
+  const s1 = genish.sub(mout, 0);
+  const delay3 = g.delay(s1, [1800, 187, 1228]);
+  outs[2].push(delay3.outputs[1]);
+  outs[4].push(delay3.outputs[2]);
+  s1.inputs[1] = genish.mul(delay3, in3);
+  const m2 = genish.mul(s1, in3);
+  const dl2_out = genish.add(delay3, m2);
+
+  const delay4 = g.delay(dl2_out, [3720, 1066, 2673]);
+  outs[2].push(delay4.outputs[1]);
+  outs[3].push(delay4.outputs[2]);
+
+  /* RIGHT CHANNEL */
+  const rightStart = genish.add(genish.mul(delay4, in5), in1);
+  const delayInputR = genish.add(rightStart, 0);
+  const delay1R = g.delay(delayInputR, genish.add(genish.mul(g.cycle(.07), 16), 908), { size: 924 });
+  delayInputR.inputs[1] = genish.mul(delay1R, in2);
+  const delayOutR = genish.sub(delay1R, genish.mul(delayInputR, in2));
+
+  const delay2R = g.delay(delayOutR, [4217, 266, 2974, 2111]);
+  outs[1].push(genish.add(delay2R.outputs[1], delay2R.outputs[2]));
+  outs[4].push(delay2R.outputs[3]);
+
+  const mzR = g.history(0);
+  const mlR = g.mix(delay2R, mzR.out, in4);
+  mzR.in(mlR);
+
+  const moutR = genish.mul(mlR, in5);
+
+  const s1R = genish.sub(moutR, 0);
+  const delay3R = g.delay(s1R, [2656, 335, 1913]);
+  outs[4].push(delay3R.outputs[1]);
+  outs[2].push(delay3R.outputs[2]);
+  s1R.inputs[1] = genish.mul(delay3R, in3);
+  const m2R = genish.mul(s1R, in3);
+  const dl2_outR = genish.add(delay3R, m2R);
+
+  const delay4R = g.delay(dl2_outR, [3163, 121, 1996]);
+  outs[4].push(delay4.outputs[1]);
+  outs[1].push(delay4.outputs[2]);
+
+  leftStart.inputs[1] = genish.mul(delay4R, in5);
+
+  outs[1] = g.add(...outs[1]);
+  outs[2] = g.add(...outs[2]);
+  outs[3] = g.add(...outs[3]);
+  outs[4] = g.add(...outs[4]);
+  return outs;
+};
+
+module.exports = function (Gibberish) {
+
+  const Reverb = inputProps => {
+    const props = Object.assign({}, Reverb.defaults, effect.defaults, inputProps),
+          reverb = Object.create(effect);
+
+    const isStereo = props.input.isStereo !== undefined ? props.input.isStereo : true;
+
+    const input = g.in('input'),
+          damping = g.in('damping'),
+          drywet = g.in('drywet'),
+          decay = g.in('decay'),
+          predelay = g.in('predelay'),
+          inbandwidth = g.in('inbandwidth'),
+          decaydiffusion1 = g.in('decaydiffusion1'),
+          decaydiffusion2 = g.in('decaydiffusion2'),
+          indiffusion1 = g.in('indiffusion1'),
+          indiffusion2 = g.in('indiffusion2');
+
+    const summedInput = isStereo === true ? g.add(input[0], input[1]) : input;
+    let out;
+    {
+      'use jsdsp';
+
+      // calculcate predelay
+      const predelay_samps = g.mstosamps(predelay);
+      const predelay_delay = g.delay(summedInput, predelay_samps, { size: 4410 });
+      const z_pd = g.history(0);
+      const mix1 = g.mix(z_pd.out, predelay_delay, inbandwidth);
+      z_pd.in(mix1);
+
+      const predelay_out = mix1;
+
+      // run input + predelay through all-pass chain
+      const ap_out = AllPassChain(predelay_out, indiffusion1, indiffusion2);
+
+      // run filtered signal into "tank" model
+      const tank_outs = Tank(ap_out, decaydiffusion1, decaydiffusion2, damping, decay);
+
+      const leftWet = genish.mul(genish.sub(tank_outs[1], tank_outs[2]), .6);
+      const rightWet = genish.mul(genish.sub(tank_outs[3], tank_outs[4]), .6);
+
+      // mix wet and dry signal for final output
+      const left = g.mix(isStereo ? input[0] : input, leftWet, drywet);
+      const right = g.mix(isStereo ? input[1] : input, rightWet, drywet);
+
+      out = Gibberish.factory(reverb, [left, right], ['fx', 'plate'], props);
+    }
+
+    return out;
+  };
+
+  Reverb.defaults = {
+    input: 0,
+    damping: .5,
+    drywet: .5,
+    decay: .5,
+    predelay: 10,
+    inbandwidth: .5,
+    indiffusion1: .75,
+    indiffusion2: .625,
+    decaydiffusion1: .7,
+    decaydiffusion2: .5
+  };
+
+  return Reverb;
+};
+},{"./effect.js":98,"genish.js":37}],96:[function(require,module,exports){
+let g = require( 'genish.js' ),
+    effect = require( './effect.js' )
+
+module.exports = function( Gibberish ) {
+ 
+let Delay = inputProps => {
+  let props = Object.assign( { delayLength: 44100 }, Delay.defaults, inputProps ),
+      delay = Object.create( effect )
+
+  let isStereo = props.input.isStereo !== undefined ? props.input.isStereo : false 
+  
+  let input      = g.in( 'input' ),
+      delayTime  = g.in( 'time' ),
+      wetdry     = g.in( 'wetdry' ),
+      leftInput  = isStereo ? input[ 0 ] : input,
+      rightInput = isStereo ? input[ 1 ] : null
+    
+  let feedback = g.in( 'feedback' )
+
+  // left channel
+  let feedbackHistoryL = g.history()
+  let echoL = g.delay( g.add( leftInput, g.mul( feedbackHistoryL.out, feedback ) ), delayTime, { size:props.delayLength })
+  feedbackHistoryL.in( echoL )
+  let left = g.mix( leftInput, echoL, wetdry )
+
+  let out
+  if( isStereo ) {
+    // right channel
+    let feedbackHistoryR = g.history()
+    let echoR = g.delay( g.add( rightInput, g.mul( feedbackHistoryR.out, feedback ) ), delayTime, { size:props.delayLength })
+    feedbackHistoryR.in( echoR )
+    const right = g.mix( rightInput, echoR, wetdry )
+
+    out = Gibberish.factory( 
+      delay,
+      [ left, right ], 
+      ['fx','delay'], 
+      props 
+    )
+  }else{
+    out = Gibberish.factory( delay, left, ['fx','delay'], props )
+  }
+  
+  return out
+}
+
+Delay.defaults = {
+  input:0,
+  feedback:.75,
+  time: 11025,
+  wetdry: .5
+}
+
+return Delay
+
+}
+
+},{"./effect.js":98,"genish.js":37}],97:[function(require,module,exports){
+const g = require('genish.js'),
+      effect = require('./effect.js');
+
+const genish = g;
+
+/*
+
+         exp(asig * (shape1 + pregain)) - exp(asig * (shape2 - pregain))
+  aout = ---------------------------------------------------------------
+         exp(asig * pregain)            + exp(-asig * pregain)
+
+*/
+
+module.exports = function (Gibberish) {
+
+  let Distortion = inputProps => {
+    let props = Object.assign({}, Distortion.defaults, effect.defaults, inputProps),
+        distortion = Object.create(effect);
+
+    let isStereo = props.input.isStereo !== undefined ? props.input.isStereo : true;
+
+    const input = g.in('input'),
+          shape1 = g.in('shape1'),
+          shape2 = g.in('shape2'),
+          pregain = g.in('pregain'),
+          postgain = g.in('postgain');
+
+    let lout, out;
+    {
+      'use jsdsp';
+      const linput = isStereo ? input[0] : input;
+      const ltop = genish.sub(g.exp(genish.mul(linput, genish.add(shape1, pregain))), g.exp(genish.mul(linput, genish.sub(shape2, pregain))));
+      const lbottom = genish.add(g.exp(genish.mul(linput, pregain)), g.exp(genish.mul(genish.mul(-1, linput), pregain)));
+      lout = genish.mul(genish.div(ltop, lbottom), postgain);
+    }
+
+    if (isStereo) {
+      let rout;
+      {
+        'use jsdsp';
+        const rinput = isStereo ? input[1] : input;
+        const rtop = genish.sub(g.exp(genish.mul(rinput, genish.add(shape1, pregain))), g.exp(genish.mul(rinput, genish.sub(shape2, pregain))));
+        const rbottom = genish.add(g.exp(genish.mul(rinput, pregain)), g.exp(genish.mul(genish.mul(-1, rinput), pregain)));
+        rout = genish.mul(genish.div(rtop, rbottom), postgain);
+      }
+
+      out = Gibberish.factory(distortion, [lout, rout], ['fx', 'distortion'], props);
+    } else {
+      out = Gibberish.factory(distortion, lout, ['fx', 'distortion'], props);
+    }
+
+    return out;
+  };
+
+  Distortion.defaults = {
+    input: 0,
+    shape1: .1,
+    shape2: .1,
+    pregain: 5,
+    postgain: .5
+  };
+
+  return Distortion;
+};
+},{"./effect.js":98,"genish.js":37}],98:[function(require,module,exports){
+let ugen = require( '../ugen.js' )
+
+let effect = Object.create( ugen )
+
+Object.assign( effect, {
+  defaults: { bypass:false }
+})
+
+module.exports = effect
+
+},{"../ugen.js":134}],99:[function(require,module,exports){
+module.exports = function( Gibberish ) {
+
+  const effects = {
+    Freeverb    : require( './freeverb.js'  )( Gibberish ),
+    Plate       : require( './dattorro.js'  )( Gibberish ),
+    Flanger     : require( './flanger.js'   )( Gibberish ),
+    Vibrato     : require( './vibrato.js'   )( Gibberish ),
+    Delay       : require( './delay.js'     )( Gibberish ),
+    BitCrusher  : require( './bitCrusher.js')( Gibberish ),
+    Distortion  : require( './distortion.js')( Gibberish ),
+    RingMod     : require( './ringMod.js'   )( Gibberish ),
+    Tremolo     : require( './tremolo.js'   )( Gibberish ),
+    Chorus      : require( './chorus.js'    )( Gibberish ),
+    Shuffler    : require( './bufferShuffler.js'  )( Gibberish ),
+    //Gate        : require( './gate.js'      )( Gibberish ),
+  }
+
+  effects.export = target => {
+    for( let key in effects ) {
+      if( key !== 'export' ) {
+        target[ key ] = effects[ key ]
+      }
+    }
+  }
+
+return effects
+
+}
+
+},{"./bitCrusher.js":92,"./bufferShuffler.js":93,"./chorus.js":94,"./dattorro.js":95,"./delay.js":96,"./distortion.js":97,"./flanger.js":100,"./freeverb.js":101,"./ringMod.js":102,"./tremolo.js":103,"./vibrato.js":104}],100:[function(require,module,exports){
+let g = require( 'genish.js' ),
+    proto = require( './effect.js' )
+
+module.exports = function( Gibberish ) {
+ 
+let Flanger = inputProps => {
+  let props   = Object.assign( { delayLength:44100 }, Flanger.defaults, proto.defaults, inputProps ),
+      flanger = Object.create( proto )
+
+  let isStereo = props.input.isStereo !== undefined ? props.input.isStereo : true 
+  
+  let input = g.in( 'input' ),
+      delayLength = props.delayLength,
+      feedbackCoeff = g.in( 'feedback' ),
+      modAmount = g.in( 'offset' ),
+      frequency = g.in( 'frequency' ),
+      delayBufferL = g.data( delayLength ),
+      delayBufferR
+
+  let writeIdx = g.accum( 1,0, { min:0, max:delayLength, interp:'none', mode:'samples' })
+  
+  let offset = g.mul( modAmount, 500 )
+
+  let mod = props.mod === undefined ? g.cycle( frequency ) : props.mod
+  
+  let readIdx = g.wrap( 
+    g.add( 
+      g.sub( writeIdx, offset ), 
+      mod//g.mul( mod, g.sub( offset, 1 ) ) 
+    ), 
+	  0, 
+    delayLength
+  )
+
+  let leftInput = isStereo ? input[0] : input
+
+  let delayedOutL = g.peek( delayBufferL, readIdx, { interp:'linear', mode:'samples' })
+  
+  g.poke( delayBufferL, g.add( leftInput, g.mul( delayedOutL, feedbackCoeff ) ), writeIdx )
+
+  let left = g.add( leftInput, delayedOutL ),
+      right, out
+
+
+  if( isStereo === true ) {
+    rightInput = input[1]
+    delayBufferR = g.data( delayLength )
+    
+    let delayedOutR = g.peek( delayBufferR, readIdx, { interp:'linear', mode:'samples' })
+
+    g.poke( delayBufferR, g.add( rightInput, g.mul( delayedOutR, feedbackCoeff ) ), writeIdx )
+    right = g.add( rightInput, delayedOutR )
+
+    out = Gibberish.factory( 
+      flanger,
+      [ left, right ], 
+      ['fx','flanger'], 
+      props 
+    )
+
+  }else{
+    out = Gibberish.factory( flanger, left, ['fx','flanger'], props )
+  }
+  
+  return out 
+}
+
+Flanger.defaults = {
+  input:0,
+  feedback:.01,
+  offset:.25,
+  frequency:.5
+}
+
+return Flanger
+
+}
+
+},{"./effect.js":98,"genish.js":37}],101:[function(require,module,exports){
+const g = require( 'genish.js' ),
+      effect = require( './effect.js' )
+
+module.exports = function( Gibberish ) {
+  
+const allPass = Gibberish.filters.genish.AllPass
+const combFilter = Gibberish.filters.genish.Comb
+
+const tuning = {
+  combCount:	  	8,
+  combTuning: 		[ 1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617 ],                    
+  allPassCount: 	4,
+  allPassTuning:	[ 225, 556, 441, 341 ],
+  allPassFeedback:0.5,
+  fixedGain: 		  0.015,
+  scaleDamping: 	0.4,
+  scaleRoom: 		  0.28,
+  offsetRoom: 	  0.7,
+  stereoSpread:   23
+}
+
+const Freeverb = inputProps => {
+  let props = Object.assign( {}, Freeverb.defaults, effect.defaults, inputProps ),
+      reverb = Object.create( effect ) 
+   
+  let isStereo = props.input.isStereo !== undefined ? props.input.isStereo : true 
+  
+  let combsL = [], combsR = []
+
+  let input = g.in( 'input' ),
+      wet1 = g.in( 'wet1'), wet2 = g.in( 'wet2' ),  dry = g.in( 'dry' ), 
+      roomSize = g.in( 'roomSize' ), damping = g.in( 'damping' )
+  
+  let summedInput = isStereo === true ? g.add( input[0], input[1] ) : input,
+      attenuatedInput = g.memo( g.mul( summedInput, tuning.fixedGain ) )
+  
+  // create comb filters in parallel...
+  for( let i = 0; i < 8; i++ ) { 
+    combsL.push( 
+      combFilter( attenuatedInput, tuning.combTuning[i], g.mul(damping,.4), g.mul( tuning.scaleRoom + tuning.offsetRoom, roomSize ) ) 
+    )
+    combsR.push( 
+      combFilter( attenuatedInput, tuning.combTuning[i] + tuning.stereoSpread, g.mul(damping,.4), g.mul( tuning.scaleRoom + tuning.offsetRoom, roomSize ) ) 
+    )
+  }
+  
+  // ... and sum them with attenuated input
+  let outL = g.add( attenuatedInput, ...combsL )
+  let outR = g.add( attenuatedInput, ...combsR )
+  
+  // run through allpass filters in series
+  for( let i = 0; i < 4; i++ ) { 
+    outL = allPass( outL, tuning.allPassTuning[ i ] + tuning.stereoSpread )
+    outR = allPass( outR, tuning.allPassTuning[ i ] + tuning.stereoSpread )
+  }
+  
+  let outputL = g.add( g.mul( outL, wet1 ), g.mul( outR, wet2 ), g.mul( isStereo === true ? input[0] : input, dry ) ),
+      outputR = g.add( g.mul( outR, wet1 ), g.mul( outL, wet2 ), g.mul( isStereo === true ? input[1] : input, dry ) )
+
+  const out = Gibberish.factory( reverb, [ outputL, outputR ], ['fx','freeverb'], props )
+
+  return out
+}
+
+
+Freeverb.defaults = {
+  input:0,
+  wet1: 1,
+  wet2: 0,
+  dry: .5,
+  roomSize: .84,
+  damping:  .5,
+  bypass:false
+}
+
+return Freeverb 
+
+}
+
+
+},{"./effect.js":98,"genish.js":37}],102:[function(require,module,exports){
+let g = require( 'genish.js' ),
+    effect = require( './effect.js' )
+
+module.exports = function( Gibberish ) {
+ 
+let RingMod = inputProps => {
+  let props   = Object.assign( {}, RingMod.defaults, effect.defaults, inputProps ),
+      ringMod = Object.create( effect )
+
+  let isStereo = props.input.isStereo !== undefined ? props.input.isStereo : true 
+  
+  let input = g.in( 'input' ),
+      frequency = g.in( 'frequency' ),
+      gain = g.in( 'gain' ),
+      mix = g.in( 'mix' )
+  
+  let leftInput = isStereo ? input[0] : input,
+      sine = g.mul( g.cycle( frequency ), gain )
+ 
+  let left = g.add( g.mul( leftInput, g.sub( 1, mix )), g.mul( g.mul( leftInput, sine ), mix ) ), 
+      right
+
+  let out
+  if( isStereo === true ) {
+    let rightInput = input[1]
+    right = g.add( g.mul( rightInput, g.sub( 1, mix )), g.mul( g.mul( rightInput, sine ), mix ) ) 
+    
+    out = Gibberish.factory( 
+      ringMod,
+      [ left, right ], 
+      'ringMod', 
+      props 
+    )
+  }else{
+    out = Gibberish.factory( ringMod, left, ['fx','ringMod'], props )
+  }
+  
+  return out 
+}
+
+RingMod.defaults = {
+  input:0,
+  frequency:220,
+  gain: 1, 
+  mix:1
+}
+
+return RingMod
+
+}
+
+},{"./effect.js":98,"genish.js":37}],103:[function(require,module,exports){
+const g = require( 'genish.js' ),
+      effect = require( './effect.js' )
+
+module.exports = function( Gibberish ) {
+ 
+const Tremolo = inputProps => {
+  const props   = Object.assign( {}, Tremolo.defaults, effect.defaults, inputProps ),
+        tremolo = Object.create( effect )
+
+  const isStereo = props.input.isStereo !== undefined ? props.input.isStereo : true 
+  
+  const input = g.in( 'input' ),
+        frequency = g.in( 'frequency' ),
+        amount = g.in( 'amount' )
+  
+  const leftInput = isStereo ? input[0] : input
+
+  let osc
+  if( props.shape === 'square' ) {
+    osc = g.gt( g.phasor( frequency ), 0 )
+  }else if( props.shape === 'saw' ) {
+    osc = g.gtp( g.phasor( frequency ), 0 )
+  }else{
+    osc = g.cycle( frequency )
+  }
+
+  const mod = g.mul( osc, amount )
+ 
+  let left = g.sub( leftInput, g.mul( leftInput, mod ) ), 
+      right, out
+
+  if( isStereo === true ) {
+    let rightInput = input[1]
+    right = g.mul( rightInput, mod )
+
+    out = Gibberish.factory( 
+      tremolo,
+      [ left, right ], 
+      ['fx','tremolo'], 
+      props 
+    )
+  }else{
+    out = Gibberish.factory( tremolo, left, ['fx','tremolo'], props )
+  }
+  
+  return out 
+}
+
+Tremolo.defaults = {
+  input:0,
+  frequency:2,
+  amount: 1, 
+  shape:'sine'
+}
+
+return Tremolo
+
+}
+
+},{"./effect.js":98,"genish.js":37}],104:[function(require,module,exports){
+let g = require( 'genish.js' ),
+    effect = require( './effect.js' )
+
+module.exports = function( Gibberish ) {
+ 
+let Vibrato = inputProps => {
+  let props   = Object.assign( {}, Vibrato.defaults, effect.defaults, inputProps ),
+      vibrato = Object.create( effect )
+
+  let isStereo = props.input.isStereo !== undefined ? props.input.isStereo : true 
+  
+  let input = g.in( 'input' ),
+      delayLength = 44100,
+      feedbackCoeff = .01,//g.in( 'feedback' ),
+      modAmount = g.in( 'amount' ),
+      frequency = g.in( 'frequency' ),
+      delayBufferL = g.data( delayLength ),
+      delayBufferR
+
+  let writeIdx = g.accum( 1,0, { min:0, max:delayLength, interp:'none', mode:'samples' })
+  
+  let offset = g.mul( modAmount, 500 )
+  
+  let readIdx = g.wrap( 
+    g.add( 
+      g.sub( writeIdx, offset ), 
+      g.mul( g.cycle( frequency ), g.sub( offset, 1 ) ) 
+    ), 
+	  0, 
+    delayLength
+  )
+
+  let leftInput = isStereo ? input[0] : input
+
+  let delayedOutL = g.peek( delayBufferL, readIdx, { interp:'linear', mode:'samples' })
+  
+  g.poke( delayBufferL, g.add( leftInput, g.mul( delayedOutL, feedbackCoeff ) ), writeIdx )
+
+  let left = delayedOutL,
+      right, out
+
+  if( isStereo === true ) {
+    rightInput = input[1]
+    delayBufferR = g.data( delayLength )
+    
+    let delayedOutR = g.peek( delayBufferR, readIdx, { interp:'linear', mode:'samples' })
+
+    g.poke( delayBufferR, g.add( rightInput, mul( delayedOutR, feedbackCoeff ) ), writeIdx )
+    right = delayedOutR
+
+    out = Gibberish.factory( 
+      vibrato,
+      [ left, right ], 
+      [ 'fx', 'vibrato'], 
+      props 
+    )
+  }else{
+    out = Gibberish.factory( vibrato, left, ['fx','vibrato'], props )
+  }
+  
+  return out 
+}
+
+Vibrato.defaults = {
+  input:0,
+  //feedback:.01,
+  amount:.5,
+  frequency:4
+}
+
+return Vibrato
+
+}
+
+},{"./effect.js":98,"genish.js":37}],105:[function(require,module,exports){
+let MemoryHelper = require( 'memory-helper' ),
+    genish       = require( 'genish.js' )
+    
+let Gibberish = {
+  blockCallbacks: [], // called every block
+  dirtyUgens: [],
+  callbackUgens: [],
+  callbackNames: [],
+  analyzers: [],
+  graphIsDirty: false,
+  ugens: {},
+  debug: false,
+  id: -1,
+  preventProxy:false,
+
+  output: null,
+
+  memory : null, // 20 minutes by default?
+  factory: null, 
+  genish,
+  scheduler: require( './scheduling/scheduler.js' ),
+  //workletProcessorLoader: require( './workletProcessor.js' ),
+  workletProcessor: null,
+
+  memoed: {},
+  mode:'scriptProcessor',
+
+  prototypes: {
+    ugen: require('./ugen.js'),
+    instrument: require( './instruments/instrument.js' ),
+    effect: require( './fx/effect.js' ),
+  },
+
+  mixins: {
+    polyinstrument: require( './instruments/polyMixin.js' )
+  },
+
+  workletPath: './gibberish_worklet.js',
+  init( memAmount, ctx, mode ) {
+
+    let numBytes = isNaN( memAmount ) ? 20 * 60 * 44100 : memAmount
+
+    // regardless of whether or not gibberish is using worklets,
+    // we still want genish to output vanilla js functions instead
+    // of audio worklet classes; these functions will be called
+    // from within the gibberish audioworklet processor node.
+    this.genish.gen.mode = 'scriptProcessor'
+
+    this.memory = MemoryHelper.create( numBytes )
+
+    this.mode = window.AudioWorklet !== undefined ? 'worklet' : 'scriptprocessor'
+    if( mode !== undefined ) this.mode = mode
+
+    this.hasWorklet = window.AudioWorklet !== undefined && typeof window.AudioWorklet === 'function'
+
+    const startup = this.hasWorklet ? this.utilities.createWorklet : this.utilities.createScriptProcessor
+    
+    this.analyzers.dirty = false
+
+    if( this.mode === 'worklet' ) {
+
+      const p = new Promise( (resolve, reject ) => {
+
+        const pp = new Promise( (__resolve, __reject ) => {
+          this.utilities.createContext( ctx, startup.bind( this.utilities ), __resolve )
+        }).then( ()=> {
+          Gibberish.preventProxy = true
+          Gibberish.load()
+          Gibberish.output = this.Bus2()
+          Gibberish.preventProxy = false
+
+          resolve()
+        })
+
+      })
+      return p
+    }else if( this.mode === 'processor' ) {
+      Gibberish.load()
+      Gibberish.output = this.Bus2()
+    }
+
+
+  },
+
+  load() {
+    this.factory = require( './ugenTemplate.js' )( this )
+
+    this.Panner       = require( './misc/panner.js' )( this )
+    this.PolyTemplate = require( './instruments/polytemplate.js' )( this )
+    this.oscillators  = require( './oscillators/oscillators.js' )( this )
+    this.filters      = require( './filters/filters.js' )( this )
+    this.binops       = require( './misc/binops.js' )( this )
+    this.monops       = require( './misc/monops.js' )( this )
+    this.Bus          = require( './misc/bus.js' )( this )
+    this.Bus2         = require( './misc/bus2.js' )( this );
+    this.instruments  = require( './instruments/instruments.js' )( this )
+    this.fx           = require( './fx/effects.js' )( this )
+    this.Sequencer    = require( './scheduling/sequencer.js' )( this );
+    this.Sequencer2   = require( './scheduling/seq2.js' )( this );
+    this.envelopes    = require( './envelopes/envelopes.js' )( this );
+    this.analysis     = require( './analysis/analyzers.js' )( this )
+    this.time         = require( './misc/time.js' )( this )
+  },
+
+  export( target, shouldExportGenish=false ) {
+    if( target === undefined ) throw Error('You must define a target object for Gibberish to export variables to.')
+
+    if( shouldExportGenish ) this.genish.export( target )
+
+    this.instruments.export( target )
+    this.fx.export( target )
+    this.filters.export( target )
+    this.oscillators.export( target )
+    this.binops.export( target )
+    this.monops.export( target )
+    this.envelopes.export( target )
+    this.analysis.export( target )
+    target.Sequencer = this.Sequencer
+    target.Sequencer2 = this.Sequencer2
+    target.Bus = this.Bus
+    target.Bus2 = this.Bus2
+    target.Scheduler = this.scheduler
+    this.time.export( target )
+    this.utilities.export( target )
+  },
+
+  print() {
+    console.log( this.callback.toString() )
+  },
+
+  dirty( ugen ) {
+    if( ugen === this.analyzers ) {
+      this.graphIsDirty = true
+      this.analyzers.dirty = true
+    } else {
+      this.dirtyUgens.push( ugen )
+      this.graphIsDirty = true
+      if( this.memoed[ ugen.ugenName ] ) {
+        delete this.memoed[ ugen.ugenName ]
+      }
+    } 
+  },
+
+  clear() {
+    this.output.inputs = [0]
+    //this.output.inputNames.length = 0
+    this.analyzers.length = 0
+    this.scheduler.clear()
+    this.dirty( this.output )
+    if( this.mode === 'worklet' ) {
+      this.worklet.port.postMessage({ 
+        address:'method', 
+        object:this.id,
+        name:'clear',
+        args:[]
+      })
+    }
+  },
+
+  generateCallback() {
+    if( this.mode === 'worklet' ) {
+      Gibberish.callback = function() { return 0 }
+      return Gibberish.callback
+    }
+    let uid = 0,
+        callbackBody, lastLine, analysis=''
+
+    this.memoed = {}
+
+    callbackBody = this.processGraph( this.output )
+    lastLine = callbackBody[ callbackBody.length - 1]
+    callbackBody.unshift( "\t'use strict'" )
+
+    this.analyzers.forEach( v=> {
+      const analysisBlock = Gibberish.processUgen( v )
+      //if( Gibberish.mode === 'processor' ) {
+      //  console.log( 'analysis:', analysisBlock, v  )
+      //}
+      const analysisLine = analysisBlock.pop()
+
+      analysisBlock.forEach( v=> {
+        callbackBody.splice( callbackBody.length - 1, 0, v )
+      })
+
+      callbackBody.push( analysisLine )
+    })
+
+    this.analyzers.forEach( v => {
+      if( this.callbackUgens.indexOf( v.callback ) === -1 )
+        this.callbackUgens.push( v.callback )
+    })
+    this.callbackNames = this.callbackUgens.map( v => v.ugenName )
+
+    callbackBody.push( '\n\treturn ' + lastLine.split( '=' )[0].split( ' ' )[1] )
+
+    if( this.debug === true ) console.log( 'callback:\n', callbackBody.join('\n') )
+    this.callbackNames.push( 'memory' )
+    this.callbackUgens.push( this.memory.heap )
+    this.callback = Function( ...this.callbackNames, callbackBody.join( '\n' ) )
+    this.callback.out = []
+
+    if( this.oncallback ) this.oncallback( this.callback )
+
+    return this.callback 
+  },
+
+  processGraph( output ) {
+    this.callbackUgens.length = 0
+    this.callbackNames.length = 0
+
+    this.callbackUgens.push( output.callback )
+
+    let body = this.processUgen( output )
+    
+
+    this.dirtyUgens.length = 0
+    this.graphIsDirty = false
+
+    return body
+  },
+  proxyReplace( obj ) {
+    if( typeof obj === 'object' ) {
+      if( obj.id !== undefined ) {
+        const __obj = processor.ugens.get( obj.id )
+        //console.log( 'retrieved:', __obj.name )
+
+        //if( obj.prop !== undefined ) console.log( 'got a ssd.out', obj )
+        return obj.prop !== undefined ? __obj[ obj.prop ] : __obj
+      } 
+    }
+
+    return obj
+  },
+  processUgen( ugen, block ) {
+    if( block === undefined ) block = []
+
+    let dirtyIdx = Gibberish.dirtyUgens.indexOf( ugen )
+
+    //console.log( 'ugenName:', ugen.ugenName )
+    let memo = Gibberish.memoed[ ugen.ugenName ]
+
+    if( memo !== undefined ) {
+      return memo
+    } else if (ugen === true || ugen === false) {
+      throw "Why is ugen a boolean? [true] or [false]";
+    } else if( ugen.block === undefined || dirtyIndex !== -1 ) {
+
+  
+      let line = `\tvar v_${ugen.id} = ` 
+      
+      if( !ugen.isop ) line += `${ugen.ugenName}( `
+
+      // must get array so we can keep track of length for comma insertion
+      let keys,err
+      
+      //try {
+      keys = ugen.isop === true || ugen.type === 'bus' || ugen.type === 'analysis' ? Object.keys( ugen.inputs ) : [...ugen.inputNames ] 
+
+      //}catch( e ){
+
+      //  console.log( e )
+      //  err = true
+      //}
+      
+      //if( err === true ) return
+
+      for( let i = 0; i < keys.length; i++ ) {
+        let key = keys[ i ]
+        // binop.inputs is actual values, not just property names
+        let input 
+        if( ugen.isop || ugen.type ==='bus' || ugen.type === 'analysis' ) {
+          input = ugen.inputs[ key ]
+        }else{
+          //if( key === 'memory' ) continue;
+  
+          input = ugen[ key ] 
+        }
+
+        //if( Gibberish.mode === 'processor' ) console.log( 'processor input:', input, key, ugen )
+        if( input !== undefined ) { 
+          if( input.bypass === true ) {
+            // loop through inputs of chain until one is found
+            // that is not being bypassed
+
+            let found = false
+
+            while( input.input !== 'undefined' && found === false ) {
+              if( typeof input.input.bypass !== 'undefined' ) {
+                input = input.input
+                if( input.bypass === false ) found = true
+              }else{
+                input = input.input
+                found = true
+              }
+            }
+          }
+
+          if( typeof input === 'number' ) {
+              line += input
+          } else if( typeof input === 'boolean' ) {
+              line += '' + input
+          }else{
+            //console.log( 'key:', key, 'input:', ugen.inputs, ugen.inputs[ key ] ) 
+            // XXX not sure why this has to be here, but somehow non-processed objects
+            // that only contain id numbers are being passed here...
+
+            if( Gibberish.mode === 'processor' ) {
+              if( input.ugenName === undefined && input.id !== undefined ) {
+                input = Gibberish.processor.ugens.get( input.id )
+              }
+            }
+
+            Gibberish.processUgen( input, block )
+
+            //if( input.callback === undefined ) continue
+
+            if( !input.isop ) {
+              // check is needed so that graphs with ssds that refer to themselves
+              // don't add the ssd in more than once
+              if( Gibberish.callbackUgens.indexOf( input.callback ) === -1 ) {
+                Gibberish.callbackUgens.push( input.callback )
+              }
+            }
+
+            line += `v_${input.id}`
+            input.__varname = `v_${input.id}`
+          }
+
+          if( i < keys.length - 1 ) {
+            line += ugen.isop ? ' ' + ugen.op + ' ' : ', ' 
+          }
+        }
+      }
+      
+      //if( ugen.type === 'bus' ) line += ', ' 
+      if( ugen.type === 'analysis' || (ugen.type === 'bus' && keys.length > 0) ) line += ', '
+      if( !ugen.isop && ugen.type !== 'seq' ) line += 'memory'
+      line += ugen.isop ? '' : ' )'
+
+      block.push( line )
+      
+      //console.log( 'memo:', ugen.ugenName )
+      Gibberish.memoed[ ugen.ugenName ] = `v_${ugen.id}`
+
+      if( dirtyIdx !== -1 ) {
+        Gibberish.dirtyUgens.splice( dirtyIdx, 1 )
+      }
+
+    }else if( ugen.block ) {
+      return ugen.block
+    }
+
+    return block
+  },
+    
+}
+
+Gibberish.utilities = require( './utilities.js' )( Gibberish )
+
+
+module.exports = Gibberish
+
+},{"./analysis/analyzers.js":75,"./envelopes/envelopes.js":80,"./filters/filters.js":89,"./fx/effect.js":98,"./fx/effects.js":99,"./instruments/instrument.js":110,"./instruments/instruments.js":111,"./instruments/polyMixin.js":115,"./instruments/polytemplate.js":116,"./misc/binops.js":120,"./misc/bus.js":121,"./misc/bus2.js":122,"./misc/monops.js":123,"./misc/panner.js":124,"./misc/time.js":125,"./oscillators/oscillators.js":128,"./scheduling/scheduler.js":131,"./scheduling/seq2.js":132,"./scheduling/sequencer.js":133,"./ugen.js":134,"./ugenTemplate.js":135,"./utilities.js":136,"genish.js":37,"memory-helper":498}],106:[function(require,module,exports){
+let g = require( 'genish.js' ),
+    instrument = require( './instrument.js' )
+
+module.exports = function( Gibberish ) {
+
+  const Conga = argumentProps => {
+    let conga = Object.create( instrument ),
+        frequency = g.in( 'frequency' ),
+        decay = g.in( 'decay' ),
+        gain  = g.in( 'gain' )
+
+    let props = Object.assign( {}, Conga.defaults, argumentProps )
+
+    let trigger = g.bang(),
+        impulse = g.mul( trigger, 60 ),
+        _decay =  g.sub( .101, g.div( decay, 10 ) ), // create range of .001 - .099
+        bpf = g.svf( impulse, frequency, _decay, 2, false ),
+        out = g.mul( bpf, gain )
+    
+
+    conga.env = trigger
+    Gibberish.factory( conga, out, ['instruments','conga'], props  )
+
+    return conga
+  }
+  
+  Conga.defaults = {
+    gain: .25,
+    frequency:190,
+    decay: .85
+  }
+
+  return Conga
+
+}
+
+},{"./instrument.js":110,"genish.js":37}],107:[function(require,module,exports){
+let g = require( 'genish.js' ),
+    instrument = require( './instrument.js' )
+
+module.exports = function( Gibberish ) {
+
+  const Cowbell = argumentProps => {
+    let cowbell = Object.create( instrument )
+    
+    const decay   = g.in( 'decay' ),
+          gain    = g.in( 'gain' )
+
+    const props = Object.assign( {}, Cowbell.defaults, argumentProps )
+
+    const bpfCutoff = g.param( 'bpfc', 1000 ),
+          s1 = Gibberish.oscillators.factory( 'square', 560 ),
+          s2 = Gibberish.oscillators.factory( 'square', 845 ),
+          eg = g.decay( g.mul( decay, g.gen.samplerate * 2 ) ), 
+          bpf = g.svf( g.add( s1,s2 ), bpfCutoff, 3, 2, false ),
+          envBpf = g.mul( bpf, eg ),
+          out = g.mul( envBpf, gain )
+
+    cowbell.env = eg 
+
+    cowbell.isStereo = false
+
+    cowbell = Gibberish.factory( cowbell, out, ['insturments', 'cowbell'], props  )
+    
+    return cowbell
+  }
+  
+  Cowbell.defaults = {
+    gain: 1,
+    decay:.5
+  }
+
+  return Cowbell
+
+}
+
+},{"./instrument.js":110,"genish.js":37}],108:[function(require,module,exports){
+let g = require( 'genish.js' ),
+    instrument = require( './instrument.js' )
+
+module.exports = function( Gibberish ) {
+
+  let FM = inputProps => {
+    let syn = Object.create( instrument )
+
+    let frequency = g.in( 'frequency' ),
+        glide = g.in( 'glide' ),
+        slidingFreq = g.slide( frequency, glide, glide ),
+        cmRatio = g.in( 'cmRatio' ),
+        index = g.in( 'index' ),
+        feedback = g.in( 'feedback' ),
+        attack = g.in( 'attack' ), decay = g.in( 'decay' ),
+        sustain = g.in( 'sustain' ), sustainLevel = g.in( 'sustainLevel' ),
+        release = g.in( 'release' )
+
+    const props = Object.assign( {}, FM.defaults, inputProps )
+    Object.assign( syn, props )
+
+    syn.__createGraph = function() {
+      const env = Gibberish.envelopes.factory( 
+        props.useADSR, 
+        props.shape, 
+        attack, decay, 
+        sustain, sustainLevel, 
+        release, 
+        props.triggerRelease
+      )
+
+      const feedbackssd = g.history( 0 )
+
+      const modOsc = Gibberish.oscillators.factory( 
+              syn.modulatorWaveform, 
+              g.add( g.mul( slidingFreq, cmRatio ), g.mul( feedbackssd.out, feedback, index ) ), 
+              syn.antialias 
+            )
+
+      const modOscWithIndex = g.mul( modOsc, g.mul( slidingFreq, index ) )
+      const modOscWithEnv   = g.mul( modOscWithIndex, env )
+      
+      const modOscWithEnvAvg = g.mul( .5, g.add( modOscWithEnv, feedbackssd.out ) )
+
+      feedbackssd.in( modOscWithEnvAvg )
+
+      const carrierOsc = Gibberish.oscillators.factory( syn.carrierWaveform, g.add( slidingFreq, modOscWithEnvAvg ), syn.antialias )
+      const carrierOscWithEnv = g.mul( carrierOsc, env )
+
+      const baseCutoffFreq = g.mul( g.in('cutoff'), frequency )
+      const cutoff = g.mul( g.mul( baseCutoffFreq, g.pow( 2, g.in('filterMult') )), env )
+      //const cutoff = g.add( g.in('cutoff'), g.mul( g.in('filterMult'), env ) )
+      const filteredOsc = Gibberish.filters.factory( carrierOscWithEnv, cutoff, g.in('Q'), g.in('saturation'), syn )
+
+      const synthWithGain = g.mul( filteredOsc, g.in( 'gain' ) )
+      
+      let panner
+      if( props.panVoices === true ) { 
+        panner = g.pan( synthWithGain, synthWithGain, g.in( 'pan' ) ) 
+        syn.graph = [panner.left, panner.right ]
+      }else{
+        syn.graph = synthWithGain
+      }
+
+      syn.env = env
+    }
+    
+    syn.__requiresRecompilation = [ 'carrierWaveform', 'modulatorWaveform', 'antialias', 'filterType', 'filterMode' ]
+    syn.__createGraph()
+
+    const out = Gibberish.factory( syn, syn.graph , ['instruments','FM'], props )
+
+    return out
+  }
+
+  FM.defaults = {
+    carrierWaveform:'sine',
+    modulatorWaveform:'sine',
+    attack: 44,
+    feedback: 0,
+    decay: 22050,
+    sustain:44100,
+    sustainLevel:.6,
+    release:22050,
+    useADSR:false,
+    shape:'linear',
+    triggerRelease:false,
+    gain: 1,
+    cmRatio:2,
+    index:5,
+    pulsewidth:.25,
+    frequency:220,
+    pan: .5,
+    antialias:false,
+    panVoices:false,
+    glide:1,
+    saturation:1,
+    filterMult:1.5,
+    Q:.25,
+    cutoff:.35,
+    filterType:0,
+    filterMode:0,
+    isLowPass:1
+  }
+
+  let PolyFM = Gibberish.PolyTemplate( FM, ['glide','frequency','attack','decay','pulsewidth','pan','gain','cmRatio','index', 'saturation', 'filterMult', 'Q', 'cutoff', 'antialias', 'filterType', 'carrierWaveform', 'modulatorWaveform','filterMode', 'feedback', 'useADSR', 'sustain', 'release', 'sustainLevel' ] ) 
+
+  return [ FM, PolyFM ]
+
+}
+
+},{"./instrument.js":110,"genish.js":37}],109:[function(require,module,exports){
+let g = require( 'genish.js' ),
+    instrument = require( './instrument.js' )
+
+module.exports = function( Gibberish ) {
+
+  let Hat = argumentProps => {
+    let hat = Object.create( instrument ),
+        tune  = g.in( 'tune' ),
+        scaledTune = g.memo( g.add( .4, tune ) ),
+        decay  = g.in( 'decay' ),
+        gain  = g.in( 'gain' )
+
+    let props = Object.assign( {}, Hat.defaults, argumentProps )
+
+    let baseFreq = g.mul( 325, scaledTune ), // range of 162.5 - 487.5
+        bpfCutoff = g.mul( g.param( 'bpfc', 7000 ), scaledTune ),
+        hpfCutoff = g.mul( g.param( 'hpfc', 11000 ), scaledTune ),  
+        s1 = Gibberish.oscillators.factory( 'square', baseFreq, false ),
+        s2 = Gibberish.oscillators.factory( 'square', g.mul( baseFreq,1.4471 ) ),
+        s3 = Gibberish.oscillators.factory( 'square', g.mul( baseFreq,1.6170 ) ),
+        s4 = Gibberish.oscillators.factory( 'square', g.mul( baseFreq,1.9265 ) ),
+        s5 = Gibberish.oscillators.factory( 'square', g.mul( baseFreq,2.5028 ) ),
+        s6 = Gibberish.oscillators.factory( 'square', g.mul( baseFreq,2.6637 ) ),
+        sum = g.add( s1,s2,s3,s4,s5,s6 ),
+        eg = g.decay( g.mul( decay, g.gen.samplerate * 2 ) ), 
+        bpf = g.svf( sum, bpfCutoff, .5, 2, false ),
+        envBpf = g.mul( bpf, eg ),
+        hpf = g.filter24( envBpf, 0, hpfCutoff, 0 ),
+        out = g.mul( hpf, gain )
+
+    hat.env = eg 
+    hat.isStereo = false
+
+    const __hat = Gibberish.factory( hat, out, ['instruments','hat'], props  )
+    
+
+    return __hat
+  }
+  
+  Hat.defaults = {
+    gain:  1,
+    tune: .6,
+    decay:.1,
+  }
+
+  return Hat
+
+}
+
+},{"./instrument.js":110,"genish.js":37}],110:[function(require,module,exports){
+let ugen = require( '../ugen.js' ),
+    g = require( 'genish.js' )
+
+let instrument = Object.create( ugen )
+
+Object.assign( instrument, {
+  note( freq ) {
+    this.frequency = freq
+    this.env.trigger()
+  },
+
+  trigger( _gain = 1 ) {
+    this.gain = _gain
+    this.env.trigger()
+  },
+
+})
+
+module.exports = instrument
+
+},{"../ugen.js":134,"genish.js":37}],111:[function(require,module,exports){
+module.exports = function( Gibberish ) {
+
+const instruments = {
+  Kick        : require( './kick.js' )( Gibberish ),
+  Conga       : require( './conga.js' )( Gibberish ),
+  Clave       : require( './conga.js' )( Gibberish ), // clave is same as conga with different defaults, see below
+  Hat         : require( './hat.js' )( Gibberish ),
+  Snare       : require( './snare.js' )( Gibberish ),
+  Cowbell     : require( './cowbell.js' )( Gibberish )
+}
+
+instruments.Clave.defaults.frequency = 2500
+instruments.Clave.defaults.decay = .5;
+
+[ instruments.Synth, instruments.PolySynth ]     = require( './synth.js' )( Gibberish );
+[ instruments.Monosynth, instruments.PolyMono ]  = require( './monosynth.js' )( Gibberish );
+[ instruments.FM, instruments.PolyFM ]           = require( './fm.js' )( Gibberish );
+[ instruments.Sampler, instruments.PolySampler ] = require( './sampler.js' )( Gibberish );
+[ instruments.Karplus, instruments.PolyKarplus ] = require( './karplusstrong.js' )( Gibberish );
+
+instruments.export = target => {
+  for( let key in instruments ) {
+    if( key !== 'export' ) {
+      target[ key ] = instruments[ key ]
+    }
+  }
+}
+
+return instruments
+
+}
+
+},{"./conga.js":106,"./cowbell.js":107,"./fm.js":108,"./hat.js":109,"./karplusstrong.js":112,"./kick.js":113,"./monosynth.js":114,"./sampler.js":117,"./snare.js":118,"./synth.js":119}],112:[function(require,module,exports){
+const g = require( 'genish.js' ),
+      instrument = require( './instrument.js' )
+
+module.exports = function( Gibberish ) {
+
+  const KPS = inputProps => {
+
+    const props = Object.assign( {}, KPS.defaults, inputProps )
+    let syn = Object.create( instrument )
+    
+    let sampleRate = Gibberish.mode === 'processor' ? Gibberish.processor.sampleRate : Gibberish.ctx.sampleRate
+
+    const trigger = g.bang(),
+          phase = g.accum( 1, trigger, { max:Infinity } ),
+          env = g.gtp( g.sub( 1, g.div( phase, 200 ) ), 0 ),
+          impulse = g.mul( g.noise(), env ),
+          feedback = g.history(),
+          frequency = g.in('frequency'),
+          glide = g.in( 'glide' ),
+          slidingFrequency = g.slide( frequency, glide, glide ),
+          delay = g.delay( g.add( impulse, feedback.out ), g.div( sampleRate, slidingFrequency ), { size:2048 }),
+          decayed = g.mul( delay, g.t60( g.mul( g.in('decay'), slidingFrequency ) ) ),
+          damped =  g.mix( decayed, feedback.out, g.in('damping') ),
+          withGain = g.mul( damped, g.in('gain') )
+
+    feedback.in( damped )
+
+    const properties = Object.assign( {}, KPS.defaults, props )
+
+    Object.assign( syn, {
+      properties : props,
+
+      env : trigger,
+      phase,
+
+      getPhase() {
+        return Gibberish.memory.heap[ phase.memory.value.idx ]
+      },
+    })
+
+    if( properties.panVoices ) {  
+      const panner = g.pan( withGain, withGain, g.in( 'pan' ) )
+      syn = Gibberish.factory( syn, [panner.left, panner.right], ['instruments','karplus'], props  )
+    }else{
+      syn = Gibberish.factory( syn, withGain, ['instruments','karplus'], props )
+    }
+
+    return syn
+  }
+  
+  KPS.defaults = {
+    decay: .97,
+    damping:.2,
+    gain: 1,
+    frequency:220,
+    pan: .5,
+    glide:1,
+    panVoices:false
+  }
+
+  let envCheckFactory = ( syn,synth ) => {
+    let envCheck = ()=> {
+      let phase = syn.getPhase(),
+          endTime = synth.decay * sampleRate
+
+      if( phase > endTime ) {
+        synth.disconnectUgen( syn )
+        syn.isConnected = false
+        Gibberish.memory.heap[ syn.phase.memory.value.idx ] = 0 // trigger doesn't seem to reset for some reason
+      }else{
+        Gibberish.blockCallbacks.push( envCheck )
+      }
+    }
+    return envCheck
+  }
+
+  let PolyKPS = Gibberish.PolyTemplate( KPS, ['frequency','decay','damping','pan','gain', 'glide'], envCheckFactory ) 
+
+  return [ KPS, PolyKPS ]
+
+}
+
+},{"./instrument.js":110,"genish.js":37}],113:[function(require,module,exports){
+let g = require( 'genish.js' ),
+    instrument = require( './instrument.js' )
+
+module.exports = function( Gibberish ) {
+
+  let Kick = inputProps => {
+    // establish prototype chain
+    let kick = Object.create( instrument )
+
+    // define inputs
+    let frequency = g.in( 'frequency' ),
+        decay = g.in( 'decay' ),
+        tone  = g.in( 'tone' ),
+        gain  = g.in( 'gain' )
+    
+    // create initial property set
+    let props = Object.assign( {}, Kick.defaults, inputProps )
+    Object.assign( kick, props )
+
+    // create DSP graph
+    let trigger = g.bang(),
+        impulse = g.mul( trigger, 60 ),
+        scaledDecay = g.sub( 1.005, decay ), // -> range { .005, 1.005 }
+        scaledTone = g.add( 50, g.mul( tone, 4000 ) ), // -> range { 50, 4050 }
+        bpf = g.svf( impulse, frequency, scaledDecay, 2, false ),
+        lpf = g.svf( bpf, scaledTone, .5, 0, false ),
+        graph = g.mul( lpf, gain )
+    
+    kick.env = trigger
+    const out = Gibberish.factory( kick, graph, ['instruments','kick'], props  )
+
+    return out
+  }
+  
+  Kick.defaults = {
+    gain: 1,
+    frequency:85,
+    tone: .25,
+    decay:.9
+  }
+
+  return Kick
+
+}
+
+},{"./instrument.js":110,"genish.js":37}],114:[function(require,module,exports){
+const g = require( 'genish.js' ),
+      instrument = require( './instrument.js' ),
+      feedbackOsc = require( '../oscillators/fmfeedbackosc.js' )
+
+module.exports = function( Gibberish ) {
+
+  const Synth = argumentProps => {
+    const syn = Object.create( instrument ),
+          oscs = [], 
+          frequency = g.in( 'frequency' ),
+          glide = g.in( 'glide' ),
+          slidingFreq = g.memo( g.slide( frequency, glide, glide ) ),
+          attack = g.in( 'attack' ), decay = g.in( 'decay' ),
+          sustain = g.in( 'sustain' ), sustainLevel = g.in( 'sustainLevel' ),
+          release = g.in( 'release' )
+
+    const props = Object.assign( {}, Synth.defaults, argumentProps )
+    Object.assign( syn, props )
+
+    syn.__createGraph = function() {
+      const env = Gibberish.envelopes.factory( 
+        props.useADSR, 
+        props.shape, 
+        attack, decay, 
+        sustain, sustainLevel, 
+        release, 
+        props.triggerRelease
+      )
+
+      for( let i = 0; i < 3; i++ ) {
+        let osc, freq
+
+        switch( i ) {
+          case 1:
+            freq = g.add( slidingFreq, g.mul( slidingFreq, g.in('detune2') ) )
+            break;
+          case 2:
+            freq = g.add( slidingFreq, g.mul( slidingFreq, g.in('detune3') ) )
+            break;
+          default:
+            freq = slidingFreq
+        }
+
+        osc = Gibberish.oscillators.factory( syn.waveform, freq, syn.antialias )
+        
+        oscs[ i ] = osc
+      }
+
+      const oscSum = g.add( ...oscs ),
+            oscWithGain = g.mul( g.mul( oscSum, env ), g.in( 'gain' ) ),
+            baseCutoffFreq = g.mul( g.in('cutoff'), frequency ),
+            cutoff = g.mul( g.mul( baseCutoffFreq, g.pow( 2, g.in('filterMult') )), env ),
+            filteredOsc = Gibberish.filters.factory( oscWithGain, cutoff, g.in('Q'), g.in('saturation'), syn )
+        
+      if( props.panVoices ) {  
+        const panner = g.pan( filteredOsc,filteredOsc, g.in( 'pan' ) )
+        syn.graph = [ panner.left, panner.right ]
+      }else{
+        syn.graph = filteredOsc
+      }
+
+      syn.env = env
+    }
+
+    syn.__requiresRecompilation = [ 'waveform', 'antialias', 'filterType', 'filterMode' ]
+    syn.__createGraph()
+
+    const out = Gibberish.factory( syn, syn.graph, ['instruments','Monosynth'], props )
+
+    return out
+  }
+  
+  Synth.defaults = {
+    waveform: 'saw',
+    attack: 44,
+    decay: 22050,
+    sustain:44100,
+    sustainLevel:.6,
+    release:22050,
+    useADSR:false,
+    shape:'linear',
+    triggerRelease:false,
+    gain: .25,
+    pulsewidth:.25,
+    frequency:220,
+    pan: .5,
+    detune2:.005,
+    detune3:-.005,
+    cutoff: 1,
+    resonance:.25,
+    Q: .5,
+    panVoices:false,
+    glide: 1,
+    antialias:false,
+    filterType: 2,
+    filterMode: 0, // 0 = LP, 1 = HP, 2 = BP, 3 = Notch
+    saturation:.5,
+    filterMult: 4,
+    isLowPass:true
+  }
+
+  let PolyMono = Gibberish.PolyTemplate( Synth, 
+    ['frequency','attack','decay','cutoff','Q',
+     'detune2','detune3','pulsewidth','pan','gain', 'glide', 'saturation', 'filterMult',  'antialias', 'filterType', 'waveform', 'filterMode']
+  ) 
+
+  return [ Synth, PolyMono ]
+}
+
+},{"../oscillators/fmfeedbackosc.js":127,"./instrument.js":110,"genish.js":37}],115:[function(require,module,exports){
+module.exports = {
+  note( freq, gain ) {
+    // will be sent to processor node via proxy method...
+    if( Gibberish.mode !== 'worklet' ) {
+      let voice = this.__getVoice__()
+      Object.assign( voice, this.properties )
+      if( gain === undefined ) gain = this.gain
+      voice.gain = gain
+      voice.note( freq )
+      this.__runVoice__( voice, this )
+      this.triggerNote = freq
+    }
+  },
+
+  // XXX this is not particularly satisfying...
+  // must check for both notes and chords
+  trigger( gain ) {
+    if( this.triggerChord !== null ) {
+      this.triggerChord.forEach( v => {
+        let voice = this.__getVoice__()
+        Object.assign( voice, this.properties )
+        voice.note( v )
+        voice.gain = gain
+        this.__runVoice__( voice, this )
+      })
+    }else if( this.triggerNote !== null ) {
+      let voice = this.__getVoice__()
+      Object.assign( voice, this.properties )
+      voice.note( this.triggerNote )
+      voice.gain = gain
+      this.__runVoice__( voice, this )
+    }else{
+      let voice = this.__getVoice__()
+      Object.assign( voice, this.properties )
+      voice.trigger( gain )
+      this.__runVoice__( voice, this )
+    }
+  },
+
+  __runVoice__( voice, _poly ) {
+    if( !voice.isConnected ) {
+      voice.connect( _poly )
+      voice.isConnected = true
+    }
+
+    let envCheck
+    if( _poly.envCheck === undefined ) {
+      envCheck = function() {
+        if( voice.env.isComplete() ) {
+          _poly.disconnectUgen( voice )
+          voice.isConnected = false
+        }else{
+          Gibberish.blockCallbacks.push( envCheck )
+        }
+      }
+    }else{
+      envCheck = _poly.envCheck( voice, _poly )
+    }
+
+    Gibberish.blockCallbacks.push( envCheck )
+  },
+
+  __getVoice__() {
+    return this.voices[ this.voiceCount++ % this.voices.length ]
+  },
+
+  chord( frequencies ) {
+    // will be sent to processor node via proxy method...
+    if( Gibberish.mode !== 'worklet' ) {
+      frequencies.forEach( v => this.note( v ) )
+      this.triggerChord = frequencies
+    }
+  },
+
+  free() {
+    for( let child of this.voices ) child.free()
+  }
+}
+
+},{}],116:[function(require,module,exports){
+/*
+ * This files creates a factory generating polysynth constructors.
+ */
+
+const g = require( 'genish.js' )
+const proxy = require( '../workletProxy.js' )
+
+module.exports = function( Gibberish ) {
+
+  const TemplateFactory = ( ugen, propertyList, _envCheck ) => {
+    /* 
+     * polysynths are basically busses that connect child synth voices.
+     * We create separate prototypes for mono vs stereo instances.
+     */
+
+    const monoProto   = Object.create( Gibberish.Bus() ),
+          stereoProto = Object.create( Gibberish.Bus2() )
+
+    // since there are two prototypes we can't assign directly to one of them...
+    Object.assign( monoProto,   Gibberish.mixins.polyinstrument )
+    Object.assign( stereoProto, Gibberish.mixins.polyinstrument )
+
+    const Template = props => {
+      const properties = Object.assign( {}, { isStereo:true }, props )
+
+      const synth = properties.isStereo === true ? Object.create( stereoProto ) : Object.create( monoProto )
+
+      Object.assign( synth, {
+        voices: [],
+        maxVoices: properties.maxVoices !== undefined ? properties.maxVoices : 16,
+        voiceCount: 0,
+        envCheck: _envCheck,
+        id: Gibberish.factory.getUID(),
+        dirty: true,
+        type: 'bus',
+        ugenName: 'poly' + ugen.name + '_' + synth.id,
+        inputs:[],
+        inputNames:[], //['input', 'gain'],
+        properties
+      })
+
+      properties.panVoices = properties.isStereo
+      synth.callback.ugenName = synth.ugenName
+
+      for( let i = 0; i < synth.maxVoices; i++ ) {
+        synth.voices[i] = ugen( properties )
+        synth.voices[i].callback.ugenName = synth.voices[i].ugenName
+        synth.voices[i].isConnected = false
+      }
+
+      let _propertyList 
+      if( properties.isStereo === false ) {
+        _propertyList = propertyList.slice( 0 )
+        const idx =  _propertyList.indexOf( 'pan' )
+        if( idx  > -1 ) _propertyList.splice( idx, 1 )
+      }
+
+      TemplateFactory.setupProperties( synth, ugen, properties.isStereo ? propertyList : _propertyList )
+
+      return proxy( ['instruments', 'Poly'+ugen.name], properties, synth ) 
+    }
+
+    return Template
+  }
+
+  TemplateFactory.setupProperties = function( synth, ugen, props ) {
+    for( let property of props ) {
+      Object.defineProperty( synth, property, {
+        get() {
+          return synth.properties[ property ] || ugen.defaults[ property ]
+        },
+        set( v ) {
+          synth.properties[ property ] = v
+          for( let child of synth.inputs ) {
+            child[ property ] = v
+          }
+        }
+      })
+    }
+  }
+
+  return TemplateFactory
+
+}
+
+},{"../workletProxy.js":137,"genish.js":37}],117:[function(require,module,exports){
+const g = require( 'genish.js' ),
+      instrument = require( './instrument.js' )
+
+module.exports = function( Gibberish ) {
+  let proto = Object.create( instrument )
+
+  Object.assign( proto, {
+    note( rate ) {
+      this.rate = rate
+      if( rate > 0 ) {
+        this.trigger()
+      }else{
+        this.__phase__.value = this.data.buffer.length - 1 
+      }
+    },
+  })
+
+  const Sampler = inputProps => {
+    const syn = Object.create( proto )
+
+    const props = Object.assign( { onload:null }, Sampler.defaults, inputProps )
+
+    syn.isStereo = props.isStereo !== undefined ? props.isStereo : false
+
+    const start = g.in( 'start' ), end = g.in( 'end' ), 
+          rate = g.in( 'rate' ), shouldLoop = g.in( 'loops' )
+
+    /* 
+     * create dummy ugen until data for sampler is loaded...
+     * this will be overridden by a call to Gibberish.factory on load 
+     */
+
+    syn.callback = function() { return 0 }
+    syn.id = Gibberish.factory.getUID()
+    syn.ugenName = syn.callback.ugenName = 'sampler_' + syn.id
+    syn.inputNames = []
+
+    /* end dummy ugen */
+
+    syn.__bang__ = g.bang()
+    syn.trigger = syn.__bang__.trigger
+
+    Object.assign( syn, props )
+
+    if( props.filename ) {
+      syn.data = g.data( props.filename )
+
+      syn.data.onload = () => {
+        syn.__phase__ = g.counter( rate, start, end, syn.__bang__, shouldLoop, { shouldWrap:false })
+
+        Gibberish.factory( 
+          syn,
+          g.mul( 
+          g.ifelse( 
+            g.and( g.gte( syn.__phase__, start ), g.lt( syn.__phase__, end ) ),
+            g.peek( 
+              syn.data, 
+              syn.__phase__,
+              { mode:'samples' }
+            ),
+            0
+          ), g.in('gain') ),
+          'sampler', 
+          props 
+        ) 
+
+        if( syn.end === -999999999 ) syn.end = syn.data.buffer.length - 1
+
+        if( syn.onload !== null ) { syn.onload() }
+
+        Gibberish.dirty( syn )
+      }
+    }
+
+    return syn
+  }
+  
+
+  Sampler.defaults = {
+    gain: 1,
+    pan: .5,
+    rate: 1,
+    panVoices:false,
+    loops: 0,
+    start:0,
+    end:-999999999,
+  }
+
+  const envCheckFactory = function( voice, _poly ) {
+
+    const envCheck = () => {
+      const phase = Gibberish.memory.heap[ voice.__phase__.memory.value.idx ]
+      if( ( voice.rate > 0 && phase > voice.end ) || ( voice.rate < 0 && phase < 0 ) ) {
+        _poly.disconnectUgen.call( _poly, voice )
+        voice.isConnected = false
+      }else{
+        Gibberish.blockCallbacks.push( envCheck )
+      }
+    }
+
+    return envCheck
+  }
+
+  const PolySampler = Gibberish.PolyTemplate( Sampler, ['rate','pan','gain','start','end','loops'], envCheckFactory ) 
+
+  return [ Sampler, PolySampler ]
+}
+
+},{"./instrument.js":110,"genish.js":37}],118:[function(require,module,exports){
+let g = require( 'genish.js' ),
+    instrument = require( './instrument.js' )
+  
+module.exports = function( Gibberish ) {
+
+  let Snare = argumentProps => {
+    let snare = Object.create( instrument ),
+        decay = g.in( 'decay' ),
+        scaledDecay = g.mul( decay, g.gen.samplerate * 2 ),
+        snappy= g.in( 'snappy' ),
+        tune  = g.in( 'tune' ),
+        gain  = g.in( 'gain' )
+
+    let props = Object.assign( {}, Snare.defaults, argumentProps )
+
+    let eg = g.decay( scaledDecay, { initValue:0 } ), 
+        check = g.memo( g.gt( eg, .0005 ) ),
+        rnd = g.mul( g.noise(), eg ),
+        hpf = g.svf( rnd, g.add( 1000, g.mul( g.add( 1, tune), 1000 ) ), .5, 1, false ),
+        snap = g.gtp( g.mul( hpf, snappy ), 0 ), // rectify
+        bpf1 = g.svf( eg, g.mul( 180, g.add( tune, 1 ) ), .05, 2, false ),
+        bpf2 = g.svf( eg, g.mul( 330, g.add( tune, 1 ) ), .05, 2, false ),
+        out  = g.memo( g.add( snap, bpf1, g.mul( bpf2, .8 ) ) ), //XXX why is memo needed?
+        scaledOut = g.mul( out, gain )
+    
+    // XXX TODO : make this work with ifelse. the problem is that poke ugens put their
+    // code at the bottom of the callback function, instead of at the end of the
+    // associated if/else block.
+    let ife = g.switch( check, scaledOut, 0 )
+    //let ife = g.ifelse( g.gt( eg, .005 ), cycle(440), 0 )
+    
+    snare.env = eg 
+    snare = Gibberish.factory( snare, ife, ['instruments','snare'], props  )
+    
+    return snare
+  }
+  
+  Snare.defaults = {
+    gain: 1,
+    frequency:1000,
+    tune:0,
+    snappy: 1,
+    decay:.1
+  }
+
+  return Snare
+
+}
+
+},{"./instrument.js":110,"genish.js":37}],119:[function(require,module,exports){
+let g = require( 'genish.js' ),
+    instrument = require( './instrument.js' )
+
+module.exports = function( Gibberish ) {
+
+  const Synth = inputProps => {
+    const syn = Object.create( instrument )
+
+    const frequency = g.in( 'frequency' ),
+          loudness  = g.in( 'loudness' ), 
+          glide = g.in( 'glide' ),
+          slidingFreq = g.slide( frequency, glide, glide ),
+          attack = g.in( 'attack' ), decay = g.in( 'decay' ),
+          sustain = g.in( 'sustain' ), sustainLevel = g.in( 'sustainLevel' ),
+          release = g.in( 'release' )
+
+    const props = Object.assign( {}, Synth.defaults, inputProps )
+    Object.assign( syn, props )
+
+    syn.__createGraph = function() {
+      const osc = Gibberish.oscillators.factory( syn.waveform, slidingFreq, syn.antialias )
+
+      const env = Gibberish.envelopes.factory( 
+        props.useADSR, 
+        props.shape, 
+        attack, decay, 
+        sustain, sustainLevel, 
+        release, 
+        props.triggerRelease
+      )
+
+      // below doesn't work as it attempts to assign to release property triggering codegen...
+      // syn.release = ()=> { syn.env.release() }
+
+      let oscWithEnv = g.mul( g.mul( osc, env, loudness ) ),
+          panner
+  
+      const baseCutoffFreq = g.mul( g.in('cutoff'), frequency )
+      const cutoff = g.mul( g.mul( baseCutoffFreq, g.pow( 2, g.in('filterMult') )), env )
+      const filteredOsc = Gibberish.filters.factory( oscWithEnv, cutoff, g.in('Q'), g.in('saturation'), props )
+
+      let synthWithGain = g.mul( filteredOsc, g.in( 'gain' ) )
+  
+      if( syn.panVoices === true ) { 
+        panner = g.pan( synthWithGain, synthWithGain, g.in( 'pan' ) ) 
+        syn.graph = [ panner.left, panner.right ]
+      }else{
+        syn.graph = synthWithGain
+      }
+
+      syn.env = env
+      syn.osc = osc
+      syn.filter = filteredOsc
+
+    }
+    
+    syn.__requiresRecompilation = [ 'waveform', 'antialias', 'filterType','filterMode', 'useADSR', 'shape' ]
+    syn.__createGraph()
+
+    const out = Gibberish.factory( syn, syn.graph, ['instruments', 'synth'], props  )
+
+    return out
+  }
+  
+  Synth.defaults = {
+    waveform:'saw',
+    attack: 44,
+    decay: 22050,
+    sustain:44100,
+    sustainLevel:.6,
+    release:22050,
+    useADSR:false,
+    shape:'linear',
+    triggerRelease:false,
+    gain: 1,
+    pulsewidth:.25,
+    frequency:220,
+    pan: .5,
+    antialias:false,
+    panVoices:false,
+    loudness:1,
+    glide:1,
+    saturation:1,
+    filterMult:2,
+    Q:.25,
+    cutoff:.5,
+    filterType:0,
+    filterMode:0,
+    isLowPass:1
+  }
+
+  // do not include velocity, which shoudl always be per voice
+  let PolySynth = Gibberish.PolyTemplate( Synth, ['frequency','attack','decay','pulsewidth','pan','gain','glide', 'saturation', 'filterMult', 'Q', 'cutoff', 'resonance', 'antialias', 'filterType', 'waveform', 'filterMode'] ) 
+
+  return [ Synth, PolySynth ]
+
+}
+
+},{"./instrument.js":110,"genish.js":37}],120:[function(require,module,exports){
+const ugenproto = require( '../ugen.js' )
+const proxy     = require( '../workletProxy.js' )
+
+module.exports = function( Gibberish ) {
+
+  let Binops = {
+    export( obj ) {
+      for( let key in Binops ) {
+        if( key !== 'export' ) {
+          obj[ key ] = Binops[ key ]
+        }
+      }
+    },
+    
+    Add( ...args ) {
+      const id = Gibberish.factory.getUID()
+      const ugen = Object.create( ugenproto )
+      Object.assign( ugen, { isop:true, op:'+', inputs:args, ugenName:'add' + id, id } )
+
+      return proxy( ['binops','Add'], { isop:true, inputs:args }, ugen )
+    },
+
+    Sub( ...args ) {
+      const id = Gibberish.factory.getUID()
+      const ugen = Object.create( ugenproto )
+      Object.assign( ugen, { isop:true, op:'-', inputs:args, ugenName:'sub' + id, id } )
+
+      return proxy( ['binops','Sub'], { isop:true, inputs:args }, ugen )
+    },
+
+    Mul( ...args ) {
+      const id = Gibberish.factory.getUID()
+      const ugen = Object.create( ugenproto )
+      Object.assign( ugen, { isop:true, op:'*', inputs:args, ugenName:'mul' + id, id } )
+
+      return proxy( ['binops','Mul'], { isop:true, inputs:args }, ugen )
+    },
+
+    Div( ...args ) {
+      const id = Gibberish.factory.getUID()
+      const ugen = Object.create( ugenproto )
+      Object.assign( ugen, { isop:true, op:'/', inputs:args, ugenName:'div' + id, id } )
+    
+      return proxy( ['binops','Div'], { isop:true, inputs:args }, ugen )
+    },
+
+    Mod( ...args ) {
+      const id = Gibberish.factory.getUID()
+      const ugen = Object.create( ugenproto )
+      Object.assign( ugen, { isop:true, op:'%', inputs:args, ugenName:'mod' + id, id } )
+
+      return proxy( ['binops','Mod'], { isop:true, inputs:args }, ugen )
+    },   
+  }
+
+  return Binops
+}
+
+},{"../ugen.js":134,"../workletProxy.js":137}],121:[function(require,module,exports){
+let g = require( 'genish.js' ),
+    ugen = require( '../ugen.js' ),
+    proxy= require( '../workletProxy.js' )
+
+module.exports = function( Gibberish ) {
+  
+  const Bus = Object.create( ugen )
+
+  Object.assign( Bus, {
+    __gain : {
+      set( v ) {
+        this.mul.inputs[ 1 ] = v
+        Gibberish.dirty( this )
+      },
+      get() {
+        return this.mul[ 1 ]
+      }
+    },
+
+    __addInput( input ) {
+      this.sum.inputs.push( input )
+      Gibberish.dirty( this )
+    },
+
+    create( _props ) {
+      const props = Object.assign({}, Bus.defaults, _props )
+
+      const sum = Gibberish.binops.Add( ...props.inputs )
+      const mul = Gibberish.binops.Mul( sum, props.gain )
+
+      const graph = Gibberish.Panner({ input:mul, pan: props.pan })
+      
+
+      graph.sum = sum
+      graph.mul = mul
+      graph.disconnectUgen = Bus.disconnectUgen
+
+      Object.defineProperty( graph, 'gain', Bus.__gain )
+
+      graph.__properties__ = props
+
+      const out = proxy( ['Bus'], props, graph )
+
+
+      if( false && Gibberish.preventProxy === false && Gibberish.mode === 'worklet' ) {
+        const meta = {
+          address:'add',
+          name:['Bus'],
+          props, 
+          id:graph.id
+        }
+        Gibberish.worklet.port.postMessage( meta )
+        Gibberish.worklet.port.postMessage({ 
+          address:'method', 
+          object:graph.id,
+          name:'connect',
+          args:[]
+        })
+      }
+
+      return out 
+    },
+
+    disconnectUgen( ugen ) {
+      let removeIdx = this.sum.inputs.indexOf( ugen )
+
+      if( removeIdx !== -1 ) {
+        this.sum.inputs.splice( removeIdx, 1 )
+        Gibberish.dirty( this )
+      }
+    },
+
+    defaults: { gain:1, inputs:[0], pan:.5 }
+  })
+
+  return Bus.create.bind( Bus )
+
+}
+
+
+},{"../ugen.js":134,"../workletProxy.js":137,"genish.js":37}],122:[function(require,module,exports){
+/*let g = require( 'genish.js' ),
+    ugen = require( '../ugen.js' )
+
+module.exports = function( Gibberish ) {
+  
+  const Bus2 = Object.create( ugen )
+
+  Object.assign( Bus2, {
+    __gain : {
+      set( v ) {
+        this.mul.inputs[ 1 ] = v
+        Gibberish.dirty( this )
+
+      },
+      get() {
+        return this.mul[ 1 ]
+      }
+    },
+
+    __addInput( input ) {
+      if( input.isStereo || Array.isArray( input ) ) {
+        console.log('stereo', input )
+        this.sumL.inputs.push( input[0] )
+        this.sumR.inputs.push( input[0] )        
+      }else{
+        console.log( 'mono', input )
+        this.sumL.inputs.push( input )
+        this.sumR.inputs.push( input )
+      }
+
+      Gibberish.dirty( this )
+    },
+
+    create( _props ) {
+      const props = Object.assign({}, Bus2.defaults, _props )
+
+      const inputsL = [], inputsR = []
+
+      props.inputs.forEach( i => {
+        if( i.isStereo || Array.isArray( i ) ) {
+          inputsL.push( i[0] ) 
+          inputsR.push( i[1] )
+        }else{ 
+          inputsL.push( i ) 
+          inputsR.push( i )
+        }  
+      })
+
+      const sumL = Gibberish.binops.Add( ...inputsL )
+      const mulL = Gibberish.binops.Mul( sumL, props.gain )
+      const sumR = Gibberish.binops.Add( ...inputsR )
+      const mulR = Gibberish.binops.Mul( sumR, props.gain )
+
+      const graph = Gibberish.Panner({ input:mulL, pan: props.pan })
+
+      Object.assign( graph, { sumL, mulL, sumR, mulR, __addInput:Bus2.__addInput, disconnectUgen:Bus2.disconnectUgen  })
+
+      graph.isStereo = true
+      graph.inputs = props.inputs
+      //graph.type = 'bus'
+
+      Object.defineProperty( graph, 'gain', Bus2.__gain )
+
+      return graph
+    },
+
+    disconnectUgen( ugen ) {
+      let removeIdx = this.sum.inputs.indexOf( ugen )
+
+      if( removeIdx !== -1 ) {
+        this.sum.inputs.splice( removeIdx, 1 )
+        Gibberish.dirty( this )
+      }
+    },
+
+    defaults: { gain:1, inputs:[0], pan:.5 }
+  })
+
+  return Bus2.create.bind( Bus2 )
+
+}
+*/
+
+
+const g = require( 'genish.js' ),
+      ugen = require( '../ugen.js' ),
+      proxy = require( '../workletProxy.js' )
+
+module.exports = function( Gibberish ) {
+  const Bus2 = Object.create( ugen )
+
+  let bufferL, bufferR
+  
+  Object.assign( Bus2, { 
+    create( props ) {
+
+      if( bufferL === undefined ) {
+        bufferL = Gibberish.genish.gen.globals.panL.memory.values.idx
+        bufferR = Gibberish.genish.gen.globals.panR.memory.values.idx
+      }
+
+      var output = [0,0] 
+
+      var bus = Object.create( Bus2 )
+
+      Object.assign( 
+        bus,
+
+        {
+          callback() {
+            output[ 0 ] = output[ 1 ] = 0
+            var lastIdx = arguments.length - 1
+            var memory  = arguments[ lastIdx ]
+
+            for( var i = 0; i < lastIdx; i++ ) {
+              var input = arguments[ i ],
+                  isArray = Array.isArray( input )//input instanceof Float32Array
+
+              output[ 0 ] += isArray ? input[ 0 ] : input
+              output[ 1 ] += isArray ? input[ 1 ] : input
+            }
+
+            var panRawIndex  = .5 * 1023,
+                panBaseIndex = panRawIndex | 0,
+                panNextIndex = (panBaseIndex + 1) & 1023,
+                interpAmount = panRawIndex - panBaseIndex,
+                panL = memory[ bufferL + panBaseIndex ] 
+                  + ( interpAmount * ( memory[ bufferL + panNextIndex ] - memory[ bufferL + panBaseIndex ] ) ),
+                panR = memory[ bufferR + panBaseIndex ] 
+                  + ( interpAmount * ( memory[ bufferR + panNextIndex ] - memory[ bufferR + panBaseIndex ] ) )
+            
+            output[0] *= bus.gain * panL
+            output[1] *= bus.gain * panR
+
+            return output
+          },
+          id : Gibberish.factory.getUID(),
+          dirty : false,
+          type : 'bus',
+          inputs:[],
+          __properties__:props
+        },
+
+        Bus2.defaults,
+
+        props
+      )
+
+      bus.ugenName = bus.callback.ugenName = 'bus2_' + bus.id
+
+      const out = proxy( ['Bus2'], props, bus )
+
+      return out
+    },
+    
+    disconnectUgen( ugen ) {
+      let removeIdx = this.inputs.indexOf( ugen )
+
+      if( removeIdx !== -1 ) {
+        this.inputs.splice( removeIdx, 1 )
+        Gibberish.dirty( this )
+      }
+    },
+
+    defaults: { gain:1, pan:.5 }
+  })
+
+  return Bus2.create.bind( Bus2 )
+
+}
+
+
+},{"../ugen.js":134,"../workletProxy.js":137,"genish.js":37}],123:[function(require,module,exports){
+const  g    = require( 'genish.js'  ),
+       ugen = require( '../ugen.js' )
+
+module.exports = function( Gibberish ) {
+
+  const Monops = {
+    export( obj ) {
+      for( let key in Monops ) {
+        if( key !== 'export' ) {
+          obj[ key ] = Monops[ key ]
+        }
+      }
+    },
+    
+    Abs( input ) {
+      const abs = Object.create( ugen )
+      const graph = g.abs( g.in('input') )
+      
+      const __out = Gibberish.factory( abs, graph, ['monops','abs'], Object.assign({}, Monops.defaults, { inputs:[input], isop:true }) )
+
+      return __out
+    },
+
+    Pow( input, exponent ) {
+      const pow = Object.create( ugen )
+      const graph = g.pow( g.in('input'), g.in('exponent') )
+      
+      Gibberish.factory( pow, graph, ['monops','pow'], Object.assign({}, Monops.defaults, { inputs:[input], exponent, isop:true }) )
+
+      return pow
+    },
+    Clamp( input, min, max ) {
+      const clamp = Object.create( ugen )
+      const graph = g.clamp( g.in('input'), g.in('min'), g.in('max') )
+      
+      const __out = Gibberish.factory( clamp, graph, ['monops','clamp'], Object.assign({}, Monops.defaults, { inputs:[input], isop:true, min, max }) )
+
+      return __out
+    },
+
+    Merge( input ) {
+      const merger = Object.create( ugen )
+      const cb = function( _input ) {
+        return _input[0] + _input[1]
+      }
+
+      Gibberish.factory( merger, g.in( 'input' ), ['monops','merge'], { inputs:[input], isop:true }, cb )
+      merger.type = 'analysis'
+      merger.inputNames = [ 'input' ]
+      merger.inputs = [ input ]
+      merger.input = input
+      
+      return merger
+    },
+  }
+
+  Monops.defaults = { input:0 }
+
+  return Monops
+}
+
+},{"../ugen.js":134,"genish.js":37}],124:[function(require,module,exports){
+const g = require( 'genish.js' )
+
+const ugen = require( '../ugen.js' )
+
+module.exports = function( Gibberish ) {
+ 
+let Panner = inputProps => {
+  const props  = Object.assign( {}, Panner.defaults, inputProps ),
+        panner = Object.create( ugen )
+
+  const isStereo = props.input.isStereo !== undefined ? props.input.isStereo : Array.isArray( props.input ) 
+  
+  const input = g.in( 'input' ),
+        pan   = g.in( 'pan' )
+
+  let graph 
+  if( isStereo ) {
+    graph = g.pan( input[0], input[1], pan )  
+  }else{
+    graph = g.pan( input, input, pan )
+  }
+
+  Gibberish.factory( panner, [ graph.left, graph.right], 'panner', props )
+  
+  return panner
+}
+
+Panner.defaults = {
+  input:0,
+  pan:.5
+}
+
+return Panner 
+
+}
+
+},{"../ugen.js":134,"genish.js":37}],125:[function(require,module,exports){
+module.exports = function( Gibberish ) {
+
+  const Time = {
+    bpm: 120,
+
+    export: function(target) {
+      Object.assign( target, Time )
+    },
+
+    ms : function(val) {
+      return val * Gibberish.ctx.sampleRate / 1000;
+    },
+
+    seconds : function(val) {
+      return val * Gibberish.ctx.sampleRate;
+    },
+
+    beats : function(val) {
+      return function() { 
+        var samplesPerBeat = Gibberish.ctx.sampleRate / ( Gibberish.Time.bpm / 60 ) ;
+        return samplesPerBeat * val ;
+      }
+    }
+  }
+
+  return Time
+}
+
+},{}],126:[function(require,module,exports){
+const genish = require('genish.js'),
+      ssd = genish.history,
+      noise = genish.noise;
+
+module.exports = function () {
+  "use jsdsp";
+
+  const last = ssd(0);
+
+  const white = genish.sub(genish.mul(noise(), 2), 1);
+
+  let out = genish.add(last.out, genish.div(genish.mul(.02, white), 1.02));
+
+  last.in(out);
+
+  out = genish.mul(out, 3.5);
+
+  return out;
+};
+},{"genish.js":37}],127:[function(require,module,exports){
+let g = require( 'genish.js' )
+
+let feedbackOsc = function( frequency, filter, pulsewidth=.5, argumentProps ) {
+  if( argumentProps === undefined ) argumentProps = { type: 0 }
+
+  let lastSample = g.history(),
+      // determine phase increment and memoize result
+      w = g.memo( g.div( frequency, g.gen.samplerate ) ),
+      // create scaling factor
+      n = g.sub( -.5, w ),
+      scaling = g.mul( g.mul( 13, filter ), g.pow( n, 5 ) ),
+      // calculate dc offset and normalization factors
+      DC = g.sub( .376, g.mul( w, .752 ) ),
+      norm = g.sub( 1, g.mul( 2, w ) ),
+      // determine phase
+      osc1Phase = g.accum( w, 0, { min:-1 }),
+      osc1, out
+
+  // create current sample... from the paper:
+  // osc = (osc + sin(2*pi*(phase + osc*scaling)))*0.5f;
+  osc1 = g.memo( 
+    g.mul(
+      g.add(
+        lastSample.out,
+        g.sin(
+          g.mul(
+            Math.PI * 2,
+            g.memo( g.add( osc1Phase, g.mul( lastSample.out, scaling ) ) )
+          )
+        )
+      ),
+      .5
+    )
+  )
+
+  // store sample to use as modulation
+  lastSample.in( osc1 )
+
+  // if pwm / square waveform instead of sawtooth...
+  if( argumentProps.type === 1 ) { 
+    const lastSample2 = g.history() // for osc 2
+    const lastSampleMaster = g.history() // for sum of osc1,osc2
+
+    const osc2 = g.mul(
+      g.add(
+        lastSample2.out,
+        g.sin(
+          g.mul(
+            Math.PI * 2,
+            g.memo( g.add( osc1Phase, g.mul( lastSample2.out, scaling ), pulsewidth ) )
+          )
+        )
+      ),
+      .5
+    )
+
+    lastSample2.in( osc2 )
+    out = g.memo( g.sub( lastSample.out, lastSample2.out ) )
+    out = g.memo( g.add( g.mul( 2.5, out ), g.mul( -1.5, lastSampleMaster.out ) ) )
+    
+    lastSampleMaster.in( g.sub( osc1, osc2 ) )
+
+  }else{
+     // offset and normalize
+    osc1 = g.add( g.mul( 2.5, osc1 ), g.mul( -1.5, lastSample.out ) )
+    osc1 = g.add( osc1, DC )
+ 
+    out = osc1
+  }
+
+  return g.mul( out, norm )
+}
+
+module.exports = feedbackOsc
+
+},{"genish.js":37}],128:[function(require,module,exports){
+const g = require( 'genish.js' ),
+      ugen = require( '../ugen.js' ),
+      feedbackOsc = require( './fmfeedbackosc.js' )
+
+//  __makeOscillator__( type, frequency, antialias ) {
+    
+module.exports = function( Gibberish ) {
+  let Oscillators = {
+    export( obj ) {
+      for( let key in Oscillators ) {
+        if( key !== 'export' ) {
+          obj[ key ] = Oscillators[ key ]
+        }
+      }
+    },
+
+    genish: {
+      Brown: require( './brownnoise.js' ),
+      Pink:  require( './pinknoise.js'  )
+    },
+
+    Wavetable: require( './wavetable.js' )( Gibberish ),
+    
+    Square( inputProps ) {
+      const sqr   = Object.create( ugen ) 
+      const props = Object.assign({ antialias:false }, Oscillators.defaults, inputProps )
+      const osc   = Oscillators.factory( 'square', g.in( 'frequency' ), props.antialias )
+      const graph = g.mul( osc, g.in('gain' ) )
+
+      const out = Gibberish.factory( sqr, graph, ['oscillators','square'], props )
+
+      return out
+    },
+
+    Triangle( inputProps ) {
+      const tri= Object.create( ugen ) 
+      const props = Object.assign({ antialias:false }, Oscillators.defaults, inputProps )
+      const osc   = Oscillators.factory( 'triangle', g.in( 'frequency' ), props.antialias )
+      const graph = g.mul( osc, g.in('gain' ) )
+
+      const out =Gibberish.factory( tri, graph, ['oscillators','triangle'], props )
+
+      return out
+    },
+
+    PWM( inputProps ) {
+      const pwm   = Object.create( ugen ) 
+      const props = Object.assign({ antialias:false, pulsewidth:.25 }, Oscillators.defaults, inputProps )
+      const osc   = Oscillators.factory( 'pwm', g.in( 'frequency' ), props.antialias )
+      const graph = g.mul( osc, g.in('gain' ) )
+
+      const out = Gibberish.factory( pwm, graph, ['oscillators','PWM'], props )
+
+      return out
+    },
+
+    Sine( inputProps ) {
+      const sine  = Object.create( ugen )
+      const props = Object.assign({}, Oscillators.defaults, inputProps )
+      const graph = g.mul( g.cycle( g.in('frequency') ), g.in('gain') )
+
+      const out = Gibberish.factory( sine, graph, ['oscillators','sine'], props )
+      
+      return out
+    },
+
+    Noise( inputProps ) {
+      const noise = Object.create( ugen )
+      const props = Object.assign( {}, { gain: 1, color:'white' }, inputProps )
+      let graph 
+
+      switch( props.color ) {
+        case 'brown':
+          graph = g.mul( Oscillators.genish.Brown(), g.in('gain') )
+          break;
+        case 'pink':
+          graph = g.mul( Oscillators.genish.Pink(), g.in('gain') )
+          break;
+        default:
+          graph = g.mul( g.noise(), g.in('gain') )
+          break;
+      }
+
+      const out = Gibberish.factory( noise, graph, ['oscillators','noise'], props )
+
+      return out
+    },
+
+    Saw( inputProps ) {
+      const saw   = Object.create( ugen ) 
+      const props = Object.assign({ antialias:false }, Oscillators.defaults, inputProps )
+      const osc   = Oscillators.factory( 'saw', g.in( 'frequency' ), props.antialias )
+      const graph = g.mul( osc, g.in('gain' ) )
+
+      const out = Gibberish.factory( saw, graph, ['oscillators','saw'], props )
+
+      return out
+    },
+
+    ReverseSaw( inputProps ) {
+      const saw   = Object.create( ugen ) 
+      const props = Object.assign({ antialias:false }, Oscillators.defaults, inputProps )
+      const osc   = g.sub( 1, Oscillators.factory( 'saw', g.in( 'frequency' ), props.antialias ) )
+      const graph = g.mul( osc, g.in( 'gain' ) )
+
+      const out = Gibberish.factory( saw, graph, ['oscillators','ReverseSaw'], props )
+      
+      return out
+    },
+
+    factory( type, frequency, antialias=false ) {
+      let osc
+
+      switch( type ) {
+        case 'pwm':
+          let pulsewidth = g.in('pulsewidth')
+          if( antialias === true ) {
+            osc = feedbackOsc( frequency, 1, pulsewidth, { type:1 })
+          }else{
+            let phase = g.phasor( frequency, 0, { min:0 } )
+            osc = g.lt( phase, pulsewidth )
+          }
+          break;
+        case 'saw':
+          if( antialias === false ) {
+            osc = g.phasor( frequency )
+          }else{
+            osc = feedbackOsc( frequency, 1 )
+          }
+          break;
+        case 'sine':
+          osc = g.cycle( frequency )
+          break;
+        case 'square':
+          if( antialias === true ) {
+            osc = feedbackOsc( frequency, 1, .5, { type:1 })
+          }else{
+            osc = g.wavetable( frequency, { buffer:Oscillators.Square.buffer, name:'square' } )
+          }
+          break;
+        case 'triangle':
+          osc = g.wavetable( frequency, { buffer:Oscillators.Triangle.buffer, name:'triangle' } )
+          break;
+      }
+
+      return osc
+    }
+  }
+
+  Oscillators.Square.buffer = new Float32Array( 1024 )
+
+  for( let i = 1023; i >= 0; i-- ) { 
+    Oscillators.Square.buffer [ i ] = i / 1024 > .5 ? 1 : -1
+  }
+
+  Oscillators.Triangle.buffer = new Float32Array( 1024 )
+
+  
+  for( let i = 1024; i--; i = i ) { Oscillators.Triangle.buffer[i] = 1 - 4 * Math.abs(( (i / 1024) + 0.25) % 1 - 0.5); }
+
+  Oscillators.defaults = {
+    frequency: 440,
+    gain: 1
+  }
+
+  return Oscillators
+
+}
+
+},{"../ugen.js":134,"./brownnoise.js":126,"./fmfeedbackosc.js":127,"./pinknoise.js":129,"./wavetable.js":130,"genish.js":37}],129:[function(require,module,exports){
+const genish = require('genish.js'),
+      ssd = genish.history,
+      data = genish.data,
+      noise = genish.noise;
+
+module.exports = function () {
+  "use jsdsp";
+
+  const b = data(8, 1, { meta: true });
+  const white = genish.sub(genish.mul(noise(), 2), 1);
+
+  b[0] = genish.add(genish.mul(.99886, b[0]), genish.mul(white, .0555179));
+  b[1] = genish.add(genish.mul(.99332, b[1]), genish.mul(white, .0750579));
+  b[2] = genish.add(genish.mul(.96900, b[2]), genish.mul(white, .1538520));
+  b[3] = genish.add(genish.mul(.88650, b[3]), genish.mul(white, .3104856));
+  b[4] = genish.add(genish.mul(.55000, b[4]), genish.mul(white, .5329522));
+  b[5] = genish.sub(genish.mul(-.7616, b[5]), genish.mul(white, .0168980));
+
+  const out = genish.mul(genish.add(genish.add(genish.add(genish.add(genish.add(genish.add(genish.add(b[0], b[1]), b[2]), b[3]), b[4]), b[5]), b[6]), genish.mul(white, .5362)), .11);
+
+  b[6] = genish.mul(white, .115926);
+
+  return out;
+};
+},{"genish.js":37}],130:[function(require,module,exports){
+let g = require( 'genish.js' ),
+    ugen = require( '../ugen.js' )
+
+module.exports = function( Gibberish ) {
+
+  const Wavetable = function( inputProps ) {
+    const wavetable = Object.create( ugen )
+    const props  = Object.assign({}, Gibberish.oscillators.defaults, inputProps )
+    const osc = g.wavetable( g.in('frequency'), props )
+    const graph = g.mul( 
+      osc, 
+      g.in( 'gain' )
+    )
+
+    Gibberish.factory( wavetable, graph, 'wavetable', props )
+
+    return wavetable
+  }
+
+  g.wavetable = function( frequency, props ) {
+    let dataProps = { immutable:true }
+
+    // use global references if applicable
+    if( props.name !== undefined ) dataProps.global = props.name
+
+    const buffer = g.data( props.buffer, 1, dataProps )
+
+    return g.peek( buffer, g.phasor( frequency, 0, { min:0 } ) )
+  }
+
+  return Wavetable
+}
+
+},{"../ugen.js":134,"genish.js":37}],131:[function(require,module,exports){
+const Queue = require( '../external/priorityqueue.js' )
+const Big   = require( 'big.js' )
+
+let Scheduler = {
+  phase: 0,
+
+  queue: new Queue( ( a, b ) => {
+    if( a.time === b.time ) { //a.time.eq( b.time ) ) {
+      return b.priority - a.priority
+    }else{
+      return a.time - b.time //a.time.minus( b.time )
+    }
+  }),
+
+  clear() {
+    this.queue.data.length = 0
+    this.queue.length = 0
+  },
+
+  add( time, func, priority = 0 ) {
+    time += this.phase
+
+    this.queue.push({ time, func, priority })
+  },
+
+  tick() {
+    if( this.queue.length ) {
+      let next = this.queue.peek()
+
+      while( this.phase >= next.time ) {
+        next.func()
+        this.queue.pop()
+        next = this.queue.peek()
+
+        // XXX this happens when calling sequencer.stop()... why?
+        if( next === undefined ) break
+      }
+
+    }
+
+    this.phase++
+  },
+}
+
+module.exports = Scheduler
+
+},{"../external/priorityqueue.js":82,"big.js":138}],132:[function(require,module,exports){
+const g = require( 'genish.js' ),
+      proxy = require( '../workletProxy.js' ),
+      ugen = require( '../ugen.js' )
+
+module.exports = function( Gibberish ) {
+  const __proto__ = Object.create( ugen )
+
+  Object.assign( __proto__, {
+    start() {
+      this.connect()
+      return this
+    },
+    stop() {
+      this.disconnect()
+      return this
+    }
+  })
+
+  const Seq2 = { 
+    create( inputProps ) {
+      const seq = Object.create( __proto__ ),
+            props = Object.assign({}, Seq2.defaults, inputProps )
+
+      seq.phase = 0
+      seq.inputNames = [ 'rate' ]
+      seq.inputs = [ 1 ]
+      seq.nextTime = 0
+      seq.valuesPhase = 0
+      seq.timingsPhase = 0
+      seq.id = Gibberish.factory.getUID()
+      seq.dirty = true
+      seq.type = 'seq'
+      seq.__properties__ = props
+
+      if( props.target === undefined ) {
+        seq.anonFunction = true
+      }else{ 
+        seq.anonFunction = false
+        seq.callFunction = typeof props.target[ props.key ] === 'function'
+      }
+
+      props.id = Gibberish.factory.getUID()
+
+      // need a separate reference to the properties for worklet meta-programming
+      const properties = Object.assign( {}, Seq2.defaults, props )
+      Object.assign( seq, properties ) 
+      seq.__properties__ = properties
+
+      seq.callback = function( rate ) {
+        if( seq.phase >= seq.nextTime ) {
+          let value = seq.values[ seq.valuesPhase++ % seq.values.length ]
+
+          if( seq.anonFunction || typeof value === 'function' ) value = value()
+          
+          if( seq.anonFunction === false ) {
+            if( seq.callFunction === false ) {
+              seq.target[ seq.key ] = value
+            }else{
+              seq.target[ seq.key ]( value ) 
+            }
+          }
+
+          seq.phase -= seq.nextTime
+
+          let timing = seq.timings[ seq.timingsPhase++ % seq.timings.length ]
+          if( typeof timing === 'function' ) timing = timing()
+
+          seq.nextTime = timing
+        }
+
+        seq.phase += rate
+
+        return 0
+      }
+
+      seq.ugenName = seq.callback.ugenName = 'seq_' + seq.id
+      
+      let value = seq.rate
+      Object.defineProperty( seq, 'rate', {
+        get() { return value },
+        set( v ) {
+          if( value !== v ) {
+            Gibberish.dirty( seq )
+            value = v
+          }
+        }
+      })
+
+      return proxy( ['Sequencer2'], props, seq ) 
+    }
+  }
+
+  Seq2.defaults = { rate: 1 }
+
+  return Seq2.create
+
+}
+
+
+},{"../ugen.js":134,"../workletProxy.js":137,"genish.js":37}],133:[function(require,module,exports){
+const Queue = require( '../external/priorityqueue.js' )
+const Big   = require( 'big.js' )
+const proxy = require( '../workletProxy.js' )
+
+module.exports = function( Gibberish ) {
+
+let Sequencer = props => {
+  let __seq
+  let seq = {
+    __isRunning:false,
+
+    __valuesPhase:  0,
+    __timingsPhase: 0,
+    __type:'seq',
+
+    tick() {
+      let value  = seq.values[  seq.__valuesPhase++  % seq.values.length  ],
+          timing = seq.timings[ seq.__timingsPhase++ % seq.timings.length ]
+
+      if( typeof timing === 'function' ) timing = timing()
+
+      if( typeof value === 'function' && seq.target === undefined ) {
+        value()
+      }else if( typeof seq.target[ seq.key ] === 'function' ) {
+        if( typeof value === 'function' ) value = value()
+        seq.target[ seq.key ]( value )
+      }else{
+        if( typeof value === 'function' ) value = value()
+        seq.target[ seq.key ] = value
+      }
+      
+      if( seq.__isRunning === true ) {
+        Gibberish.scheduler.add( timing, seq.tick, seq.priority )
+      }
+    },
+
+    start( delay = 0 ) {
+      seq.__isRunning = true
+      Gibberish.scheduler.add( delay, seq.tick, seq.priority )
+      return __seq
+    },
+
+    stop() {
+      seq.__isRunning = false
+      return __seq
+    }
+  }
+
+  props.id = Gibberish.factory.getUID()
+
+  // need a separate reference to the properties for worklet meta-programming
+  const properties = Object.assign( {}, Sequencer.defaults, props )
+  Object.assign( seq, properties ) 
+  seq.__properties__ = properties
+
+  __seq =  proxy( ['Sequencer'], properties, seq )
+
+  return __seq
+}
+
+Sequencer.defaults = { priority:0, values:[], timings:[] }
+
+Sequencer.make = function( values, timings, target, key ) {
+  return Sequencer({ values, timings, target, key })
+}
+
+return Sequencer
+
+}
+
+},{"../external/priorityqueue.js":82,"../workletProxy.js":137,"big.js":138}],134:[function(require,module,exports){
+const replace = obj => {
+  if( typeof obj === 'object' ) {
+    if( obj.id !== undefined ) {
+      return processor.ugens.get( obj.id )
+    } 
+  }
+
+  return obj
+}
+
+let ugen = {
+  free:function() {
+    Gibberish.genish.gen.free( this.graph )
+  },
+
+  print:function() {
+    console.log( this.callback.toString() )
+  },
+
+  connect:function( target, level=1 ) {
+    if( this.connected === undefined ) this.connected = []
+
+
+    let input = level === 1 ? this : Gibberish.binops.Mul( this, level )
+
+    if( target === undefined || target === null ) target = Gibberish.output 
+
+
+    if( typeof target.__addInput == 'function' ) {
+      target.__addInput( input )
+    } else if( target.sum && target.sum.inputs ) {
+      target.sum.inputs.push( input )
+    } else if( target.inputs ) {
+      target.inputs.push( input )
+    } else {
+      target.input = input
+    }
+
+    Gibberish.dirty( target )
+
+    this.connected.push([ target, input ])
+    
+    return this
+  },
+
+  disconnect:function( target ) {
+    if( target === undefined ){
+      for( let connection of this.connected ) {
+        connection[0].disconnectUgen( connection[1] )
+      }
+      this.connected.length = 0
+    }else{
+      const connection = this.connected.find( v => v[0] === target )
+      target.disconnectUgen( connection[1] )
+      const targetIdx = this.connected.indexOf( connection )
+      this.connected.splice( targetIdx, 1 )
+    }
+  },
+
+  chain:function( target, level=1 ) {
+    this.connect( target,level )
+
+    return target
+  },
+
+  __redoGraph:function() {
+    this.__createGraph()
+    this.callback = Gibberish.genish.gen.createCallback( this.graph, Gibberish.memory, false, true )
+    this.inputNames = new Set( Gibberish.genish.gen.parameters ) 
+    this.callback.ugenName = this.ugenName
+    Gibberish.dirty( this )
+  },
+}
+
+module.exports = ugen
+
+},{}],135:[function(require,module,exports){
+const proxy = require( './workletProxy.js' )
+const effectProto = require( './fx/effect.js' )
+
+module.exports = function( Gibberish ) {
+  let uid = 0
+
+  const factory = function( ugen, graph, __name, values, cb=null, shouldProxy = true ) {
+    ugen.callback = cb === null ? Gibberish.genish.gen.createCallback( graph, Gibberish.memory, false, true ) : cb
+
+    let name = Array.isArray( __name ) ? __name[ __name.length - 1 ] : __name
+
+    Object.assign( ugen, {
+      type: 'ugen',
+      id: factory.getUID(), 
+      ugenName: name + '_',
+      graph: graph,
+      inputNames: new Set( Gibberish.genish.gen.parameters ),
+      isStereo: Array.isArray( graph ),
+      dirty: true,
+      __properties__:values
+    })
+    
+    ugen.ugenName += ugen.id
+    ugen.callback.ugenName = ugen.ugenName // XXX hacky
+
+    for( let param of ugen.inputNames ) {
+      if( param === 'memory' ) continue
+
+      let value = values[ param ]
+
+      // TODO: do we need to check for a setter?
+      let desc = Object.getOwnPropertyDescriptor( ugen, param ),
+          setter
+
+      if( desc !== undefined ) {
+        setter = desc.set
+      }
+
+      Object.defineProperty( ugen, param, {
+        get() { return value },
+        set( v ) {
+          if( value !== v ) {
+            Gibberish.dirty( ugen )
+            if( setter !== undefined ) setter( v )
+            value = v
+          }
+        }
+      })
+    }
+
+    // add bypass dirty triffer
+    if( effectProto.isPrototypeOf( ugen ) ) {
+      let value = ugen.bypass
+      Object.defineProperty( ugen, 'bypass', {
+        get() { return value },
+        set( v ) {
+          if( value !== v ) {
+            Gibberish.dirty( ugen )
+            value = v
+          }
+        }
+      })
+
+    }
+
+    if( ugen.__requiresRecompilation !== undefined ) {
+      ugen.__requiresRecompilation.forEach( prop => {
+        let value = ugen[ prop ]
+        Object.defineProperty( ugen, prop, {
+          get() { return value },
+          set( v ) {
+            if( value !== v ) {
+              value = v
+              
+              // needed for filterType at the very least, becauae the props
+              // are reused when re-creating the graph. This seems like a cheaper
+              // way to solve this problem.
+              values[ prop ] = v
+
+              if( Gibberish.mode !== 'worklet' ) console.log( 'redoing graph!', v )
+              this.__redoGraph()
+            }
+          }
+        })
+      })
+    }
+
+    // will only create proxy if worklets are being used
+    // otherwise will return unaltered ugen
+    return shouldProxy ? proxy( __name, values, ugen ) : ugen
+  }
+
+  factory.getUID = () => uid++
+
+  return factory
+}
+
+},{"./fx/effect.js":98,"./workletProxy.js":137}],136:[function(require,module,exports){
+let genish = require( 'genish.js' )
+
+module.exports = function( Gibberish ) {
+
+let utilities = {
+  createContext( ctx, cb, resolve ) {
+    let AC = typeof AudioContext === 'undefined' ? webkitAudioContext : AudioContext
+
+    let start = () => {
+      if( typeof AC !== 'undefined' ) {
+        Gibberish.ctx = ctx === undefined ? new AC() : ctx
+        genish.gen.samplerate = Gibberish.ctx.sampleRate
+        genish.utilities.ctx = Gibberish.ctx
+
+        if( document && document.documentElement && 'ontouchstart' in document.documentElement ) {
+          window.removeEventListener( 'touchstart', start )
+
+          if( 'ontouchstart' in document.documentElement ){ // required to start audio under iOS 6
+            let mySource = utilities.ctx.createBufferSource()
+            mySource.connect( utilities.ctx.destination )
+            mySource.noteOn( 0 )
+          }
+        }else{
+          window.removeEventListener( 'mousedown', start )
+          window.removeEventListener( 'keydown', start )
+        }
+      }
+
+      if( typeof cb === 'function' ) cb( resolve )
+    }
+
+    if( document && document.documentElement && 'ontouchstart' in document.documentElement ) {
+      window.addEventListener( 'touchstart', start )
+    }else{
+      window.addEventListener( 'mousedown', start )
+      window.addEventListener( 'keydown', start )
+    }
+
+    return Gibberish.ctx
+  },
+
+  createScriptProcessor( resolve ) {
+    Gibberish.node = Gibberish.ctx.createScriptProcessor( 1024, 0, 2 ),
+    Gibberish.clearFunction = function() { return 0 },
+    Gibberish.callback = Gibberish.clearFunction
+
+    Gibberish.node.onaudioprocess = function( audioProcessingEvent ) {
+      let gibberish = Gibberish,
+          callback  = gibberish.callback,
+          outputBuffer = audioProcessingEvent.outputBuffer,
+          scheduler = Gibberish.scheduler,
+          //objs = gibberish.callbackUgens.slice( 0 ),
+          length
+
+      let left = outputBuffer.getChannelData( 0 ),
+          right= outputBuffer.getChannelData( 1 )
+
+      let callbacklength = Gibberish.blockCallbacks.length
+      
+      if( callbacklength !== 0 ) {
+        for( let i=0; i< callbacklength; i++ ) {
+          Gibberish.blockCallbacks[ i ]()
+        }
+
+        // can't just set length to 0 as callbacks might be added during for loop, so splice pre-existing functions
+        Gibberish.blockCallbacks.splice( 0, callbacklength )
+      }
+
+      for (let sample = 0, length = left.length; sample < length; sample++) {
+        scheduler.tick()
+
+        if( gibberish.graphIsDirty ) { 
+          callback = gibberish.generateCallback()
+        }
+        
+        // XXX cant use destructuring, babel makes it something inefficient...
+        let out = callback.apply( null, gibberish.callbackUgens )
+
+        left[ sample  ] = out[0]
+        right[ sample ] = out[1]
+      }
+    }
+
+    Gibberish.node.connect( Gibberish.ctx.destination )
+
+    resolve()
+
+    return Gibberish.node
+  }, 
+
+  createWorklet( resolve ) {
+    Gibberish.ctx.audioWorklet.addModule( Gibberish.workletPath ).then( () => {
+      Gibberish.worklet = new AudioWorkletNode( Gibberish.ctx, 'gibberish', { outputChannelCount:[2] } )
+      Gibberish.worklet.connect( Gibberish.ctx.destination )
+      Gibberish.worklet.port.onmessage = event => {
+        Gibberish.utilities.workletHandlers[ event.data.address ]( event )        
+      }
+      Gibberish.worklet.ugens = new Map()
+
+      resolve()
+    })
+  },
+
+  workletHandlers: {
+    get( event ) {
+      let name = event.data.name
+      let value
+      if( name[0] === 'Gibberish' ) {
+        value = Gibberish
+        name.shift()
+      }
+      for( let segment of name ) {
+        value = value[ segment ]
+      }
+
+      Gibberish.worklet.port.postMessage({
+        address:'set',
+        name:'Gibberish.' + name.join('.'),
+        value
+      })
+    },
+    state( event ){
+      const messages = event.data.messages
+      if( messages.length === 0 ) return
+      
+      Gibberish.preventProxy = true
+      for( let i = 0; i < messages.length; i+= 3 ) {
+        const id = messages[ i ]
+        const propName = messages[ i + 1 ]
+        const value = messages[ i + 2 ]
+        const obj = Gibberish.worklet.ugens.get( id )
+
+        if( obj !== undefined ) obj[ propName ] = value
+        // XXX double check and make sure this isn't getting sent back to processornode...
+        //console.log( propName, value, obj )
+      }
+      Gibberish.preventProxy = false
+    }
+  },
+
+  wrap( func, ...args ) {
+    const out = {
+      action:'wrap',
+      value:func,
+      // must return objects containing only the id number to avoid
+      // creating circular JSON references that would result from passing actual ugens
+      args: args.map( v => { return { id:v.id } })
+    }
+    return out
+  },
+
+  export( obj ) {
+    obj.wrap = this.wrap
+  }
+}
+
+return utilities
+
+}
+
+},{"genish.js":37}],137:[function(require,module,exports){
+const serialize = require('serialize-javascript')
+
+const replaceObj = obj => {
+  if( typeof obj === 'object' && obj.id !== undefined ) {
+    if( obj.__type !== 'seq' ) { // XXX why?
+      return { id:obj.id, prop:obj.prop }
+    }else{
+      // shouldn't I be serializing most objects, not just seqs?
+      return serialize( obj )
+    }
+  }
+  return obj
+}
+
+const makeAndSendObject = function( __name, values, obj ) {
+  const properties = {}
+  for( let key in values ) {
+    if( typeof values[ key ] === 'object' && values[ key ].__meta__ !== undefined ) {
+      properties[ key ] = values[ key ].__meta__
+    }else if( Array.isArray( values[ key ] ) ) {
+      const arr = []
+      for( let i = 0; i < values[ key ].length; i++ ) {
+        arr[ i ] = replaceObj( values[ key ][i] )
+      }
+      properties[ key ] = arr
+    }else if( typeof values[key] === 'object' ){
+      properties[ key ] = replaceObj( values[ key ] )
+    }else{
+      properties[ key ] = values[ key ]
+    }
+  }
+
+  let serializedProperties = serialize( properties )
+
+  if( Array.isArray( __name ) ) {
+    const oldName = __name[ __name.length - 1 ]
+    __name[ __name.length - 1 ] = oldName[0].toUpperCase() + oldName.substring(1)
+  }else{
+    __name = [ __name[0].toUpperCase() + __name.substring(1) ]
+  }
+
+  obj.__meta__ = {
+    address:'add',
+    name:__name,
+    properties:serializedProperties, 
+    id:obj.id
+  }
+
+  Gibberish.worklet.ugens.set( obj.id, obj )
+
+  //console.log( obj.__meta__ )
+
+  Gibberish.worklet.port.postMessage( obj.__meta__ )
+
+}
+
+module.exports = function( __name, values, obj ) {
+
+  if( Gibberish.mode === 'worklet' && Gibberish.preventProxy === false ) {
+
+    makeAndSendObject( __name, values, obj )
+
+    // proxy for all method calls to send to worklet
+    const proxy = new Proxy( obj, {
+      get( target, prop, receiver ) {
+        if( typeof target[ prop ] === 'function' && prop.indexOf('__') === -1) {
+          const proxy = new Proxy( target[ prop ], {
+            apply( __target, thisArg, args ) {
+              const __args = args.map( replaceObj )
+              //if( prop === 'connect' ) console.log( 'proxy connect:', __args )
+
+              Gibberish.worklet.port.postMessage({ 
+                address:'method', 
+                object:obj.id,
+                name:prop,
+                args:__args
+              })
+
+              return target[ prop ].apply( thisArg, args )
+            }
+          })
+          
+          return proxy
+        }
+
+        return target[ prop ]
+      },
+      set( target, prop, value, receiver ) {
+        if( prop !== 'connected' ) {
+          const __value = replaceObj( value )
+          //console.log( 'setter:', prop, __value )
+
+          Gibberish.worklet.port.postMessage({ 
+            address:'set', 
+            object:obj.id,
+            name:prop,
+            value:__value
+          })
+        }
+
+        target[ prop ] = value
+      }
+    })
+
+    // XXX XXX XXX XXX XXX XXX
+    // REMEMBER THAT YOU MUST ASSIGNED THE RETURNED VALUE TO YOUR UGEN,
+    // YOU CANNOT USE THIS FUNCTION TO MODIFY A UGEN IN PLACE.
+    // XXX XXX XXX XXX XXX XXX
+
+    return proxy
+  }else if( Gibberish.mode === 'processor' && Gibberish.preventProxy === false ) {
+
+    const proxy = new Proxy( obj, {
+      //get( target, prop, receiver ) { return target[ prop ] },
+      set( target, prop, value, receiver ) {
+        if( prop.indexOf('__') === -1 ) {
+          if( Gibberish.processor !== undefined ) 
+            Gibberish.processor.messages.push( obj.id, prop, value )
+        }
+        target[ prop ] = value
+        return true
+      }
+    })
+
+    return proxy
+  }
+
+  return obj
+}
+
+},{"serialize-javascript":139}],138:[function(require,module,exports){
+/* big.js v3.1.3 https://github.com/MikeMcl/big.js/LICENCE */
+;(function (global) {
+    'use strict';
+
+/*
+  big.js v3.1.3
+  A small, fast, easy-to-use library for arbitrary-precision decimal arithmetic.
+  https://github.com/MikeMcl/big.js/
+  Copyright (c) 2014 Michael Mclaughlin <M8ch88l@gmail.com>
+  MIT Expat Licence
+*/
+
+/***************************** EDITABLE DEFAULTS ******************************/
+
+    // The default values below must be integers within the stated ranges.
+
+    /*
+     * The maximum number of decimal places of the results of operations
+     * involving division: div and sqrt, and pow with negative exponents.
+     */
+    var DP = 20,                           // 0 to MAX_DP
+
+        /*
+         * The rounding mode used when rounding to the above decimal places.
+         *
+         * 0 Towards zero (i.e. truncate, no rounding).       (ROUND_DOWN)
+         * 1 To nearest neighbour. If equidistant, round up.  (ROUND_HALF_UP)
+         * 2 To nearest neighbour. If equidistant, to even.   (ROUND_HALF_EVEN)
+         * 3 Away from zero.                                  (ROUND_UP)
+         */
+        RM = 1,                            // 0, 1, 2 or 3
+
+        // The maximum value of DP and Big.DP.
+        MAX_DP = 1E6,                      // 0 to 1000000
+
+        // The maximum magnitude of the exponent argument to the pow method.
+        MAX_POWER = 1E6,                   // 1 to 1000000
+
+        /*
+         * The exponent value at and beneath which toString returns exponential
+         * notation.
+         * JavaScript's Number type: -7
+         * -1000000 is the minimum recommended exponent value of a Big.
+         */
+        E_NEG = -7,                   // 0 to -1000000
+
+        /*
+         * The exponent value at and above which toString returns exponential
+         * notation.
+         * JavaScript's Number type: 21
+         * 1000000 is the maximum recommended exponent value of a Big.
+         * (This limit is not enforced or checked.)
+         */
+        E_POS = 21,                   // 0 to 1000000
+
+/******************************************************************************/
+
+        // The shared prototype object.
+        P = {},
+        isValid = /^-?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i,
+        Big;
+
+
+    /*
+     * Create and return a Big constructor.
+     *
+     */
+    function bigFactory() {
+
+        /*
+         * The Big constructor and exported function.
+         * Create and return a new instance of a Big number object.
+         *
+         * n {number|string|Big} A numeric value.
+         */
+        function Big(n) {
+            var x = this;
+
+            // Enable constructor usage without new.
+            if (!(x instanceof Big)) {
+                return n === void 0 ? bigFactory() : new Big(n);
+            }
+
+            // Duplicate.
+            if (n instanceof Big) {
+                x.s = n.s;
+                x.e = n.e;
+                x.c = n.c.slice();
+            } else {
+                parse(x, n);
+            }
+
+            /*
+             * Retain a reference to this Big constructor, and shadow
+             * Big.prototype.constructor which points to Object.
+             */
+            x.constructor = Big;
+        }
+
+        Big.prototype = P;
+        Big.DP = DP;
+        Big.RM = RM;
+        Big.E_NEG = E_NEG;
+        Big.E_POS = E_POS;
+
+        return Big;
+    }
+
+
+    // Private functions
+
+
+    /*
+     * Return a string representing the value of Big x in normal or exponential
+     * notation to dp fixed decimal places or significant digits.
+     *
+     * x {Big} The Big to format.
+     * dp {number} Integer, 0 to MAX_DP inclusive.
+     * toE {number} 1 (toExponential), 2 (toPrecision) or undefined (toFixed).
+     */
+    function format(x, dp, toE) {
+        var Big = x.constructor,
+
+            // The index (normal notation) of the digit that may be rounded up.
+            i = dp - (x = new Big(x)).e,
+            c = x.c;
+
+        // Round?
+        if (c.length > ++dp) {
+            rnd(x, i, Big.RM);
+        }
+
+        if (!c[0]) {
+            ++i;
+        } else if (toE) {
+            i = dp;
+
+        // toFixed
+        } else {
+            c = x.c;
+
+            // Recalculate i as x.e may have changed if value rounded up.
+            i = x.e + i + 1;
+        }
+
+        // Append zeros?
+        for (; c.length < i; c.push(0)) {
+        }
+        i = x.e;
+
+        /*
+         * toPrecision returns exponential notation if the number of
+         * significant digits specified is less than the number of digits
+         * necessary to represent the integer part of the value in normal
+         * notation.
+         */
+        return toE === 1 || toE && (dp <= i || i <= Big.E_NEG) ?
+
+          // Exponential notation.
+          (x.s < 0 && c[0] ? '-' : '') +
+            (c.length > 1 ? c[0] + '.' + c.join('').slice(1) : c[0]) +
+              (i < 0 ? 'e' : 'e+') + i
+
+          // Normal notation.
+          : x.toString();
+    }
+
+
+    /*
+     * Parse the number or string value passed to a Big constructor.
+     *
+     * x {Big} A Big number instance.
+     * n {number|string} A numeric value.
+     */
+    function parse(x, n) {
+        var e, i, nL;
+
+        // Minus zero?
+        if (n === 0 && 1 / n < 0) {
+            n = '-0';
+
+        // Ensure n is string and check validity.
+        } else if (!isValid.test(n += '')) {
+            throwErr(NaN);
+        }
+
+        // Determine sign.
+        x.s = n.charAt(0) == '-' ? (n = n.slice(1), -1) : 1;
+
+        // Decimal point?
+        if ((e = n.indexOf('.')) > -1) {
+            n = n.replace('.', '');
+        }
+
+        // Exponential form?
+        if ((i = n.search(/e/i)) > 0) {
+
+            // Determine exponent.
+            if (e < 0) {
+                e = i;
+            }
+            e += +n.slice(i + 1);
+            n = n.substring(0, i);
+
+        } else if (e < 0) {
+
+            // Integer.
+            e = n.length;
+        }
+
+        // Determine leading zeros.
+        for (i = 0; n.charAt(i) == '0'; i++) {
+        }
+
+        if (i == (nL = n.length)) {
+
+            // Zero.
+            x.c = [ x.e = 0 ];
+        } else {
+
+            // Determine trailing zeros.
+            for (; n.charAt(--nL) == '0';) {
+            }
+
+            x.e = e - i - 1;
+            x.c = [];
+
+            // Convert string to array of digits without leading/trailing zeros.
+            for (e = 0; i <= nL; x.c[e++] = +n.charAt(i++)) {
+            }
+        }
+
+        return x;
+    }
+
+
+    /*
+     * Round Big x to a maximum of dp decimal places using rounding mode rm.
+     * Called by div, sqrt and round.
+     *
+     * x {Big} The Big to round.
+     * dp {number} Integer, 0 to MAX_DP inclusive.
+     * rm {number} 0, 1, 2 or 3 (DOWN, HALF_UP, HALF_EVEN, UP)
+     * [more] {boolean} Whether the result of division was truncated.
+     */
+    function rnd(x, dp, rm, more) {
+        var u,
+            xc = x.c,
+            i = x.e + dp + 1;
+
+        if (rm === 1) {
+
+            // xc[i] is the digit after the digit that may be rounded up.
+            more = xc[i] >= 5;
+        } else if (rm === 2) {
+            more = xc[i] > 5 || xc[i] == 5 &&
+              (more || i < 0 || xc[i + 1] !== u || xc[i - 1] & 1);
+        } else if (rm === 3) {
+            more = more || xc[i] !== u || i < 0;
+        } else {
+            more = false;
+
+            if (rm !== 0) {
+                throwErr('!Big.RM!');
+            }
+        }
+
+        if (i < 1 || !xc[0]) {
+
+            if (more) {
+
+                // 1, 0.1, 0.01, 0.001, 0.0001 etc.
+                x.e = -dp;
+                x.c = [1];
+            } else {
+
+                // Zero.
+                x.c = [x.e = 0];
+            }
+        } else {
+
+            // Remove any digits after the required decimal places.
+            xc.length = i--;
+
+            // Round up?
+            if (more) {
+
+                // Rounding up may mean the previous digit has to be rounded up.
+                for (; ++xc[i] > 9;) {
+                    xc[i] = 0;
+
+                    if (!i--) {
+                        ++x.e;
+                        xc.unshift(1);
+                    }
+                }
+            }
+
+            // Remove trailing zeros.
+            for (i = xc.length; !xc[--i]; xc.pop()) {
+            }
+        }
+
+        return x;
+    }
+
+
+    /*
+     * Throw a BigError.
+     *
+     * message {string} The error message.
+     */
+    function throwErr(message) {
+        var err = new Error(message);
+        err.name = 'BigError';
+
+        throw err;
+    }
+
+
+    // Prototype/instance methods
+
+
+    /*
+     * Return a new Big whose value is the absolute value of this Big.
+     */
+    P.abs = function () {
+        var x = new this.constructor(this);
+        x.s = 1;
+
+        return x;
+    };
+
+
+    /*
+     * Return
+     * 1 if the value of this Big is greater than the value of Big y,
+     * -1 if the value of this Big is less than the value of Big y, or
+     * 0 if they have the same value.
+    */
+    P.cmp = function (y) {
+        var xNeg,
+            x = this,
+            xc = x.c,
+            yc = (y = new x.constructor(y)).c,
+            i = x.s,
+            j = y.s,
+            k = x.e,
+            l = y.e;
+
+        // Either zero?
+        if (!xc[0] || !yc[0]) {
+            return !xc[0] ? !yc[0] ? 0 : -j : i;
+        }
+
+        // Signs differ?
+        if (i != j) {
+            return i;
+        }
+        xNeg = i < 0;
+
+        // Compare exponents.
+        if (k != l) {
+            return k > l ^ xNeg ? 1 : -1;
+        }
+
+        i = -1;
+        j = (k = xc.length) < (l = yc.length) ? k : l;
+
+        // Compare digit by digit.
+        for (; ++i < j;) {
+
+            if (xc[i] != yc[i]) {
+                return xc[i] > yc[i] ^ xNeg ? 1 : -1;
+            }
+        }
+
+        // Compare lengths.
+        return k == l ? 0 : k > l ^ xNeg ? 1 : -1;
+    };
+
+
+    /*
+     * Return a new Big whose value is the value of this Big divided by the
+     * value of Big y, rounded, if necessary, to a maximum of Big.DP decimal
+     * places using rounding mode Big.RM.
+     */
+    P.div = function (y) {
+        var x = this,
+            Big = x.constructor,
+            // dividend
+            dvd = x.c,
+            //divisor
+            dvs = (y = new Big(y)).c,
+            s = x.s == y.s ? 1 : -1,
+            dp = Big.DP;
+
+        if (dp !== ~~dp || dp < 0 || dp > MAX_DP) {
+            throwErr('!Big.DP!');
+        }
+
+        // Either 0?
+        if (!dvd[0] || !dvs[0]) {
+
+            // If both are 0, throw NaN
+            if (dvd[0] == dvs[0]) {
+                throwErr(NaN);
+            }
+
+            // If dvs is 0, throw +-Infinity.
+            if (!dvs[0]) {
+                throwErr(s / 0);
+            }
+
+            // dvd is 0, return +-0.
+            return new Big(s * 0);
+        }
+
+        var dvsL, dvsT, next, cmp, remI, u,
+            dvsZ = dvs.slice(),
+            dvdI = dvsL = dvs.length,
+            dvdL = dvd.length,
+            // remainder
+            rem = dvd.slice(0, dvsL),
+            remL = rem.length,
+            // quotient
+            q = y,
+            qc = q.c = [],
+            qi = 0,
+            digits = dp + (q.e = x.e - y.e) + 1;
+
+        q.s = s;
+        s = digits < 0 ? 0 : digits;
+
+        // Create version of divisor with leading zero.
+        dvsZ.unshift(0);
+
+        // Add zeros to make remainder as long as divisor.
+        for (; remL++ < dvsL; rem.push(0)) {
+        }
+
+        do {
+
+            // 'next' is how many times the divisor goes into current remainder.
+            for (next = 0; next < 10; next++) {
+
+                // Compare divisor and remainder.
+                if (dvsL != (remL = rem.length)) {
+                    cmp = dvsL > remL ? 1 : -1;
+                } else {
+
+                    for (remI = -1, cmp = 0; ++remI < dvsL;) {
+
+                        if (dvs[remI] != rem[remI]) {
+                            cmp = dvs[remI] > rem[remI] ? 1 : -1;
+                            break;
+                        }
+                    }
+                }
+
+                // If divisor < remainder, subtract divisor from remainder.
+                if (cmp < 0) {
+
+                    // Remainder can't be more than 1 digit longer than divisor.
+                    // Equalise lengths using divisor with extra leading zero?
+                    for (dvsT = remL == dvsL ? dvs : dvsZ; remL;) {
+
+                        if (rem[--remL] < dvsT[remL]) {
+                            remI = remL;
+
+                            for (; remI && !rem[--remI]; rem[remI] = 9) {
+                            }
+                            --rem[remI];
+                            rem[remL] += 10;
+                        }
+                        rem[remL] -= dvsT[remL];
+                    }
+                    for (; !rem[0]; rem.shift()) {
+                    }
+                } else {
+                    break;
+                }
+            }
+
+            // Add the 'next' digit to the result array.
+            qc[qi++] = cmp ? next : ++next;
+
+            // Update the remainder.
+            if (rem[0] && cmp) {
+                rem[remL] = dvd[dvdI] || 0;
+            } else {
+                rem = [ dvd[dvdI] ];
+            }
+
+        } while ((dvdI++ < dvdL || rem[0] !== u) && s--);
+
+        // Leading zero? Do not remove if result is simply zero (qi == 1).
+        if (!qc[0] && qi != 1) {
+
+            // There can't be more than one zero.
+            qc.shift();
+            q.e--;
+        }
+
+        // Round?
+        if (qi > digits) {
+            rnd(q, dp, Big.RM, rem[0] !== u);
+        }
+
+        return q;
+    };
+
+
+    /*
+     * Return true if the value of this Big is equal to the value of Big y,
+     * otherwise returns false.
+     */
+    P.eq = function (y) {
+        return !this.cmp(y);
+    };
+
+
+    /*
+     * Return true if the value of this Big is greater than the value of Big y,
+     * otherwise returns false.
+     */
+    P.gt = function (y) {
+        return this.cmp(y) > 0;
+    };
+
+
+    /*
+     * Return true if the value of this Big is greater than or equal to the
+     * value of Big y, otherwise returns false.
+     */
+    P.gte = function (y) {
+        return this.cmp(y) > -1;
+    };
+
+
+    /*
+     * Return true if the value of this Big is less than the value of Big y,
+     * otherwise returns false.
+     */
+    P.lt = function (y) {
+        return this.cmp(y) < 0;
+    };
+
+
+    /*
+     * Return true if the value of this Big is less than or equal to the value
+     * of Big y, otherwise returns false.
+     */
+    P.lte = function (y) {
+         return this.cmp(y) < 1;
+    };
+
+
+    /*
+     * Return a new Big whose value is the value of this Big minus the value
+     * of Big y.
+     */
+    P.sub = P.minus = function (y) {
+        var i, j, t, xLTy,
+            x = this,
+            Big = x.constructor,
+            a = x.s,
+            b = (y = new Big(y)).s;
+
+        // Signs differ?
+        if (a != b) {
+            y.s = -b;
+            return x.plus(y);
+        }
+
+        var xc = x.c.slice(),
+            xe = x.e,
+            yc = y.c,
+            ye = y.e;
+
+        // Either zero?
+        if (!xc[0] || !yc[0]) {
+
+            // y is non-zero? x is non-zero? Or both are zero.
+            return yc[0] ? (y.s = -b, y) : new Big(xc[0] ? x : 0);
+        }
+
+        // Determine which is the bigger number.
+        // Prepend zeros to equalise exponents.
+        if (a = xe - ye) {
+
+            if (xLTy = a < 0) {
+                a = -a;
+                t = xc;
+            } else {
+                ye = xe;
+                t = yc;
+            }
+
+            t.reverse();
+            for (b = a; b--; t.push(0)) {
+            }
+            t.reverse();
+        } else {
+
+            // Exponents equal. Check digit by digit.
+            j = ((xLTy = xc.length < yc.length) ? xc : yc).length;
+
+            for (a = b = 0; b < j; b++) {
+
+                if (xc[b] != yc[b]) {
+                    xLTy = xc[b] < yc[b];
+                    break;
+                }
+            }
+        }
+
+        // x < y? Point xc to the array of the bigger number.
+        if (xLTy) {
+            t = xc;
+            xc = yc;
+            yc = t;
+            y.s = -y.s;
+        }
+
+        /*
+         * Append zeros to xc if shorter. No need to add zeros to yc if shorter
+         * as subtraction only needs to start at yc.length.
+         */
+        if (( b = (j = yc.length) - (i = xc.length) ) > 0) {
+
+            for (; b--; xc[i++] = 0) {
+            }
+        }
+
+        // Subtract yc from xc.
+        for (b = i; j > a;){
+
+            if (xc[--j] < yc[j]) {
+
+                for (i = j; i && !xc[--i]; xc[i] = 9) {
+                }
+                --xc[i];
+                xc[j] += 10;
+            }
+            xc[j] -= yc[j];
+        }
+
+        // Remove trailing zeros.
+        for (; xc[--b] === 0; xc.pop()) {
+        }
+
+        // Remove leading zeros and adjust exponent accordingly.
+        for (; xc[0] === 0;) {
+            xc.shift();
+            --ye;
+        }
+
+        if (!xc[0]) {
+
+            // n - n = +0
+            y.s = 1;
+
+            // Result must be zero.
+            xc = [ye = 0];
+        }
+
+        y.c = xc;
+        y.e = ye;
+
+        return y;
+    };
+
+
+    /*
+     * Return a new Big whose value is the value of this Big modulo the
+     * value of Big y.
+     */
+    P.mod = function (y) {
+        var yGTx,
+            x = this,
+            Big = x.constructor,
+            a = x.s,
+            b = (y = new Big(y)).s;
+
+        if (!y.c[0]) {
+            throwErr(NaN);
+        }
+
+        x.s = y.s = 1;
+        yGTx = y.cmp(x) == 1;
+        x.s = a;
+        y.s = b;
+
+        if (yGTx) {
+            return new Big(x);
+        }
+
+        a = Big.DP;
+        b = Big.RM;
+        Big.DP = Big.RM = 0;
+        x = x.div(y);
+        Big.DP = a;
+        Big.RM = b;
+
+        return this.minus( x.times(y) );
+    };
+
+
+    /*
+     * Return a new Big whose value is the value of this Big plus the value
+     * of Big y.
+     */
+    P.add = P.plus = function (y) {
+        var t,
+            x = this,
+            Big = x.constructor,
+            a = x.s,
+            b = (y = new Big(y)).s;
+
+        // Signs differ?
+        if (a != b) {
+            y.s = -b;
+            return x.minus(y);
+        }
+
+        var xe = x.e,
+            xc = x.c,
+            ye = y.e,
+            yc = y.c;
+
+        // Either zero?
+        if (!xc[0] || !yc[0]) {
+
+            // y is non-zero? x is non-zero? Or both are zero.
+            return yc[0] ? y : new Big(xc[0] ? x : a * 0);
+        }
+        xc = xc.slice();
+
+        // Prepend zeros to equalise exponents.
+        // Note: Faster to use reverse then do unshifts.
+        if (a = xe - ye) {
+
+            if (a > 0) {
+                ye = xe;
+                t = yc;
+            } else {
+                a = -a;
+                t = xc;
+            }
+
+            t.reverse();
+            for (; a--; t.push(0)) {
+            }
+            t.reverse();
+        }
+
+        // Point xc to the longer array.
+        if (xc.length - yc.length < 0) {
+            t = yc;
+            yc = xc;
+            xc = t;
+        }
+        a = yc.length;
+
+        /*
+         * Only start adding at yc.length - 1 as the further digits of xc can be
+         * left as they are.
+         */
+        for (b = 0; a;) {
+            b = (xc[--a] = xc[a] + yc[a] + b) / 10 | 0;
+            xc[a] %= 10;
+        }
+
+        // No need to check for zero, as +x + +y != 0 && -x + -y != 0
+
+        if (b) {
+            xc.unshift(b);
+            ++ye;
+        }
+
+         // Remove trailing zeros.
+        for (a = xc.length; xc[--a] === 0; xc.pop()) {
+        }
+
+        y.c = xc;
+        y.e = ye;
+
+        return y;
+    };
+
+
+    /*
+     * Return a Big whose value is the value of this Big raised to the power n.
+     * If n is negative, round, if necessary, to a maximum of Big.DP decimal
+     * places using rounding mode Big.RM.
+     *
+     * n {number} Integer, -MAX_POWER to MAX_POWER inclusive.
+     */
+    P.pow = function (n) {
+        var x = this,
+            one = new x.constructor(1),
+            y = one,
+            isNeg = n < 0;
+
+        if (n !== ~~n || n < -MAX_POWER || n > MAX_POWER) {
+            throwErr('!pow!');
+        }
+
+        n = isNeg ? -n : n;
+
+        for (;;) {
+
+            if (n & 1) {
+                y = y.times(x);
+            }
+            n >>= 1;
+
+            if (!n) {
+                break;
+            }
+            x = x.times(x);
+        }
+
+        return isNeg ? one.div(y) : y;
+    };
+
+
+    /*
+     * Return a new Big whose value is the value of this Big rounded to a
+     * maximum of dp decimal places using rounding mode rm.
+     * If dp is not specified, round to 0 decimal places.
+     * If rm is not specified, use Big.RM.
+     *
+     * [dp] {number} Integer, 0 to MAX_DP inclusive.
+     * [rm] 0, 1, 2 or 3 (ROUND_DOWN, ROUND_HALF_UP, ROUND_HALF_EVEN, ROUND_UP)
+     */
+    P.round = function (dp, rm) {
+        var x = this,
+            Big = x.constructor;
+
+        if (dp == null) {
+            dp = 0;
+        } else if (dp !== ~~dp || dp < 0 || dp > MAX_DP) {
+            throwErr('!round!');
+        }
+        rnd(x = new Big(x), dp, rm == null ? Big.RM : rm);
+
+        return x;
+    };
+
+
+    /*
+     * Return a new Big whose value is the square root of the value of this Big,
+     * rounded, if necessary, to a maximum of Big.DP decimal places using
+     * rounding mode Big.RM.
+     */
+    P.sqrt = function () {
+        var estimate, r, approx,
+            x = this,
+            Big = x.constructor,
+            xc = x.c,
+            i = x.s,
+            e = x.e,
+            half = new Big('0.5');
+
+        // Zero?
+        if (!xc[0]) {
+            return new Big(x);
+        }
+
+        // If negative, throw NaN.
+        if (i < 0) {
+            throwErr(NaN);
+        }
+
+        // Estimate.
+        i = Math.sqrt(x.toString());
+
+        // Math.sqrt underflow/overflow?
+        // Pass x to Math.sqrt as integer, then adjust the result exponent.
+        if (i === 0 || i === 1 / 0) {
+            estimate = xc.join('');
+
+            if (!(estimate.length + e & 1)) {
+                estimate += '0';
+            }
+
+            r = new Big( Math.sqrt(estimate).toString() );
+            r.e = ((e + 1) / 2 | 0) - (e < 0 || e & 1);
+        } else {
+            r = new Big(i.toString());
+        }
+
+        i = r.e + (Big.DP += 4);
+
+        // Newton-Raphson iteration.
+        do {
+            approx = r;
+            r = half.times( approx.plus( x.div(approx) ) );
+        } while ( approx.c.slice(0, i).join('') !==
+                       r.c.slice(0, i).join('') );
+
+        rnd(r, Big.DP -= 4, Big.RM);
+
+        return r;
+    };
+
+
+    /*
+     * Return a new Big whose value is the value of this Big times the value of
+     * Big y.
+     */
+    P.mul = P.times = function (y) {
+        var c,
+            x = this,
+            Big = x.constructor,
+            xc = x.c,
+            yc = (y = new Big(y)).c,
+            a = xc.length,
+            b = yc.length,
+            i = x.e,
+            j = y.e;
+
+        // Determine sign of result.
+        y.s = x.s == y.s ? 1 : -1;
+
+        // Return signed 0 if either 0.
+        if (!xc[0] || !yc[0]) {
+            return new Big(y.s * 0);
+        }
+
+        // Initialise exponent of result as x.e + y.e.
+        y.e = i + j;
+
+        // If array xc has fewer digits than yc, swap xc and yc, and lengths.
+        if (a < b) {
+            c = xc;
+            xc = yc;
+            yc = c;
+            j = a;
+            a = b;
+            b = j;
+        }
+
+        // Initialise coefficient array of result with zeros.
+        for (c = new Array(j = a + b); j--; c[j] = 0) {
+        }
+
+        // Multiply.
+
+        // i is initially xc.length.
+        for (i = b; i--;) {
+            b = 0;
+
+            // a is yc.length.
+            for (j = a + i; j > i;) {
+
+                // Current sum of products at this digit position, plus carry.
+                b = c[j] + yc[i] * xc[j - i - 1] + b;
+                c[j--] = b % 10;
+
+                // carry
+                b = b / 10 | 0;
+            }
+            c[j] = (c[j] + b) % 10;
+        }
+
+        // Increment result exponent if there is a final carry.
+        if (b) {
+            ++y.e;
+        }
+
+        // Remove any leading zero.
+        if (!c[0]) {
+            c.shift();
+        }
+
+        // Remove trailing zeros.
+        for (i = c.length; !c[--i]; c.pop()) {
+        }
+        y.c = c;
+
+        return y;
+    };
+
+
+    /*
+     * Return a string representing the value of this Big.
+     * Return exponential notation if this Big has a positive exponent equal to
+     * or greater than Big.E_POS, or a negative exponent equal to or less than
+     * Big.E_NEG.
+     */
+    P.toString = P.valueOf = P.toJSON = function () {
+        var x = this,
+            Big = x.constructor,
+            e = x.e,
+            str = x.c.join(''),
+            strL = str.length;
+
+        // Exponential notation?
+        if (e <= Big.E_NEG || e >= Big.E_POS) {
+            str = str.charAt(0) + (strL > 1 ? '.' + str.slice(1) : '') +
+              (e < 0 ? 'e' : 'e+') + e;
+
+        // Negative exponent?
+        } else if (e < 0) {
+
+            // Prepend zeros.
+            for (; ++e; str = '0' + str) {
+            }
+            str = '0.' + str;
+
+        // Positive exponent?
+        } else if (e > 0) {
+
+            if (++e > strL) {
+
+                // Append zeros.
+                for (e -= strL; e-- ; str += '0') {
+                }
+            } else if (e < strL) {
+                str = str.slice(0, e) + '.' + str.slice(e);
+            }
+
+        // Exponent zero.
+        } else if (strL > 1) {
+            str = str.charAt(0) + '.' + str.slice(1);
+        }
+
+        // Avoid '-0'
+        return x.s < 0 && x.c[0] ? '-' + str : str;
+    };
+
+
+    /*
+     ***************************************************************************
+     * If toExponential, toFixed, toPrecision and format are not required they
+     * can safely be commented-out or deleted. No redundant code will be left.
+     * format is used only by toExponential, toFixed and toPrecision.
+     ***************************************************************************
+     */
+
+
+    /*
+     * Return a string representing the value of this Big in exponential
+     * notation to dp fixed decimal places and rounded, if necessary, using
+     * Big.RM.
+     *
+     * [dp] {number} Integer, 0 to MAX_DP inclusive.
+     */
+    P.toExponential = function (dp) {
+
+        if (dp == null) {
+            dp = this.c.length - 1;
+        } else if (dp !== ~~dp || dp < 0 || dp > MAX_DP) {
+            throwErr('!toExp!');
+        }
+
+        return format(this, dp, 1);
+    };
+
+
+    /*
+     * Return a string representing the value of this Big in normal notation
+     * to dp fixed decimal places and rounded, if necessary, using Big.RM.
+     *
+     * [dp] {number} Integer, 0 to MAX_DP inclusive.
+     */
+    P.toFixed = function (dp) {
+        var str,
+            x = this,
+            Big = x.constructor,
+            neg = Big.E_NEG,
+            pos = Big.E_POS;
+
+        // Prevent the possibility of exponential notation.
+        Big.E_NEG = -(Big.E_POS = 1 / 0);
+
+        if (dp == null) {
+            str = x.toString();
+        } else if (dp === ~~dp && dp >= 0 && dp <= MAX_DP) {
+            str = format(x, x.e + dp);
+
+            // (-0).toFixed() is '0', but (-0.1).toFixed() is '-0'.
+            // (-0).toFixed(1) is '0.0', but (-0.01).toFixed(1) is '-0.0'.
+            if (x.s < 0 && x.c[0] && str.indexOf('-') < 0) {
+        //E.g. -0.5 if rounded to -0 will cause toString to omit the minus sign.
+                str = '-' + str;
+            }
+        }
+        Big.E_NEG = neg;
+        Big.E_POS = pos;
+
+        if (!str) {
+            throwErr('!toFix!');
+        }
+
+        return str;
+    };
+
+
+    /*
+     * Return a string representing the value of this Big rounded to sd
+     * significant digits using Big.RM. Use exponential notation if sd is less
+     * than the number of digits necessary to represent the integer part of the
+     * value in normal notation.
+     *
+     * sd {number} Integer, 1 to MAX_DP inclusive.
+     */
+    P.toPrecision = function (sd) {
+
+        if (sd == null) {
+            return this.toString();
+        } else if (sd !== ~~sd || sd < 1 || sd > MAX_DP) {
+            throwErr('!toPre!');
+        }
+
+        return format(this, sd - 1, 2);
+    };
+
+
+    // Export
+
+
+    Big = bigFactory();
+
+    //AMD.
+    if (typeof define === 'function' && define.amd) {
+        define(function () {
+            return Big;
+        });
+
+    // Node and other CommonJS-like environments that support module.exports.
+    } else if (typeof module !== 'undefined' && module.exports) {
+        module.exports = Big;
+
+    //Browser.
+    } else {
+        global.Big = Big;
+    }
+})(this);
+
+},{}],139:[function(require,module,exports){
+/*
+Copyright (c) 2014, Yahoo! Inc. All rights reserved.
+Copyrights licensed under the New BSD License.
+See the accompanying LICENSE file for terms.
+*/
+
+'use strict';
+
+// Generate an internal UID to make the regexp pattern harder to guess.
+var UID                 = Math.floor(Math.random() * 0x10000000000).toString(16);
+var PLACE_HOLDER_REGEXP = new RegExp('"@__(F|R|D)-' + UID + '-(\\d+)__@"', 'g');
+
+var IS_NATIVE_CODE_REGEXP = /\{\s*\[native code\]\s*\}/g;
+var UNSAFE_CHARS_REGEXP   = /[<>\/\u2028\u2029]/g;
+
+// Mapping of unsafe HTML and invalid JavaScript line terminator chars to their
+// Unicode char counterparts which are safe to use in JavaScript strings.
+var ESCAPED_CHARS = {
+    '<'     : '\\u003C',
+    '>'     : '\\u003E',
+    '/'     : '\\u002F',
+    '\u2028': '\\u2028',
+    '\u2029': '\\u2029'
+};
+
+function escapeUnsafeChars(unsafeChar) {
+    return ESCAPED_CHARS[unsafeChar];
+}
+
+module.exports = function serialize(obj, options) {
+    options || (options = {});
+
+    // Backwards-compatibility for `space` as the second argument.
+    if (typeof options === 'number' || typeof options === 'string') {
+        options = {space: options};
+    }
+
+    var functions = [];
+    var regexps   = [];
+    var dates     = [];
+
+    // Returns placeholders for functions and regexps (identified by index)
+    // which are later replaced by their string representation.
+    function replacer(key, value) {
+        if (!value) {
+            return value;
+        }
+
+        // If the value is an object w/ a toJSON method, toJSON is called before
+        // the replacer runs, so we use this[key] to get the non-toJSONed value.
+        var origValue = this[key];
+        var type = typeof origValue;
+
+        if (type === 'object') {
+            if(origValue instanceof RegExp) {
+                return '@__R-' + UID + '-' + (regexps.push(origValue) - 1) + '__@';
+            }
+
+            if(origValue instanceof Date) {
+                return '@__D-' + UID + '-' + (dates.push(origValue) - 1) + '__@';
+            }
+        }
+
+        if (type === 'function') {
+            return '@__F-' + UID + '-' + (functions.push(origValue) - 1) + '__@';
+        }
+
+        return value;
+    }
+
+    var str;
+
+    // Creates a JSON string representation of the value.
+    // NOTE: Node 0.12 goes into slow mode with extra JSON.stringify() args.
+    if (options.isJSON && !options.space) {
+        str = JSON.stringify(obj);
+    } else {
+        str = JSON.stringify(obj, options.isJSON ? null : replacer, options.space);
+    }
+
+    // Protects against `JSON.stringify()` returning `undefined`, by serializing
+    // to the literal string: "undefined".
+    if (typeof str !== 'string') {
+        return String(str);
+    }
+
+    // Replace unsafe HTML and invalid JavaScript line terminator chars with
+    // their safe Unicode char counterpart. This _must_ happen before the
+    // regexps and functions are serialized and added back to the string.
+    if (options.unsafe !== true) {
+        str = str.replace(UNSAFE_CHARS_REGEXP, escapeUnsafeChars);
+    }
+
+    if (functions.length === 0 && regexps.length === 0 && dates.length === 0) {
+        return str;
+    }
+
+    // Replaces all occurrences of function, regexp and date placeholders in the
+    // JSON string with their string representations. If the original value can
+    // not be found, then `undefined` is used.
+    return str.replace(PLACE_HOLDER_REGEXP, function (match, type, valueIndex) {
+        if (type === 'D') {
+            return "new Date(\"" + dates[valueIndex].toISOString() + "\")";
+        }
+
+        if (type === 'R') {
+            return regexps[valueIndex].toString();
+        }
+
+        var fn           = functions[valueIndex];
+        var serializedFn = fn.toString();
+
+        if (IS_NATIVE_CODE_REGEXP.test(serializedFn)) {
+            throw new TypeError('Serializing native function: ' + fn.name);
+        }
+
+        return serializedFn;
+    });
+}
+
+},{}],140:[function(require,module,exports){
 const Queue = require( './priorityqueue.js' )
 let Gibber = null
 
@@ -3745,10 +9958,10 @@ let Scheduler = {
     return time
   },
 
-  runSoon( evt ) {
+  runSoon( evt, timestamp ) {
     
     try{
-      evt.func()
+      evt.func( timestamp )
     }catch(e) {
       console.log( 'annotation error:', e.toString() )
     }
@@ -3763,7 +9976,7 @@ let Scheduler = {
       // remove event
       this.queue.pop()
       
-      setTimeout( ()=> this.runSoon( nextEvent ) ) 
+      setTimeout( ()=> this.runSoon( nextEvent, timestamp ) ) 
       //try{
       //  nextEvent.func()
       //}catch( e ) {
@@ -3804,7 +10017,7 @@ Scheduler.onAnimationFrame = Scheduler.onAnimationFrame.bind( Scheduler )
 
 module.exports = Scheduler
 
-},{"./priorityqueue.js":115}],75:[function(require,module,exports){
+},{"./priorityqueue.js":182}],141:[function(require,module,exports){
 const Utility = require( '../../utility.js' )
 const $ = Utility.create
 
@@ -3991,7 +10204,7 @@ module.exports = function( Marker ) {
 }
 
 
-},{"../../utility.js":122}],76:[function(require,module,exports){
+},{"../../utility.js":189}],142:[function(require,module,exports){
 module.exports = function( Marker ) {
   'use strict'
 
@@ -4039,7 +10252,7 @@ module.exports = function( Marker ) {
 
 }
 
-},{}],77:[function(require,module,exports){
+},{}],143:[function(require,module,exports){
 module.exports = function( Marker ) {
   'use strict'
 
@@ -4064,7 +10277,7 @@ module.exports = function( Marker ) {
   return CallExpression
 }
 
-},{}],78:[function(require,module,exports){
+},{}],144:[function(require,module,exports){
 const __Identifier = function( Marker ) {
 
   const mark = function( node, state, patternType, seqNumber ) {
@@ -4161,7 +10374,7 @@ const __Identifier = function( Marker ) {
 
 module.exports = __Identifier
 
-},{}],79:[function(require,module,exports){
+},{}],145:[function(require,module,exports){
 module.exports = function( Marker ) {
   // Marker.patternMarkupFunctions[ valuesNode.type ]( valuesNode, state, seq, 'values', container, seqNumber )
 
@@ -4197,7 +10410,7 @@ module.exports = function( Marker ) {
 
 }
 
-},{}],80:[function(require,module,exports){
+},{}],146:[function(require,module,exports){
 module.exports = function( Marker ) {
   
   // for negative literals e.g. -10
@@ -4245,7 +10458,7 @@ module.exports = function( Marker ) {
 
 }
 
-},{}],81:[function(require,module,exports){
+},{}],147:[function(require,module,exports){
 const Utility = require( '../../utility.js' )
 const $ = Utility.create
 const EuclidAnnotation = require( '../update/euclidAnnotation.js' )
@@ -4325,7 +10538,7 @@ module.exports = function( node, cm, track, objectName, state, cb ) {
 }  
 
 
-},{"../../utility.js":122,"../update/euclidAnnotation.js":86}],82:[function(require,module,exports){
+},{"../../utility.js":189,"../update/euclidAnnotation.js":152}],148:[function(require,module,exports){
 const Utility = require( '../../utility.js' )
 const $ = Utility.create
 
@@ -4359,7 +10572,7 @@ module.exports = function( node, cm, track, objectName, vOffset=0 ) {
   }
 }
 
-},{"../../utility.js":122}],83:[function(require,module,exports){
+},{"../../utility.js":189}],149:[function(require,module,exports){
 const Utility = require( '../../utility.js' )
 const $ = Utility.create
 
@@ -4441,7 +10654,7 @@ module.exports = function( node, cm, track, objectName, state, cb ) {
 }  
 
 
-},{"../../utility.js":122}],84:[function(require,module,exports){
+},{"../../utility.js":189}],150:[function(require,module,exports){
 module.exports = ( patternObject, marker, className, cm ) => {
   patternObject.commentMarker = marker
   let update = () => {
@@ -4479,7 +10692,7 @@ module.exports = ( patternObject, marker, className, cm ) => {
 }
 
 
-},{}],85:[function(require,module,exports){
+},{}],151:[function(require,module,exports){
 const Utility = require( '../../utility.js' )
 const $ = Utility.create
 
@@ -4572,7 +10785,7 @@ module.exports = function( classNamePrefix, patternObject ) {
 }
 
 
-},{"../../utility.js":122}],86:[function(require,module,exports){
+},{"../../utility.js":189}],152:[function(require,module,exports){
 const Utility = require( '../../utility.js' )
 const $ = Utility.create
 
@@ -4694,7 +10907,7 @@ module.exports = ( patternObject, marker, className, cm, track ) => {
 }
 
 
-},{"../../utility.js":122}],87:[function(require,module,exports){
+},{"../../utility.js":189}],153:[function(require,module,exports){
 module.exports = ( patternObject, marker, className, cm, track, patternNode, patternType, seqNumber ) => {
   Gibber.Environment.codeMarkup.processGen( patternNode, cm, null, patternObject, null, -1 )
 
@@ -4712,7 +10925,7 @@ module.exports = ( patternObject, marker, className, cm, track, patternNode, pat
 }
 
 
-},{}],88:[function(require,module,exports){
+},{}],154:[function(require,module,exports){
 module.exports = function( Marker ) {
 
 
@@ -4814,7 +11027,7 @@ module.exports = function( Marker ) {
   }
 }
 
-},{}],89:[function(require,module,exports){
+},{}],155:[function(require,module,exports){
 const COLORS = {
   FILL:'rgba(46,50,53,1)',
   STROKE:'#aaa',
@@ -5089,7 +11302,7 @@ module.exports = function( __Gibber ) {
   return Waveform
 }
 
-},{}],90:[function(require,module,exports){
+},{}],156:[function(require,module,exports){
 module.exports = function( Gibber ) {
 
 let Arp = function( chord = [0,2,4,6], octaves = 1, pattern = 'updown2' ) {
@@ -5204,7 +11417,119 @@ return Arp
 
 }
 
-},{}],91:[function(require,module,exports){
+},{}],157:[function(require,module,exports){
+const Gibberish = require( 'gibberish-dsp' )
+
+module.exports = function( Gibber ){
+
+  let Audio = {
+    initialized:false,
+    instruments:{},
+    oscillators:{},
+    effects:{},
+    exportTarget:null,
+
+    export( obj ) {
+      if( Audio.initialized ) 
+        Object.assign( obj, this.instruments, this.oscillators, this.effects )
+      else
+        Audio.exportTarget = obj
+
+    },
+
+    init() {
+      window.Gibberish = Gibberish
+      window.addEventListener( 'load', Audio.onload )
+    },
+
+    // XXX stop clock from being cleared.
+    clear() { Gibberish.clear() },
+
+    onload() {
+      // XXX define path to AudioWorklet module.
+      Gibberish.workletPath = './dist/gibberish_worklet.js'
+
+      Gibberish.init().then( processorNode => {
+        Audio.initialized = true
+        Audio.node = processorNode
+        Audio.createUgens()
+        Audio.createClock()
+
+        if( Audio.exportTarget !== null ) Audio.export( Audio.exportTarget )
+
+
+        window.removeEventListener( 'load', Audio.onload )
+      })
+    },
+
+    createClock() {
+      this.beat = 11025
+
+      const clockFunc  = ()=> {
+        Gibberish.processor.port.postMessage({
+          address:'clock'
+        })
+      }
+
+      this.clockSeq  = Gibberish.Sequencer.make( [clockFunc], [this.beat] ).start()
+
+      this.beatCount = 0
+      Gibberish.utilities.workletHandlers.clock = () => {
+        this.beatCount += 1
+        this.beatCount = this.beatCount % 4 
+
+        Gibber.Scheduler.seq( this.beatCount + 1, 'internal' )
+      }
+
+      let syn = Gibberish.instruments.Synth().connect()
+      syn.disconnect()
+    },
+
+    createUgens() {
+      for( let instrumentName in Gibberish.instruments ) {
+        const gibberishConstructor = Gibberish.instruments[ instrumentName ]
+        const defaults = gibberishConstructor.defaults
+        
+        const constructor = function( ...args ) {
+          const __wrappedObject = gibberishConstructor( ...args )
+          const obj = { __wrapped__:__wrappedObject }
+          for( let propertyName in defaults ) {
+            obj[ propertyName ] = value => {
+              if( value !== undefined ) {
+                __wrappedObject[ propertyName ] = value
+              }else{
+                return __wrappedObject[ propertyName ]
+              }
+            }
+
+            obj[ propertyName ].seq = function( values, timings ) {
+              obj[ propertyName ].sequencer = Gibberish.Sequencer({ values, timings, target:__wrappedObject, key:propertyName }).start()
+            }
+          }
+          
+          obj.note = __wrappedObject.note.bind( __wrappedObject )
+          obj.note.seq = function( values, timings, delay=0 ) {
+            obj.note.sequencer = Gibberish.Sequencer({ values, timings, target:__wrappedObject, key:'note' }).start( delay )
+          }
+          obj.trigger = __wrappedObject.trigger.bind( __wrappedObject )
+          obj.trigger.seq = function( values, timings, delay=0 ) {
+            obj.trigger.sequencer = Gibberish.Sequencer({ values, timings, target:__wrappedObject, key:'trigger' }).start( delay )
+          }
+          obj.id = 10000
+          obj.connect = dest => { __wrappedObject.connect( dest ); return obj } 
+
+          return obj
+        }
+        
+        Audio.instruments[ instrumentName ] = constructor        
+      }
+    }  
+  }
+
+  return Audio
+}
+
+},{"gibberish-dsp":105}],158:[function(require,module,exports){
 module.exports = function( Gibber ) {
 
 let Pattern = Gibber.Pattern
@@ -5267,7 +11592,7 @@ return Automata
 
 }
 
-},{}],92:[function(require,module,exports){
+},{}],159:[function(require,module,exports){
 module.exports = function( Gibber ) {
 
 const noteon  = 0x90,
@@ -5431,7 +11756,7 @@ return Channel.create.bind( Channel )
 }
 
 
-},{}],93:[function(require,module,exports){
+},{}],160:[function(require,module,exports){
 const Queue = require( './priorityqueue.js' )
 const Big   = require( 'big.js' )
 
@@ -5470,9 +11795,10 @@ let Scheduler = {
     this.__sync__ = mode// === 'internal' 
 
     if( this.__sync__ === 'internal' ) {
-      if( tempSync === true ) {
+      //if( tempSync === true ) {
+        this.animationClockInitialized = false 
         this.run()
-      }
+      //}
     }else{
       if( tempSync === false ) {
         this.animationClockInitialized = false
@@ -5486,6 +11812,8 @@ let Scheduler = {
     Gibber = __Gibber
     const sync = localStorage.getItem( 'sync' )
 
+    this.animationClock = Gibber.Environment.animationScheduler
+
     if( sync !== null && sync !== undefined ) { 
       this.sync( sync )
       switch( sync ) {
@@ -5498,7 +11826,6 @@ let Scheduler = {
       this.sync( 'max' )
     }
 
-    this.animationClock = Gibber.Environment.animationClock
   },
 
   run() {
@@ -5508,24 +11835,25 @@ let Scheduler = {
   },
 
   animationClockCallback( time ) {
-    if( this.animationClockInitialized === false ) {
-      this.animationOffset = this.lastBeat = time
-      this.animationClockInitialized = true
+    console.log( 'animation clock callback', time, Scheduler.animationClockInitialized )
+    if( Scheduler.animationClockInitialized === false ) {
+      Scheduler.animationOffset = Scheduler.lastBeat = time
+      Scheduler.animationClockInitialized = true
     }
     
-    this.beatCallback( time )
+    Scheduler.beatCallback( time )
   },
 
   beatCallback( time ) {
-    const timeDiff = time - this.lastBeat
-    const oneBeat = (60 / this.bpm) * 1000 
+    const timeDiff = time - Scheduler.lastBeat
+    const oneBeat = (60 / Scheduler.bpm) * 1000 
     if( timeDiff >= oneBeat ) {
-      this.advanceBeat()
-      this.lastBeat = time - (timeDiff - oneBeat) // preserve phase remainder
+      Scheduler.advance(1,this.currentBeat++)
+      Scheduler.lastBeat = time - (timeDiff - oneBeat) // preserve phase remainder
     }
 
-    if( this.__sync__ === false ) {
-      this.animationClock.add( this.beatCallback, 1 )
+    if( Scheduler.__sync__ === 'internal' ) {
+      Scheduler.animationClock.add( Scheduler.beatCallback, 1 )
     }
   },
 
@@ -5619,7 +11947,7 @@ let Scheduler = {
 
 module.exports = Scheduler
 
-},{"./priorityqueue.js":115,"big.js":129}],94:[function(require,module,exports){
+},{"./priorityqueue.js":182,"big.js":196}],161:[function(require,module,exports){
 const acorn = require( 'acorn' )
 const walk  = require( 'acorn/dist/walk' )
 const Utility = require( './utility.js' )
@@ -5979,7 +12307,7 @@ return Marker
 
 }
 
-},{"./annotations/markup/arrayExpression.js":75,"./annotations/markup/binaryExpression.js":76,"./annotations/markup/callExpression.js":77,"./annotations/markup/identifier.js":78,"./annotations/markup/literal.js":79,"./annotations/markup/unaryExpression.js":80,"./annotations/standalone/hexStepsAnnotations.js":81,"./annotations/standalone/scoreAnnotation.js":82,"./annotations/standalone/stepsAnnotation.js":83,"./annotations/update/anonymousAnnotation.js":84,"./annotations/update/createBorderCycle.js":85,"./annotations/update/euclidAnnotation.js":86,"./annotations/update/lookupAnnotation.js":87,"./annotations/visitors.js":88,"./annotations/waveform.js":89,"./utility.js":122,"acorn":126,"acorn/dist/walk":127}],95:[function(require,module,exports){
+},{"./annotations/markup/arrayExpression.js":141,"./annotations/markup/binaryExpression.js":142,"./annotations/markup/callExpression.js":143,"./annotations/markup/identifier.js":144,"./annotations/markup/literal.js":145,"./annotations/markup/unaryExpression.js":146,"./annotations/standalone/hexStepsAnnotations.js":147,"./annotations/standalone/scoreAnnotation.js":148,"./annotations/standalone/stepsAnnotation.js":149,"./annotations/update/anonymousAnnotation.js":150,"./annotations/update/createBorderCycle.js":151,"./annotations/update/euclidAnnotation.js":152,"./annotations/update/lookupAnnotation.js":153,"./annotations/visitors.js":154,"./annotations/waveform.js":155,"./utility.js":189,"acorn":193,"acorn/dist/walk":194}],162:[function(require,module,exports){
 let Gibber = null
 
 let Communication = {
@@ -6221,7 +12549,7 @@ Communication.querystring =  query
 
 module.exports = Communication
 
-},{}],96:[function(require,module,exports){
+},{}],163:[function(require,module,exports){
 // singleton 
 let Gibber = null,
     CodeMirror = require( 'codemirror' )
@@ -6308,7 +12636,7 @@ let Environment = {
   },
 
   setupClockSelection() {
-    const syncs = ['max','live','clock']
+    const syncs = ['max','live','clock','internal']
     for( let sync of syncs ) {
       document.querySelector( '#' + sync + 'SyncRadio' ).onclick = ()=> {
         Gibber.Scheduler.__sync__ = sync
@@ -6601,7 +12929,7 @@ let Environment = {
 
 module.exports = Environment
 
-},{"../node_modules/codemirror/addon/edit/closebrackets.js":130,"../node_modules/codemirror/addon/hint/javascript-hint.js":131,"../node_modules/codemirror/addon/hint/show-hint.js":132,"../node_modules/codemirror/mode/javascript/javascript.js":134,"./animationScheduler.js":74,"./codeMarkup.js":94,"./lomView.js":107,"./momView.js":113,"./tabs-standalone.microlib-latest.js":119,"codemirror":133}],97:[function(require,module,exports){
+},{"../node_modules/codemirror/addon/edit/closebrackets.js":197,"../node_modules/codemirror/addon/hint/javascript-hint.js":198,"../node_modules/codemirror/addon/hint/show-hint.js":199,"../node_modules/codemirror/mode/javascript/javascript.js":201,"./animationScheduler.js":140,"./codeMarkup.js":161,"./lomView.js":174,"./momView.js":180,"./tabs-standalone.microlib-latest.js":186,"codemirror":200}],164:[function(require,module,exports){
 module.exports = function( Gibber ) {
 
 let Pattern = Gibber.Pattern
@@ -6835,7 +13163,7 @@ Euclid.test = function( testKey ) {
 return Euclid
 }
 
-},{}],98:[function(require,module,exports){
+},{}],165:[function(require,module,exports){
 const Examples = {
 
   live: require( './liveExamples.js' ),
@@ -6846,7 +13174,7 @@ const Examples = {
 
 module.exports = Examples
 
-},{"./liveExamples.js":106,"./maxExamples.js":109,"./midiExamples.js":112}],99:[function(require,module,exports){
+},{"./liveExamples.js":173,"./maxExamples.js":176,"./midiExamples.js":179}],166:[function(require,module,exports){
 module.exports = function( Gibber ) {
 
 const binops = [ 
@@ -7193,7 +13521,7 @@ a = LFO( .5, .25, .5 )
 a.graph = [ 'add', 'bias', [ 'mul', 'amp', [ 'cycle', 'frequency' ] ] ]
 */
 
-},{}],100:[function(require,module,exports){
+},{}],167:[function(require,module,exports){
 /* gen_abstraction.js
  *
  * This object serves as an asbtraction between the codegen for Gen and
@@ -7526,7 +13854,7 @@ module.exports = function( Gibber ) {
   return __gen
 }
 
-},{"./gen.js":99,"./waveObjects.js":124,"genish.js":37}],101:[function(require,module,exports){
+},{"./gen.js":166,"./waveObjects.js":191,"genish.js":37}],168:[function(require,module,exports){
 let Gibber = {
   Utility:       require( './utility.js' ),
   Communication: require( './communication.js' ),
@@ -7546,6 +13874,7 @@ let Gibber = {
   currentTrack:  null,
   codemirror:    null,
   max:           null,
+  Audio:         null,
   '$':           null,
 
   export() {
@@ -7578,6 +13907,7 @@ let Gibber = {
 
     this.Theory.export( window )
     this.Utility.export( window )
+    this.Audio.export( window )
   },
 
   init() {
@@ -7602,6 +13932,8 @@ let Gibber = {
     this.__gen.init( this )
 
     this.export()
+
+    this.Audio.init()
   },
 
   singleton( target, key ) {
@@ -7680,6 +14012,7 @@ let Gibber = {
     Gibber.Environment.clear()
     Gibber.publish( 'clear' )
     Gibber.initSingletons( window )
+    Gibber.Audio.clear()
   },
 
   createPubSub() {
@@ -8121,10 +14454,12 @@ Gibber.Channel = require( './channel.js' )( Gibber )
 Gibber.MIDI    = require( './midi.js' )
 Gibber.WavePattern = require( './wavePattern.js' )( Gibber )
 
+Gibber.Audio = require( './audio.js' )( Gibber )
+
 Gibber.Gen = Gibber.__gen.gen
 module.exports = Gibber
 
-},{"./arp.js":90,"./automata.js":91,"./channel.js":92,"./clock.js":93,"./communication.js":95,"./environment.js":96,"./euclidean.js":97,"./example.js":98,"./gen_abstraction.js":100,"./hex.js":102,"./hexSteps.js":103,"./live.js":105,"./max.js":108,"./midi.js":111,"./pattern.js":114,"./score.js":116,"./seq.js":117,"./steps.js":118,"./theory.js":120,"./track.js":121,"./utility.js":122,"./wavePattern.js":125}],102:[function(require,module,exports){
+},{"./arp.js":156,"./audio.js":157,"./automata.js":158,"./channel.js":159,"./clock.js":160,"./communication.js":162,"./environment.js":163,"./euclidean.js":164,"./example.js":165,"./gen_abstraction.js":167,"./hex.js":169,"./hexSteps.js":170,"./live.js":172,"./max.js":175,"./midi.js":178,"./pattern.js":181,"./score.js":183,"./seq.js":184,"./steps.js":185,"./theory.js":187,"./track.js":188,"./utility.js":189,"./wavePattern.js":192}],169:[function(require,module,exports){
 module.exports = function( Gibber ) {
 
 let Pattern = Gibber.Pattern
@@ -8198,7 +14533,7 @@ return Hex
 
 }
 
-},{}],103:[function(require,module,exports){
+},{}],170:[function(require,module,exports){
 module.exports = function( Gibber ) {
   
 let Steps = {
@@ -8276,7 +14611,7 @@ return Steps.create
 
 }
 
-},{}],104:[function(require,module,exports){
+},{}],171:[function(require,module,exports){
 require( 'babel-polyfill' )
 
 let Gibber = require( './gibber.js' ),
@@ -8286,7 +14621,7 @@ let Gibber = require( './gibber.js' ),
 Gibber.init()
 window.Gibber = Gibber
 
-},{"./gibber.js":101,"babel-polyfill":128}],105:[function(require,module,exports){
+},{"./gibber.js":168,"babel-polyfill":195}],172:[function(require,module,exports){
 module.exports = function( Gibber ) {
 
 let Live = {
@@ -8403,7 +14738,7 @@ return Live
 
 }
 
-},{}],106:[function(require,module,exports){
+},{}],173:[function(require,module,exports){
 module.exports = {
   introduction:`/* gibberwocky.live - introduction
  * IMPORTANT: gibberwocky can be used with a number of different
@@ -9390,7 +15725,7 @@ tracks[0].midinote.seq(
 
 }
 
-},{}],107:[function(require,module,exports){
+},{}],174:[function(require,module,exports){
 require( './vanillatree.js' )
 
 let Gibber = null, count = -1
@@ -9451,7 +15786,7 @@ let lomView = {
 
 module.exports = lomView 
 
-},{"./vanillatree.js":123}],108:[function(require,module,exports){
+},{"./vanillatree.js":190}],175:[function(require,module,exports){
 'use strict';
 
 module.exports = function( Gibber ) {
@@ -9604,7 +15939,7 @@ module.exports = function( Gibber ) {
   return Max
 }
 
-},{"./max_device.js":110}],109:[function(require,module,exports){
+},{"./max_device.js":177}],176:[function(require,module,exports){
 const Examples = {
   introduction:`/* gibberwocky.max - introduction
  * 
@@ -10584,7 +16919,7 @@ devices['drums'].midinote.seq(
 
 module.exports = Examples
 
-},{}],110:[function(require,module,exports){
+},{}],177:[function(require,module,exports){
 const Theory = require('./theory.js')
 
 
@@ -10733,7 +17068,7 @@ return create
 
 }
 
-},{"./theory.js":120}],111:[function(require,module,exports){
+},{"./theory.js":187}],178:[function(require,module,exports){
 let Gibber = null
 
 const MIDI = {
@@ -10976,7 +17311,7 @@ const MIDI = {
 
 module.exports = MIDI
 
-},{}],112:[function(require,module,exports){
+},{}],179:[function(require,module,exports){
 const Examples = {
   ['tutorial 1: basic messaging']:`/*
  * gibberwocky.midi - tutorial #1: basic messaging
@@ -11536,7 +17871,7 @@ steps.reverse.seq( 1, 2 )`,
 
 module.exports = Examples
 
-},{}],113:[function(require,module,exports){
+},{}],180:[function(require,module,exports){
 require( './vanillatree.js' )
 
 let Gibber = null, count = -1
@@ -11642,7 +17977,7 @@ let momView = {
 
 module.exports = momView 
 
-},{"./vanillatree.js":123}],114:[function(require,module,exports){
+},{"./vanillatree.js":190}],181:[function(require,module,exports){
 module.exports = function( Gibber ) {
 
 "use strict"
@@ -12099,119 +18434,9 @@ return Pattern
 
 }
 
-},{}],115:[function(require,module,exports){
-/*
- * https://github.com/antimatter15/heapqueue.js/blob/master/heapqueue.js
- *
- * This implementation is very loosely based off js-priority-queue
- * by Adam Hooper from https://github.com/adamhooper/js-priority-queue
- *
- * The js-priority-queue implementation seemed a teensy bit bloated
- * with its require.js dependency and multiple storage strategies
- * when all but one were strongly discouraged. So here is a kind of
- * condensed version of the functionality with only the features that
- * I particularly needed.
- *
- * Using it is pretty simple, you just create an instance of HeapQueue
- * while optionally specifying a comparator as the argument:
- *
- * var heapq = new HeapQueue();
- *
- * var customq = new HeapQueue(function(a, b){
- *   // if b > a, return negative
- *   // means that it spits out the smallest item first
- *   return a - b;
- * });
- *
- * Note that in this case, the default comparator is identical to
- * the comparator which is used explicitly in the second queue.
- *
- * Once you've initialized the heapqueue, you can plop some new
- * elements into the queue with the push method (vaguely reminiscent
- * of typical javascript arays)
- *
- * heapq.push(42);
- * heapq.push("kitten");
- *
- * The push method returns the new number of elements of the queue.
- *
- * You can push anything you'd like onto the queue, so long as your
- * comparator function is capable of handling it. The default
- * comparator is really stupid so it won't be able to handle anything
- * other than an number by default.
- *
- * You can preview the smallest item by using peek.
- *
- * heapq.push(-9999);
- * heapq.peek(); // ==> -9999
- *
- * The useful complement to to the push method is the pop method,
- * which returns the smallest item and then removes it from the
- * queue.
- *
- * heapq.push(1);
- * heapq.push(2);
- * heapq.push(3);
- * heapq.pop(); // ==> 1
- * heapq.pop(); // ==> 2
- * heapq.pop(); // ==> 3
- */
-let HeapQueue = function(cmp){
-  this.cmp = (cmp || function(a, b){ return a - b; });
-  this.length = 0;
-  this.data = [];
-}
-HeapQueue.prototype.peek = function(){
-  return this.data[0];
-};
-HeapQueue.prototype.push = function(value){
-  this.data.push(value);
-
-  var pos = this.data.length - 1,
-  parent, x;
-
-  while(pos > 0){
-    parent = (pos - 1) >>> 1;
-    if(this.cmp(this.data[pos], this.data[parent]) < 0){
-      x = this.data[parent];
-      this.data[parent] = this.data[pos];
-      this.data[pos] = x;
-      pos = parent;
-    }else break;
-  }
-  return this.length++;
-};
-HeapQueue.prototype.pop = function(){
-  var last_val = this.data.pop(),
-  ret = this.data[0];
-  if(this.data.length > 0){
-    this.data[0] = last_val;
-    var pos = 0,
-    last = this.data.length - 1,
-    left, right, minIndex, x;
-    while(1){
-      left = (pos << 1) + 1;
-      right = left + 1;
-      minIndex = pos;
-      if(left <= last && this.cmp(this.data[left], this.data[minIndex]) < 0) minIndex = left;
-      if(right <= last && this.cmp(this.data[right], this.data[minIndex]) < 0) minIndex = right;
-      if(minIndex !== pos){
-        x = this.data[minIndex];
-        this.data[minIndex] = this.data[pos];
-        this.data[pos] = x;
-        pos = minIndex;
-      }else break;
-    }
-  } else {
-    ret = last_val;
-  }
-  this.length--;
-  return ret;
-};
-
-module.exports = HeapQueue
-
-},{}],116:[function(require,module,exports){
+},{}],182:[function(require,module,exports){
+arguments[4][82][0].apply(exports,arguments)
+},{"dup":82}],183:[function(require,module,exports){
 /*
 Score is a Seq(ish) object, with pause, start / stop, rewind, fast-forward.
 It's internal phase is 
@@ -12602,7 +18827,7 @@ song.start()
 */
 
 
-},{}],117:[function(require,module,exports){
+},{}],184:[function(require,module,exports){
 'use strict';
 
 const Big = require( 'big.js' )
@@ -13080,7 +19305,7 @@ let seqclosure = function( Gibber ) {
 
 module.exports = seqclosure
 
-},{"big.js":129}],118:[function(require,module,exports){
+},{"big.js":196}],185:[function(require,module,exports){
 module.exports = function( Gibber ) {
   
 let Steps = {
@@ -13174,7 +19399,7 @@ return Steps.create
 
 }
 
-},{}],119:[function(require,module,exports){
+},{}],186:[function(require,module,exports){
 /**
  * MicroLib-Utils is the utility library for other MicroLib libraries. It provides
  * helper methods for common tasks such as adding, checking and removing classes.
@@ -13380,7 +19605,7 @@ MicroTabs.prototype._processClick = function _processClick(e) {
 window.ML = window.ML || {};
 window.ML.Tabs = MicroTabs;
 
-},{}],120:[function(require,module,exports){
+},{}],187:[function(require,module,exports){
 let Gibber = null
 
 let Note = {
@@ -13690,7 +19915,7 @@ module.exports = {
   } 
 }
 
-},{}],121:[function(require,module,exports){
+},{}],188:[function(require,module,exports){
 module.exports = function( Gibber ) {
 
 let Track = {
@@ -13879,7 +20104,7 @@ return Track.create.bind( Track )
 
 }
 
-},{}],122:[function(require,module,exports){
+},{}],189:[function(require,module,exports){
 let Utility = {
   elementArray: function( list ) {
     let out = []
@@ -14081,7 +20306,7 @@ let Utility = {
 
 module.exports = Utility
 
-},{}],123:[function(require,module,exports){
+},{}],190:[function(require,module,exports){
 (function (root, factory) {
     if (typeof define == 'function' && define.amd) {
         define( factory );
@@ -14307,7 +20532,7 @@ module.exports = Utility
 	// Look at the Balalaika https://github.com/finom/balalaika
 }));
 
-},{}],124:[function(require,module,exports){
+},{}],191:[function(require,module,exports){
 let Gibber, genAbstract, __ugenproto__
 
 
@@ -14638,7 +20863,7 @@ const waveObjects = {
   }
 }
 
-},{}],125:[function(require,module,exports){
+},{}],192:[function(require,module,exports){
 
 const genish = require( 'genish.js' )
 
@@ -14982,7 +21207,7 @@ return WavePattern.create
 
 
 
-},{"genish.js":37}],126:[function(require,module,exports){
+},{"genish.js":37}],193:[function(require,module,exports){
 (function (global){
 (function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.acorn = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(_dereq_,module,exports){
 // A recursive descent parser operates by defining functions for all
@@ -18325,7 +24550,7 @@ exports.nonASCIIwhitespace = nonASCIIwhitespace;
 },{}]},{},[3])(3)
 });
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],127:[function(require,module,exports){
+},{}],194:[function(require,module,exports){
 (function (global){
 (function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}(g.acorn || (g.acorn = {})).walk = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(_dereq_,module,exports){
 // AST walker module for Mozilla Parser API compatible trees
@@ -18705,7 +24930,7 @@ base.ComprehensionExpression = function (node, st, c) {
 },{}]},{},[1])(1)
 });
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],128:[function(require,module,exports){
+},{}],195:[function(require,module,exports){
 (function (global){
 "use strict";
 
@@ -18740,1151 +24965,9 @@ define(String.prototype, "padRight", "".padEnd);
   [][key] && define(Array, key, Function.call.bind([][key]));
 });
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"core-js/fn/regexp/escape":135,"core-js/shim":428,"regenerator-runtime/runtime":430}],129:[function(require,module,exports){
-/* big.js v3.1.3 https://github.com/MikeMcl/big.js/LICENCE */
-;(function (global) {
-    'use strict';
-
-/*
-  big.js v3.1.3
-  A small, fast, easy-to-use library for arbitrary-precision decimal arithmetic.
-  https://github.com/MikeMcl/big.js/
-  Copyright (c) 2014 Michael Mclaughlin <M8ch88l@gmail.com>
-  MIT Expat Licence
-*/
-
-/***************************** EDITABLE DEFAULTS ******************************/
-
-    // The default values below must be integers within the stated ranges.
-
-    /*
-     * The maximum number of decimal places of the results of operations
-     * involving division: div and sqrt, and pow with negative exponents.
-     */
-    var DP = 20,                           // 0 to MAX_DP
-
-        /*
-         * The rounding mode used when rounding to the above decimal places.
-         *
-         * 0 Towards zero (i.e. truncate, no rounding).       (ROUND_DOWN)
-         * 1 To nearest neighbour. If equidistant, round up.  (ROUND_HALF_UP)
-         * 2 To nearest neighbour. If equidistant, to even.   (ROUND_HALF_EVEN)
-         * 3 Away from zero.                                  (ROUND_UP)
-         */
-        RM = 1,                            // 0, 1, 2 or 3
-
-        // The maximum value of DP and Big.DP.
-        MAX_DP = 1E6,                      // 0 to 1000000
-
-        // The maximum magnitude of the exponent argument to the pow method.
-        MAX_POWER = 1E6,                   // 1 to 1000000
-
-        /*
-         * The exponent value at and beneath which toString returns exponential
-         * notation.
-         * JavaScript's Number type: -7
-         * -1000000 is the minimum recommended exponent value of a Big.
-         */
-        E_NEG = -7,                   // 0 to -1000000
-
-        /*
-         * The exponent value at and above which toString returns exponential
-         * notation.
-         * JavaScript's Number type: 21
-         * 1000000 is the maximum recommended exponent value of a Big.
-         * (This limit is not enforced or checked.)
-         */
-        E_POS = 21,                   // 0 to 1000000
-
-/******************************************************************************/
-
-        // The shared prototype object.
-        P = {},
-        isValid = /^-?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i,
-        Big;
-
-
-    /*
-     * Create and return a Big constructor.
-     *
-     */
-    function bigFactory() {
-
-        /*
-         * The Big constructor and exported function.
-         * Create and return a new instance of a Big number object.
-         *
-         * n {number|string|Big} A numeric value.
-         */
-        function Big(n) {
-            var x = this;
-
-            // Enable constructor usage without new.
-            if (!(x instanceof Big)) {
-                return n === void 0 ? bigFactory() : new Big(n);
-            }
-
-            // Duplicate.
-            if (n instanceof Big) {
-                x.s = n.s;
-                x.e = n.e;
-                x.c = n.c.slice();
-            } else {
-                parse(x, n);
-            }
-
-            /*
-             * Retain a reference to this Big constructor, and shadow
-             * Big.prototype.constructor which points to Object.
-             */
-            x.constructor = Big;
-        }
-
-        Big.prototype = P;
-        Big.DP = DP;
-        Big.RM = RM;
-        Big.E_NEG = E_NEG;
-        Big.E_POS = E_POS;
-
-        return Big;
-    }
-
-
-    // Private functions
-
-
-    /*
-     * Return a string representing the value of Big x in normal or exponential
-     * notation to dp fixed decimal places or significant digits.
-     *
-     * x {Big} The Big to format.
-     * dp {number} Integer, 0 to MAX_DP inclusive.
-     * toE {number} 1 (toExponential), 2 (toPrecision) or undefined (toFixed).
-     */
-    function format(x, dp, toE) {
-        var Big = x.constructor,
-
-            // The index (normal notation) of the digit that may be rounded up.
-            i = dp - (x = new Big(x)).e,
-            c = x.c;
-
-        // Round?
-        if (c.length > ++dp) {
-            rnd(x, i, Big.RM);
-        }
-
-        if (!c[0]) {
-            ++i;
-        } else if (toE) {
-            i = dp;
-
-        // toFixed
-        } else {
-            c = x.c;
-
-            // Recalculate i as x.e may have changed if value rounded up.
-            i = x.e + i + 1;
-        }
-
-        // Append zeros?
-        for (; c.length < i; c.push(0)) {
-        }
-        i = x.e;
-
-        /*
-         * toPrecision returns exponential notation if the number of
-         * significant digits specified is less than the number of digits
-         * necessary to represent the integer part of the value in normal
-         * notation.
-         */
-        return toE === 1 || toE && (dp <= i || i <= Big.E_NEG) ?
-
-          // Exponential notation.
-          (x.s < 0 && c[0] ? '-' : '') +
-            (c.length > 1 ? c[0] + '.' + c.join('').slice(1) : c[0]) +
-              (i < 0 ? 'e' : 'e+') + i
-
-          // Normal notation.
-          : x.toString();
-    }
-
-
-    /*
-     * Parse the number or string value passed to a Big constructor.
-     *
-     * x {Big} A Big number instance.
-     * n {number|string} A numeric value.
-     */
-    function parse(x, n) {
-        var e, i, nL;
-
-        // Minus zero?
-        if (n === 0 && 1 / n < 0) {
-            n = '-0';
-
-        // Ensure n is string and check validity.
-        } else if (!isValid.test(n += '')) {
-            throwErr(NaN);
-        }
-
-        // Determine sign.
-        x.s = n.charAt(0) == '-' ? (n = n.slice(1), -1) : 1;
-
-        // Decimal point?
-        if ((e = n.indexOf('.')) > -1) {
-            n = n.replace('.', '');
-        }
-
-        // Exponential form?
-        if ((i = n.search(/e/i)) > 0) {
-
-            // Determine exponent.
-            if (e < 0) {
-                e = i;
-            }
-            e += +n.slice(i + 1);
-            n = n.substring(0, i);
-
-        } else if (e < 0) {
-
-            // Integer.
-            e = n.length;
-        }
-
-        // Determine leading zeros.
-        for (i = 0; n.charAt(i) == '0'; i++) {
-        }
-
-        if (i == (nL = n.length)) {
-
-            // Zero.
-            x.c = [ x.e = 0 ];
-        } else {
-
-            // Determine trailing zeros.
-            for (; n.charAt(--nL) == '0';) {
-            }
-
-            x.e = e - i - 1;
-            x.c = [];
-
-            // Convert string to array of digits without leading/trailing zeros.
-            for (e = 0; i <= nL; x.c[e++] = +n.charAt(i++)) {
-            }
-        }
-
-        return x;
-    }
-
-
-    /*
-     * Round Big x to a maximum of dp decimal places using rounding mode rm.
-     * Called by div, sqrt and round.
-     *
-     * x {Big} The Big to round.
-     * dp {number} Integer, 0 to MAX_DP inclusive.
-     * rm {number} 0, 1, 2 or 3 (DOWN, HALF_UP, HALF_EVEN, UP)
-     * [more] {boolean} Whether the result of division was truncated.
-     */
-    function rnd(x, dp, rm, more) {
-        var u,
-            xc = x.c,
-            i = x.e + dp + 1;
-
-        if (rm === 1) {
-
-            // xc[i] is the digit after the digit that may be rounded up.
-            more = xc[i] >= 5;
-        } else if (rm === 2) {
-            more = xc[i] > 5 || xc[i] == 5 &&
-              (more || i < 0 || xc[i + 1] !== u || xc[i - 1] & 1);
-        } else if (rm === 3) {
-            more = more || xc[i] !== u || i < 0;
-        } else {
-            more = false;
-
-            if (rm !== 0) {
-                throwErr('!Big.RM!');
-            }
-        }
-
-        if (i < 1 || !xc[0]) {
-
-            if (more) {
-
-                // 1, 0.1, 0.01, 0.001, 0.0001 etc.
-                x.e = -dp;
-                x.c = [1];
-            } else {
-
-                // Zero.
-                x.c = [x.e = 0];
-            }
-        } else {
-
-            // Remove any digits after the required decimal places.
-            xc.length = i--;
-
-            // Round up?
-            if (more) {
-
-                // Rounding up may mean the previous digit has to be rounded up.
-                for (; ++xc[i] > 9;) {
-                    xc[i] = 0;
-
-                    if (!i--) {
-                        ++x.e;
-                        xc.unshift(1);
-                    }
-                }
-            }
-
-            // Remove trailing zeros.
-            for (i = xc.length; !xc[--i]; xc.pop()) {
-            }
-        }
-
-        return x;
-    }
-
-
-    /*
-     * Throw a BigError.
-     *
-     * message {string} The error message.
-     */
-    function throwErr(message) {
-        var err = new Error(message);
-        err.name = 'BigError';
-
-        throw err;
-    }
-
-
-    // Prototype/instance methods
-
-
-    /*
-     * Return a new Big whose value is the absolute value of this Big.
-     */
-    P.abs = function () {
-        var x = new this.constructor(this);
-        x.s = 1;
-
-        return x;
-    };
-
-
-    /*
-     * Return
-     * 1 if the value of this Big is greater than the value of Big y,
-     * -1 if the value of this Big is less than the value of Big y, or
-     * 0 if they have the same value.
-    */
-    P.cmp = function (y) {
-        var xNeg,
-            x = this,
-            xc = x.c,
-            yc = (y = new x.constructor(y)).c,
-            i = x.s,
-            j = y.s,
-            k = x.e,
-            l = y.e;
-
-        // Either zero?
-        if (!xc[0] || !yc[0]) {
-            return !xc[0] ? !yc[0] ? 0 : -j : i;
-        }
-
-        // Signs differ?
-        if (i != j) {
-            return i;
-        }
-        xNeg = i < 0;
-
-        // Compare exponents.
-        if (k != l) {
-            return k > l ^ xNeg ? 1 : -1;
-        }
-
-        i = -1;
-        j = (k = xc.length) < (l = yc.length) ? k : l;
-
-        // Compare digit by digit.
-        for (; ++i < j;) {
-
-            if (xc[i] != yc[i]) {
-                return xc[i] > yc[i] ^ xNeg ? 1 : -1;
-            }
-        }
-
-        // Compare lengths.
-        return k == l ? 0 : k > l ^ xNeg ? 1 : -1;
-    };
-
-
-    /*
-     * Return a new Big whose value is the value of this Big divided by the
-     * value of Big y, rounded, if necessary, to a maximum of Big.DP decimal
-     * places using rounding mode Big.RM.
-     */
-    P.div = function (y) {
-        var x = this,
-            Big = x.constructor,
-            // dividend
-            dvd = x.c,
-            //divisor
-            dvs = (y = new Big(y)).c,
-            s = x.s == y.s ? 1 : -1,
-            dp = Big.DP;
-
-        if (dp !== ~~dp || dp < 0 || dp > MAX_DP) {
-            throwErr('!Big.DP!');
-        }
-
-        // Either 0?
-        if (!dvd[0] || !dvs[0]) {
-
-            // If both are 0, throw NaN
-            if (dvd[0] == dvs[0]) {
-                throwErr(NaN);
-            }
-
-            // If dvs is 0, throw +-Infinity.
-            if (!dvs[0]) {
-                throwErr(s / 0);
-            }
-
-            // dvd is 0, return +-0.
-            return new Big(s * 0);
-        }
-
-        var dvsL, dvsT, next, cmp, remI, u,
-            dvsZ = dvs.slice(),
-            dvdI = dvsL = dvs.length,
-            dvdL = dvd.length,
-            // remainder
-            rem = dvd.slice(0, dvsL),
-            remL = rem.length,
-            // quotient
-            q = y,
-            qc = q.c = [],
-            qi = 0,
-            digits = dp + (q.e = x.e - y.e) + 1;
-
-        q.s = s;
-        s = digits < 0 ? 0 : digits;
-
-        // Create version of divisor with leading zero.
-        dvsZ.unshift(0);
-
-        // Add zeros to make remainder as long as divisor.
-        for (; remL++ < dvsL; rem.push(0)) {
-        }
-
-        do {
-
-            // 'next' is how many times the divisor goes into current remainder.
-            for (next = 0; next < 10; next++) {
-
-                // Compare divisor and remainder.
-                if (dvsL != (remL = rem.length)) {
-                    cmp = dvsL > remL ? 1 : -1;
-                } else {
-
-                    for (remI = -1, cmp = 0; ++remI < dvsL;) {
-
-                        if (dvs[remI] != rem[remI]) {
-                            cmp = dvs[remI] > rem[remI] ? 1 : -1;
-                            break;
-                        }
-                    }
-                }
-
-                // If divisor < remainder, subtract divisor from remainder.
-                if (cmp < 0) {
-
-                    // Remainder can't be more than 1 digit longer than divisor.
-                    // Equalise lengths using divisor with extra leading zero?
-                    for (dvsT = remL == dvsL ? dvs : dvsZ; remL;) {
-
-                        if (rem[--remL] < dvsT[remL]) {
-                            remI = remL;
-
-                            for (; remI && !rem[--remI]; rem[remI] = 9) {
-                            }
-                            --rem[remI];
-                            rem[remL] += 10;
-                        }
-                        rem[remL] -= dvsT[remL];
-                    }
-                    for (; !rem[0]; rem.shift()) {
-                    }
-                } else {
-                    break;
-                }
-            }
-
-            // Add the 'next' digit to the result array.
-            qc[qi++] = cmp ? next : ++next;
-
-            // Update the remainder.
-            if (rem[0] && cmp) {
-                rem[remL] = dvd[dvdI] || 0;
-            } else {
-                rem = [ dvd[dvdI] ];
-            }
-
-        } while ((dvdI++ < dvdL || rem[0] !== u) && s--);
-
-        // Leading zero? Do not remove if result is simply zero (qi == 1).
-        if (!qc[0] && qi != 1) {
-
-            // There can't be more than one zero.
-            qc.shift();
-            q.e--;
-        }
-
-        // Round?
-        if (qi > digits) {
-            rnd(q, dp, Big.RM, rem[0] !== u);
-        }
-
-        return q;
-    };
-
-
-    /*
-     * Return true if the value of this Big is equal to the value of Big y,
-     * otherwise returns false.
-     */
-    P.eq = function (y) {
-        return !this.cmp(y);
-    };
-
-
-    /*
-     * Return true if the value of this Big is greater than the value of Big y,
-     * otherwise returns false.
-     */
-    P.gt = function (y) {
-        return this.cmp(y) > 0;
-    };
-
-
-    /*
-     * Return true if the value of this Big is greater than or equal to the
-     * value of Big y, otherwise returns false.
-     */
-    P.gte = function (y) {
-        return this.cmp(y) > -1;
-    };
-
-
-    /*
-     * Return true if the value of this Big is less than the value of Big y,
-     * otherwise returns false.
-     */
-    P.lt = function (y) {
-        return this.cmp(y) < 0;
-    };
-
-
-    /*
-     * Return true if the value of this Big is less than or equal to the value
-     * of Big y, otherwise returns false.
-     */
-    P.lte = function (y) {
-         return this.cmp(y) < 1;
-    };
-
-
-    /*
-     * Return a new Big whose value is the value of this Big minus the value
-     * of Big y.
-     */
-    P.sub = P.minus = function (y) {
-        var i, j, t, xLTy,
-            x = this,
-            Big = x.constructor,
-            a = x.s,
-            b = (y = new Big(y)).s;
-
-        // Signs differ?
-        if (a != b) {
-            y.s = -b;
-            return x.plus(y);
-        }
-
-        var xc = x.c.slice(),
-            xe = x.e,
-            yc = y.c,
-            ye = y.e;
-
-        // Either zero?
-        if (!xc[0] || !yc[0]) {
-
-            // y is non-zero? x is non-zero? Or both are zero.
-            return yc[0] ? (y.s = -b, y) : new Big(xc[0] ? x : 0);
-        }
-
-        // Determine which is the bigger number.
-        // Prepend zeros to equalise exponents.
-        if (a = xe - ye) {
-
-            if (xLTy = a < 0) {
-                a = -a;
-                t = xc;
-            } else {
-                ye = xe;
-                t = yc;
-            }
-
-            t.reverse();
-            for (b = a; b--; t.push(0)) {
-            }
-            t.reverse();
-        } else {
-
-            // Exponents equal. Check digit by digit.
-            j = ((xLTy = xc.length < yc.length) ? xc : yc).length;
-
-            for (a = b = 0; b < j; b++) {
-
-                if (xc[b] != yc[b]) {
-                    xLTy = xc[b] < yc[b];
-                    break;
-                }
-            }
-        }
-
-        // x < y? Point xc to the array of the bigger number.
-        if (xLTy) {
-            t = xc;
-            xc = yc;
-            yc = t;
-            y.s = -y.s;
-        }
-
-        /*
-         * Append zeros to xc if shorter. No need to add zeros to yc if shorter
-         * as subtraction only needs to start at yc.length.
-         */
-        if (( b = (j = yc.length) - (i = xc.length) ) > 0) {
-
-            for (; b--; xc[i++] = 0) {
-            }
-        }
-
-        // Subtract yc from xc.
-        for (b = i; j > a;){
-
-            if (xc[--j] < yc[j]) {
-
-                for (i = j; i && !xc[--i]; xc[i] = 9) {
-                }
-                --xc[i];
-                xc[j] += 10;
-            }
-            xc[j] -= yc[j];
-        }
-
-        // Remove trailing zeros.
-        for (; xc[--b] === 0; xc.pop()) {
-        }
-
-        // Remove leading zeros and adjust exponent accordingly.
-        for (; xc[0] === 0;) {
-            xc.shift();
-            --ye;
-        }
-
-        if (!xc[0]) {
-
-            // n - n = +0
-            y.s = 1;
-
-            // Result must be zero.
-            xc = [ye = 0];
-        }
-
-        y.c = xc;
-        y.e = ye;
-
-        return y;
-    };
-
-
-    /*
-     * Return a new Big whose value is the value of this Big modulo the
-     * value of Big y.
-     */
-    P.mod = function (y) {
-        var yGTx,
-            x = this,
-            Big = x.constructor,
-            a = x.s,
-            b = (y = new Big(y)).s;
-
-        if (!y.c[0]) {
-            throwErr(NaN);
-        }
-
-        x.s = y.s = 1;
-        yGTx = y.cmp(x) == 1;
-        x.s = a;
-        y.s = b;
-
-        if (yGTx) {
-            return new Big(x);
-        }
-
-        a = Big.DP;
-        b = Big.RM;
-        Big.DP = Big.RM = 0;
-        x = x.div(y);
-        Big.DP = a;
-        Big.RM = b;
-
-        return this.minus( x.times(y) );
-    };
-
-
-    /*
-     * Return a new Big whose value is the value of this Big plus the value
-     * of Big y.
-     */
-    P.add = P.plus = function (y) {
-        var t,
-            x = this,
-            Big = x.constructor,
-            a = x.s,
-            b = (y = new Big(y)).s;
-
-        // Signs differ?
-        if (a != b) {
-            y.s = -b;
-            return x.minus(y);
-        }
-
-        var xe = x.e,
-            xc = x.c,
-            ye = y.e,
-            yc = y.c;
-
-        // Either zero?
-        if (!xc[0] || !yc[0]) {
-
-            // y is non-zero? x is non-zero? Or both are zero.
-            return yc[0] ? y : new Big(xc[0] ? x : a * 0);
-        }
-        xc = xc.slice();
-
-        // Prepend zeros to equalise exponents.
-        // Note: Faster to use reverse then do unshifts.
-        if (a = xe - ye) {
-
-            if (a > 0) {
-                ye = xe;
-                t = yc;
-            } else {
-                a = -a;
-                t = xc;
-            }
-
-            t.reverse();
-            for (; a--; t.push(0)) {
-            }
-            t.reverse();
-        }
-
-        // Point xc to the longer array.
-        if (xc.length - yc.length < 0) {
-            t = yc;
-            yc = xc;
-            xc = t;
-        }
-        a = yc.length;
-
-        /*
-         * Only start adding at yc.length - 1 as the further digits of xc can be
-         * left as they are.
-         */
-        for (b = 0; a;) {
-            b = (xc[--a] = xc[a] + yc[a] + b) / 10 | 0;
-            xc[a] %= 10;
-        }
-
-        // No need to check for zero, as +x + +y != 0 && -x + -y != 0
-
-        if (b) {
-            xc.unshift(b);
-            ++ye;
-        }
-
-         // Remove trailing zeros.
-        for (a = xc.length; xc[--a] === 0; xc.pop()) {
-        }
-
-        y.c = xc;
-        y.e = ye;
-
-        return y;
-    };
-
-
-    /*
-     * Return a Big whose value is the value of this Big raised to the power n.
-     * If n is negative, round, if necessary, to a maximum of Big.DP decimal
-     * places using rounding mode Big.RM.
-     *
-     * n {number} Integer, -MAX_POWER to MAX_POWER inclusive.
-     */
-    P.pow = function (n) {
-        var x = this,
-            one = new x.constructor(1),
-            y = one,
-            isNeg = n < 0;
-
-        if (n !== ~~n || n < -MAX_POWER || n > MAX_POWER) {
-            throwErr('!pow!');
-        }
-
-        n = isNeg ? -n : n;
-
-        for (;;) {
-
-            if (n & 1) {
-                y = y.times(x);
-            }
-            n >>= 1;
-
-            if (!n) {
-                break;
-            }
-            x = x.times(x);
-        }
-
-        return isNeg ? one.div(y) : y;
-    };
-
-
-    /*
-     * Return a new Big whose value is the value of this Big rounded to a
-     * maximum of dp decimal places using rounding mode rm.
-     * If dp is not specified, round to 0 decimal places.
-     * If rm is not specified, use Big.RM.
-     *
-     * [dp] {number} Integer, 0 to MAX_DP inclusive.
-     * [rm] 0, 1, 2 or 3 (ROUND_DOWN, ROUND_HALF_UP, ROUND_HALF_EVEN, ROUND_UP)
-     */
-    P.round = function (dp, rm) {
-        var x = this,
-            Big = x.constructor;
-
-        if (dp == null) {
-            dp = 0;
-        } else if (dp !== ~~dp || dp < 0 || dp > MAX_DP) {
-            throwErr('!round!');
-        }
-        rnd(x = new Big(x), dp, rm == null ? Big.RM : rm);
-
-        return x;
-    };
-
-
-    /*
-     * Return a new Big whose value is the square root of the value of this Big,
-     * rounded, if necessary, to a maximum of Big.DP decimal places using
-     * rounding mode Big.RM.
-     */
-    P.sqrt = function () {
-        var estimate, r, approx,
-            x = this,
-            Big = x.constructor,
-            xc = x.c,
-            i = x.s,
-            e = x.e,
-            half = new Big('0.5');
-
-        // Zero?
-        if (!xc[0]) {
-            return new Big(x);
-        }
-
-        // If negative, throw NaN.
-        if (i < 0) {
-            throwErr(NaN);
-        }
-
-        // Estimate.
-        i = Math.sqrt(x.toString());
-
-        // Math.sqrt underflow/overflow?
-        // Pass x to Math.sqrt as integer, then adjust the result exponent.
-        if (i === 0 || i === 1 / 0) {
-            estimate = xc.join('');
-
-            if (!(estimate.length + e & 1)) {
-                estimate += '0';
-            }
-
-            r = new Big( Math.sqrt(estimate).toString() );
-            r.e = ((e + 1) / 2 | 0) - (e < 0 || e & 1);
-        } else {
-            r = new Big(i.toString());
-        }
-
-        i = r.e + (Big.DP += 4);
-
-        // Newton-Raphson iteration.
-        do {
-            approx = r;
-            r = half.times( approx.plus( x.div(approx) ) );
-        } while ( approx.c.slice(0, i).join('') !==
-                       r.c.slice(0, i).join('') );
-
-        rnd(r, Big.DP -= 4, Big.RM);
-
-        return r;
-    };
-
-
-    /*
-     * Return a new Big whose value is the value of this Big times the value of
-     * Big y.
-     */
-    P.mul = P.times = function (y) {
-        var c,
-            x = this,
-            Big = x.constructor,
-            xc = x.c,
-            yc = (y = new Big(y)).c,
-            a = xc.length,
-            b = yc.length,
-            i = x.e,
-            j = y.e;
-
-        // Determine sign of result.
-        y.s = x.s == y.s ? 1 : -1;
-
-        // Return signed 0 if either 0.
-        if (!xc[0] || !yc[0]) {
-            return new Big(y.s * 0);
-        }
-
-        // Initialise exponent of result as x.e + y.e.
-        y.e = i + j;
-
-        // If array xc has fewer digits than yc, swap xc and yc, and lengths.
-        if (a < b) {
-            c = xc;
-            xc = yc;
-            yc = c;
-            j = a;
-            a = b;
-            b = j;
-        }
-
-        // Initialise coefficient array of result with zeros.
-        for (c = new Array(j = a + b); j--; c[j] = 0) {
-        }
-
-        // Multiply.
-
-        // i is initially xc.length.
-        for (i = b; i--;) {
-            b = 0;
-
-            // a is yc.length.
-            for (j = a + i; j > i;) {
-
-                // Current sum of products at this digit position, plus carry.
-                b = c[j] + yc[i] * xc[j - i - 1] + b;
-                c[j--] = b % 10;
-
-                // carry
-                b = b / 10 | 0;
-            }
-            c[j] = (c[j] + b) % 10;
-        }
-
-        // Increment result exponent if there is a final carry.
-        if (b) {
-            ++y.e;
-        }
-
-        // Remove any leading zero.
-        if (!c[0]) {
-            c.shift();
-        }
-
-        // Remove trailing zeros.
-        for (i = c.length; !c[--i]; c.pop()) {
-        }
-        y.c = c;
-
-        return y;
-    };
-
-
-    /*
-     * Return a string representing the value of this Big.
-     * Return exponential notation if this Big has a positive exponent equal to
-     * or greater than Big.E_POS, or a negative exponent equal to or less than
-     * Big.E_NEG.
-     */
-    P.toString = P.valueOf = P.toJSON = function () {
-        var x = this,
-            Big = x.constructor,
-            e = x.e,
-            str = x.c.join(''),
-            strL = str.length;
-
-        // Exponential notation?
-        if (e <= Big.E_NEG || e >= Big.E_POS) {
-            str = str.charAt(0) + (strL > 1 ? '.' + str.slice(1) : '') +
-              (e < 0 ? 'e' : 'e+') + e;
-
-        // Negative exponent?
-        } else if (e < 0) {
-
-            // Prepend zeros.
-            for (; ++e; str = '0' + str) {
-            }
-            str = '0.' + str;
-
-        // Positive exponent?
-        } else if (e > 0) {
-
-            if (++e > strL) {
-
-                // Append zeros.
-                for (e -= strL; e-- ; str += '0') {
-                }
-            } else if (e < strL) {
-                str = str.slice(0, e) + '.' + str.slice(e);
-            }
-
-        // Exponent zero.
-        } else if (strL > 1) {
-            str = str.charAt(0) + '.' + str.slice(1);
-        }
-
-        // Avoid '-0'
-        return x.s < 0 && x.c[0] ? '-' + str : str;
-    };
-
-
-    /*
-     ***************************************************************************
-     * If toExponential, toFixed, toPrecision and format are not required they
-     * can safely be commented-out or deleted. No redundant code will be left.
-     * format is used only by toExponential, toFixed and toPrecision.
-     ***************************************************************************
-     */
-
-
-    /*
-     * Return a string representing the value of this Big in exponential
-     * notation to dp fixed decimal places and rounded, if necessary, using
-     * Big.RM.
-     *
-     * [dp] {number} Integer, 0 to MAX_DP inclusive.
-     */
-    P.toExponential = function (dp) {
-
-        if (dp == null) {
-            dp = this.c.length - 1;
-        } else if (dp !== ~~dp || dp < 0 || dp > MAX_DP) {
-            throwErr('!toExp!');
-        }
-
-        return format(this, dp, 1);
-    };
-
-
-    /*
-     * Return a string representing the value of this Big in normal notation
-     * to dp fixed decimal places and rounded, if necessary, using Big.RM.
-     *
-     * [dp] {number} Integer, 0 to MAX_DP inclusive.
-     */
-    P.toFixed = function (dp) {
-        var str,
-            x = this,
-            Big = x.constructor,
-            neg = Big.E_NEG,
-            pos = Big.E_POS;
-
-        // Prevent the possibility of exponential notation.
-        Big.E_NEG = -(Big.E_POS = 1 / 0);
-
-        if (dp == null) {
-            str = x.toString();
-        } else if (dp === ~~dp && dp >= 0 && dp <= MAX_DP) {
-            str = format(x, x.e + dp);
-
-            // (-0).toFixed() is '0', but (-0.1).toFixed() is '-0'.
-            // (-0).toFixed(1) is '0.0', but (-0.01).toFixed(1) is '-0.0'.
-            if (x.s < 0 && x.c[0] && str.indexOf('-') < 0) {
-        //E.g. -0.5 if rounded to -0 will cause toString to omit the minus sign.
-                str = '-' + str;
-            }
-        }
-        Big.E_NEG = neg;
-        Big.E_POS = pos;
-
-        if (!str) {
-            throwErr('!toFix!');
-        }
-
-        return str;
-    };
-
-
-    /*
-     * Return a string representing the value of this Big rounded to sd
-     * significant digits using Big.RM. Use exponential notation if sd is less
-     * than the number of digits necessary to represent the integer part of the
-     * value in normal notation.
-     *
-     * sd {number} Integer, 1 to MAX_DP inclusive.
-     */
-    P.toPrecision = function (sd) {
-
-        if (sd == null) {
-            return this.toString();
-        } else if (sd !== ~~sd || sd < 1 || sd > MAX_DP) {
-            throwErr('!toPre!');
-        }
-
-        return format(this, sd - 1, 2);
-    };
-
-
-    // Export
-
-
-    Big = bigFactory();
-
-    //AMD.
-    if (typeof define === 'function' && define.amd) {
-        define(function () {
-            return Big;
-        });
-
-    // Node and other CommonJS-like environments that support module.exports.
-    } else if (typeof module !== 'undefined' && module.exports) {
-        module.exports = Big;
-
-    //Browser.
-    } else {
-        global.Big = Big;
-    }
-})(this);
-
-},{}],130:[function(require,module,exports){
+},{"core-js/fn/regexp/escape":202,"core-js/shim":495,"regenerator-runtime/runtime":497}],196:[function(require,module,exports){
+arguments[4][138][0].apply(exports,arguments)
+},{"dup":138}],197:[function(require,module,exports){
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
 // Distributed under an MIT license: http://codemirror.net/LICENSE
 
@@ -20081,7 +25164,7 @@ define(String.prototype, "padRight", "".padEnd);
   }
 });
 
-},{"../../lib/codemirror":133}],131:[function(require,module,exports){
+},{"../../lib/codemirror":200}],198:[function(require,module,exports){
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
 // Distributed under an MIT license: http://codemirror.net/LICENSE
 
@@ -20238,7 +25321,7 @@ define(String.prototype, "padRight", "".padEnd);
   }
 });
 
-},{"../../lib/codemirror":133}],132:[function(require,module,exports){
+},{"../../lib/codemirror":200}],199:[function(require,module,exports){
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
 // Distributed under an MIT license: http://codemirror.net/LICENSE
 
@@ -20678,7 +25761,7 @@ define(String.prototype, "padRight", "".padEnd);
   CodeMirror.defineOption("hintOptions", null);
 });
 
-},{"../../lib/codemirror":133}],133:[function(require,module,exports){
+},{"../../lib/codemirror":200}],200:[function(require,module,exports){
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
 // Distributed under an MIT license: http://codemirror.net/LICENSE
 
@@ -29641,7 +34724,7 @@ define(String.prototype, "padRight", "".padEnd);
   return CodeMirror;
 });
 
-},{}],134:[function(require,module,exports){
+},{}],201:[function(require,module,exports){
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
 // Distributed under an MIT license: http://codemirror.net/LICENSE
 
@@ -30405,21 +35488,21 @@ CodeMirror.defineMIME("application/typescript", { name: "javascript", typescript
 
 });
 
-},{"../../lib/codemirror":133}],135:[function(require,module,exports){
+},{"../../lib/codemirror":200}],202:[function(require,module,exports){
 require('../../modules/core.regexp.escape');
 module.exports = require('../../modules/_core').RegExp.escape;
-},{"../../modules/_core":156,"../../modules/core.regexp.escape":252}],136:[function(require,module,exports){
+},{"../../modules/_core":223,"../../modules/core.regexp.escape":319}],203:[function(require,module,exports){
 module.exports = function(it){
   if(typeof it != 'function')throw TypeError(it + ' is not a function!');
   return it;
 };
-},{}],137:[function(require,module,exports){
+},{}],204:[function(require,module,exports){
 var cof = require('./_cof');
 module.exports = function(it, msg){
   if(typeof it != 'number' && cof(it) != 'Number')throw TypeError(msg);
   return +it;
 };
-},{"./_cof":151}],138:[function(require,module,exports){
+},{"./_cof":218}],205:[function(require,module,exports){
 // 22.1.3.31 Array.prototype[@@unscopables]
 var UNSCOPABLES = require('./_wks')('unscopables')
   , ArrayProto  = Array.prototype;
@@ -30427,19 +35510,19 @@ if(ArrayProto[UNSCOPABLES] == undefined)require('./_hide')(ArrayProto, UNSCOPABL
 module.exports = function(key){
   ArrayProto[UNSCOPABLES][key] = true;
 };
-},{"./_hide":173,"./_wks":250}],139:[function(require,module,exports){
+},{"./_hide":240,"./_wks":317}],206:[function(require,module,exports){
 module.exports = function(it, Constructor, name, forbiddenField){
   if(!(it instanceof Constructor) || (forbiddenField !== undefined && forbiddenField in it)){
     throw TypeError(name + ': incorrect invocation!');
   } return it;
 };
-},{}],140:[function(require,module,exports){
+},{}],207:[function(require,module,exports){
 var isObject = require('./_is-object');
 module.exports = function(it){
   if(!isObject(it))throw TypeError(it + ' is not an object!');
   return it;
 };
-},{"./_is-object":182}],141:[function(require,module,exports){
+},{"./_is-object":249}],208:[function(require,module,exports){
 // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
 'use strict';
 var toObject = require('./_to-object')
@@ -30466,7 +35549,7 @@ module.exports = [].copyWithin || function copyWithin(target/*= 0*/, start/*= 0,
     from += inc;
   } return O;
 };
-},{"./_to-index":238,"./_to-length":241,"./_to-object":242}],142:[function(require,module,exports){
+},{"./_to-index":305,"./_to-length":308,"./_to-object":309}],209:[function(require,module,exports){
 // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
 'use strict';
 var toObject = require('./_to-object')
@@ -30482,7 +35565,7 @@ module.exports = function fill(value /*, start = 0, end = @length */){
   while(endPos > index)O[index++] = value;
   return O;
 };
-},{"./_to-index":238,"./_to-length":241,"./_to-object":242}],143:[function(require,module,exports){
+},{"./_to-index":305,"./_to-length":308,"./_to-object":309}],210:[function(require,module,exports){
 var forOf = require('./_for-of');
 
 module.exports = function(iter, ITERATOR){
@@ -30491,7 +35574,7 @@ module.exports = function(iter, ITERATOR){
   return result;
 };
 
-},{"./_for-of":170}],144:[function(require,module,exports){
+},{"./_for-of":237}],211:[function(require,module,exports){
 // false -> Array#indexOf
 // true  -> Array#includes
 var toIObject = require('./_to-iobject')
@@ -30513,7 +35596,7 @@ module.exports = function(IS_INCLUDES){
     } return !IS_INCLUDES && -1;
   };
 };
-},{"./_to-index":238,"./_to-iobject":240,"./_to-length":241}],145:[function(require,module,exports){
+},{"./_to-index":305,"./_to-iobject":307,"./_to-length":308}],212:[function(require,module,exports){
 // 0 -> Array#forEach
 // 1 -> Array#map
 // 2 -> Array#filter
@@ -30558,7 +35641,7 @@ module.exports = function(TYPE, $create){
     return IS_FIND_INDEX ? -1 : IS_SOME || IS_EVERY ? IS_EVERY : result;
   };
 };
-},{"./_array-species-create":148,"./_ctx":158,"./_iobject":178,"./_to-length":241,"./_to-object":242}],146:[function(require,module,exports){
+},{"./_array-species-create":215,"./_ctx":225,"./_iobject":245,"./_to-length":308,"./_to-object":309}],213:[function(require,module,exports){
 var aFunction = require('./_a-function')
   , toObject  = require('./_to-object')
   , IObject   = require('./_iobject')
@@ -30587,7 +35670,7 @@ module.exports = function(that, callbackfn, aLen, memo, isRight){
   }
   return memo;
 };
-},{"./_a-function":136,"./_iobject":178,"./_to-length":241,"./_to-object":242}],147:[function(require,module,exports){
+},{"./_a-function":203,"./_iobject":245,"./_to-length":308,"./_to-object":309}],214:[function(require,module,exports){
 var isObject = require('./_is-object')
   , isArray  = require('./_is-array')
   , SPECIES  = require('./_wks')('species');
@@ -30604,14 +35687,14 @@ module.exports = function(original){
     }
   } return C === undefined ? Array : C;
 };
-},{"./_is-array":180,"./_is-object":182,"./_wks":250}],148:[function(require,module,exports){
+},{"./_is-array":247,"./_is-object":249,"./_wks":317}],215:[function(require,module,exports){
 // 9.4.2.3 ArraySpeciesCreate(originalArray, length)
 var speciesConstructor = require('./_array-species-constructor');
 
 module.exports = function(original, length){
   return new (speciesConstructor(original))(length);
 };
-},{"./_array-species-constructor":147}],149:[function(require,module,exports){
+},{"./_array-species-constructor":214}],216:[function(require,module,exports){
 'use strict';
 var aFunction  = require('./_a-function')
   , isObject   = require('./_is-object')
@@ -30636,7 +35719,7 @@ module.exports = Function.bind || function bind(that /*, args... */){
   if(isObject(fn.prototype))bound.prototype = fn.prototype;
   return bound;
 };
-},{"./_a-function":136,"./_invoke":177,"./_is-object":182}],150:[function(require,module,exports){
+},{"./_a-function":203,"./_invoke":244,"./_is-object":249}],217:[function(require,module,exports){
 // getting tag from 19.1.3.6 Object.prototype.toString()
 var cof = require('./_cof')
   , TAG = require('./_wks')('toStringTag')
@@ -30660,13 +35743,13 @@ module.exports = function(it){
     // ES3 arguments fallback
     : (B = cof(O)) == 'Object' && typeof O.callee == 'function' ? 'Arguments' : B;
 };
-},{"./_cof":151,"./_wks":250}],151:[function(require,module,exports){
+},{"./_cof":218,"./_wks":317}],218:[function(require,module,exports){
 var toString = {}.toString;
 
 module.exports = function(it){
   return toString.call(it).slice(8, -1);
 };
-},{}],152:[function(require,module,exports){
+},{}],219:[function(require,module,exports){
 'use strict';
 var dP          = require('./_object-dp').f
   , create      = require('./_object-create')
@@ -30809,7 +35892,7 @@ module.exports = {
     setSpecies(NAME);
   }
 };
-},{"./_an-instance":139,"./_ctx":158,"./_defined":160,"./_descriptors":161,"./_for-of":170,"./_iter-define":186,"./_iter-step":188,"./_meta":195,"./_object-create":199,"./_object-dp":200,"./_redefine-all":219,"./_set-species":224}],153:[function(require,module,exports){
+},{"./_an-instance":206,"./_ctx":225,"./_defined":227,"./_descriptors":228,"./_for-of":237,"./_iter-define":253,"./_iter-step":255,"./_meta":262,"./_object-create":266,"./_object-dp":267,"./_redefine-all":286,"./_set-species":291}],220:[function(require,module,exports){
 // https://github.com/DavidBruant/Map-Set.prototype.toJSON
 var classof = require('./_classof')
   , from    = require('./_array-from-iterable');
@@ -30819,7 +35902,7 @@ module.exports = function(NAME){
     return from(this);
   };
 };
-},{"./_array-from-iterable":143,"./_classof":150}],154:[function(require,module,exports){
+},{"./_array-from-iterable":210,"./_classof":217}],221:[function(require,module,exports){
 'use strict';
 var redefineAll       = require('./_redefine-all')
   , getWeak           = require('./_meta').getWeak
@@ -30903,7 +35986,7 @@ module.exports = {
   },
   ufstore: uncaughtFrozenStore
 };
-},{"./_an-instance":139,"./_an-object":140,"./_array-methods":145,"./_for-of":170,"./_has":172,"./_is-object":182,"./_meta":195,"./_redefine-all":219}],155:[function(require,module,exports){
+},{"./_an-instance":206,"./_an-object":207,"./_array-methods":212,"./_for-of":237,"./_has":239,"./_is-object":249,"./_meta":262,"./_redefine-all":286}],222:[function(require,module,exports){
 'use strict';
 var global            = require('./_global')
   , $export           = require('./_export')
@@ -30989,10 +36072,10 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
 
   return C;
 };
-},{"./_an-instance":139,"./_export":165,"./_fails":167,"./_for-of":170,"./_global":171,"./_inherit-if-required":176,"./_is-object":182,"./_iter-detect":187,"./_meta":195,"./_redefine":220,"./_redefine-all":219,"./_set-to-string-tag":225}],156:[function(require,module,exports){
+},{"./_an-instance":206,"./_export":232,"./_fails":234,"./_for-of":237,"./_global":238,"./_inherit-if-required":243,"./_is-object":249,"./_iter-detect":254,"./_meta":262,"./_redefine":287,"./_redefine-all":286,"./_set-to-string-tag":292}],223:[function(require,module,exports){
 var core = module.exports = {version: '2.4.0'};
 if(typeof __e == 'number')__e = core; // eslint-disable-line no-undef
-},{}],157:[function(require,module,exports){
+},{}],224:[function(require,module,exports){
 'use strict';
 var $defineProperty = require('./_object-dp')
   , createDesc      = require('./_property-desc');
@@ -31001,7 +36084,7 @@ module.exports = function(object, index, value){
   if(index in object)$defineProperty.f(object, index, createDesc(0, value));
   else object[index] = value;
 };
-},{"./_object-dp":200,"./_property-desc":218}],158:[function(require,module,exports){
+},{"./_object-dp":267,"./_property-desc":285}],225:[function(require,module,exports){
 // optional / simple context binding
 var aFunction = require('./_a-function');
 module.exports = function(fn, that, length){
@@ -31022,7 +36105,7 @@ module.exports = function(fn, that, length){
     return fn.apply(that, arguments);
   };
 };
-},{"./_a-function":136}],159:[function(require,module,exports){
+},{"./_a-function":203}],226:[function(require,module,exports){
 'use strict';
 var anObject    = require('./_an-object')
   , toPrimitive = require('./_to-primitive')
@@ -31032,18 +36115,18 @@ module.exports = function(hint){
   if(hint !== 'string' && hint !== NUMBER && hint !== 'default')throw TypeError('Incorrect hint');
   return toPrimitive(anObject(this), hint != NUMBER);
 };
-},{"./_an-object":140,"./_to-primitive":243}],160:[function(require,module,exports){
+},{"./_an-object":207,"./_to-primitive":310}],227:[function(require,module,exports){
 // 7.2.1 RequireObjectCoercible(argument)
 module.exports = function(it){
   if(it == undefined)throw TypeError("Can't call method on  " + it);
   return it;
 };
-},{}],161:[function(require,module,exports){
+},{}],228:[function(require,module,exports){
 // Thank's IE8 for his funny defineProperty
 module.exports = !require('./_fails')(function(){
   return Object.defineProperty({}, 'a', {get: function(){ return 7; }}).a != 7;
 });
-},{"./_fails":167}],162:[function(require,module,exports){
+},{"./_fails":234}],229:[function(require,module,exports){
 var isObject = require('./_is-object')
   , document = require('./_global').document
   // in old IE typeof document.createElement is 'object'
@@ -31051,12 +36134,12 @@ var isObject = require('./_is-object')
 module.exports = function(it){
   return is ? document.createElement(it) : {};
 };
-},{"./_global":171,"./_is-object":182}],163:[function(require,module,exports){
+},{"./_global":238,"./_is-object":249}],230:[function(require,module,exports){
 // IE 8- don't enum bug keys
 module.exports = (
   'constructor,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,toLocaleString,toString,valueOf'
 ).split(',');
-},{}],164:[function(require,module,exports){
+},{}],231:[function(require,module,exports){
 // all enumerable object keys, includes symbols
 var getKeys = require('./_object-keys')
   , gOPS    = require('./_object-gops')
@@ -31072,7 +36155,7 @@ module.exports = function(it){
     while(symbols.length > i)if(isEnum.call(it, key = symbols[i++]))result.push(key);
   } return result;
 };
-},{"./_object-gops":206,"./_object-keys":209,"./_object-pie":210}],165:[function(require,module,exports){
+},{"./_object-gops":273,"./_object-keys":276,"./_object-pie":277}],232:[function(require,module,exports){
 var global    = require('./_global')
   , core      = require('./_core')
   , hide      = require('./_hide')
@@ -31116,7 +36199,7 @@ $export.W = 32;  // wrap
 $export.U = 64;  // safe
 $export.R = 128; // real proto method for `library` 
 module.exports = $export;
-},{"./_core":156,"./_ctx":158,"./_global":171,"./_hide":173,"./_redefine":220}],166:[function(require,module,exports){
+},{"./_core":223,"./_ctx":225,"./_global":238,"./_hide":240,"./_redefine":287}],233:[function(require,module,exports){
 var MATCH = require('./_wks')('match');
 module.exports = function(KEY){
   var re = /./;
@@ -31129,7 +36212,7 @@ module.exports = function(KEY){
     } catch(f){ /* empty */ }
   } return true;
 };
-},{"./_wks":250}],167:[function(require,module,exports){
+},{"./_wks":317}],234:[function(require,module,exports){
 module.exports = function(exec){
   try {
     return !!exec();
@@ -31137,7 +36220,7 @@ module.exports = function(exec){
     return true;
   }
 };
-},{}],168:[function(require,module,exports){
+},{}],235:[function(require,module,exports){
 'use strict';
 var hide     = require('./_hide')
   , redefine = require('./_redefine')
@@ -31166,7 +36249,7 @@ module.exports = function(KEY, length, exec){
     );
   }
 };
-},{"./_defined":160,"./_fails":167,"./_hide":173,"./_redefine":220,"./_wks":250}],169:[function(require,module,exports){
+},{"./_defined":227,"./_fails":234,"./_hide":240,"./_redefine":287,"./_wks":317}],236:[function(require,module,exports){
 'use strict';
 // 21.2.5.3 get RegExp.prototype.flags
 var anObject = require('./_an-object');
@@ -31180,7 +36263,7 @@ module.exports = function(){
   if(that.sticky)     result += 'y';
   return result;
 };
-},{"./_an-object":140}],170:[function(require,module,exports){
+},{"./_an-object":207}],237:[function(require,module,exports){
 var ctx         = require('./_ctx')
   , call        = require('./_iter-call')
   , isArrayIter = require('./_is-array-iter')
@@ -31206,17 +36289,17 @@ var exports = module.exports = function(iterable, entries, fn, that, ITERATOR){
 };
 exports.BREAK  = BREAK;
 exports.RETURN = RETURN;
-},{"./_an-object":140,"./_ctx":158,"./_is-array-iter":179,"./_iter-call":184,"./_to-length":241,"./core.get-iterator-method":251}],171:[function(require,module,exports){
+},{"./_an-object":207,"./_ctx":225,"./_is-array-iter":246,"./_iter-call":251,"./_to-length":308,"./core.get-iterator-method":318}],238:[function(require,module,exports){
 // https://github.com/zloirock/core-js/issues/86#issuecomment-115759028
 var global = module.exports = typeof window != 'undefined' && window.Math == Math
   ? window : typeof self != 'undefined' && self.Math == Math ? self : Function('return this')();
 if(typeof __g == 'number')__g = global; // eslint-disable-line no-undef
-},{}],172:[function(require,module,exports){
+},{}],239:[function(require,module,exports){
 var hasOwnProperty = {}.hasOwnProperty;
 module.exports = function(it, key){
   return hasOwnProperty.call(it, key);
 };
-},{}],173:[function(require,module,exports){
+},{}],240:[function(require,module,exports){
 var dP         = require('./_object-dp')
   , createDesc = require('./_property-desc');
 module.exports = require('./_descriptors') ? function(object, key, value){
@@ -31225,13 +36308,13 @@ module.exports = require('./_descriptors') ? function(object, key, value){
   object[key] = value;
   return object;
 };
-},{"./_descriptors":161,"./_object-dp":200,"./_property-desc":218}],174:[function(require,module,exports){
+},{"./_descriptors":228,"./_object-dp":267,"./_property-desc":285}],241:[function(require,module,exports){
 module.exports = require('./_global').document && document.documentElement;
-},{"./_global":171}],175:[function(require,module,exports){
+},{"./_global":238}],242:[function(require,module,exports){
 module.exports = !require('./_descriptors') && !require('./_fails')(function(){
   return Object.defineProperty(require('./_dom-create')('div'), 'a', {get: function(){ return 7; }}).a != 7;
 });
-},{"./_descriptors":161,"./_dom-create":162,"./_fails":167}],176:[function(require,module,exports){
+},{"./_descriptors":228,"./_dom-create":229,"./_fails":234}],243:[function(require,module,exports){
 var isObject       = require('./_is-object')
   , setPrototypeOf = require('./_set-proto').set;
 module.exports = function(that, target, C){
@@ -31240,7 +36323,7 @@ module.exports = function(that, target, C){
     setPrototypeOf(that, P);
   } return that;
 };
-},{"./_is-object":182,"./_set-proto":223}],177:[function(require,module,exports){
+},{"./_is-object":249,"./_set-proto":290}],244:[function(require,module,exports){
 // fast apply, http://jsperf.lnkit.com/fast-apply/5
 module.exports = function(fn, args, that){
   var un = that === undefined;
@@ -31257,13 +36340,13 @@ module.exports = function(fn, args, that){
                       : fn.call(that, args[0], args[1], args[2], args[3]);
   } return              fn.apply(that, args);
 };
-},{}],178:[function(require,module,exports){
+},{}],245:[function(require,module,exports){
 // fallback for non-array-like ES3 and non-enumerable old V8 strings
 var cof = require('./_cof');
 module.exports = Object('z').propertyIsEnumerable(0) ? Object : function(it){
   return cof(it) == 'String' ? it.split('') : Object(it);
 };
-},{"./_cof":151}],179:[function(require,module,exports){
+},{"./_cof":218}],246:[function(require,module,exports){
 // check on default Array iterator
 var Iterators  = require('./_iterators')
   , ITERATOR   = require('./_wks')('iterator')
@@ -31272,24 +36355,24 @@ var Iterators  = require('./_iterators')
 module.exports = function(it){
   return it !== undefined && (Iterators.Array === it || ArrayProto[ITERATOR] === it);
 };
-},{"./_iterators":189,"./_wks":250}],180:[function(require,module,exports){
+},{"./_iterators":256,"./_wks":317}],247:[function(require,module,exports){
 // 7.2.2 IsArray(argument)
 var cof = require('./_cof');
 module.exports = Array.isArray || function isArray(arg){
   return cof(arg) == 'Array';
 };
-},{"./_cof":151}],181:[function(require,module,exports){
+},{"./_cof":218}],248:[function(require,module,exports){
 // 20.1.2.3 Number.isInteger(number)
 var isObject = require('./_is-object')
   , floor    = Math.floor;
 module.exports = function isInteger(it){
   return !isObject(it) && isFinite(it) && floor(it) === it;
 };
-},{"./_is-object":182}],182:[function(require,module,exports){
+},{"./_is-object":249}],249:[function(require,module,exports){
 module.exports = function(it){
   return typeof it === 'object' ? it !== null : typeof it === 'function';
 };
-},{}],183:[function(require,module,exports){
+},{}],250:[function(require,module,exports){
 // 7.2.8 IsRegExp(argument)
 var isObject = require('./_is-object')
   , cof      = require('./_cof')
@@ -31298,7 +36381,7 @@ module.exports = function(it){
   var isRegExp;
   return isObject(it) && ((isRegExp = it[MATCH]) !== undefined ? !!isRegExp : cof(it) == 'RegExp');
 };
-},{"./_cof":151,"./_is-object":182,"./_wks":250}],184:[function(require,module,exports){
+},{"./_cof":218,"./_is-object":249,"./_wks":317}],251:[function(require,module,exports){
 // call something on iterator step with safe closing on error
 var anObject = require('./_an-object');
 module.exports = function(iterator, fn, value, entries){
@@ -31311,7 +36394,7 @@ module.exports = function(iterator, fn, value, entries){
     throw e;
   }
 };
-},{"./_an-object":140}],185:[function(require,module,exports){
+},{"./_an-object":207}],252:[function(require,module,exports){
 'use strict';
 var create         = require('./_object-create')
   , descriptor     = require('./_property-desc')
@@ -31325,7 +36408,7 @@ module.exports = function(Constructor, NAME, next){
   Constructor.prototype = create(IteratorPrototype, {next: descriptor(1, next)});
   setToStringTag(Constructor, NAME + ' Iterator');
 };
-},{"./_hide":173,"./_object-create":199,"./_property-desc":218,"./_set-to-string-tag":225,"./_wks":250}],186:[function(require,module,exports){
+},{"./_hide":240,"./_object-create":266,"./_property-desc":285,"./_set-to-string-tag":292,"./_wks":317}],253:[function(require,module,exports){
 'use strict';
 var LIBRARY        = require('./_library')
   , $export        = require('./_export')
@@ -31396,7 +36479,7 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCED
   }
   return methods;
 };
-},{"./_export":165,"./_has":172,"./_hide":173,"./_iter-create":185,"./_iterators":189,"./_library":191,"./_object-gpo":207,"./_redefine":220,"./_set-to-string-tag":225,"./_wks":250}],187:[function(require,module,exports){
+},{"./_export":232,"./_has":239,"./_hide":240,"./_iter-create":252,"./_iterators":256,"./_library":258,"./_object-gpo":274,"./_redefine":287,"./_set-to-string-tag":292,"./_wks":317}],254:[function(require,module,exports){
 var ITERATOR     = require('./_wks')('iterator')
   , SAFE_CLOSING = false;
 
@@ -31418,13 +36501,13 @@ module.exports = function(exec, skipClosing){
   } catch(e){ /* empty */ }
   return safe;
 };
-},{"./_wks":250}],188:[function(require,module,exports){
+},{"./_wks":317}],255:[function(require,module,exports){
 module.exports = function(done, value){
   return {value: value, done: !!done};
 };
-},{}],189:[function(require,module,exports){
+},{}],256:[function(require,module,exports){
 module.exports = {};
-},{}],190:[function(require,module,exports){
+},{}],257:[function(require,module,exports){
 var getKeys   = require('./_object-keys')
   , toIObject = require('./_to-iobject');
 module.exports = function(object, el){
@@ -31435,9 +36518,9 @@ module.exports = function(object, el){
     , key;
   while(length > index)if(O[key = keys[index++]] === el)return key;
 };
-},{"./_object-keys":209,"./_to-iobject":240}],191:[function(require,module,exports){
+},{"./_object-keys":276,"./_to-iobject":307}],258:[function(require,module,exports){
 module.exports = false;
-},{}],192:[function(require,module,exports){
+},{}],259:[function(require,module,exports){
 // 20.2.2.14 Math.expm1(x)
 var $expm1 = Math.expm1;
 module.exports = (!$expm1
@@ -31448,17 +36531,17 @@ module.exports = (!$expm1
 ) ? function expm1(x){
   return (x = +x) == 0 ? x : x > -1e-6 && x < 1e-6 ? x + x * x / 2 : Math.exp(x) - 1;
 } : $expm1;
-},{}],193:[function(require,module,exports){
+},{}],260:[function(require,module,exports){
 // 20.2.2.20 Math.log1p(x)
 module.exports = Math.log1p || function log1p(x){
   return (x = +x) > -1e-8 && x < 1e-8 ? x - x * x / 2 : Math.log(1 + x);
 };
-},{}],194:[function(require,module,exports){
+},{}],261:[function(require,module,exports){
 // 20.2.2.28 Math.sign(x)
 module.exports = Math.sign || function sign(x){
   return (x = +x) == 0 || x != x ? x : x < 0 ? -1 : 1;
 };
-},{}],195:[function(require,module,exports){
+},{}],262:[function(require,module,exports){
 var META     = require('./_uid')('meta')
   , isObject = require('./_is-object')
   , has      = require('./_has')
@@ -31512,7 +36595,7 @@ var meta = module.exports = {
   getWeak:  getWeak,
   onFreeze: onFreeze
 };
-},{"./_fails":167,"./_has":172,"./_is-object":182,"./_object-dp":200,"./_uid":247}],196:[function(require,module,exports){
+},{"./_fails":234,"./_has":239,"./_is-object":249,"./_object-dp":267,"./_uid":314}],263:[function(require,module,exports){
 var Map     = require('./es6.map')
   , $export = require('./_export')
   , shared  = require('./_shared')('metadata')
@@ -31564,7 +36647,7 @@ module.exports = {
   key: toMetaKey,
   exp: exp
 };
-},{"./_export":165,"./_shared":227,"./es6.map":282,"./es6.weak-map":388}],197:[function(require,module,exports){
+},{"./_export":232,"./_shared":294,"./es6.map":349,"./es6.weak-map":455}],264:[function(require,module,exports){
 var global    = require('./_global')
   , macrotask = require('./_task').set
   , Observer  = global.MutationObserver || global.WebKitMutationObserver
@@ -31633,7 +36716,7 @@ module.exports = function(){
     } last = task;
   };
 };
-},{"./_cof":151,"./_global":171,"./_task":237}],198:[function(require,module,exports){
+},{"./_cof":218,"./_global":238,"./_task":304}],265:[function(require,module,exports){
 'use strict';
 // 19.1.2.1 Object.assign(target, source, ...)
 var getKeys  = require('./_object-keys')
@@ -31667,7 +36750,7 @@ module.exports = !$assign || require('./_fails')(function(){
     while(length > j)if(isEnum.call(S, key = keys[j++]))T[key] = S[key];
   } return T;
 } : $assign;
-},{"./_fails":167,"./_iobject":178,"./_object-gops":206,"./_object-keys":209,"./_object-pie":210,"./_to-object":242}],199:[function(require,module,exports){
+},{"./_fails":234,"./_iobject":245,"./_object-gops":273,"./_object-keys":276,"./_object-pie":277,"./_to-object":309}],266:[function(require,module,exports){
 // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
 var anObject    = require('./_an-object')
   , dPs         = require('./_object-dps')
@@ -31710,7 +36793,7 @@ module.exports = Object.create || function create(O, Properties){
   return Properties === undefined ? result : dPs(result, Properties);
 };
 
-},{"./_an-object":140,"./_dom-create":162,"./_enum-bug-keys":163,"./_html":174,"./_object-dps":201,"./_shared-key":226}],200:[function(require,module,exports){
+},{"./_an-object":207,"./_dom-create":229,"./_enum-bug-keys":230,"./_html":241,"./_object-dps":268,"./_shared-key":293}],267:[function(require,module,exports){
 var anObject       = require('./_an-object')
   , IE8_DOM_DEFINE = require('./_ie8-dom-define')
   , toPrimitive    = require('./_to-primitive')
@@ -31727,7 +36810,7 @@ exports.f = require('./_descriptors') ? Object.defineProperty : function defineP
   if('value' in Attributes)O[P] = Attributes.value;
   return O;
 };
-},{"./_an-object":140,"./_descriptors":161,"./_ie8-dom-define":175,"./_to-primitive":243}],201:[function(require,module,exports){
+},{"./_an-object":207,"./_descriptors":228,"./_ie8-dom-define":242,"./_to-primitive":310}],268:[function(require,module,exports){
 var dP       = require('./_object-dp')
   , anObject = require('./_an-object')
   , getKeys  = require('./_object-keys');
@@ -31741,7 +36824,7 @@ module.exports = require('./_descriptors') ? Object.defineProperties : function 
   while(length > i)dP.f(O, P = keys[i++], Properties[P]);
   return O;
 };
-},{"./_an-object":140,"./_descriptors":161,"./_object-dp":200,"./_object-keys":209}],202:[function(require,module,exports){
+},{"./_an-object":207,"./_descriptors":228,"./_object-dp":267,"./_object-keys":276}],269:[function(require,module,exports){
 // Forced replacement prototype accessors methods
 module.exports = require('./_library')|| !require('./_fails')(function(){
   var K = Math.random();
@@ -31749,7 +36832,7 @@ module.exports = require('./_library')|| !require('./_fails')(function(){
   __defineSetter__.call(null, K, function(){ /* empty */});
   delete require('./_global')[K];
 });
-},{"./_fails":167,"./_global":171,"./_library":191}],203:[function(require,module,exports){
+},{"./_fails":234,"./_global":238,"./_library":258}],270:[function(require,module,exports){
 var pIE            = require('./_object-pie')
   , createDesc     = require('./_property-desc')
   , toIObject      = require('./_to-iobject')
@@ -31766,7 +36849,7 @@ exports.f = require('./_descriptors') ? gOPD : function getOwnPropertyDescriptor
   } catch(e){ /* empty */ }
   if(has(O, P))return createDesc(!pIE.f.call(O, P), O[P]);
 };
-},{"./_descriptors":161,"./_has":172,"./_ie8-dom-define":175,"./_object-pie":210,"./_property-desc":218,"./_to-iobject":240,"./_to-primitive":243}],204:[function(require,module,exports){
+},{"./_descriptors":228,"./_has":239,"./_ie8-dom-define":242,"./_object-pie":277,"./_property-desc":285,"./_to-iobject":307,"./_to-primitive":310}],271:[function(require,module,exports){
 // fallback for IE11 buggy Object.getOwnPropertyNames with iframe and window
 var toIObject = require('./_to-iobject')
   , gOPN      = require('./_object-gopn').f
@@ -31787,7 +36870,7 @@ module.exports.f = function getOwnPropertyNames(it){
   return windowNames && toString.call(it) == '[object Window]' ? getWindowNames(it) : gOPN(toIObject(it));
 };
 
-},{"./_object-gopn":205,"./_to-iobject":240}],205:[function(require,module,exports){
+},{"./_object-gopn":272,"./_to-iobject":307}],272:[function(require,module,exports){
 // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
 var $keys      = require('./_object-keys-internal')
   , hiddenKeys = require('./_enum-bug-keys').concat('length', 'prototype');
@@ -31795,9 +36878,9 @@ var $keys      = require('./_object-keys-internal')
 exports.f = Object.getOwnPropertyNames || function getOwnPropertyNames(O){
   return $keys(O, hiddenKeys);
 };
-},{"./_enum-bug-keys":163,"./_object-keys-internal":208}],206:[function(require,module,exports){
+},{"./_enum-bug-keys":230,"./_object-keys-internal":275}],273:[function(require,module,exports){
 exports.f = Object.getOwnPropertySymbols;
-},{}],207:[function(require,module,exports){
+},{}],274:[function(require,module,exports){
 // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
 var has         = require('./_has')
   , toObject    = require('./_to-object')
@@ -31811,7 +36894,7 @@ module.exports = Object.getPrototypeOf || function(O){
     return O.constructor.prototype;
   } return O instanceof Object ? ObjectProto : null;
 };
-},{"./_has":172,"./_shared-key":226,"./_to-object":242}],208:[function(require,module,exports){
+},{"./_has":239,"./_shared-key":293,"./_to-object":309}],275:[function(require,module,exports){
 var has          = require('./_has')
   , toIObject    = require('./_to-iobject')
   , arrayIndexOf = require('./_array-includes')(false)
@@ -31829,7 +36912,7 @@ module.exports = function(object, names){
   }
   return result;
 };
-},{"./_array-includes":144,"./_has":172,"./_shared-key":226,"./_to-iobject":240}],209:[function(require,module,exports){
+},{"./_array-includes":211,"./_has":239,"./_shared-key":293,"./_to-iobject":307}],276:[function(require,module,exports){
 // 19.1.2.14 / 15.2.3.14 Object.keys(O)
 var $keys       = require('./_object-keys-internal')
   , enumBugKeys = require('./_enum-bug-keys');
@@ -31837,9 +36920,9 @@ var $keys       = require('./_object-keys-internal')
 module.exports = Object.keys || function keys(O){
   return $keys(O, enumBugKeys);
 };
-},{"./_enum-bug-keys":163,"./_object-keys-internal":208}],210:[function(require,module,exports){
+},{"./_enum-bug-keys":230,"./_object-keys-internal":275}],277:[function(require,module,exports){
 exports.f = {}.propertyIsEnumerable;
-},{}],211:[function(require,module,exports){
+},{}],278:[function(require,module,exports){
 // most Object methods by ES6 should accept primitives
 var $export = require('./_export')
   , core    = require('./_core')
@@ -31850,7 +36933,7 @@ module.exports = function(KEY, exec){
   exp[KEY] = exec(fn);
   $export($export.S + $export.F * fails(function(){ fn(1); }), 'Object', exp);
 };
-},{"./_core":156,"./_export":165,"./_fails":167}],212:[function(require,module,exports){
+},{"./_core":223,"./_export":232,"./_fails":234}],279:[function(require,module,exports){
 var getKeys   = require('./_object-keys')
   , toIObject = require('./_to-iobject')
   , isEnum    = require('./_object-pie').f;
@@ -31867,7 +36950,7 @@ module.exports = function(isEntries){
     } return result;
   };
 };
-},{"./_object-keys":209,"./_object-pie":210,"./_to-iobject":240}],213:[function(require,module,exports){
+},{"./_object-keys":276,"./_object-pie":277,"./_to-iobject":307}],280:[function(require,module,exports){
 // all object keys, includes non-enumerable and symbols
 var gOPN     = require('./_object-gopn')
   , gOPS     = require('./_object-gops')
@@ -31878,7 +36961,7 @@ module.exports = Reflect && Reflect.ownKeys || function ownKeys(it){
     , getSymbols = gOPS.f;
   return getSymbols ? keys.concat(getSymbols(it)) : keys;
 };
-},{"./_an-object":140,"./_global":171,"./_object-gopn":205,"./_object-gops":206}],214:[function(require,module,exports){
+},{"./_an-object":207,"./_global":238,"./_object-gopn":272,"./_object-gops":273}],281:[function(require,module,exports){
 var $parseFloat = require('./_global').parseFloat
   , $trim       = require('./_string-trim').trim;
 
@@ -31887,7 +36970,7 @@ module.exports = 1 / $parseFloat(require('./_string-ws') + '-0') !== -Infinity ?
     , result = $parseFloat(string);
   return result === 0 && string.charAt(0) == '-' ? -0 : result;
 } : $parseFloat;
-},{"./_global":171,"./_string-trim":235,"./_string-ws":236}],215:[function(require,module,exports){
+},{"./_global":238,"./_string-trim":302,"./_string-ws":303}],282:[function(require,module,exports){
 var $parseInt = require('./_global').parseInt
   , $trim     = require('./_string-trim').trim
   , ws        = require('./_string-ws')
@@ -31897,7 +36980,7 @@ module.exports = $parseInt(ws + '08') !== 8 || $parseInt(ws + '0x16') !== 22 ? f
   var string = $trim(String(str), 3);
   return $parseInt(string, (radix >>> 0) || (hex.test(string) ? 16 : 10));
 } : $parseInt;
-},{"./_global":171,"./_string-trim":235,"./_string-ws":236}],216:[function(require,module,exports){
+},{"./_global":238,"./_string-trim":302,"./_string-ws":303}],283:[function(require,module,exports){
 'use strict';
 var path      = require('./_path')
   , invoke    = require('./_invoke')
@@ -31921,9 +37004,9 @@ module.exports = function(/* ...pargs */){
     return invoke(fn, args, that);
   };
 };
-},{"./_a-function":136,"./_invoke":177,"./_path":217}],217:[function(require,module,exports){
+},{"./_a-function":203,"./_invoke":244,"./_path":284}],284:[function(require,module,exports){
 module.exports = require('./_global');
-},{"./_global":171}],218:[function(require,module,exports){
+},{"./_global":238}],285:[function(require,module,exports){
 module.exports = function(bitmap, value){
   return {
     enumerable  : !(bitmap & 1),
@@ -31932,13 +37015,13 @@ module.exports = function(bitmap, value){
     value       : value
   };
 };
-},{}],219:[function(require,module,exports){
+},{}],286:[function(require,module,exports){
 var redefine = require('./_redefine');
 module.exports = function(target, src, safe){
   for(var key in src)redefine(target, key, src[key], safe);
   return target;
 };
-},{"./_redefine":220}],220:[function(require,module,exports){
+},{"./_redefine":287}],287:[function(require,module,exports){
 var global    = require('./_global')
   , hide      = require('./_hide')
   , has       = require('./_has')
@@ -31971,7 +37054,7 @@ require('./_core').inspectSource = function(it){
 })(Function.prototype, TO_STRING, function toString(){
   return typeof this == 'function' && this[SRC] || $toString.call(this);
 });
-},{"./_core":156,"./_global":171,"./_has":172,"./_hide":173,"./_uid":247}],221:[function(require,module,exports){
+},{"./_core":223,"./_global":238,"./_has":239,"./_hide":240,"./_uid":314}],288:[function(require,module,exports){
 module.exports = function(regExp, replace){
   var replacer = replace === Object(replace) ? function(part){
     return replace[part];
@@ -31980,12 +37063,12 @@ module.exports = function(regExp, replace){
     return String(it).replace(regExp, replacer);
   };
 };
-},{}],222:[function(require,module,exports){
+},{}],289:[function(require,module,exports){
 // 7.2.9 SameValue(x, y)
 module.exports = Object.is || function is(x, y){
   return x === y ? x !== 0 || 1 / x === 1 / y : x != x && y != y;
 };
-},{}],223:[function(require,module,exports){
+},{}],290:[function(require,module,exports){
 // Works with __proto__ only. Old v8 can't work with null proto objects.
 /* eslint-disable no-proto */
 var isObject = require('./_is-object')
@@ -32011,7 +37094,7 @@ module.exports = {
     }({}, false) : undefined),
   check: check
 };
-},{"./_an-object":140,"./_ctx":158,"./_is-object":182,"./_object-gopd":203}],224:[function(require,module,exports){
+},{"./_an-object":207,"./_ctx":225,"./_is-object":249,"./_object-gopd":270}],291:[function(require,module,exports){
 'use strict';
 var global      = require('./_global')
   , dP          = require('./_object-dp')
@@ -32025,7 +37108,7 @@ module.exports = function(KEY){
     get: function(){ return this; }
   });
 };
-},{"./_descriptors":161,"./_global":171,"./_object-dp":200,"./_wks":250}],225:[function(require,module,exports){
+},{"./_descriptors":228,"./_global":238,"./_object-dp":267,"./_wks":317}],292:[function(require,module,exports){
 var def = require('./_object-dp').f
   , has = require('./_has')
   , TAG = require('./_wks')('toStringTag');
@@ -32033,20 +37116,20 @@ var def = require('./_object-dp').f
 module.exports = function(it, tag, stat){
   if(it && !has(it = stat ? it : it.prototype, TAG))def(it, TAG, {configurable: true, value: tag});
 };
-},{"./_has":172,"./_object-dp":200,"./_wks":250}],226:[function(require,module,exports){
+},{"./_has":239,"./_object-dp":267,"./_wks":317}],293:[function(require,module,exports){
 var shared = require('./_shared')('keys')
   , uid    = require('./_uid');
 module.exports = function(key){
   return shared[key] || (shared[key] = uid(key));
 };
-},{"./_shared":227,"./_uid":247}],227:[function(require,module,exports){
+},{"./_shared":294,"./_uid":314}],294:[function(require,module,exports){
 var global = require('./_global')
   , SHARED = '__core-js_shared__'
   , store  = global[SHARED] || (global[SHARED] = {});
 module.exports = function(key){
   return store[key] || (store[key] = {});
 };
-},{"./_global":171}],228:[function(require,module,exports){
+},{"./_global":238}],295:[function(require,module,exports){
 // 7.3.20 SpeciesConstructor(O, defaultConstructor)
 var anObject  = require('./_an-object')
   , aFunction = require('./_a-function')
@@ -32055,7 +37138,7 @@ module.exports = function(O, D){
   var C = anObject(O).constructor, S;
   return C === undefined || (S = anObject(C)[SPECIES]) == undefined ? D : aFunction(S);
 };
-},{"./_a-function":136,"./_an-object":140,"./_wks":250}],229:[function(require,module,exports){
+},{"./_a-function":203,"./_an-object":207,"./_wks":317}],296:[function(require,module,exports){
 var fails = require('./_fails');
 
 module.exports = function(method, arg){
@@ -32063,7 +37146,7 @@ module.exports = function(method, arg){
     arg ? method.call(null, function(){}, 1) : method.call(null);
   });
 };
-},{"./_fails":167}],230:[function(require,module,exports){
+},{"./_fails":234}],297:[function(require,module,exports){
 var toInteger = require('./_to-integer')
   , defined   = require('./_defined');
 // true  -> String#at
@@ -32081,7 +37164,7 @@ module.exports = function(TO_STRING){
       : TO_STRING ? s.slice(i, i + 2) : (a - 0xd800 << 10) + (b - 0xdc00) + 0x10000;
   };
 };
-},{"./_defined":160,"./_to-integer":239}],231:[function(require,module,exports){
+},{"./_defined":227,"./_to-integer":306}],298:[function(require,module,exports){
 // helper for String#{startsWith, endsWith, includes}
 var isRegExp = require('./_is-regexp')
   , defined  = require('./_defined');
@@ -32090,7 +37173,7 @@ module.exports = function(that, searchString, NAME){
   if(isRegExp(searchString))throw TypeError('String#' + NAME + " doesn't accept regex!");
   return String(defined(that));
 };
-},{"./_defined":160,"./_is-regexp":183}],232:[function(require,module,exports){
+},{"./_defined":227,"./_is-regexp":250}],299:[function(require,module,exports){
 var $export = require('./_export')
   , fails   = require('./_fails')
   , defined = require('./_defined')
@@ -32110,7 +37193,7 @@ module.exports = function(NAME, exec){
     return test !== test.toLowerCase() || test.split('"').length > 3;
   }), 'String', O);
 };
-},{"./_defined":160,"./_export":165,"./_fails":167}],233:[function(require,module,exports){
+},{"./_defined":227,"./_export":232,"./_fails":234}],300:[function(require,module,exports){
 // https://github.com/tc39/proposal-string-pad-start-end
 var toLength = require('./_to-length')
   , repeat   = require('./_string-repeat')
@@ -32128,7 +37211,7 @@ module.exports = function(that, maxLength, fillString, left){
   return left ? stringFiller + S : S + stringFiller;
 };
 
-},{"./_defined":160,"./_string-repeat":234,"./_to-length":241}],234:[function(require,module,exports){
+},{"./_defined":227,"./_string-repeat":301,"./_to-length":308}],301:[function(require,module,exports){
 'use strict';
 var toInteger = require('./_to-integer')
   , defined   = require('./_defined');
@@ -32141,7 +37224,7 @@ module.exports = function repeat(count){
   for(;n > 0; (n >>>= 1) && (str += str))if(n & 1)res += str;
   return res;
 };
-},{"./_defined":160,"./_to-integer":239}],235:[function(require,module,exports){
+},{"./_defined":227,"./_to-integer":306}],302:[function(require,module,exports){
 var $export = require('./_export')
   , defined = require('./_defined')
   , fails   = require('./_fails')
@@ -32172,10 +37255,10 @@ var trim = exporter.trim = function(string, TYPE){
 };
 
 module.exports = exporter;
-},{"./_defined":160,"./_export":165,"./_fails":167,"./_string-ws":236}],236:[function(require,module,exports){
+},{"./_defined":227,"./_export":232,"./_fails":234,"./_string-ws":303}],303:[function(require,module,exports){
 module.exports = '\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003' +
   '\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF';
-},{}],237:[function(require,module,exports){
+},{}],304:[function(require,module,exports){
 var ctx                = require('./_ctx')
   , invoke             = require('./_invoke')
   , html               = require('./_html')
@@ -32251,7 +37334,7 @@ module.exports = {
   set:   setTask,
   clear: clearTask
 };
-},{"./_cof":151,"./_ctx":158,"./_dom-create":162,"./_global":171,"./_html":174,"./_invoke":177}],238:[function(require,module,exports){
+},{"./_cof":218,"./_ctx":225,"./_dom-create":229,"./_global":238,"./_html":241,"./_invoke":244}],305:[function(require,module,exports){
 var toInteger = require('./_to-integer')
   , max       = Math.max
   , min       = Math.min;
@@ -32259,34 +37342,34 @@ module.exports = function(index, length){
   index = toInteger(index);
   return index < 0 ? max(index + length, 0) : min(index, length);
 };
-},{"./_to-integer":239}],239:[function(require,module,exports){
+},{"./_to-integer":306}],306:[function(require,module,exports){
 // 7.1.4 ToInteger
 var ceil  = Math.ceil
   , floor = Math.floor;
 module.exports = function(it){
   return isNaN(it = +it) ? 0 : (it > 0 ? floor : ceil)(it);
 };
-},{}],240:[function(require,module,exports){
+},{}],307:[function(require,module,exports){
 // to indexed object, toObject with fallback for non-array-like ES3 strings
 var IObject = require('./_iobject')
   , defined = require('./_defined');
 module.exports = function(it){
   return IObject(defined(it));
 };
-},{"./_defined":160,"./_iobject":178}],241:[function(require,module,exports){
+},{"./_defined":227,"./_iobject":245}],308:[function(require,module,exports){
 // 7.1.15 ToLength
 var toInteger = require('./_to-integer')
   , min       = Math.min;
 module.exports = function(it){
   return it > 0 ? min(toInteger(it), 0x1fffffffffffff) : 0; // pow(2, 53) - 1 == 9007199254740991
 };
-},{"./_to-integer":239}],242:[function(require,module,exports){
+},{"./_to-integer":306}],309:[function(require,module,exports){
 // 7.1.13 ToObject(argument)
 var defined = require('./_defined');
 module.exports = function(it){
   return Object(defined(it));
 };
-},{"./_defined":160}],243:[function(require,module,exports){
+},{"./_defined":227}],310:[function(require,module,exports){
 // 7.1.1 ToPrimitive(input [, PreferredType])
 var isObject = require('./_is-object');
 // instead of the ES6 spec version, we didn't implement @@toPrimitive case
@@ -32299,7 +37382,7 @@ module.exports = function(it, S){
   if(!S && typeof (fn = it.toString) == 'function' && !isObject(val = fn.call(it)))return val;
   throw TypeError("Can't convert object to primitive value");
 };
-},{"./_is-object":182}],244:[function(require,module,exports){
+},{"./_is-object":249}],311:[function(require,module,exports){
 'use strict';
 if(require('./_descriptors')){
   var LIBRARY             = require('./_library')
@@ -32779,7 +37862,7 @@ if(require('./_descriptors')){
     if(!LIBRARY && !CORRECT_ITER_NAME)hide(TypedArrayPrototype, ITERATOR, $iterator);
   };
 } else module.exports = function(){ /* empty */ };
-},{"./_an-instance":139,"./_array-copy-within":141,"./_array-fill":142,"./_array-includes":144,"./_array-methods":145,"./_classof":150,"./_ctx":158,"./_descriptors":161,"./_export":165,"./_fails":167,"./_global":171,"./_has":172,"./_hide":173,"./_is-array-iter":179,"./_is-object":182,"./_iter-detect":187,"./_iterators":189,"./_library":191,"./_object-create":199,"./_object-dp":200,"./_object-gopd":203,"./_object-gopn":205,"./_object-gpo":207,"./_property-desc":218,"./_redefine-all":219,"./_same-value":222,"./_set-species":224,"./_species-constructor":228,"./_to-index":238,"./_to-integer":239,"./_to-length":241,"./_to-object":242,"./_to-primitive":243,"./_typed":246,"./_typed-buffer":245,"./_uid":247,"./_wks":250,"./core.get-iterator-method":251,"./es6.array.iterator":263}],245:[function(require,module,exports){
+},{"./_an-instance":206,"./_array-copy-within":208,"./_array-fill":209,"./_array-includes":211,"./_array-methods":212,"./_classof":217,"./_ctx":225,"./_descriptors":228,"./_export":232,"./_fails":234,"./_global":238,"./_has":239,"./_hide":240,"./_is-array-iter":246,"./_is-object":249,"./_iter-detect":254,"./_iterators":256,"./_library":258,"./_object-create":266,"./_object-dp":267,"./_object-gopd":270,"./_object-gopn":272,"./_object-gpo":274,"./_property-desc":285,"./_redefine-all":286,"./_same-value":289,"./_set-species":291,"./_species-constructor":295,"./_to-index":305,"./_to-integer":306,"./_to-length":308,"./_to-object":309,"./_to-primitive":310,"./_typed":313,"./_typed-buffer":312,"./_uid":314,"./_wks":317,"./core.get-iterator-method":318,"./es6.array.iterator":330}],312:[function(require,module,exports){
 'use strict';
 var global         = require('./_global')
   , DESCRIPTORS    = require('./_descriptors')
@@ -33053,7 +38136,7 @@ setToStringTag($DataView, DATA_VIEW);
 hide($DataView[PROTOTYPE], $typed.VIEW, true);
 exports[ARRAY_BUFFER] = $ArrayBuffer;
 exports[DATA_VIEW] = $DataView;
-},{"./_an-instance":139,"./_array-fill":142,"./_descriptors":161,"./_fails":167,"./_global":171,"./_hide":173,"./_library":191,"./_object-dp":200,"./_object-gopn":205,"./_redefine-all":219,"./_set-to-string-tag":225,"./_to-integer":239,"./_to-length":241,"./_typed":246}],246:[function(require,module,exports){
+},{"./_an-instance":206,"./_array-fill":209,"./_descriptors":228,"./_fails":234,"./_global":238,"./_hide":240,"./_library":258,"./_object-dp":267,"./_object-gopn":272,"./_redefine-all":286,"./_set-to-string-tag":292,"./_to-integer":306,"./_to-length":308,"./_typed":313}],313:[function(require,module,exports){
 var global = require('./_global')
   , hide   = require('./_hide')
   , uid    = require('./_uid')
@@ -33080,13 +38163,13 @@ module.exports = {
   TYPED:  TYPED,
   VIEW:   VIEW
 };
-},{"./_global":171,"./_hide":173,"./_uid":247}],247:[function(require,module,exports){
+},{"./_global":238,"./_hide":240,"./_uid":314}],314:[function(require,module,exports){
 var id = 0
   , px = Math.random();
 module.exports = function(key){
   return 'Symbol('.concat(key === undefined ? '' : key, ')_', (++id + px).toString(36));
 };
-},{}],248:[function(require,module,exports){
+},{}],315:[function(require,module,exports){
 var global         = require('./_global')
   , core           = require('./_core')
   , LIBRARY        = require('./_library')
@@ -33096,9 +38179,9 @@ module.exports = function(name){
   var $Symbol = core.Symbol || (core.Symbol = LIBRARY ? {} : global.Symbol || {});
   if(name.charAt(0) != '_' && !(name in $Symbol))defineProperty($Symbol, name, {value: wksExt.f(name)});
 };
-},{"./_core":156,"./_global":171,"./_library":191,"./_object-dp":200,"./_wks-ext":249}],249:[function(require,module,exports){
+},{"./_core":223,"./_global":238,"./_library":258,"./_object-dp":267,"./_wks-ext":316}],316:[function(require,module,exports){
 exports.f = require('./_wks');
-},{"./_wks":250}],250:[function(require,module,exports){
+},{"./_wks":317}],317:[function(require,module,exports){
 var store      = require('./_shared')('wks')
   , uid        = require('./_uid')
   , Symbol     = require('./_global').Symbol
@@ -33110,7 +38193,7 @@ var $exports = module.exports = function(name){
 };
 
 $exports.store = store;
-},{"./_global":171,"./_shared":227,"./_uid":247}],251:[function(require,module,exports){
+},{"./_global":238,"./_shared":294,"./_uid":314}],318:[function(require,module,exports){
 var classof   = require('./_classof')
   , ITERATOR  = require('./_wks')('iterator')
   , Iterators = require('./_iterators');
@@ -33119,21 +38202,21 @@ module.exports = require('./_core').getIteratorMethod = function(it){
     || it['@@iterator']
     || Iterators[classof(it)];
 };
-},{"./_classof":150,"./_core":156,"./_iterators":189,"./_wks":250}],252:[function(require,module,exports){
+},{"./_classof":217,"./_core":223,"./_iterators":256,"./_wks":317}],319:[function(require,module,exports){
 // https://github.com/benjamingr/RexExp.escape
 var $export = require('./_export')
   , $re     = require('./_replacer')(/[\\^$*+?.()|[\]{}]/g, '\\$&');
 
 $export($export.S, 'RegExp', {escape: function escape(it){ return $re(it); }});
 
-},{"./_export":165,"./_replacer":221}],253:[function(require,module,exports){
+},{"./_export":232,"./_replacer":288}],320:[function(require,module,exports){
 // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
 var $export = require('./_export');
 
 $export($export.P, 'Array', {copyWithin: require('./_array-copy-within')});
 
 require('./_add-to-unscopables')('copyWithin');
-},{"./_add-to-unscopables":138,"./_array-copy-within":141,"./_export":165}],254:[function(require,module,exports){
+},{"./_add-to-unscopables":205,"./_array-copy-within":208,"./_export":232}],321:[function(require,module,exports){
 'use strict';
 var $export = require('./_export')
   , $every  = require('./_array-methods')(4);
@@ -33144,14 +38227,14 @@ $export($export.P + $export.F * !require('./_strict-method')([].every, true), 'A
     return $every(this, callbackfn, arguments[1]);
   }
 });
-},{"./_array-methods":145,"./_export":165,"./_strict-method":229}],255:[function(require,module,exports){
+},{"./_array-methods":212,"./_export":232,"./_strict-method":296}],322:[function(require,module,exports){
 // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
 var $export = require('./_export');
 
 $export($export.P, 'Array', {fill: require('./_array-fill')});
 
 require('./_add-to-unscopables')('fill');
-},{"./_add-to-unscopables":138,"./_array-fill":142,"./_export":165}],256:[function(require,module,exports){
+},{"./_add-to-unscopables":205,"./_array-fill":209,"./_export":232}],323:[function(require,module,exports){
 'use strict';
 var $export = require('./_export')
   , $filter = require('./_array-methods')(2);
@@ -33162,7 +38245,7 @@ $export($export.P + $export.F * !require('./_strict-method')([].filter, true), '
     return $filter(this, callbackfn, arguments[1]);
   }
 });
-},{"./_array-methods":145,"./_export":165,"./_strict-method":229}],257:[function(require,module,exports){
+},{"./_array-methods":212,"./_export":232,"./_strict-method":296}],324:[function(require,module,exports){
 'use strict';
 // 22.1.3.9 Array.prototype.findIndex(predicate, thisArg = undefined)
 var $export = require('./_export')
@@ -33177,7 +38260,7 @@ $export($export.P + $export.F * forced, 'Array', {
   }
 });
 require('./_add-to-unscopables')(KEY);
-},{"./_add-to-unscopables":138,"./_array-methods":145,"./_export":165}],258:[function(require,module,exports){
+},{"./_add-to-unscopables":205,"./_array-methods":212,"./_export":232}],325:[function(require,module,exports){
 'use strict';
 // 22.1.3.8 Array.prototype.find(predicate, thisArg = undefined)
 var $export = require('./_export')
@@ -33192,7 +38275,7 @@ $export($export.P + $export.F * forced, 'Array', {
   }
 });
 require('./_add-to-unscopables')(KEY);
-},{"./_add-to-unscopables":138,"./_array-methods":145,"./_export":165}],259:[function(require,module,exports){
+},{"./_add-to-unscopables":205,"./_array-methods":212,"./_export":232}],326:[function(require,module,exports){
 'use strict';
 var $export  = require('./_export')
   , $forEach = require('./_array-methods')(0)
@@ -33204,7 +38287,7 @@ $export($export.P + $export.F * !STRICT, 'Array', {
     return $forEach(this, callbackfn, arguments[1]);
   }
 });
-},{"./_array-methods":145,"./_export":165,"./_strict-method":229}],260:[function(require,module,exports){
+},{"./_array-methods":212,"./_export":232,"./_strict-method":296}],327:[function(require,module,exports){
 'use strict';
 var ctx            = require('./_ctx')
   , $export        = require('./_export')
@@ -33243,7 +38326,7 @@ $export($export.S + $export.F * !require('./_iter-detect')(function(iter){ Array
   }
 });
 
-},{"./_create-property":157,"./_ctx":158,"./_export":165,"./_is-array-iter":179,"./_iter-call":184,"./_iter-detect":187,"./_to-length":241,"./_to-object":242,"./core.get-iterator-method":251}],261:[function(require,module,exports){
+},{"./_create-property":224,"./_ctx":225,"./_export":232,"./_is-array-iter":246,"./_iter-call":251,"./_iter-detect":254,"./_to-length":308,"./_to-object":309,"./core.get-iterator-method":318}],328:[function(require,module,exports){
 'use strict';
 var $export       = require('./_export')
   , $indexOf      = require('./_array-includes')(false)
@@ -33259,12 +38342,12 @@ $export($export.P + $export.F * (NEGATIVE_ZERO || !require('./_strict-method')($
       : $indexOf(this, searchElement, arguments[1]);
   }
 });
-},{"./_array-includes":144,"./_export":165,"./_strict-method":229}],262:[function(require,module,exports){
+},{"./_array-includes":211,"./_export":232,"./_strict-method":296}],329:[function(require,module,exports){
 // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
 var $export = require('./_export');
 
 $export($export.S, 'Array', {isArray: require('./_is-array')});
-},{"./_export":165,"./_is-array":180}],263:[function(require,module,exports){
+},{"./_export":232,"./_is-array":247}],330:[function(require,module,exports){
 'use strict';
 var addToUnscopables = require('./_add-to-unscopables')
   , step             = require('./_iter-step')
@@ -33299,7 +38382,7 @@ Iterators.Arguments = Iterators.Array;
 addToUnscopables('keys');
 addToUnscopables('values');
 addToUnscopables('entries');
-},{"./_add-to-unscopables":138,"./_iter-define":186,"./_iter-step":188,"./_iterators":189,"./_to-iobject":240}],264:[function(require,module,exports){
+},{"./_add-to-unscopables":205,"./_iter-define":253,"./_iter-step":255,"./_iterators":256,"./_to-iobject":307}],331:[function(require,module,exports){
 'use strict';
 // 22.1.3.13 Array.prototype.join(separator)
 var $export   = require('./_export')
@@ -33312,7 +38395,7 @@ $export($export.P + $export.F * (require('./_iobject') != Object || !require('./
     return arrayJoin.call(toIObject(this), separator === undefined ? ',' : separator);
   }
 });
-},{"./_export":165,"./_iobject":178,"./_strict-method":229,"./_to-iobject":240}],265:[function(require,module,exports){
+},{"./_export":232,"./_iobject":245,"./_strict-method":296,"./_to-iobject":307}],332:[function(require,module,exports){
 'use strict';
 var $export       = require('./_export')
   , toIObject     = require('./_to-iobject')
@@ -33335,7 +38418,7 @@ $export($export.P + $export.F * (NEGATIVE_ZERO || !require('./_strict-method')($
     return -1;
   }
 });
-},{"./_export":165,"./_strict-method":229,"./_to-integer":239,"./_to-iobject":240,"./_to-length":241}],266:[function(require,module,exports){
+},{"./_export":232,"./_strict-method":296,"./_to-integer":306,"./_to-iobject":307,"./_to-length":308}],333:[function(require,module,exports){
 'use strict';
 var $export = require('./_export')
   , $map    = require('./_array-methods')(1);
@@ -33346,7 +38429,7 @@ $export($export.P + $export.F * !require('./_strict-method')([].map, true), 'Arr
     return $map(this, callbackfn, arguments[1]);
   }
 });
-},{"./_array-methods":145,"./_export":165,"./_strict-method":229}],267:[function(require,module,exports){
+},{"./_array-methods":212,"./_export":232,"./_strict-method":296}],334:[function(require,module,exports){
 'use strict';
 var $export        = require('./_export')
   , createProperty = require('./_create-property');
@@ -33366,7 +38449,7 @@ $export($export.S + $export.F * require('./_fails')(function(){
     return result;
   }
 });
-},{"./_create-property":157,"./_export":165,"./_fails":167}],268:[function(require,module,exports){
+},{"./_create-property":224,"./_export":232,"./_fails":234}],335:[function(require,module,exports){
 'use strict';
 var $export = require('./_export')
   , $reduce = require('./_array-reduce');
@@ -33377,7 +38460,7 @@ $export($export.P + $export.F * !require('./_strict-method')([].reduceRight, tru
     return $reduce(this, callbackfn, arguments.length, arguments[1], true);
   }
 });
-},{"./_array-reduce":146,"./_export":165,"./_strict-method":229}],269:[function(require,module,exports){
+},{"./_array-reduce":213,"./_export":232,"./_strict-method":296}],336:[function(require,module,exports){
 'use strict';
 var $export = require('./_export')
   , $reduce = require('./_array-reduce');
@@ -33388,7 +38471,7 @@ $export($export.P + $export.F * !require('./_strict-method')([].reduce, true), '
     return $reduce(this, callbackfn, arguments.length, arguments[1], false);
   }
 });
-},{"./_array-reduce":146,"./_export":165,"./_strict-method":229}],270:[function(require,module,exports){
+},{"./_array-reduce":213,"./_export":232,"./_strict-method":296}],337:[function(require,module,exports){
 'use strict';
 var $export    = require('./_export')
   , html       = require('./_html')
@@ -33417,7 +38500,7 @@ $export($export.P + $export.F * require('./_fails')(function(){
     return cloned;
   }
 });
-},{"./_cof":151,"./_export":165,"./_fails":167,"./_html":174,"./_to-index":238,"./_to-length":241}],271:[function(require,module,exports){
+},{"./_cof":218,"./_export":232,"./_fails":234,"./_html":241,"./_to-index":305,"./_to-length":308}],338:[function(require,module,exports){
 'use strict';
 var $export = require('./_export')
   , $some   = require('./_array-methods')(3);
@@ -33428,7 +38511,7 @@ $export($export.P + $export.F * !require('./_strict-method')([].some, true), 'Ar
     return $some(this, callbackfn, arguments[1]);
   }
 });
-},{"./_array-methods":145,"./_export":165,"./_strict-method":229}],272:[function(require,module,exports){
+},{"./_array-methods":212,"./_export":232,"./_strict-method":296}],339:[function(require,module,exports){
 'use strict';
 var $export   = require('./_export')
   , aFunction = require('./_a-function')
@@ -33452,14 +38535,14 @@ $export($export.P + $export.F * (fails(function(){
       : $sort.call(toObject(this), aFunction(comparefn));
   }
 });
-},{"./_a-function":136,"./_export":165,"./_fails":167,"./_strict-method":229,"./_to-object":242}],273:[function(require,module,exports){
+},{"./_a-function":203,"./_export":232,"./_fails":234,"./_strict-method":296,"./_to-object":309}],340:[function(require,module,exports){
 require('./_set-species')('Array');
-},{"./_set-species":224}],274:[function(require,module,exports){
+},{"./_set-species":291}],341:[function(require,module,exports){
 // 20.3.3.1 / 15.9.4.4 Date.now()
 var $export = require('./_export');
 
 $export($export.S, 'Date', {now: function(){ return new Date().getTime(); }});
-},{"./_export":165}],275:[function(require,module,exports){
+},{"./_export":232}],342:[function(require,module,exports){
 'use strict';
 // 20.3.4.36 / 15.9.5.43 Date.prototype.toISOString()
 var $export = require('./_export')
@@ -33488,7 +38571,7 @@ $export($export.P + $export.F * (fails(function(){
       ':' + lz(d.getUTCSeconds()) + '.' + (m > 99 ? m : '0' + lz(m)) + 'Z';
   }
 });
-},{"./_export":165,"./_fails":167}],276:[function(require,module,exports){
+},{"./_export":232,"./_fails":234}],343:[function(require,module,exports){
 'use strict';
 var $export     = require('./_export')
   , toObject    = require('./_to-object')
@@ -33503,12 +38586,12 @@ $export($export.P + $export.F * require('./_fails')(function(){
     return typeof pv == 'number' && !isFinite(pv) ? null : O.toISOString();
   }
 });
-},{"./_export":165,"./_fails":167,"./_to-object":242,"./_to-primitive":243}],277:[function(require,module,exports){
+},{"./_export":232,"./_fails":234,"./_to-object":309,"./_to-primitive":310}],344:[function(require,module,exports){
 var TO_PRIMITIVE = require('./_wks')('toPrimitive')
   , proto        = Date.prototype;
 
 if(!(TO_PRIMITIVE in proto))require('./_hide')(proto, TO_PRIMITIVE, require('./_date-to-primitive'));
-},{"./_date-to-primitive":159,"./_hide":173,"./_wks":250}],278:[function(require,module,exports){
+},{"./_date-to-primitive":226,"./_hide":240,"./_wks":317}],345:[function(require,module,exports){
 var DateProto    = Date.prototype
   , INVALID_DATE = 'Invalid Date'
   , TO_STRING    = 'toString'
@@ -33520,12 +38603,12 @@ if(new Date(NaN) + '' != INVALID_DATE){
     return value === value ? $toString.call(this) : INVALID_DATE;
   });
 }
-},{"./_redefine":220}],279:[function(require,module,exports){
+},{"./_redefine":287}],346:[function(require,module,exports){
 // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg, args...)
 var $export = require('./_export');
 
 $export($export.P, 'Function', {bind: require('./_bind')});
-},{"./_bind":149,"./_export":165}],280:[function(require,module,exports){
+},{"./_bind":216,"./_export":232}],347:[function(require,module,exports){
 'use strict';
 var isObject       = require('./_is-object')
   , getPrototypeOf = require('./_object-gpo')
@@ -33539,7 +38622,7 @@ if(!(HAS_INSTANCE in FunctionProto))require('./_object-dp').f(FunctionProto, HAS
   while(O = getPrototypeOf(O))if(this.prototype === O)return true;
   return false;
 }});
-},{"./_is-object":182,"./_object-dp":200,"./_object-gpo":207,"./_wks":250}],281:[function(require,module,exports){
+},{"./_is-object":249,"./_object-dp":267,"./_object-gpo":274,"./_wks":317}],348:[function(require,module,exports){
 var dP         = require('./_object-dp').f
   , createDesc = require('./_property-desc')
   , has        = require('./_has')
@@ -33565,7 +38648,7 @@ NAME in FProto || require('./_descriptors') && dP(FProto, NAME, {
     }
   }
 });
-},{"./_descriptors":161,"./_has":172,"./_object-dp":200,"./_property-desc":218}],282:[function(require,module,exports){
+},{"./_descriptors":228,"./_has":239,"./_object-dp":267,"./_property-desc":285}],349:[function(require,module,exports){
 'use strict';
 var strong = require('./_collection-strong');
 
@@ -33583,7 +38666,7 @@ module.exports = require('./_collection')('Map', function(get){
     return strong.def(this, key === 0 ? 0 : key, value);
   }
 }, strong, true);
-},{"./_collection":155,"./_collection-strong":152}],283:[function(require,module,exports){
+},{"./_collection":222,"./_collection-strong":219}],350:[function(require,module,exports){
 // 20.2.2.3 Math.acosh(x)
 var $export = require('./_export')
   , log1p   = require('./_math-log1p')
@@ -33602,7 +38685,7 @@ $export($export.S + $export.F * !($acosh
       : log1p(x - 1 + sqrt(x - 1) * sqrt(x + 1));
   }
 });
-},{"./_export":165,"./_math-log1p":193}],284:[function(require,module,exports){
+},{"./_export":232,"./_math-log1p":260}],351:[function(require,module,exports){
 // 20.2.2.5 Math.asinh(x)
 var $export = require('./_export')
   , $asinh  = Math.asinh;
@@ -33613,7 +38696,7 @@ function asinh(x){
 
 // Tor Browser bug: Math.asinh(0) -> -0 
 $export($export.S + $export.F * !($asinh && 1 / $asinh(0) > 0), 'Math', {asinh: asinh});
-},{"./_export":165}],285:[function(require,module,exports){
+},{"./_export":232}],352:[function(require,module,exports){
 // 20.2.2.7 Math.atanh(x)
 var $export = require('./_export')
   , $atanh  = Math.atanh;
@@ -33624,7 +38707,7 @@ $export($export.S + $export.F * !($atanh && 1 / $atanh(-0) < 0), 'Math', {
     return (x = +x) == 0 ? x : Math.log((1 + x) / (1 - x)) / 2;
   }
 });
-},{"./_export":165}],286:[function(require,module,exports){
+},{"./_export":232}],353:[function(require,module,exports){
 // 20.2.2.9 Math.cbrt(x)
 var $export = require('./_export')
   , sign    = require('./_math-sign');
@@ -33634,7 +38717,7 @@ $export($export.S, 'Math', {
     return sign(x = +x) * Math.pow(Math.abs(x), 1 / 3);
   }
 });
-},{"./_export":165,"./_math-sign":194}],287:[function(require,module,exports){
+},{"./_export":232,"./_math-sign":261}],354:[function(require,module,exports){
 // 20.2.2.11 Math.clz32(x)
 var $export = require('./_export');
 
@@ -33643,7 +38726,7 @@ $export($export.S, 'Math', {
     return (x >>>= 0) ? 31 - Math.floor(Math.log(x + 0.5) * Math.LOG2E) : 32;
   }
 });
-},{"./_export":165}],288:[function(require,module,exports){
+},{"./_export":232}],355:[function(require,module,exports){
 // 20.2.2.12 Math.cosh(x)
 var $export = require('./_export')
   , exp     = Math.exp;
@@ -33653,13 +38736,13 @@ $export($export.S, 'Math', {
     return (exp(x = +x) + exp(-x)) / 2;
   }
 });
-},{"./_export":165}],289:[function(require,module,exports){
+},{"./_export":232}],356:[function(require,module,exports){
 // 20.2.2.14 Math.expm1(x)
 var $export = require('./_export')
   , $expm1  = require('./_math-expm1');
 
 $export($export.S + $export.F * ($expm1 != Math.expm1), 'Math', {expm1: $expm1});
-},{"./_export":165,"./_math-expm1":192}],290:[function(require,module,exports){
+},{"./_export":232,"./_math-expm1":259}],357:[function(require,module,exports){
 // 20.2.2.16 Math.fround(x)
 var $export   = require('./_export')
   , sign      = require('./_math-sign')
@@ -33686,7 +38769,7 @@ $export($export.S, 'Math', {
     return $sign * result;
   }
 });
-},{"./_export":165,"./_math-sign":194}],291:[function(require,module,exports){
+},{"./_export":232,"./_math-sign":261}],358:[function(require,module,exports){
 // 20.2.2.17 Math.hypot([value1[, value2[, … ]]])
 var $export = require('./_export')
   , abs     = Math.abs;
@@ -33712,7 +38795,7 @@ $export($export.S, 'Math', {
     return larg === Infinity ? Infinity : larg * Math.sqrt(sum);
   }
 });
-},{"./_export":165}],292:[function(require,module,exports){
+},{"./_export":232}],359:[function(require,module,exports){
 // 20.2.2.18 Math.imul(x, y)
 var $export = require('./_export')
   , $imul   = Math.imul;
@@ -33730,7 +38813,7 @@ $export($export.S + $export.F * require('./_fails')(function(){
     return 0 | xl * yl + ((UINT16 & xn >>> 16) * yl + xl * (UINT16 & yn >>> 16) << 16 >>> 0);
   }
 });
-},{"./_export":165,"./_fails":167}],293:[function(require,module,exports){
+},{"./_export":232,"./_fails":234}],360:[function(require,module,exports){
 // 20.2.2.21 Math.log10(x)
 var $export = require('./_export');
 
@@ -33739,12 +38822,12 @@ $export($export.S, 'Math', {
     return Math.log(x) / Math.LN10;
   }
 });
-},{"./_export":165}],294:[function(require,module,exports){
+},{"./_export":232}],361:[function(require,module,exports){
 // 20.2.2.20 Math.log1p(x)
 var $export = require('./_export');
 
 $export($export.S, 'Math', {log1p: require('./_math-log1p')});
-},{"./_export":165,"./_math-log1p":193}],295:[function(require,module,exports){
+},{"./_export":232,"./_math-log1p":260}],362:[function(require,module,exports){
 // 20.2.2.22 Math.log2(x)
 var $export = require('./_export');
 
@@ -33753,12 +38836,12 @@ $export($export.S, 'Math', {
     return Math.log(x) / Math.LN2;
   }
 });
-},{"./_export":165}],296:[function(require,module,exports){
+},{"./_export":232}],363:[function(require,module,exports){
 // 20.2.2.28 Math.sign(x)
 var $export = require('./_export');
 
 $export($export.S, 'Math', {sign: require('./_math-sign')});
-},{"./_export":165,"./_math-sign":194}],297:[function(require,module,exports){
+},{"./_export":232,"./_math-sign":261}],364:[function(require,module,exports){
 // 20.2.2.30 Math.sinh(x)
 var $export = require('./_export')
   , expm1   = require('./_math-expm1')
@@ -33774,7 +38857,7 @@ $export($export.S + $export.F * require('./_fails')(function(){
       : (exp(x - 1) - exp(-x - 1)) * (Math.E / 2);
   }
 });
-},{"./_export":165,"./_fails":167,"./_math-expm1":192}],298:[function(require,module,exports){
+},{"./_export":232,"./_fails":234,"./_math-expm1":259}],365:[function(require,module,exports){
 // 20.2.2.33 Math.tanh(x)
 var $export = require('./_export')
   , expm1   = require('./_math-expm1')
@@ -33787,7 +38870,7 @@ $export($export.S, 'Math', {
     return a == Infinity ? 1 : b == Infinity ? -1 : (a - b) / (exp(x) + exp(-x));
   }
 });
-},{"./_export":165,"./_math-expm1":192}],299:[function(require,module,exports){
+},{"./_export":232,"./_math-expm1":259}],366:[function(require,module,exports){
 // 20.2.2.34 Math.trunc(x)
 var $export = require('./_export');
 
@@ -33796,7 +38879,7 @@ $export($export.S, 'Math', {
     return (it > 0 ? Math.floor : Math.ceil)(it);
   }
 });
-},{"./_export":165}],300:[function(require,module,exports){
+},{"./_export":232}],367:[function(require,module,exports){
 'use strict';
 var global            = require('./_global')
   , has               = require('./_has')
@@ -33866,12 +38949,12 @@ if(!$Number(' 0o1') || !$Number('0b1') || $Number('+0x1')){
   proto.constructor = $Number;
   require('./_redefine')(global, NUMBER, $Number);
 }
-},{"./_cof":151,"./_descriptors":161,"./_fails":167,"./_global":171,"./_has":172,"./_inherit-if-required":176,"./_object-create":199,"./_object-dp":200,"./_object-gopd":203,"./_object-gopn":205,"./_redefine":220,"./_string-trim":235,"./_to-primitive":243}],301:[function(require,module,exports){
+},{"./_cof":218,"./_descriptors":228,"./_fails":234,"./_global":238,"./_has":239,"./_inherit-if-required":243,"./_object-create":266,"./_object-dp":267,"./_object-gopd":270,"./_object-gopn":272,"./_redefine":287,"./_string-trim":302,"./_to-primitive":310}],368:[function(require,module,exports){
 // 20.1.2.1 Number.EPSILON
 var $export = require('./_export');
 
 $export($export.S, 'Number', {EPSILON: Math.pow(2, -52)});
-},{"./_export":165}],302:[function(require,module,exports){
+},{"./_export":232}],369:[function(require,module,exports){
 // 20.1.2.2 Number.isFinite(number)
 var $export   = require('./_export')
   , _isFinite = require('./_global').isFinite;
@@ -33881,12 +38964,12 @@ $export($export.S, 'Number', {
     return typeof it == 'number' && _isFinite(it);
   }
 });
-},{"./_export":165,"./_global":171}],303:[function(require,module,exports){
+},{"./_export":232,"./_global":238}],370:[function(require,module,exports){
 // 20.1.2.3 Number.isInteger(number)
 var $export = require('./_export');
 
 $export($export.S, 'Number', {isInteger: require('./_is-integer')});
-},{"./_export":165,"./_is-integer":181}],304:[function(require,module,exports){
+},{"./_export":232,"./_is-integer":248}],371:[function(require,module,exports){
 // 20.1.2.4 Number.isNaN(number)
 var $export = require('./_export');
 
@@ -33895,7 +38978,7 @@ $export($export.S, 'Number', {
     return number != number;
   }
 });
-},{"./_export":165}],305:[function(require,module,exports){
+},{"./_export":232}],372:[function(require,module,exports){
 // 20.1.2.5 Number.isSafeInteger(number)
 var $export   = require('./_export')
   , isInteger = require('./_is-integer')
@@ -33906,27 +38989,27 @@ $export($export.S, 'Number', {
     return isInteger(number) && abs(number) <= 0x1fffffffffffff;
   }
 });
-},{"./_export":165,"./_is-integer":181}],306:[function(require,module,exports){
+},{"./_export":232,"./_is-integer":248}],373:[function(require,module,exports){
 // 20.1.2.6 Number.MAX_SAFE_INTEGER
 var $export = require('./_export');
 
 $export($export.S, 'Number', {MAX_SAFE_INTEGER: 0x1fffffffffffff});
-},{"./_export":165}],307:[function(require,module,exports){
+},{"./_export":232}],374:[function(require,module,exports){
 // 20.1.2.10 Number.MIN_SAFE_INTEGER
 var $export = require('./_export');
 
 $export($export.S, 'Number', {MIN_SAFE_INTEGER: -0x1fffffffffffff});
-},{"./_export":165}],308:[function(require,module,exports){
+},{"./_export":232}],375:[function(require,module,exports){
 var $export     = require('./_export')
   , $parseFloat = require('./_parse-float');
 // 20.1.2.12 Number.parseFloat(string)
 $export($export.S + $export.F * (Number.parseFloat != $parseFloat), 'Number', {parseFloat: $parseFloat});
-},{"./_export":165,"./_parse-float":214}],309:[function(require,module,exports){
+},{"./_export":232,"./_parse-float":281}],376:[function(require,module,exports){
 var $export   = require('./_export')
   , $parseInt = require('./_parse-int');
 // 20.1.2.13 Number.parseInt(string, radix)
 $export($export.S + $export.F * (Number.parseInt != $parseInt), 'Number', {parseInt: $parseInt});
-},{"./_export":165,"./_parse-int":215}],310:[function(require,module,exports){
+},{"./_export":232,"./_parse-int":282}],377:[function(require,module,exports){
 'use strict';
 var $export      = require('./_export')
   , toInteger    = require('./_to-integer')
@@ -34040,7 +39123,7 @@ $export($export.P + $export.F * (!!$toFixed && (
     } return m;
   }
 });
-},{"./_a-number-value":137,"./_export":165,"./_fails":167,"./_string-repeat":234,"./_to-integer":239}],311:[function(require,module,exports){
+},{"./_a-number-value":204,"./_export":232,"./_fails":234,"./_string-repeat":301,"./_to-integer":306}],378:[function(require,module,exports){
 'use strict';
 var $export      = require('./_export')
   , $fails       = require('./_fails')
@@ -34059,24 +39142,24 @@ $export($export.P + $export.F * ($fails(function(){
     return precision === undefined ? $toPrecision.call(that) : $toPrecision.call(that, precision); 
   }
 });
-},{"./_a-number-value":137,"./_export":165,"./_fails":167}],312:[function(require,module,exports){
+},{"./_a-number-value":204,"./_export":232,"./_fails":234}],379:[function(require,module,exports){
 // 19.1.3.1 Object.assign(target, source)
 var $export = require('./_export');
 
 $export($export.S + $export.F, 'Object', {assign: require('./_object-assign')});
-},{"./_export":165,"./_object-assign":198}],313:[function(require,module,exports){
+},{"./_export":232,"./_object-assign":265}],380:[function(require,module,exports){
 var $export = require('./_export')
 // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
 $export($export.S, 'Object', {create: require('./_object-create')});
-},{"./_export":165,"./_object-create":199}],314:[function(require,module,exports){
+},{"./_export":232,"./_object-create":266}],381:[function(require,module,exports){
 var $export = require('./_export');
 // 19.1.2.3 / 15.2.3.7 Object.defineProperties(O, Properties)
 $export($export.S + $export.F * !require('./_descriptors'), 'Object', {defineProperties: require('./_object-dps')});
-},{"./_descriptors":161,"./_export":165,"./_object-dps":201}],315:[function(require,module,exports){
+},{"./_descriptors":228,"./_export":232,"./_object-dps":268}],382:[function(require,module,exports){
 var $export = require('./_export');
 // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
 $export($export.S + $export.F * !require('./_descriptors'), 'Object', {defineProperty: require('./_object-dp').f});
-},{"./_descriptors":161,"./_export":165,"./_object-dp":200}],316:[function(require,module,exports){
+},{"./_descriptors":228,"./_export":232,"./_object-dp":267}],383:[function(require,module,exports){
 // 19.1.2.5 Object.freeze(O)
 var isObject = require('./_is-object')
   , meta     = require('./_meta').onFreeze;
@@ -34086,7 +39169,7 @@ require('./_object-sap')('freeze', function($freeze){
     return $freeze && isObject(it) ? $freeze(meta(it)) : it;
   };
 });
-},{"./_is-object":182,"./_meta":195,"./_object-sap":211}],317:[function(require,module,exports){
+},{"./_is-object":249,"./_meta":262,"./_object-sap":278}],384:[function(require,module,exports){
 // 19.1.2.6 Object.getOwnPropertyDescriptor(O, P)
 var toIObject                 = require('./_to-iobject')
   , $getOwnPropertyDescriptor = require('./_object-gopd').f;
@@ -34096,12 +39179,12 @@ require('./_object-sap')('getOwnPropertyDescriptor', function(){
     return $getOwnPropertyDescriptor(toIObject(it), key);
   };
 });
-},{"./_object-gopd":203,"./_object-sap":211,"./_to-iobject":240}],318:[function(require,module,exports){
+},{"./_object-gopd":270,"./_object-sap":278,"./_to-iobject":307}],385:[function(require,module,exports){
 // 19.1.2.7 Object.getOwnPropertyNames(O)
 require('./_object-sap')('getOwnPropertyNames', function(){
   return require('./_object-gopn-ext').f;
 });
-},{"./_object-gopn-ext":204,"./_object-sap":211}],319:[function(require,module,exports){
+},{"./_object-gopn-ext":271,"./_object-sap":278}],386:[function(require,module,exports){
 // 19.1.2.9 Object.getPrototypeOf(O)
 var toObject        = require('./_to-object')
   , $getPrototypeOf = require('./_object-gpo');
@@ -34111,7 +39194,7 @@ require('./_object-sap')('getPrototypeOf', function(){
     return $getPrototypeOf(toObject(it));
   };
 });
-},{"./_object-gpo":207,"./_object-sap":211,"./_to-object":242}],320:[function(require,module,exports){
+},{"./_object-gpo":274,"./_object-sap":278,"./_to-object":309}],387:[function(require,module,exports){
 // 19.1.2.11 Object.isExtensible(O)
 var isObject = require('./_is-object');
 
@@ -34120,7 +39203,7 @@ require('./_object-sap')('isExtensible', function($isExtensible){
     return isObject(it) ? $isExtensible ? $isExtensible(it) : true : false;
   };
 });
-},{"./_is-object":182,"./_object-sap":211}],321:[function(require,module,exports){
+},{"./_is-object":249,"./_object-sap":278}],388:[function(require,module,exports){
 // 19.1.2.12 Object.isFrozen(O)
 var isObject = require('./_is-object');
 
@@ -34129,7 +39212,7 @@ require('./_object-sap')('isFrozen', function($isFrozen){
     return isObject(it) ? $isFrozen ? $isFrozen(it) : false : true;
   };
 });
-},{"./_is-object":182,"./_object-sap":211}],322:[function(require,module,exports){
+},{"./_is-object":249,"./_object-sap":278}],389:[function(require,module,exports){
 // 19.1.2.13 Object.isSealed(O)
 var isObject = require('./_is-object');
 
@@ -34138,11 +39221,11 @@ require('./_object-sap')('isSealed', function($isSealed){
     return isObject(it) ? $isSealed ? $isSealed(it) : false : true;
   };
 });
-},{"./_is-object":182,"./_object-sap":211}],323:[function(require,module,exports){
+},{"./_is-object":249,"./_object-sap":278}],390:[function(require,module,exports){
 // 19.1.3.10 Object.is(value1, value2)
 var $export = require('./_export');
 $export($export.S, 'Object', {is: require('./_same-value')});
-},{"./_export":165,"./_same-value":222}],324:[function(require,module,exports){
+},{"./_export":232,"./_same-value":289}],391:[function(require,module,exports){
 // 19.1.2.14 Object.keys(O)
 var toObject = require('./_to-object')
   , $keys    = require('./_object-keys');
@@ -34152,7 +39235,7 @@ require('./_object-sap')('keys', function(){
     return $keys(toObject(it));
   };
 });
-},{"./_object-keys":209,"./_object-sap":211,"./_to-object":242}],325:[function(require,module,exports){
+},{"./_object-keys":276,"./_object-sap":278,"./_to-object":309}],392:[function(require,module,exports){
 // 19.1.2.15 Object.preventExtensions(O)
 var isObject = require('./_is-object')
   , meta     = require('./_meta').onFreeze;
@@ -34162,7 +39245,7 @@ require('./_object-sap')('preventExtensions', function($preventExtensions){
     return $preventExtensions && isObject(it) ? $preventExtensions(meta(it)) : it;
   };
 });
-},{"./_is-object":182,"./_meta":195,"./_object-sap":211}],326:[function(require,module,exports){
+},{"./_is-object":249,"./_meta":262,"./_object-sap":278}],393:[function(require,module,exports){
 // 19.1.2.17 Object.seal(O)
 var isObject = require('./_is-object')
   , meta     = require('./_meta').onFreeze;
@@ -34172,11 +39255,11 @@ require('./_object-sap')('seal', function($seal){
     return $seal && isObject(it) ? $seal(meta(it)) : it;
   };
 });
-},{"./_is-object":182,"./_meta":195,"./_object-sap":211}],327:[function(require,module,exports){
+},{"./_is-object":249,"./_meta":262,"./_object-sap":278}],394:[function(require,module,exports){
 // 19.1.3.19 Object.setPrototypeOf(O, proto)
 var $export = require('./_export');
 $export($export.S, 'Object', {setPrototypeOf: require('./_set-proto').set});
-},{"./_export":165,"./_set-proto":223}],328:[function(require,module,exports){
+},{"./_export":232,"./_set-proto":290}],395:[function(require,module,exports){
 'use strict';
 // 19.1.3.6 Object.prototype.toString()
 var classof = require('./_classof')
@@ -34187,17 +39270,17 @@ if(test + '' != '[object z]'){
     return '[object ' + classof(this) + ']';
   }, true);
 }
-},{"./_classof":150,"./_redefine":220,"./_wks":250}],329:[function(require,module,exports){
+},{"./_classof":217,"./_redefine":287,"./_wks":317}],396:[function(require,module,exports){
 var $export     = require('./_export')
   , $parseFloat = require('./_parse-float');
 // 18.2.4 parseFloat(string)
 $export($export.G + $export.F * (parseFloat != $parseFloat), {parseFloat: $parseFloat});
-},{"./_export":165,"./_parse-float":214}],330:[function(require,module,exports){
+},{"./_export":232,"./_parse-float":281}],397:[function(require,module,exports){
 var $export   = require('./_export')
   , $parseInt = require('./_parse-int');
 // 18.2.5 parseInt(string, radix)
 $export($export.G + $export.F * (parseInt != $parseInt), {parseInt: $parseInt});
-},{"./_export":165,"./_parse-int":215}],331:[function(require,module,exports){
+},{"./_export":232,"./_parse-int":282}],398:[function(require,module,exports){
 'use strict';
 var LIBRARY            = require('./_library')
   , global             = require('./_global')
@@ -34497,7 +39580,7 @@ $export($export.S + $export.F * !(USE_NATIVE && require('./_iter-detect')(functi
     return capability.promise;
   }
 });
-},{"./_a-function":136,"./_an-instance":139,"./_classof":150,"./_core":156,"./_ctx":158,"./_export":165,"./_for-of":170,"./_global":171,"./_is-object":182,"./_iter-detect":187,"./_library":191,"./_microtask":197,"./_redefine-all":219,"./_set-species":224,"./_set-to-string-tag":225,"./_species-constructor":228,"./_task":237,"./_wks":250}],332:[function(require,module,exports){
+},{"./_a-function":203,"./_an-instance":206,"./_classof":217,"./_core":223,"./_ctx":225,"./_export":232,"./_for-of":237,"./_global":238,"./_is-object":249,"./_iter-detect":254,"./_library":258,"./_microtask":264,"./_redefine-all":286,"./_set-species":291,"./_set-to-string-tag":292,"./_species-constructor":295,"./_task":304,"./_wks":317}],399:[function(require,module,exports){
 // 26.1.1 Reflect.apply(target, thisArgument, argumentsList)
 var $export   = require('./_export')
   , aFunction = require('./_a-function')
@@ -34514,7 +39597,7 @@ $export($export.S + $export.F * !require('./_fails')(function(){
     return rApply ? rApply(T, thisArgument, L) : fApply.call(T, thisArgument, L);
   }
 });
-},{"./_a-function":136,"./_an-object":140,"./_export":165,"./_fails":167,"./_global":171}],333:[function(require,module,exports){
+},{"./_a-function":203,"./_an-object":207,"./_export":232,"./_fails":234,"./_global":238}],400:[function(require,module,exports){
 // 26.1.2 Reflect.construct(target, argumentsList [, newTarget])
 var $export    = require('./_export')
   , create     = require('./_object-create')
@@ -34562,7 +39645,7 @@ $export($export.S + $export.F * (NEW_TARGET_BUG || ARGS_BUG), 'Reflect', {
     return isObject(result) ? result : instance;
   }
 });
-},{"./_a-function":136,"./_an-object":140,"./_bind":149,"./_export":165,"./_fails":167,"./_global":171,"./_is-object":182,"./_object-create":199}],334:[function(require,module,exports){
+},{"./_a-function":203,"./_an-object":207,"./_bind":216,"./_export":232,"./_fails":234,"./_global":238,"./_is-object":249,"./_object-create":266}],401:[function(require,module,exports){
 // 26.1.3 Reflect.defineProperty(target, propertyKey, attributes)
 var dP          = require('./_object-dp')
   , $export     = require('./_export')
@@ -34585,7 +39668,7 @@ $export($export.S + $export.F * require('./_fails')(function(){
     }
   }
 });
-},{"./_an-object":140,"./_export":165,"./_fails":167,"./_object-dp":200,"./_to-primitive":243}],335:[function(require,module,exports){
+},{"./_an-object":207,"./_export":232,"./_fails":234,"./_object-dp":267,"./_to-primitive":310}],402:[function(require,module,exports){
 // 26.1.4 Reflect.deleteProperty(target, propertyKey)
 var $export  = require('./_export')
   , gOPD     = require('./_object-gopd').f
@@ -34597,7 +39680,7 @@ $export($export.S, 'Reflect', {
     return desc && !desc.configurable ? false : delete target[propertyKey];
   }
 });
-},{"./_an-object":140,"./_export":165,"./_object-gopd":203}],336:[function(require,module,exports){
+},{"./_an-object":207,"./_export":232,"./_object-gopd":270}],403:[function(require,module,exports){
 'use strict';
 // 26.1.5 Reflect.enumerate(target)
 var $export  = require('./_export')
@@ -34624,7 +39707,7 @@ $export($export.S, 'Reflect', {
     return new Enumerate(target);
   }
 });
-},{"./_an-object":140,"./_export":165,"./_iter-create":185}],337:[function(require,module,exports){
+},{"./_an-object":207,"./_export":232,"./_iter-create":252}],404:[function(require,module,exports){
 // 26.1.7 Reflect.getOwnPropertyDescriptor(target, propertyKey)
 var gOPD     = require('./_object-gopd')
   , $export  = require('./_export')
@@ -34635,7 +39718,7 @@ $export($export.S, 'Reflect', {
     return gOPD.f(anObject(target), propertyKey);
   }
 });
-},{"./_an-object":140,"./_export":165,"./_object-gopd":203}],338:[function(require,module,exports){
+},{"./_an-object":207,"./_export":232,"./_object-gopd":270}],405:[function(require,module,exports){
 // 26.1.8 Reflect.getPrototypeOf(target)
 var $export  = require('./_export')
   , getProto = require('./_object-gpo')
@@ -34646,7 +39729,7 @@ $export($export.S, 'Reflect', {
     return getProto(anObject(target));
   }
 });
-},{"./_an-object":140,"./_export":165,"./_object-gpo":207}],339:[function(require,module,exports){
+},{"./_an-object":207,"./_export":232,"./_object-gpo":274}],406:[function(require,module,exports){
 // 26.1.6 Reflect.get(target, propertyKey [, receiver])
 var gOPD           = require('./_object-gopd')
   , getPrototypeOf = require('./_object-gpo')
@@ -34668,7 +39751,7 @@ function get(target, propertyKey/*, receiver*/){
 }
 
 $export($export.S, 'Reflect', {get: get});
-},{"./_an-object":140,"./_export":165,"./_has":172,"./_is-object":182,"./_object-gopd":203,"./_object-gpo":207}],340:[function(require,module,exports){
+},{"./_an-object":207,"./_export":232,"./_has":239,"./_is-object":249,"./_object-gopd":270,"./_object-gpo":274}],407:[function(require,module,exports){
 // 26.1.9 Reflect.has(target, propertyKey)
 var $export = require('./_export');
 
@@ -34677,7 +39760,7 @@ $export($export.S, 'Reflect', {
     return propertyKey in target;
   }
 });
-},{"./_export":165}],341:[function(require,module,exports){
+},{"./_export":232}],408:[function(require,module,exports){
 // 26.1.10 Reflect.isExtensible(target)
 var $export       = require('./_export')
   , anObject      = require('./_an-object')
@@ -34689,12 +39772,12 @@ $export($export.S, 'Reflect', {
     return $isExtensible ? $isExtensible(target) : true;
   }
 });
-},{"./_an-object":140,"./_export":165}],342:[function(require,module,exports){
+},{"./_an-object":207,"./_export":232}],409:[function(require,module,exports){
 // 26.1.11 Reflect.ownKeys(target)
 var $export = require('./_export');
 
 $export($export.S, 'Reflect', {ownKeys: require('./_own-keys')});
-},{"./_export":165,"./_own-keys":213}],343:[function(require,module,exports){
+},{"./_export":232,"./_own-keys":280}],410:[function(require,module,exports){
 // 26.1.12 Reflect.preventExtensions(target)
 var $export            = require('./_export')
   , anObject           = require('./_an-object')
@@ -34711,7 +39794,7 @@ $export($export.S, 'Reflect', {
     }
   }
 });
-},{"./_an-object":140,"./_export":165}],344:[function(require,module,exports){
+},{"./_an-object":207,"./_export":232}],411:[function(require,module,exports){
 // 26.1.14 Reflect.setPrototypeOf(target, proto)
 var $export  = require('./_export')
   , setProto = require('./_set-proto');
@@ -34727,7 +39810,7 @@ if(setProto)$export($export.S, 'Reflect', {
     }
   }
 });
-},{"./_export":165,"./_set-proto":223}],345:[function(require,module,exports){
+},{"./_export":232,"./_set-proto":290}],412:[function(require,module,exports){
 // 26.1.13 Reflect.set(target, propertyKey, V [, receiver])
 var dP             = require('./_object-dp')
   , gOPD           = require('./_object-gopd')
@@ -34759,7 +39842,7 @@ function set(target, propertyKey, V/*, receiver*/){
 }
 
 $export($export.S, 'Reflect', {set: set});
-},{"./_an-object":140,"./_export":165,"./_has":172,"./_is-object":182,"./_object-dp":200,"./_object-gopd":203,"./_object-gpo":207,"./_property-desc":218}],346:[function(require,module,exports){
+},{"./_an-object":207,"./_export":232,"./_has":239,"./_is-object":249,"./_object-dp":267,"./_object-gopd":270,"./_object-gpo":274,"./_property-desc":285}],413:[function(require,module,exports){
 var global            = require('./_global')
   , inheritIfRequired = require('./_inherit-if-required')
   , dP                = require('./_object-dp').f
@@ -34803,13 +39886,13 @@ if(require('./_descriptors') && (!CORRECT_NEW || require('./_fails')(function(){
 }
 
 require('./_set-species')('RegExp');
-},{"./_descriptors":161,"./_fails":167,"./_flags":169,"./_global":171,"./_inherit-if-required":176,"./_is-regexp":183,"./_object-dp":200,"./_object-gopn":205,"./_redefine":220,"./_set-species":224,"./_wks":250}],347:[function(require,module,exports){
+},{"./_descriptors":228,"./_fails":234,"./_flags":236,"./_global":238,"./_inherit-if-required":243,"./_is-regexp":250,"./_object-dp":267,"./_object-gopn":272,"./_redefine":287,"./_set-species":291,"./_wks":317}],414:[function(require,module,exports){
 // 21.2.5.3 get RegExp.prototype.flags()
 if(require('./_descriptors') && /./g.flags != 'g')require('./_object-dp').f(RegExp.prototype, 'flags', {
   configurable: true,
   get: require('./_flags')
 });
-},{"./_descriptors":161,"./_flags":169,"./_object-dp":200}],348:[function(require,module,exports){
+},{"./_descriptors":228,"./_flags":236,"./_object-dp":267}],415:[function(require,module,exports){
 // @@match logic
 require('./_fix-re-wks')('match', 1, function(defined, MATCH, $match){
   // 21.1.3.11 String.prototype.match(regexp)
@@ -34820,7 +39903,7 @@ require('./_fix-re-wks')('match', 1, function(defined, MATCH, $match){
     return fn !== undefined ? fn.call(regexp, O) : new RegExp(regexp)[MATCH](String(O));
   }, $match];
 });
-},{"./_fix-re-wks":168}],349:[function(require,module,exports){
+},{"./_fix-re-wks":235}],416:[function(require,module,exports){
 // @@replace logic
 require('./_fix-re-wks')('replace', 2, function(defined, REPLACE, $replace){
   // 21.1.3.14 String.prototype.replace(searchValue, replaceValue)
@@ -34833,7 +39916,7 @@ require('./_fix-re-wks')('replace', 2, function(defined, REPLACE, $replace){
       : $replace.call(String(O), searchValue, replaceValue);
   }, $replace];
 });
-},{"./_fix-re-wks":168}],350:[function(require,module,exports){
+},{"./_fix-re-wks":235}],417:[function(require,module,exports){
 // @@search logic
 require('./_fix-re-wks')('search', 1, function(defined, SEARCH, $search){
   // 21.1.3.15 String.prototype.search(regexp)
@@ -34844,7 +39927,7 @@ require('./_fix-re-wks')('search', 1, function(defined, SEARCH, $search){
     return fn !== undefined ? fn.call(regexp, O) : new RegExp(regexp)[SEARCH](String(O));
   }, $search];
 });
-},{"./_fix-re-wks":168}],351:[function(require,module,exports){
+},{"./_fix-re-wks":235}],418:[function(require,module,exports){
 // @@split logic
 require('./_fix-re-wks')('split', 2, function(defined, SPLIT, $split){
   'use strict';
@@ -34915,7 +39998,7 @@ require('./_fix-re-wks')('split', 2, function(defined, SPLIT, $split){
     return fn !== undefined ? fn.call(separator, O, limit) : $split.call(String(O), separator, limit);
   }, $split];
 });
-},{"./_fix-re-wks":168,"./_is-regexp":183}],352:[function(require,module,exports){
+},{"./_fix-re-wks":235,"./_is-regexp":250}],419:[function(require,module,exports){
 'use strict';
 require('./es6.regexp.flags');
 var anObject    = require('./_an-object')
@@ -34941,7 +40024,7 @@ if(require('./_fails')(function(){ return $toString.call({source: 'a', flags: 'b
     return $toString.call(this);
   });
 }
-},{"./_an-object":140,"./_descriptors":161,"./_fails":167,"./_flags":169,"./_redefine":220,"./es6.regexp.flags":347}],353:[function(require,module,exports){
+},{"./_an-object":207,"./_descriptors":228,"./_fails":234,"./_flags":236,"./_redefine":287,"./es6.regexp.flags":414}],420:[function(require,module,exports){
 'use strict';
 var strong = require('./_collection-strong');
 
@@ -34954,7 +40037,7 @@ module.exports = require('./_collection')('Set', function(get){
     return strong.def(this, value = value === 0 ? 0 : value, value);
   }
 }, strong);
-},{"./_collection":155,"./_collection-strong":152}],354:[function(require,module,exports){
+},{"./_collection":222,"./_collection-strong":219}],421:[function(require,module,exports){
 'use strict';
 // B.2.3.2 String.prototype.anchor(name)
 require('./_string-html')('anchor', function(createHTML){
@@ -34962,7 +40045,7 @@ require('./_string-html')('anchor', function(createHTML){
     return createHTML(this, 'a', 'name', name);
   }
 });
-},{"./_string-html":232}],355:[function(require,module,exports){
+},{"./_string-html":299}],422:[function(require,module,exports){
 'use strict';
 // B.2.3.3 String.prototype.big()
 require('./_string-html')('big', function(createHTML){
@@ -34970,7 +40053,7 @@ require('./_string-html')('big', function(createHTML){
     return createHTML(this, 'big', '', '');
   }
 });
-},{"./_string-html":232}],356:[function(require,module,exports){
+},{"./_string-html":299}],423:[function(require,module,exports){
 'use strict';
 // B.2.3.4 String.prototype.blink()
 require('./_string-html')('blink', function(createHTML){
@@ -34978,7 +40061,7 @@ require('./_string-html')('blink', function(createHTML){
     return createHTML(this, 'blink', '', '');
   }
 });
-},{"./_string-html":232}],357:[function(require,module,exports){
+},{"./_string-html":299}],424:[function(require,module,exports){
 'use strict';
 // B.2.3.5 String.prototype.bold()
 require('./_string-html')('bold', function(createHTML){
@@ -34986,7 +40069,7 @@ require('./_string-html')('bold', function(createHTML){
     return createHTML(this, 'b', '', '');
   }
 });
-},{"./_string-html":232}],358:[function(require,module,exports){
+},{"./_string-html":299}],425:[function(require,module,exports){
 'use strict';
 var $export = require('./_export')
   , $at     = require('./_string-at')(false);
@@ -34996,7 +40079,7 @@ $export($export.P, 'String', {
     return $at(this, pos);
   }
 });
-},{"./_export":165,"./_string-at":230}],359:[function(require,module,exports){
+},{"./_export":232,"./_string-at":297}],426:[function(require,module,exports){
 // 21.1.3.6 String.prototype.endsWith(searchString [, endPosition])
 'use strict';
 var $export   = require('./_export')
@@ -35017,7 +40100,7 @@ $export($export.P + $export.F * require('./_fails-is-regexp')(ENDS_WITH), 'Strin
       : that.slice(end - search.length, end) === search;
   }
 });
-},{"./_export":165,"./_fails-is-regexp":166,"./_string-context":231,"./_to-length":241}],360:[function(require,module,exports){
+},{"./_export":232,"./_fails-is-regexp":233,"./_string-context":298,"./_to-length":308}],427:[function(require,module,exports){
 'use strict';
 // B.2.3.6 String.prototype.fixed()
 require('./_string-html')('fixed', function(createHTML){
@@ -35025,7 +40108,7 @@ require('./_string-html')('fixed', function(createHTML){
     return createHTML(this, 'tt', '', '');
   }
 });
-},{"./_string-html":232}],361:[function(require,module,exports){
+},{"./_string-html":299}],428:[function(require,module,exports){
 'use strict';
 // B.2.3.7 String.prototype.fontcolor(color)
 require('./_string-html')('fontcolor', function(createHTML){
@@ -35033,7 +40116,7 @@ require('./_string-html')('fontcolor', function(createHTML){
     return createHTML(this, 'font', 'color', color);
   }
 });
-},{"./_string-html":232}],362:[function(require,module,exports){
+},{"./_string-html":299}],429:[function(require,module,exports){
 'use strict';
 // B.2.3.8 String.prototype.fontsize(size)
 require('./_string-html')('fontsize', function(createHTML){
@@ -35041,7 +40124,7 @@ require('./_string-html')('fontsize', function(createHTML){
     return createHTML(this, 'font', 'size', size);
   }
 });
-},{"./_string-html":232}],363:[function(require,module,exports){
+},{"./_string-html":299}],430:[function(require,module,exports){
 var $export        = require('./_export')
   , toIndex        = require('./_to-index')
   , fromCharCode   = String.fromCharCode
@@ -35065,7 +40148,7 @@ $export($export.S + $export.F * (!!$fromCodePoint && $fromCodePoint.length != 1)
     } return res.join('');
   }
 });
-},{"./_export":165,"./_to-index":238}],364:[function(require,module,exports){
+},{"./_export":232,"./_to-index":305}],431:[function(require,module,exports){
 // 21.1.3.7 String.prototype.includes(searchString, position = 0)
 'use strict';
 var $export  = require('./_export')
@@ -35078,7 +40161,7 @@ $export($export.P + $export.F * require('./_fails-is-regexp')(INCLUDES), 'String
       .indexOf(searchString, arguments.length > 1 ? arguments[1] : undefined);
   }
 });
-},{"./_export":165,"./_fails-is-regexp":166,"./_string-context":231}],365:[function(require,module,exports){
+},{"./_export":232,"./_fails-is-regexp":233,"./_string-context":298}],432:[function(require,module,exports){
 'use strict';
 // B.2.3.9 String.prototype.italics()
 require('./_string-html')('italics', function(createHTML){
@@ -35086,7 +40169,7 @@ require('./_string-html')('italics', function(createHTML){
     return createHTML(this, 'i', '', '');
   }
 });
-},{"./_string-html":232}],366:[function(require,module,exports){
+},{"./_string-html":299}],433:[function(require,module,exports){
 'use strict';
 var $at  = require('./_string-at')(true);
 
@@ -35104,7 +40187,7 @@ require('./_iter-define')(String, 'String', function(iterated){
   this._i += point.length;
   return {value: point, done: false};
 });
-},{"./_iter-define":186,"./_string-at":230}],367:[function(require,module,exports){
+},{"./_iter-define":253,"./_string-at":297}],434:[function(require,module,exports){
 'use strict';
 // B.2.3.10 String.prototype.link(url)
 require('./_string-html')('link', function(createHTML){
@@ -35112,7 +40195,7 @@ require('./_string-html')('link', function(createHTML){
     return createHTML(this, 'a', 'href', url);
   }
 });
-},{"./_string-html":232}],368:[function(require,module,exports){
+},{"./_string-html":299}],435:[function(require,module,exports){
 var $export   = require('./_export')
   , toIObject = require('./_to-iobject')
   , toLength  = require('./_to-length');
@@ -35131,14 +40214,14 @@ $export($export.S, 'String', {
     } return res.join('');
   }
 });
-},{"./_export":165,"./_to-iobject":240,"./_to-length":241}],369:[function(require,module,exports){
+},{"./_export":232,"./_to-iobject":307,"./_to-length":308}],436:[function(require,module,exports){
 var $export = require('./_export');
 
 $export($export.P, 'String', {
   // 21.1.3.13 String.prototype.repeat(count)
   repeat: require('./_string-repeat')
 });
-},{"./_export":165,"./_string-repeat":234}],370:[function(require,module,exports){
+},{"./_export":232,"./_string-repeat":301}],437:[function(require,module,exports){
 'use strict';
 // B.2.3.11 String.prototype.small()
 require('./_string-html')('small', function(createHTML){
@@ -35146,7 +40229,7 @@ require('./_string-html')('small', function(createHTML){
     return createHTML(this, 'small', '', '');
   }
 });
-},{"./_string-html":232}],371:[function(require,module,exports){
+},{"./_string-html":299}],438:[function(require,module,exports){
 // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
 'use strict';
 var $export     = require('./_export')
@@ -35165,7 +40248,7 @@ $export($export.P + $export.F * require('./_fails-is-regexp')(STARTS_WITH), 'Str
       : that.slice(index, index + search.length) === search;
   }
 });
-},{"./_export":165,"./_fails-is-regexp":166,"./_string-context":231,"./_to-length":241}],372:[function(require,module,exports){
+},{"./_export":232,"./_fails-is-regexp":233,"./_string-context":298,"./_to-length":308}],439:[function(require,module,exports){
 'use strict';
 // B.2.3.12 String.prototype.strike()
 require('./_string-html')('strike', function(createHTML){
@@ -35173,7 +40256,7 @@ require('./_string-html')('strike', function(createHTML){
     return createHTML(this, 'strike', '', '');
   }
 });
-},{"./_string-html":232}],373:[function(require,module,exports){
+},{"./_string-html":299}],440:[function(require,module,exports){
 'use strict';
 // B.2.3.13 String.prototype.sub()
 require('./_string-html')('sub', function(createHTML){
@@ -35181,7 +40264,7 @@ require('./_string-html')('sub', function(createHTML){
     return createHTML(this, 'sub', '', '');
   }
 });
-},{"./_string-html":232}],374:[function(require,module,exports){
+},{"./_string-html":299}],441:[function(require,module,exports){
 'use strict';
 // B.2.3.14 String.prototype.sup()
 require('./_string-html')('sup', function(createHTML){
@@ -35189,7 +40272,7 @@ require('./_string-html')('sup', function(createHTML){
     return createHTML(this, 'sup', '', '');
   }
 });
-},{"./_string-html":232}],375:[function(require,module,exports){
+},{"./_string-html":299}],442:[function(require,module,exports){
 'use strict';
 // 21.1.3.25 String.prototype.trim()
 require('./_string-trim')('trim', function($trim){
@@ -35197,7 +40280,7 @@ require('./_string-trim')('trim', function($trim){
     return $trim(this, 3);
   };
 });
-},{"./_string-trim":235}],376:[function(require,module,exports){
+},{"./_string-trim":302}],443:[function(require,module,exports){
 'use strict';
 // ECMAScript 6 symbols shim
 var global         = require('./_global')
@@ -35433,7 +40516,7 @@ setToStringTag($Symbol, 'Symbol');
 setToStringTag(Math, 'Math', true);
 // 24.3.3 JSON[@@toStringTag]
 setToStringTag(global.JSON, 'JSON', true);
-},{"./_an-object":140,"./_descriptors":161,"./_enum-keys":164,"./_export":165,"./_fails":167,"./_global":171,"./_has":172,"./_hide":173,"./_is-array":180,"./_keyof":190,"./_library":191,"./_meta":195,"./_object-create":199,"./_object-dp":200,"./_object-gopd":203,"./_object-gopn":205,"./_object-gopn-ext":204,"./_object-gops":206,"./_object-keys":209,"./_object-pie":210,"./_property-desc":218,"./_redefine":220,"./_set-to-string-tag":225,"./_shared":227,"./_to-iobject":240,"./_to-primitive":243,"./_uid":247,"./_wks":250,"./_wks-define":248,"./_wks-ext":249}],377:[function(require,module,exports){
+},{"./_an-object":207,"./_descriptors":228,"./_enum-keys":231,"./_export":232,"./_fails":234,"./_global":238,"./_has":239,"./_hide":240,"./_is-array":247,"./_keyof":257,"./_library":258,"./_meta":262,"./_object-create":266,"./_object-dp":267,"./_object-gopd":270,"./_object-gopn":272,"./_object-gopn-ext":271,"./_object-gops":273,"./_object-keys":276,"./_object-pie":277,"./_property-desc":285,"./_redefine":287,"./_set-to-string-tag":292,"./_shared":294,"./_to-iobject":307,"./_to-primitive":310,"./_uid":314,"./_wks":317,"./_wks-define":315,"./_wks-ext":316}],444:[function(require,module,exports){
 'use strict';
 var $export      = require('./_export')
   , $typed       = require('./_typed')
@@ -35480,66 +40563,66 @@ $export($export.P + $export.U + $export.F * require('./_fails')(function(){
 });
 
 require('./_set-species')(ARRAY_BUFFER);
-},{"./_an-object":140,"./_export":165,"./_fails":167,"./_global":171,"./_is-object":182,"./_set-species":224,"./_species-constructor":228,"./_to-index":238,"./_to-length":241,"./_typed":246,"./_typed-buffer":245}],378:[function(require,module,exports){
+},{"./_an-object":207,"./_export":232,"./_fails":234,"./_global":238,"./_is-object":249,"./_set-species":291,"./_species-constructor":295,"./_to-index":305,"./_to-length":308,"./_typed":313,"./_typed-buffer":312}],445:[function(require,module,exports){
 var $export = require('./_export');
 $export($export.G + $export.W + $export.F * !require('./_typed').ABV, {
   DataView: require('./_typed-buffer').DataView
 });
-},{"./_export":165,"./_typed":246,"./_typed-buffer":245}],379:[function(require,module,exports){
+},{"./_export":232,"./_typed":313,"./_typed-buffer":312}],446:[function(require,module,exports){
 require('./_typed-array')('Float32', 4, function(init){
   return function Float32Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":244}],380:[function(require,module,exports){
+},{"./_typed-array":311}],447:[function(require,module,exports){
 require('./_typed-array')('Float64', 8, function(init){
   return function Float64Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":244}],381:[function(require,module,exports){
+},{"./_typed-array":311}],448:[function(require,module,exports){
 require('./_typed-array')('Int16', 2, function(init){
   return function Int16Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":244}],382:[function(require,module,exports){
+},{"./_typed-array":311}],449:[function(require,module,exports){
 require('./_typed-array')('Int32', 4, function(init){
   return function Int32Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":244}],383:[function(require,module,exports){
+},{"./_typed-array":311}],450:[function(require,module,exports){
 require('./_typed-array')('Int8', 1, function(init){
   return function Int8Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":244}],384:[function(require,module,exports){
+},{"./_typed-array":311}],451:[function(require,module,exports){
 require('./_typed-array')('Uint16', 2, function(init){
   return function Uint16Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":244}],385:[function(require,module,exports){
+},{"./_typed-array":311}],452:[function(require,module,exports){
 require('./_typed-array')('Uint32', 4, function(init){
   return function Uint32Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":244}],386:[function(require,module,exports){
+},{"./_typed-array":311}],453:[function(require,module,exports){
 require('./_typed-array')('Uint8', 1, function(init){
   return function Uint8Array(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 });
-},{"./_typed-array":244}],387:[function(require,module,exports){
+},{"./_typed-array":311}],454:[function(require,module,exports){
 require('./_typed-array')('Uint8', 1, function(init){
   return function Uint8ClampedArray(data, byteOffset, length){
     return init(this, data, byteOffset, length);
   };
 }, true);
-},{"./_typed-array":244}],388:[function(require,module,exports){
+},{"./_typed-array":311}],455:[function(require,module,exports){
 'use strict';
 var each         = require('./_array-methods')(0)
   , redefine     = require('./_redefine')
@@ -35596,7 +40679,7 @@ if(new $WeakMap().set((Object.freeze || Object)(tmp), 7).get(tmp) != 7){
     });
   });
 }
-},{"./_array-methods":145,"./_collection":155,"./_collection-weak":154,"./_is-object":182,"./_meta":195,"./_object-assign":198,"./_redefine":220}],389:[function(require,module,exports){
+},{"./_array-methods":212,"./_collection":222,"./_collection-weak":221,"./_is-object":249,"./_meta":262,"./_object-assign":265,"./_redefine":287}],456:[function(require,module,exports){
 'use strict';
 var weak = require('./_collection-weak');
 
@@ -35609,7 +40692,7 @@ require('./_collection')('WeakSet', function(get){
     return weak.def(this, value, true);
   }
 }, weak, false, true);
-},{"./_collection":155,"./_collection-weak":154}],390:[function(require,module,exports){
+},{"./_collection":222,"./_collection-weak":221}],457:[function(require,module,exports){
 'use strict';
 // https://github.com/tc39/Array.prototype.includes
 var $export   = require('./_export')
@@ -35622,7 +40705,7 @@ $export($export.P, 'Array', {
 });
 
 require('./_add-to-unscopables')('includes');
-},{"./_add-to-unscopables":138,"./_array-includes":144,"./_export":165}],391:[function(require,module,exports){
+},{"./_add-to-unscopables":205,"./_array-includes":211,"./_export":232}],458:[function(require,module,exports){
 // https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-09/sept-25.md#510-globalasap-for-enqueuing-a-microtask
 var $export   = require('./_export')
   , microtask = require('./_microtask')()
@@ -35635,7 +40718,7 @@ $export($export.G, {
     microtask(domain ? domain.bind(fn) : fn);
   }
 });
-},{"./_cof":151,"./_export":165,"./_global":171,"./_microtask":197}],392:[function(require,module,exports){
+},{"./_cof":218,"./_export":232,"./_global":238,"./_microtask":264}],459:[function(require,module,exports){
 // https://github.com/ljharb/proposal-is-error
 var $export = require('./_export')
   , cof     = require('./_cof');
@@ -35645,12 +40728,12 @@ $export($export.S, 'Error', {
     return cof(it) === 'Error';
   }
 });
-},{"./_cof":151,"./_export":165}],393:[function(require,module,exports){
+},{"./_cof":218,"./_export":232}],460:[function(require,module,exports){
 // https://github.com/DavidBruant/Map-Set.prototype.toJSON
 var $export  = require('./_export');
 
 $export($export.P + $export.R, 'Map', {toJSON: require('./_collection-to-json')('Map')});
-},{"./_collection-to-json":153,"./_export":165}],394:[function(require,module,exports){
+},{"./_collection-to-json":220,"./_export":232}],461:[function(require,module,exports){
 // https://gist.github.com/BrendanEich/4294d5c212a6d2254703
 var $export = require('./_export');
 
@@ -35662,7 +40745,7 @@ $export($export.S, 'Math', {
     return $x1 + (y1 >>> 0) + (($x0 & $y0 | ($x0 | $y0) & ~($x0 + $y0 >>> 0)) >>> 31) | 0;
   }
 });
-},{"./_export":165}],395:[function(require,module,exports){
+},{"./_export":232}],462:[function(require,module,exports){
 // https://gist.github.com/BrendanEich/4294d5c212a6d2254703
 var $export = require('./_export');
 
@@ -35679,7 +40762,7 @@ $export($export.S, 'Math', {
     return u1 * v1 + (t >> 16) + ((u0 * v1 >>> 0) + (t & UINT16) >> 16);
   }
 });
-},{"./_export":165}],396:[function(require,module,exports){
+},{"./_export":232}],463:[function(require,module,exports){
 // https://gist.github.com/BrendanEich/4294d5c212a6d2254703
 var $export = require('./_export');
 
@@ -35691,7 +40774,7 @@ $export($export.S, 'Math', {
     return $x1 - (y1 >>> 0) - ((~$x0 & $y0 | ~($x0 ^ $y0) & $x0 - $y0 >>> 0) >>> 31) | 0;
   }
 });
-},{"./_export":165}],397:[function(require,module,exports){
+},{"./_export":232}],464:[function(require,module,exports){
 // https://gist.github.com/BrendanEich/4294d5c212a6d2254703
 var $export = require('./_export');
 
@@ -35708,7 +40791,7 @@ $export($export.S, 'Math', {
     return u1 * v1 + (t >>> 16) + ((u0 * v1 >>> 0) + (t & UINT16) >>> 16);
   }
 });
-},{"./_export":165}],398:[function(require,module,exports){
+},{"./_export":232}],465:[function(require,module,exports){
 'use strict';
 var $export         = require('./_export')
   , toObject        = require('./_to-object')
@@ -35721,7 +40804,7 @@ require('./_descriptors') && $export($export.P + require('./_object-forced-pam')
     $defineProperty.f(toObject(this), P, {get: aFunction(getter), enumerable: true, configurable: true});
   }
 });
-},{"./_a-function":136,"./_descriptors":161,"./_export":165,"./_object-dp":200,"./_object-forced-pam":202,"./_to-object":242}],399:[function(require,module,exports){
+},{"./_a-function":203,"./_descriptors":228,"./_export":232,"./_object-dp":267,"./_object-forced-pam":269,"./_to-object":309}],466:[function(require,module,exports){
 'use strict';
 var $export         = require('./_export')
   , toObject        = require('./_to-object')
@@ -35734,7 +40817,7 @@ require('./_descriptors') && $export($export.P + require('./_object-forced-pam')
     $defineProperty.f(toObject(this), P, {set: aFunction(setter), enumerable: true, configurable: true});
   }
 });
-},{"./_a-function":136,"./_descriptors":161,"./_export":165,"./_object-dp":200,"./_object-forced-pam":202,"./_to-object":242}],400:[function(require,module,exports){
+},{"./_a-function":203,"./_descriptors":228,"./_export":232,"./_object-dp":267,"./_object-forced-pam":269,"./_to-object":309}],467:[function(require,module,exports){
 // https://github.com/tc39/proposal-object-values-entries
 var $export  = require('./_export')
   , $entries = require('./_object-to-array')(true);
@@ -35744,7 +40827,7 @@ $export($export.S, 'Object', {
     return $entries(it);
   }
 });
-},{"./_export":165,"./_object-to-array":212}],401:[function(require,module,exports){
+},{"./_export":232,"./_object-to-array":279}],468:[function(require,module,exports){
 // https://github.com/tc39/proposal-object-getownpropertydescriptors
 var $export        = require('./_export')
   , ownKeys        = require('./_own-keys')
@@ -35764,7 +40847,7 @@ $export($export.S, 'Object', {
     return result;
   }
 });
-},{"./_create-property":157,"./_export":165,"./_object-gopd":203,"./_own-keys":213,"./_to-iobject":240}],402:[function(require,module,exports){
+},{"./_create-property":224,"./_export":232,"./_object-gopd":270,"./_own-keys":280,"./_to-iobject":307}],469:[function(require,module,exports){
 'use strict';
 var $export                  = require('./_export')
   , toObject                 = require('./_to-object')
@@ -35783,7 +40866,7 @@ require('./_descriptors') && $export($export.P + require('./_object-forced-pam')
     } while(O = getPrototypeOf(O));
   }
 });
-},{"./_descriptors":161,"./_export":165,"./_object-forced-pam":202,"./_object-gopd":203,"./_object-gpo":207,"./_to-object":242,"./_to-primitive":243}],403:[function(require,module,exports){
+},{"./_descriptors":228,"./_export":232,"./_object-forced-pam":269,"./_object-gopd":270,"./_object-gpo":274,"./_to-object":309,"./_to-primitive":310}],470:[function(require,module,exports){
 'use strict';
 var $export                  = require('./_export')
   , toObject                 = require('./_to-object')
@@ -35802,7 +40885,7 @@ require('./_descriptors') && $export($export.P + require('./_object-forced-pam')
     } while(O = getPrototypeOf(O));
   }
 });
-},{"./_descriptors":161,"./_export":165,"./_object-forced-pam":202,"./_object-gopd":203,"./_object-gpo":207,"./_to-object":242,"./_to-primitive":243}],404:[function(require,module,exports){
+},{"./_descriptors":228,"./_export":232,"./_object-forced-pam":269,"./_object-gopd":270,"./_object-gpo":274,"./_to-object":309,"./_to-primitive":310}],471:[function(require,module,exports){
 // https://github.com/tc39/proposal-object-values-entries
 var $export = require('./_export')
   , $values = require('./_object-to-array')(false);
@@ -35812,7 +40895,7 @@ $export($export.S, 'Object', {
     return $values(it);
   }
 });
-},{"./_export":165,"./_object-to-array":212}],405:[function(require,module,exports){
+},{"./_export":232,"./_object-to-array":279}],472:[function(require,module,exports){
 'use strict';
 // https://github.com/zenparsing/es-observable
 var $export     = require('./_export')
@@ -36012,7 +41095,7 @@ hide($Observable.prototype, OBSERVABLE, function(){ return this; });
 $export($export.G, {Observable: $Observable});
 
 require('./_set-species')('Observable');
-},{"./_a-function":136,"./_an-instance":139,"./_an-object":140,"./_core":156,"./_export":165,"./_for-of":170,"./_global":171,"./_hide":173,"./_microtask":197,"./_redefine-all":219,"./_set-species":224,"./_wks":250}],406:[function(require,module,exports){
+},{"./_a-function":203,"./_an-instance":206,"./_an-object":207,"./_core":223,"./_export":232,"./_for-of":237,"./_global":238,"./_hide":240,"./_microtask":264,"./_redefine-all":286,"./_set-species":291,"./_wks":317}],473:[function(require,module,exports){
 var metadata                  = require('./_metadata')
   , anObject                  = require('./_an-object')
   , toMetaKey                 = metadata.key
@@ -36021,7 +41104,7 @@ var metadata                  = require('./_metadata')
 metadata.exp({defineMetadata: function defineMetadata(metadataKey, metadataValue, target, targetKey){
   ordinaryDefineOwnMetadata(metadataKey, metadataValue, anObject(target), toMetaKey(targetKey));
 }});
-},{"./_an-object":140,"./_metadata":196}],407:[function(require,module,exports){
+},{"./_an-object":207,"./_metadata":263}],474:[function(require,module,exports){
 var metadata               = require('./_metadata')
   , anObject               = require('./_an-object')
   , toMetaKey              = metadata.key
@@ -36037,7 +41120,7 @@ metadata.exp({deleteMetadata: function deleteMetadata(metadataKey, target /*, ta
   targetMetadata['delete'](targetKey);
   return !!targetMetadata.size || store['delete'](target);
 }});
-},{"./_an-object":140,"./_metadata":196}],408:[function(require,module,exports){
+},{"./_an-object":207,"./_metadata":263}],475:[function(require,module,exports){
 var Set                     = require('./es6.set')
   , from                    = require('./_array-from-iterable')
   , metadata                = require('./_metadata')
@@ -36057,7 +41140,7 @@ var ordinaryMetadataKeys = function(O, P){
 metadata.exp({getMetadataKeys: function getMetadataKeys(target /*, targetKey */){
   return ordinaryMetadataKeys(anObject(target), arguments.length < 2 ? undefined : toMetaKey(arguments[1]));
 }});
-},{"./_an-object":140,"./_array-from-iterable":143,"./_metadata":196,"./_object-gpo":207,"./es6.set":353}],409:[function(require,module,exports){
+},{"./_an-object":207,"./_array-from-iterable":210,"./_metadata":263,"./_object-gpo":274,"./es6.set":420}],476:[function(require,module,exports){
 var metadata               = require('./_metadata')
   , anObject               = require('./_an-object')
   , getPrototypeOf         = require('./_object-gpo')
@@ -36075,7 +41158,7 @@ var ordinaryGetMetadata = function(MetadataKey, O, P){
 metadata.exp({getMetadata: function getMetadata(metadataKey, target /*, targetKey */){
   return ordinaryGetMetadata(metadataKey, anObject(target), arguments.length < 3 ? undefined : toMetaKey(arguments[2]));
 }});
-},{"./_an-object":140,"./_metadata":196,"./_object-gpo":207}],410:[function(require,module,exports){
+},{"./_an-object":207,"./_metadata":263,"./_object-gpo":274}],477:[function(require,module,exports){
 var metadata                = require('./_metadata')
   , anObject                = require('./_an-object')
   , ordinaryOwnMetadataKeys = metadata.keys
@@ -36084,7 +41167,7 @@ var metadata                = require('./_metadata')
 metadata.exp({getOwnMetadataKeys: function getOwnMetadataKeys(target /*, targetKey */){
   return ordinaryOwnMetadataKeys(anObject(target), arguments.length < 2 ? undefined : toMetaKey(arguments[1]));
 }});
-},{"./_an-object":140,"./_metadata":196}],411:[function(require,module,exports){
+},{"./_an-object":207,"./_metadata":263}],478:[function(require,module,exports){
 var metadata               = require('./_metadata')
   , anObject               = require('./_an-object')
   , ordinaryGetOwnMetadata = metadata.get
@@ -36094,7 +41177,7 @@ metadata.exp({getOwnMetadata: function getOwnMetadata(metadataKey, target /*, ta
   return ordinaryGetOwnMetadata(metadataKey, anObject(target)
     , arguments.length < 3 ? undefined : toMetaKey(arguments[2]));
 }});
-},{"./_an-object":140,"./_metadata":196}],412:[function(require,module,exports){
+},{"./_an-object":207,"./_metadata":263}],479:[function(require,module,exports){
 var metadata               = require('./_metadata')
   , anObject               = require('./_an-object')
   , getPrototypeOf         = require('./_object-gpo')
@@ -36111,7 +41194,7 @@ var ordinaryHasMetadata = function(MetadataKey, O, P){
 metadata.exp({hasMetadata: function hasMetadata(metadataKey, target /*, targetKey */){
   return ordinaryHasMetadata(metadataKey, anObject(target), arguments.length < 3 ? undefined : toMetaKey(arguments[2]));
 }});
-},{"./_an-object":140,"./_metadata":196,"./_object-gpo":207}],413:[function(require,module,exports){
+},{"./_an-object":207,"./_metadata":263,"./_object-gpo":274}],480:[function(require,module,exports){
 var metadata               = require('./_metadata')
   , anObject               = require('./_an-object')
   , ordinaryHasOwnMetadata = metadata.has
@@ -36121,7 +41204,7 @@ metadata.exp({hasOwnMetadata: function hasOwnMetadata(metadataKey, target /*, ta
   return ordinaryHasOwnMetadata(metadataKey, anObject(target)
     , arguments.length < 3 ? undefined : toMetaKey(arguments[2]));
 }});
-},{"./_an-object":140,"./_metadata":196}],414:[function(require,module,exports){
+},{"./_an-object":207,"./_metadata":263}],481:[function(require,module,exports){
 var metadata                  = require('./_metadata')
   , anObject                  = require('./_an-object')
   , aFunction                 = require('./_a-function')
@@ -36137,12 +41220,12 @@ metadata.exp({metadata: function metadata(metadataKey, metadataValue){
     );
   };
 }});
-},{"./_a-function":136,"./_an-object":140,"./_metadata":196}],415:[function(require,module,exports){
+},{"./_a-function":203,"./_an-object":207,"./_metadata":263}],482:[function(require,module,exports){
 // https://github.com/DavidBruant/Map-Set.prototype.toJSON
 var $export  = require('./_export');
 
 $export($export.P + $export.R, 'Set', {toJSON: require('./_collection-to-json')('Set')});
-},{"./_collection-to-json":153,"./_export":165}],416:[function(require,module,exports){
+},{"./_collection-to-json":220,"./_export":232}],483:[function(require,module,exports){
 'use strict';
 // https://github.com/mathiasbynens/String.prototype.at
 var $export = require('./_export')
@@ -36153,7 +41236,7 @@ $export($export.P, 'String', {
     return $at(this, pos);
   }
 });
-},{"./_export":165,"./_string-at":230}],417:[function(require,module,exports){
+},{"./_export":232,"./_string-at":297}],484:[function(require,module,exports){
 'use strict';
 // https://tc39.github.io/String.prototype.matchAll/
 var $export     = require('./_export')
@@ -36184,7 +41267,7 @@ $export($export.P, 'String', {
     return new $RegExpStringIterator(rx, S);
   }
 });
-},{"./_defined":160,"./_export":165,"./_flags":169,"./_is-regexp":183,"./_iter-create":185,"./_to-length":241}],418:[function(require,module,exports){
+},{"./_defined":227,"./_export":232,"./_flags":236,"./_is-regexp":250,"./_iter-create":252,"./_to-length":308}],485:[function(require,module,exports){
 'use strict';
 // https://github.com/tc39/proposal-string-pad-start-end
 var $export = require('./_export')
@@ -36195,7 +41278,7 @@ $export($export.P, 'String', {
     return $pad(this, maxLength, arguments.length > 1 ? arguments[1] : undefined, false);
   }
 });
-},{"./_export":165,"./_string-pad":233}],419:[function(require,module,exports){
+},{"./_export":232,"./_string-pad":300}],486:[function(require,module,exports){
 'use strict';
 // https://github.com/tc39/proposal-string-pad-start-end
 var $export = require('./_export')
@@ -36206,7 +41289,7 @@ $export($export.P, 'String', {
     return $pad(this, maxLength, arguments.length > 1 ? arguments[1] : undefined, true);
   }
 });
-},{"./_export":165,"./_string-pad":233}],420:[function(require,module,exports){
+},{"./_export":232,"./_string-pad":300}],487:[function(require,module,exports){
 'use strict';
 // https://github.com/sebmarkbage/ecmascript-string-left-right-trim
 require('./_string-trim')('trimLeft', function($trim){
@@ -36214,7 +41297,7 @@ require('./_string-trim')('trimLeft', function($trim){
     return $trim(this, 1);
   };
 }, 'trimStart');
-},{"./_string-trim":235}],421:[function(require,module,exports){
+},{"./_string-trim":302}],488:[function(require,module,exports){
 'use strict';
 // https://github.com/sebmarkbage/ecmascript-string-left-right-trim
 require('./_string-trim')('trimRight', function($trim){
@@ -36222,16 +41305,16 @@ require('./_string-trim')('trimRight', function($trim){
     return $trim(this, 2);
   };
 }, 'trimEnd');
-},{"./_string-trim":235}],422:[function(require,module,exports){
+},{"./_string-trim":302}],489:[function(require,module,exports){
 require('./_wks-define')('asyncIterator');
-},{"./_wks-define":248}],423:[function(require,module,exports){
+},{"./_wks-define":315}],490:[function(require,module,exports){
 require('./_wks-define')('observable');
-},{"./_wks-define":248}],424:[function(require,module,exports){
+},{"./_wks-define":315}],491:[function(require,module,exports){
 // https://github.com/ljharb/proposal-global
 var $export = require('./_export');
 
 $export($export.S, 'System', {global: require('./_global')});
-},{"./_export":165,"./_global":171}],425:[function(require,module,exports){
+},{"./_export":232,"./_global":238}],492:[function(require,module,exports){
 var $iterators    = require('./es6.array.iterator')
   , redefine      = require('./_redefine')
   , global        = require('./_global')
@@ -36254,14 +41337,14 @@ for(var collections = ['NodeList', 'DOMTokenList', 'MediaList', 'StyleSheetList'
     for(key in $iterators)if(!proto[key])redefine(proto, key, $iterators[key], true);
   }
 }
-},{"./_global":171,"./_hide":173,"./_iterators":189,"./_redefine":220,"./_wks":250,"./es6.array.iterator":263}],426:[function(require,module,exports){
+},{"./_global":238,"./_hide":240,"./_iterators":256,"./_redefine":287,"./_wks":317,"./es6.array.iterator":330}],493:[function(require,module,exports){
 var $export = require('./_export')
   , $task   = require('./_task');
 $export($export.G + $export.B, {
   setImmediate:   $task.set,
   clearImmediate: $task.clear
 });
-},{"./_export":165,"./_task":237}],427:[function(require,module,exports){
+},{"./_export":232,"./_task":304}],494:[function(require,module,exports){
 // ie9- setTimeout & setInterval additional parameters fix
 var global     = require('./_global')
   , $export    = require('./_export')
@@ -36282,7 +41365,7 @@ $export($export.G + $export.B + $export.F * MSIE, {
   setTimeout:  wrap(global.setTimeout),
   setInterval: wrap(global.setInterval)
 });
-},{"./_export":165,"./_global":171,"./_invoke":177,"./_partial":216}],428:[function(require,module,exports){
+},{"./_export":232,"./_global":238,"./_invoke":244,"./_partial":283}],495:[function(require,module,exports){
 require('./modules/es6.symbol');
 require('./modules/es6.object.create');
 require('./modules/es6.object.define-property');
@@ -36459,7 +41542,7 @@ require('./modules/web.timers');
 require('./modules/web.immediate');
 require('./modules/web.dom.iterable');
 module.exports = require('./modules/_core');
-},{"./modules/_core":156,"./modules/es6.array.copy-within":253,"./modules/es6.array.every":254,"./modules/es6.array.fill":255,"./modules/es6.array.filter":256,"./modules/es6.array.find":258,"./modules/es6.array.find-index":257,"./modules/es6.array.for-each":259,"./modules/es6.array.from":260,"./modules/es6.array.index-of":261,"./modules/es6.array.is-array":262,"./modules/es6.array.iterator":263,"./modules/es6.array.join":264,"./modules/es6.array.last-index-of":265,"./modules/es6.array.map":266,"./modules/es6.array.of":267,"./modules/es6.array.reduce":269,"./modules/es6.array.reduce-right":268,"./modules/es6.array.slice":270,"./modules/es6.array.some":271,"./modules/es6.array.sort":272,"./modules/es6.array.species":273,"./modules/es6.date.now":274,"./modules/es6.date.to-iso-string":275,"./modules/es6.date.to-json":276,"./modules/es6.date.to-primitive":277,"./modules/es6.date.to-string":278,"./modules/es6.function.bind":279,"./modules/es6.function.has-instance":280,"./modules/es6.function.name":281,"./modules/es6.map":282,"./modules/es6.math.acosh":283,"./modules/es6.math.asinh":284,"./modules/es6.math.atanh":285,"./modules/es6.math.cbrt":286,"./modules/es6.math.clz32":287,"./modules/es6.math.cosh":288,"./modules/es6.math.expm1":289,"./modules/es6.math.fround":290,"./modules/es6.math.hypot":291,"./modules/es6.math.imul":292,"./modules/es6.math.log10":293,"./modules/es6.math.log1p":294,"./modules/es6.math.log2":295,"./modules/es6.math.sign":296,"./modules/es6.math.sinh":297,"./modules/es6.math.tanh":298,"./modules/es6.math.trunc":299,"./modules/es6.number.constructor":300,"./modules/es6.number.epsilon":301,"./modules/es6.number.is-finite":302,"./modules/es6.number.is-integer":303,"./modules/es6.number.is-nan":304,"./modules/es6.number.is-safe-integer":305,"./modules/es6.number.max-safe-integer":306,"./modules/es6.number.min-safe-integer":307,"./modules/es6.number.parse-float":308,"./modules/es6.number.parse-int":309,"./modules/es6.number.to-fixed":310,"./modules/es6.number.to-precision":311,"./modules/es6.object.assign":312,"./modules/es6.object.create":313,"./modules/es6.object.define-properties":314,"./modules/es6.object.define-property":315,"./modules/es6.object.freeze":316,"./modules/es6.object.get-own-property-descriptor":317,"./modules/es6.object.get-own-property-names":318,"./modules/es6.object.get-prototype-of":319,"./modules/es6.object.is":323,"./modules/es6.object.is-extensible":320,"./modules/es6.object.is-frozen":321,"./modules/es6.object.is-sealed":322,"./modules/es6.object.keys":324,"./modules/es6.object.prevent-extensions":325,"./modules/es6.object.seal":326,"./modules/es6.object.set-prototype-of":327,"./modules/es6.object.to-string":328,"./modules/es6.parse-float":329,"./modules/es6.parse-int":330,"./modules/es6.promise":331,"./modules/es6.reflect.apply":332,"./modules/es6.reflect.construct":333,"./modules/es6.reflect.define-property":334,"./modules/es6.reflect.delete-property":335,"./modules/es6.reflect.enumerate":336,"./modules/es6.reflect.get":339,"./modules/es6.reflect.get-own-property-descriptor":337,"./modules/es6.reflect.get-prototype-of":338,"./modules/es6.reflect.has":340,"./modules/es6.reflect.is-extensible":341,"./modules/es6.reflect.own-keys":342,"./modules/es6.reflect.prevent-extensions":343,"./modules/es6.reflect.set":345,"./modules/es6.reflect.set-prototype-of":344,"./modules/es6.regexp.constructor":346,"./modules/es6.regexp.flags":347,"./modules/es6.regexp.match":348,"./modules/es6.regexp.replace":349,"./modules/es6.regexp.search":350,"./modules/es6.regexp.split":351,"./modules/es6.regexp.to-string":352,"./modules/es6.set":353,"./modules/es6.string.anchor":354,"./modules/es6.string.big":355,"./modules/es6.string.blink":356,"./modules/es6.string.bold":357,"./modules/es6.string.code-point-at":358,"./modules/es6.string.ends-with":359,"./modules/es6.string.fixed":360,"./modules/es6.string.fontcolor":361,"./modules/es6.string.fontsize":362,"./modules/es6.string.from-code-point":363,"./modules/es6.string.includes":364,"./modules/es6.string.italics":365,"./modules/es6.string.iterator":366,"./modules/es6.string.link":367,"./modules/es6.string.raw":368,"./modules/es6.string.repeat":369,"./modules/es6.string.small":370,"./modules/es6.string.starts-with":371,"./modules/es6.string.strike":372,"./modules/es6.string.sub":373,"./modules/es6.string.sup":374,"./modules/es6.string.trim":375,"./modules/es6.symbol":376,"./modules/es6.typed.array-buffer":377,"./modules/es6.typed.data-view":378,"./modules/es6.typed.float32-array":379,"./modules/es6.typed.float64-array":380,"./modules/es6.typed.int16-array":381,"./modules/es6.typed.int32-array":382,"./modules/es6.typed.int8-array":383,"./modules/es6.typed.uint16-array":384,"./modules/es6.typed.uint32-array":385,"./modules/es6.typed.uint8-array":386,"./modules/es6.typed.uint8-clamped-array":387,"./modules/es6.weak-map":388,"./modules/es6.weak-set":389,"./modules/es7.array.includes":390,"./modules/es7.asap":391,"./modules/es7.error.is-error":392,"./modules/es7.map.to-json":393,"./modules/es7.math.iaddh":394,"./modules/es7.math.imulh":395,"./modules/es7.math.isubh":396,"./modules/es7.math.umulh":397,"./modules/es7.object.define-getter":398,"./modules/es7.object.define-setter":399,"./modules/es7.object.entries":400,"./modules/es7.object.get-own-property-descriptors":401,"./modules/es7.object.lookup-getter":402,"./modules/es7.object.lookup-setter":403,"./modules/es7.object.values":404,"./modules/es7.observable":405,"./modules/es7.reflect.define-metadata":406,"./modules/es7.reflect.delete-metadata":407,"./modules/es7.reflect.get-metadata":409,"./modules/es7.reflect.get-metadata-keys":408,"./modules/es7.reflect.get-own-metadata":411,"./modules/es7.reflect.get-own-metadata-keys":410,"./modules/es7.reflect.has-metadata":412,"./modules/es7.reflect.has-own-metadata":413,"./modules/es7.reflect.metadata":414,"./modules/es7.set.to-json":415,"./modules/es7.string.at":416,"./modules/es7.string.match-all":417,"./modules/es7.string.pad-end":418,"./modules/es7.string.pad-start":419,"./modules/es7.string.trim-left":420,"./modules/es7.string.trim-right":421,"./modules/es7.symbol.async-iterator":422,"./modules/es7.symbol.observable":423,"./modules/es7.system.global":424,"./modules/web.dom.iterable":425,"./modules/web.immediate":426,"./modules/web.timers":427}],429:[function(require,module,exports){
+},{"./modules/_core":223,"./modules/es6.array.copy-within":320,"./modules/es6.array.every":321,"./modules/es6.array.fill":322,"./modules/es6.array.filter":323,"./modules/es6.array.find":325,"./modules/es6.array.find-index":324,"./modules/es6.array.for-each":326,"./modules/es6.array.from":327,"./modules/es6.array.index-of":328,"./modules/es6.array.is-array":329,"./modules/es6.array.iterator":330,"./modules/es6.array.join":331,"./modules/es6.array.last-index-of":332,"./modules/es6.array.map":333,"./modules/es6.array.of":334,"./modules/es6.array.reduce":336,"./modules/es6.array.reduce-right":335,"./modules/es6.array.slice":337,"./modules/es6.array.some":338,"./modules/es6.array.sort":339,"./modules/es6.array.species":340,"./modules/es6.date.now":341,"./modules/es6.date.to-iso-string":342,"./modules/es6.date.to-json":343,"./modules/es6.date.to-primitive":344,"./modules/es6.date.to-string":345,"./modules/es6.function.bind":346,"./modules/es6.function.has-instance":347,"./modules/es6.function.name":348,"./modules/es6.map":349,"./modules/es6.math.acosh":350,"./modules/es6.math.asinh":351,"./modules/es6.math.atanh":352,"./modules/es6.math.cbrt":353,"./modules/es6.math.clz32":354,"./modules/es6.math.cosh":355,"./modules/es6.math.expm1":356,"./modules/es6.math.fround":357,"./modules/es6.math.hypot":358,"./modules/es6.math.imul":359,"./modules/es6.math.log10":360,"./modules/es6.math.log1p":361,"./modules/es6.math.log2":362,"./modules/es6.math.sign":363,"./modules/es6.math.sinh":364,"./modules/es6.math.tanh":365,"./modules/es6.math.trunc":366,"./modules/es6.number.constructor":367,"./modules/es6.number.epsilon":368,"./modules/es6.number.is-finite":369,"./modules/es6.number.is-integer":370,"./modules/es6.number.is-nan":371,"./modules/es6.number.is-safe-integer":372,"./modules/es6.number.max-safe-integer":373,"./modules/es6.number.min-safe-integer":374,"./modules/es6.number.parse-float":375,"./modules/es6.number.parse-int":376,"./modules/es6.number.to-fixed":377,"./modules/es6.number.to-precision":378,"./modules/es6.object.assign":379,"./modules/es6.object.create":380,"./modules/es6.object.define-properties":381,"./modules/es6.object.define-property":382,"./modules/es6.object.freeze":383,"./modules/es6.object.get-own-property-descriptor":384,"./modules/es6.object.get-own-property-names":385,"./modules/es6.object.get-prototype-of":386,"./modules/es6.object.is":390,"./modules/es6.object.is-extensible":387,"./modules/es6.object.is-frozen":388,"./modules/es6.object.is-sealed":389,"./modules/es6.object.keys":391,"./modules/es6.object.prevent-extensions":392,"./modules/es6.object.seal":393,"./modules/es6.object.set-prototype-of":394,"./modules/es6.object.to-string":395,"./modules/es6.parse-float":396,"./modules/es6.parse-int":397,"./modules/es6.promise":398,"./modules/es6.reflect.apply":399,"./modules/es6.reflect.construct":400,"./modules/es6.reflect.define-property":401,"./modules/es6.reflect.delete-property":402,"./modules/es6.reflect.enumerate":403,"./modules/es6.reflect.get":406,"./modules/es6.reflect.get-own-property-descriptor":404,"./modules/es6.reflect.get-prototype-of":405,"./modules/es6.reflect.has":407,"./modules/es6.reflect.is-extensible":408,"./modules/es6.reflect.own-keys":409,"./modules/es6.reflect.prevent-extensions":410,"./modules/es6.reflect.set":412,"./modules/es6.reflect.set-prototype-of":411,"./modules/es6.regexp.constructor":413,"./modules/es6.regexp.flags":414,"./modules/es6.regexp.match":415,"./modules/es6.regexp.replace":416,"./modules/es6.regexp.search":417,"./modules/es6.regexp.split":418,"./modules/es6.regexp.to-string":419,"./modules/es6.set":420,"./modules/es6.string.anchor":421,"./modules/es6.string.big":422,"./modules/es6.string.blink":423,"./modules/es6.string.bold":424,"./modules/es6.string.code-point-at":425,"./modules/es6.string.ends-with":426,"./modules/es6.string.fixed":427,"./modules/es6.string.fontcolor":428,"./modules/es6.string.fontsize":429,"./modules/es6.string.from-code-point":430,"./modules/es6.string.includes":431,"./modules/es6.string.italics":432,"./modules/es6.string.iterator":433,"./modules/es6.string.link":434,"./modules/es6.string.raw":435,"./modules/es6.string.repeat":436,"./modules/es6.string.small":437,"./modules/es6.string.starts-with":438,"./modules/es6.string.strike":439,"./modules/es6.string.sub":440,"./modules/es6.string.sup":441,"./modules/es6.string.trim":442,"./modules/es6.symbol":443,"./modules/es6.typed.array-buffer":444,"./modules/es6.typed.data-view":445,"./modules/es6.typed.float32-array":446,"./modules/es6.typed.float64-array":447,"./modules/es6.typed.int16-array":448,"./modules/es6.typed.int32-array":449,"./modules/es6.typed.int8-array":450,"./modules/es6.typed.uint16-array":451,"./modules/es6.typed.uint32-array":452,"./modules/es6.typed.uint8-array":453,"./modules/es6.typed.uint8-clamped-array":454,"./modules/es6.weak-map":455,"./modules/es6.weak-set":456,"./modules/es7.array.includes":457,"./modules/es7.asap":458,"./modules/es7.error.is-error":459,"./modules/es7.map.to-json":460,"./modules/es7.math.iaddh":461,"./modules/es7.math.imulh":462,"./modules/es7.math.isubh":463,"./modules/es7.math.umulh":464,"./modules/es7.object.define-getter":465,"./modules/es7.object.define-setter":466,"./modules/es7.object.entries":467,"./modules/es7.object.get-own-property-descriptors":468,"./modules/es7.object.lookup-getter":469,"./modules/es7.object.lookup-setter":470,"./modules/es7.object.values":471,"./modules/es7.observable":472,"./modules/es7.reflect.define-metadata":473,"./modules/es7.reflect.delete-metadata":474,"./modules/es7.reflect.get-metadata":476,"./modules/es7.reflect.get-metadata-keys":475,"./modules/es7.reflect.get-own-metadata":478,"./modules/es7.reflect.get-own-metadata-keys":477,"./modules/es7.reflect.has-metadata":479,"./modules/es7.reflect.has-own-metadata":480,"./modules/es7.reflect.metadata":481,"./modules/es7.set.to-json":482,"./modules/es7.string.at":483,"./modules/es7.string.match-all":484,"./modules/es7.string.pad-end":485,"./modules/es7.string.pad-start":486,"./modules/es7.string.trim-left":487,"./modules/es7.string.trim-right":488,"./modules/es7.symbol.async-iterator":489,"./modules/es7.symbol.observable":490,"./modules/es7.system.global":491,"./modules/web.dom.iterable":492,"./modules/web.immediate":493,"./modules/web.timers":494}],496:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -36621,7 +41704,7 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],430:[function(require,module,exports){
+},{}],497:[function(require,module,exports){
 (function (process,global){
 /**
  * Copyright (c) 2014, Facebook, Inc.
@@ -37293,7 +42376,7 @@ process.umask = function() { return 0; };
 );
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"_process":429}],431:[function(require,module,exports){
+},{"_process":496}],498:[function(require,module,exports){
 'use strict'
 
 let MemoryHelper = {
@@ -37398,4 +42481,5 @@ let MemoryHelper = {
 
 module.exports = MemoryHelper
 
-},{}]},{},[104]);
+},{}]},{},[171])(171)
+});

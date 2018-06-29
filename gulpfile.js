@@ -11,7 +11,8 @@ const sourcemaps = require( 'gulp-sourcemaps' )
 gulp.task('build', function () {
   
   var b = browserify({
-    entries: './js/index.js'
+    entries: './js/index.js',
+    standalone:'Gibberwocky'
   })//.transform( babel.configure({ sourceMaps:false, presets:['es2015']}) ).bundle()
 
   b.bundle()
@@ -19,8 +20,6 @@ gulp.task('build', function () {
     .pipe( gulp.dest( './dist/' ) )
     .pipe( through.obj((chunk, enc, cb) => {
       generateHTML( cb )
-
-      //cb(null, chunk)
     }))
   //b.pipe( source('index.js') ).pipe( gulp.dest( './' ) )
 });
