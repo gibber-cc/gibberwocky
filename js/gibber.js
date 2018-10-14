@@ -19,30 +19,30 @@ let Gibber = {
   max:           null,
   '$':           null,
 
-  export() {
-    window.Steps         = this.Steps
-    window.HexSteps      = this.HexSteps
-    window.Automata      = this.Automata
-    window.Seq           = this.Seq
-    window.Score         = this.Score
-    window.Track         = this.Track
-    window.Scheduler     = this.Scheduler
-    window.Pattern       = this.Pattern
-    window.Euclid        = this.Euclid
-    window.Hex           = this.Hex
-    window.Arp           = this.Arp
-    window.Communication = this.Communication
-    window.log           = this.log
-    window.clear         = this.clear
-    window.Theory        = this.Theory
-    window.Lookup        = this.WavePattern
-    window.channels      = this.MIDI.channels
-    window.MIDI          = this.MIDI
+  export( target=window ) {
+    target.Steps         = this.Steps
+    target.HexSteps      = this.HexSteps
+    target.Automata      = this.Automata
+    target.Seq           = this.Seq
+    target.Score         = this.Score
+    target.Track         = this.Track
+    target.Scheduler     = this.Scheduler
+    target.Pattern       = this.Pattern
+    target.Euclid        = this.Euclid
+    target.Hex           = this.Hex
+    target.Arp           = this.Arp
+    target.Communication = this.Communication
+    target.log           = this.log
+    target.clear         = this.clear
+    target.Theory        = this.Theory
+    target.Lookup        = this.WavePattern
+    target.channels      = this.MIDI.channels
+    target.MIDI          = this.MIDI
 
-    Gibber.__gen.export( window ) 
+    Gibber.__gen.export( target ) 
 
-    this.Theory.export( window )
-    this.Utility.export( window )
+    this.Theory.export( target )
+    this.Utility.export( target )
   },
 
   init() {
