@@ -1,6 +1,6 @@
 function expr(code) {
 	// get a reference to a named gen~ in the patcher:
-	var gen_obj = this.patcher.getnamed("thegen");
+	var gen_obj = this.patcher.getnamed("mockturtle");
 	
 	// get a reference to the embedded gen~ patcher:
 	var gen_patcher = gen_obj.subpatcher();
