@@ -5,6 +5,7 @@ let Communication = {
   maxPort:  8081,
   socketInitialized: false,
   connectMsg: null,
+  defaultMode: 'live',
   debug: {
     input:false,
     output:false
@@ -24,7 +25,6 @@ let Communication = {
     max:false,
     live:false
   },
-
 
   count:0,
   init( _Gibber, props ) {
@@ -53,7 +53,6 @@ let Communication = {
 
       const address = "ws://" + host + ":" + port
       
-      console.log( 'init web socket:', clientName )
       wsocket = new WebSocket( address )
       wsocket.errorCount = 0
       
@@ -164,6 +163,7 @@ let Communication = {
         if( key === 'err' ) data = data.join(' ')
 
       }else{
+        id = 0
         key = msg[ 0 ]
         if( key === 'err' ) {
           data = msg.slice( 1 ).join( ' ' )
@@ -173,7 +173,10 @@ let Communication = {
       }
     }
     
-    if( id === undefined && isLiveMsg === true ) return
+    if( id === undefined && isLiveMsg === true ) {
+      //console.error( data )
+      return
+    }
 
     if( Communication.debug.input ) {
       if( id !== undefined ) { 
@@ -203,6 +206,10 @@ let Communication = {
 
       case 'err':
         Gibber.Environment.error( data )
+        break;
+
+      case 'cli':
+        console.log( 'client!!!', data )
         break;
 
       default:
