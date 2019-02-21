@@ -299,7 +299,8 @@ let seqclosure = function( Gibber ) {
         const duration = seq.duration()
 
         for( let i = 0; i < chord.length; i++ ) {
-          let msg = ''
+          let msg
+          const number = chord[ i ]
           if( seq.__client === 'max' ) {
             msg = `add ${beat} midinote ${trackID} ${number} ${velocity} ${duration}`        
           }else if( seq.__client === 'live' ){
