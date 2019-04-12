@@ -131,11 +131,28 @@
       leaf.getParent = function() {
         return options.parent
       }
-      leaf.addEventListener( 'dragstart', function( evt ) {
-        //tracks['1-Marimba Wood'].devices['Operator']['Device On']
+      leaf.addEventListener( 'dragstart', evt => {
         let path = decodeURI( leaf.name ),
             split = path.split(':::'),
-            txt = "tracks['" + split[0] + "'].devices['" + split[1] + "']['" + split[2] + "']"
+            txt
+
+        if( this.mode === 'live' ) {
+          txt = "tracks['" + split[0] + "']"
+          if( split.length > 1 ) {
+            txt += `.devices[ '${split[1]}' ]`
+          }
+          if( split.length > 2 ) {
+            txt += `[ '${split[2]}' ]` 
+          }
+        }else if( this.mode === 'max' ) {
+          let count = 1
+          txt = split[0]
+          
+          while( count < split.length ) {
+            txt += `[ '${split[count]}' ]` 
+            count++
+          } 
+        }
 
         evt.dataTransfer.setData( "text/plain", txt );
         return false

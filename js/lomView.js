@@ -32,6 +32,7 @@ let lomView = {
       //  }
       //}]
     })
+    this.tree.mode = 'live'
     //elem.addEventListener( 'vtree-select', function( evt ) {
     //  console.log( evt, evt.detail )
     //});
@@ -44,7 +45,7 @@ let lomView = {
       let deviceID = device.name // device.title
       lomView.tree.add({ label:deviceID, id:deviceID, parent:trackID })
       for( let param of device.parameters ) {
-        lomView.tree.add({ label:param.name, id:encodeURI(param.name), parent:deviceID })
+        lomView.tree.add({ label:param.name, id:encodeURI( param.name ), parent:deviceID })
       }
     }
   },

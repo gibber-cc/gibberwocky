@@ -32,6 +32,7 @@ let momView = {
       //  }
       //}]
     })
+    this.tree.mode = 'max'
     //document.querySelector('#momView').addEventListener( 'vtree-select', function( evt ) {
     //  console.log( evt, evt.detail )
     //});
