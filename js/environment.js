@@ -43,6 +43,30 @@ let Environment = {
     //this.toggleSidebar()
   },
 
+  setServer( server ) {
+    if( server === 'max' ) {
+      Environment.__eventFire( Environment.schematabs._element[0].firstElementChild.firstElementChild.nextSibling, 'click' )
+      Environment.__eventFire( Environment.demotabs._element[0].firstElementChild.firstElementChild.nextSibling, 'click' )
+      Environment.__eventFire( document.querySelector('#maxSyncRadio'), 'click' )
+      Environment.__eventFire( document.querySelector('#maxDemosView').firstElementChild.firstElementChild, 'click' )
+    }else if( server === 'live' ) {
+      Environment.__eventFire( Environment.demotabs._element[0].firstElementChild.firstElementChild, 'click' )
+      Environment.__eventFire( Environment.schematabs._element[0].firstElementChild.firstElementChild, 'click' )
+      Environment.__eventFire( document.querySelector('#liveSyncRadio'), 'click' )
+      Environment.__eventFire( document.querySelector('#liveDemosView').firstElementChild.firstElementChild, 'click' )
+    }
+  },
+
+  __eventFire(el, etype){
+    if (el.fireEvent) {
+      el.fireEvent('on' + etype);
+    } else {
+      var evObj = document.createEvent('Events');
+      evObj.initEvent(etype, true, false);
+      el.dispatchEvent(evObj);
+    }
+  },
+
   createSidePanel() {
     this.tabs = new ML.Tabs( '#tabs' )
     this.demotabs = new ML.Tabs( '#demoTabs' )

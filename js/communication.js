@@ -63,12 +63,15 @@ let Communication = {
 
         Communication[ clientName + 'Socket' ] = wsocket
         
+
         init()
         // cancel the auto-reconnect task:
         if ( this.connectTask !== undefined ) clearTimeout( this.connectTask )
           
         // apparently this first reply is necessary
         wsocket.send( 'update on' )
+
+        Gibber.Environment.setServer( clientName )
       }.bind( Communication )
 
       wsocket.onclose = function(ev) {
