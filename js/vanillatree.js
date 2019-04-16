@@ -131,6 +131,7 @@
       leaf.getParent = function() {
         return options.parent
       }
+
       leaf.addEventListener( 'dragstart', evt => {
         let path = decodeURI( leaf.name ),
             split = path.split(':::'),
