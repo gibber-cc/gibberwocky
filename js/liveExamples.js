@@ -10,12 +10,14 @@ module.exports = {
  * project open and running in Live. If not, it's easy to make your own
  * version; just place an instance of the gibberwocky_master plugin on 
  * Live's master track, and an instance of the gibberwocky_midi plugin
- * on any track you'd like to control with gibberwokcy.
+ * on any track you'd like to control with gibberwocky. None of these
+ * tutorials will work without these plugins in place in your Live set!
  *
  * First, ensure that gibberwocky is syncing to Live by choosing
  * config > Clock Sync > Live from the sidebar. This setting will be
  * preserved between gibberwocky sessions; you shouldn't have to set
- * it again.
+ * it again. And it should also be selected by default once Live
+ * is detected, but it doesn't hurt to double check.
  *
  * Second, make sure that the transport is running in Live (hit play).
  *
