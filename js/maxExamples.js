@@ -10,14 +10,15 @@ const Examples = {
  *
  * Next, make sure that gibberwocky is syncing to Max/MSP by
  * choosing config > Clock Sync > Max from the gibberwocky
- * sidebar.
+ * sidebar. This should be selected by default once Max is
+ * detected, but double-checking can't hurt.
  *
  * To execute any line of  code, hit Ctrl+Enter. Feel free to
  * modify and re-execute at any time. To stop all running 
  * sequences, hit Ctrl+. (period).
  *
  * After playing around here, check out some of the tutorials
- * found in the sidebar under demos > max demos..
+ * found in the sidebar under demos > max demos.
  */
 
 // start kick drum on Max for Live device
@@ -471,7 +472,7 @@ signals[0]( sah( cycle(2), noise(), .999 ) )
 
 // OK, that's it for randomness... use it wisely!`,
 
-[ 'using the Score() object' ]  : 
+/*[ 'using the Score() object' ]  : 
 `// Scores are lists of functions with associated
 // relative time values. In the score below, the first function has
 // a time value of 0, which means it begins playing immediately. The
@@ -512,8 +513,8 @@ s2 = Score([
 s2.next()
 
 // CURRENTLY BROKEN
-/* The loop() method tells a score to... loop. An optional argument specifies
- * an amount of time to wait between the end of one loop and the start of the next.*/
+// The loop() method tells a score to... loop. An optional argument specifies
+// an amount of time to wait between the end of one loop and the start of the next.
 
 s3 = Score([
   0, ()=> devices['bass'].note.seq( 0, 1/4 ),
@@ -523,8 +524,8 @@ s3 = Score([
 
 s3.loop( 1 )
 
-`,
-
+`,*/
+/*
 ['using the Arp() object (arpeggiator)']:
 `/*
   * This tutorial assumes familiarity with the material
@@ -534,7 +535,7 @@ s3.loop( 1 )
   * #4) that are simply functions playing arpeggios. However,
   * the pattern transformations available in gibberwocky open
   * up a great deal of flexiblity in manipulating these arpeggios.
-  */
+//
 
 // Make an arp: chord, number of octaves, mode.
 myarp = Arp( [0,2,4,5], 4, 'updown' )
@@ -575,7 +576,7 @@ midiArp.transpose( -12 )
 
 // change number of octaves
 midiArp.octaves = 2
-`,
+`,*/
 
 ['using the Euclid() object (euclidean rhythms)'] :
 `/*
@@ -656,9 +657,9 @@ devices['bass'].midinote[1].timings.rotate.seq( 1,1 )
  *
  * The individual patterns can be accessed using the note
  * numbers they are assigned to. So, given an instance with
- * the name 'a' (as below), the pattern for note 60 can be
- * accessed at a[60]. Note that you have to access with brackets
- * as a.60 is not valid JavaScript.
+ * the name 'steps' (as below), the pattern for note 60 can be
+ * accessed at steps[60]. Note that you have to access with brackets
+ * as steps.60 is not valid JavaScript.
  *
  * The second argument to Steps is the instrument to target. Note
  * that while the example below is designed to work with the
@@ -720,7 +721,7 @@ bass.note.seq(
 // of course we can use a pattern for our rhythm:
 bass.note.seq(
   sine( 8, 0, 7 ),
-  Euclid(5,16)
+  Euclid(5,16),
   1
 )
 
