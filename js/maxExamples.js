@@ -31,10 +31,10 @@ devices['drums'].midinote.seq( [42,46].rnd(), [1/8,1/16].rnd(1/16,2), 1 )
 // play a scintillating bass line
 devices['bass'].note.seq( [-14,-12,-9,-8], 1/8 )
 
-// target namespaces 'bell' and 'squelch' 
+// target 'bell' and 'squelch' 
 // and sequence bangs at different rhythms
-namespace('bell').seq( 1, [1/8,1/16,1/4].rnd(1/16,2) )
-namespace('squelch').seq( 1, [1/4,1/16,1].rnd(1/16,4) )
+message('bell').seq( 1, [1/8,1/16,1/4].rnd(1/16,2) )
+message('squelch').seq( 1, [1/4,1/16,1].rnd(1/16,4) )
 
 // set values of named UI elements in patcher interface
 params['White_Queen'].seq( [10,32,64,92,127], 1  )
@@ -68,23 +68,26 @@ signals[3]( mul( cycle( mul(beats(8), .5 ) ), .15 ) )
 
 // Messaging in gibberwocky.max can be done in two ways. First, 
 // we can send messages out the first outlet of the gibberwocky.max
-// object. To do this, we specify 'namespaces' where each
-// namespace represents the first part of messages that are sent. Thus,
-// you could create namespaces for individual instruments, or Max objects,
-// or any other routing scheme you can come up with.
-
+// object. To do this, we specify 'message' objects where each
+// that create namespaces for messaging. 
+//
 // Let's start by sending the following message 'synth1 1'. Connect the left
 // most outlet of the gibberwocky object in Max to a print object, and then
 // run the following three lines code and look at the console in Max:
-synth1 = namespace('synth1') 
-synth1( 1 )
-synth1( 'test' )
+synth1 = message('synth1')
+synth1()         // sends 'synth1'
+synth1( 1 )      // sends 'synth1 1'
+synth1( 'test' ) // sends 'synth1 test'
 
 // You can add an extra prefix to your message by appending a property:
-synth1.gollygee( 'willickers?' )
+synth1.gollygee( 'willickers?' ) // sends 'synth1 gollygee willickers'
 
 // You can define arbitrary paths this way:
-synth1.a.b.c.d.e.f.g.h( 'i?' )
+synth1.a.b.c.d.e.f.g.h( 'i?' ) // sends 'synth1 a b c d e f g h i?'
+
+// Finally, as demostrated in the introduction demo, you can sequence
+// messages over time (sequencing is discussed further in the next tutorial).
+message('intro').test.seq( [1,2,3], 1/2 )
 
 // If you use [route], [routepass], or [sel] objects in Max/MSP you can easily direct 
 // messages to a variety of destinations in this fashion. These namespaces will appear
