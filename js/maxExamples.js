@@ -618,7 +618,7 @@ midiArp.octaves = 2
   * in the example below I've assigned this to the variable E.
   */
 
-devices['bass'].duration( 10 )
+devices['bass'].duration( 50 )
 
 // 5 pulses spread over 8 eighth notes
 devices['bass'].midinote.seq( 60, Euclid(5,8) )
