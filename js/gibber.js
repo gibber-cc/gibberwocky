@@ -46,6 +46,8 @@ let Gibber = {
     window.message       = this.Max.namespace
     window.devices       = this.Max.devices
 
+    window.connect = this.Communication.connect.bind( this.Communication )
+
     Gibber.__gen.export( window ) 
 
     this.Theory.export( window )

@@ -23,6 +23,7 @@ let Environment = {
   consoleList:null,
   annotations:true,
   suppressErrors:false,
+  isConnected:false,
 
   init( gibber ) {
     Gibber = gibber
@@ -44,16 +45,20 @@ let Environment = {
   },
 
   setServer( server ) {
-    if( server === 'max' ) {
-      Environment.__eventFire( Environment.schematabs._element[0].firstElementChild.firstElementChild.nextSibling, 'click' )
-      Environment.__eventFire( Environment.demotabs._element[0].firstElementChild.firstElementChild.nextSibling, 'click' )
-      Environment.__eventFire( document.querySelector('#maxSyncRadio'), 'click' )
-      Environment.__eventFire( document.querySelector('#maxDemosView').firstElementChild.firstElementChild, 'click' )
-    }else if( server === 'live' ) {
-      Environment.__eventFire( Environment.demotabs._element[0].firstElementChild.firstElementChild, 'click' )
-      Environment.__eventFire( Environment.schematabs._element[0].firstElementChild.firstElementChild, 'click' )
-      Environment.__eventFire( document.querySelector('#liveSyncRadio'), 'click' )
-      Environment.__eventFire( document.querySelector('#liveDemosView').firstElementChild.firstElementChild, 'click' )
+    // only reset tutorial view / change sync on first connection... reconnects don't trigger this
+    if( this.isConnected === false ) {
+      if( server === 'max' ) {
+        Environment.__eventFire( Environment.schematabs._element[0].firstElementChild.firstElementChild.nextSibling, 'click' )
+        Environment.__eventFire( Environment.demotabs._element[0].firstElementChild.firstElementChild.nextSibling, 'click' )
+        Environment.__eventFire( document.querySelector('#maxSyncRadio'), 'click' )
+        Environment.__eventFire( document.querySelector('#maxDemosView').firstElementChild.firstElementChild, 'click' )
+      }else if( server === 'live' ) {
+        Environment.__eventFire( Environment.demotabs._element[0].firstElementChild.firstElementChild, 'click' )
+        Environment.__eventFire( Environment.schematabs._element[0].firstElementChild.firstElementChild, 'click' )
+        Environment.__eventFire( document.querySelector('#liveSyncRadio'), 'click' )
+        Environment.__eventFire( document.querySelector('#liveDemosView').firstElementChild.firstElementChild, 'click' )
+      }
+      this.isConnected = true
     }
   },
 
@@ -259,7 +264,8 @@ let Environment = {
         
         markupFunction.origin  = func
 
-        if( !Environment.debug ) {
+        const isConnected = Gibber.Communication.connected.live || Gibber.Communication.connected.max
+        if( !Environment.debug && isConnected === true) {
           Gibber.Scheduler.functionsToExecute.push( func )
           if( Environment.annotations === true )
             Gibber.Scheduler.functionsToExecute.push( markupFunction  )

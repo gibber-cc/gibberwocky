@@ -3,6 +3,8 @@ let Gibber = null
 let Communication = {
   livePort: 8082,
   maxPort:  8081,
+  maxIP: '127.0.0.1',
+  liveIP: '127.0.0.1',
   socketInitialized: false,
   connectMsg: null,
   defaultMode: 'live',
@@ -32,10 +34,20 @@ let Communication = {
 
     Object.assign( this, props )
 
-    this.maxSocket  = this.createWebSocket( Gibber.Max.init,  this.maxPort,  '127.0.0.1', 'max'  )
-    this.liveSocket = this.createWebSocket( Gibber.Live.init, this.livePort, '127.0.0.1', 'live' )
+    this.maxSocket  = this.createWebSocket( Gibber.Max.init,  this.maxPort,  this.maxIP, 'max'  )
+    this.liveSocket = this.createWebSocket( Gibber.Live.init, this.livePort, this.liveIP, 'live' )
 
     this.send = this.send.bind( Communication )
+  },
+
+  connect( props ) {
+    if( this.maxSocket !== undefined && this.maxSocket.readyState === 1 ) this.maxSocket.close()
+    if( this.liveSocket !== undefined && this.liveSocket.readyState === 1 ) this.liveSocket.close()
+
+    Object.assign( this, props )
+
+    this.maxSocket  = this.createWebSocket( Gibber.Max.init,  this.maxPort,  this.maxIP, 'max'  )
+    this.liveSocket = this.createWebSocket( Gibber.Live.init, this.livePort, this.liveIP, 'live' )
   },
 
   createWebSocket( init, port, host, clientName ) {
