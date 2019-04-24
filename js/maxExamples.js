@@ -1,7 +1,7 @@
 const Examples = {
   introduction:`/* gibberwocky.max - introduction
  * 
- * This introduction assumes that your controlling the gibberwocky
+ * This introduction assumes that you're controlling the gibberwocky
  * object's help patch in Max. Otherwise your mileage will vary.
  *
  * First, make sure that audio is enabled in Max/MSP and that the
@@ -11,7 +11,7 @@ const Examples = {
  * Next, make sure that gibberwocky is syncing to Max/MSP by
  * choosing config > Clock Sync > Max from the gibberwocky
  * sidebar. This should be selected by default once Max is
- * detected, but double-checking can't hurt.
+ * detected, but double checking can't hurt.
  *
  * To execute any line of  code, hit Ctrl+Enter. Feel free to
  * modify and re-execute at any time. To stop all running 
@@ -735,12 +735,12 @@ bass.note.seq(
   Lookup( beats(4), [1/16,1/8,1/4] )               
 )
 
-
 // here's an example specifically sequencing a snare drum pattern:
 devices['drums'].midinote.seq(
   38,
   Lookup( beats(4), [ 1/32, 1/16, 1/8, 1/4 ] )      
 )
+
 // as one final example, in multi-samplers / drum machines different
 // midi notes trigger different sounds. Using signals to control 
 // select sounds can yield interesting patterns over time. also note

@@ -142,6 +142,8 @@ module.exports = function( Gibber ) {
 
       Gibber.Environment.codeMarkup.prepareObject( ns )
 
+      ns()
+
       return proxy
     },
 

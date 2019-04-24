@@ -215,6 +215,21 @@ let Communication = {
         console.log( 'client!!!', data )
         break;
 
+      case 'run':
+        Gibber.Environment.codemirror.setValue( data )
+        Gibber.Environment.codemirror.execCommand( 'selectAll' )
+        Gibber.Environment.keymap[ 'Ctrl-Enter' ]( Gibber.Environment.codemirror )
+        break;
+
+      case 'add':
+		    const lastLine = Gibber.Environment.codemirror.lastLine()
+        const current = Gibber.Environment.codemirror.getValue( '\n' )
+        Gibber.Environment.codemirror.setValue( current + '\n' + data )
+        const newLastLine = Gibber.Environment.codemirror.lastLine()
+        Gibber.Environment.codemirror.setSelection({ line:lastLine+1, ch:0 }, {line:newLastLine, ch:10000 })
+        Gibber.Environment.keymap[ 'Ctrl-Enter' ]( Gibber.Environment.codemirror )
+        break;
+
       default:
         break;
     }
