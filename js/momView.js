@@ -46,8 +46,8 @@ let momView = {
     if( split.length === 3 ) {
       txt = split[0] + "['" + split[1] + "']['" + split[2] + "']"
     }else if( split.length === 2 ) {
-      if( split[0] === 'namespaces' ) {
-        txt = "namespace('" + split[1] + "')"
+      if( split[0] === 'messages' ) {
+        txt = "message('" + split[1] + "')"
       }else{
         txt = split[0] + "['" + split[1] + "']"
       }
@@ -85,9 +85,11 @@ let momView = {
       momView.processDevice( Gibber.Max.devices[ deviceName ] )
     }
 
-    let namespaceBranch = momView.tree.add({ label:'namespaces', id:'namespaces', opened:true })
-    for( let ns of Gibber.Max.MOM.namespaces ) {
-      momView.tree.add({ label:ns, id:ns, parent:'namespaces' })
+    let namespaceBranch = momView.tree.add({ label:'messages', id:'message', opened:true })
+    if( Gibber.Max.MOM.messages !== undefined ) {
+      for( let ns of Gibber.Max.MOM.messages ) {
+        momView.tree.add({ label:ns, id:ns, parent:'messages' })
+      }
     }
 
     let paramsBranch = momView.tree.add({ label:'params', id:'params', opened:true })

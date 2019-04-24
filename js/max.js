@@ -7,7 +7,7 @@ module.exports = function( Gibber ) {
     signals:[],
     params:{},
     devices:{},
-    namespaces:{},
+    messages:{},
     receives:{},
 
     init() {
@@ -18,7 +18,7 @@ module.exports = function( Gibber ) {
     handleScene( msg ) {
       Max.id = Communication.querystring.track
 
-      if( msg.namespaces !== undefined ) {
+      if( msg.signals !== undefined ) {
         Max.MOM = msg
 
         Max.processMOM()
@@ -46,7 +46,6 @@ module.exports = function( Gibber ) {
     processMOM() {
       for( let signalNumber of Max.MOM.signals ) {
         Max.signals[ signalNumber ] = function( genGraph ) {
-          console.log( 'setting signal' )
           // getter
           if( genGraph === undefined ) return Max.signals[ signalNumber ].genGraph
 
@@ -105,7 +104,7 @@ module.exports = function( Gibber ) {
       Gibber.Environment.momView.init( Gibber )
     },
 
-    namespace( str, target ) {
+    message( str, target ) {
       const addr = target === undefined ? str : target.address + ' ' + str
 
       const ns = function( ...args ) { 
@@ -113,16 +112,16 @@ module.exports = function( Gibber ) {
       }
       ns.address = ns.path = str
       
-      if( target === undefined ) target = Max.namespaces
+      if( target === undefined ) target = Max.messages
 
       if( target[ str ] ) return target[ str ] 
       
       const proxy = new Proxy( ns, {
-        // whenever a property on the namespace is accessed
+        // whenever a property on the message is accessed
         get( target, prop, receiver ) {
           // if the property is undefined...
           if( target[ prop ] === undefined && prop !== 'markup' && prop !== 'seq' && prop !== 'sequences' && prop !== '__client' ) {
-            target[ prop ] = Max.namespace( prop, target )
+            target[ prop ] = Max.message( prop, target )
             target[ prop ].address = addr + ' ' + prop 
           }
 
