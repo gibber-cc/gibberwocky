@@ -139,7 +139,7 @@ let Communication = {
       data = _msg.data
       key = null
       const json = JSON.parse( data )
-      const schema = json.namespaces !== undefined ? 'max' : 'live'
+      const schema = json.signals !== undefined ? 'max' : 'live'
 
       if( Communication.callbacks.schemas[ schema ] ) {
         Communication.callbacks.schemas[ schema ]( JSON.parse( data ) )
@@ -228,9 +228,18 @@ let Communication = {
         break;
 
       case 'run':
+        Gibber.clear()
         Gibber.Environment.codemirror.setValue( data )
         Gibber.Environment.codemirror.execCommand( 'selectAll' )
         Gibber.Environment.keymap[ 'Ctrl-Enter' ]( Gibber.Environment.codemirror )
+        break;
+
+      case 'set':
+        Gibber.Environment.codemirror.setValue( data )
+        break;
+
+      case 'end':
+        Gibber.clear()
         break;
 
       case 'add':
