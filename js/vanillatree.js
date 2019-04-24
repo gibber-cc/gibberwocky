@@ -148,11 +148,17 @@
         }else if( this.mode === 'max' ) {
           let count = 1
           txt = split[0]
-          
+
+          if( txt === 'message' ) {
+            txt += `( '${split[1]}' )`
+            count++ 
+          }
+
           while( count < split.length ) {
             txt += `[ '${split[count]}' ]` 
             count++
           } 
+          
         }
 
         evt.dataTransfer.setData( "text/plain", txt );

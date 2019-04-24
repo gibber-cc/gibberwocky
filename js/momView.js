@@ -1,5 +1,6 @@
 require( './vanillatree.js' )
 
+/* NOTE THAT DRAG/DROP CODE IS IN VANILLATREE.JS FILE */
 let Gibber = null, count = -1
 
 let momView = {
@@ -20,55 +21,8 @@ let momView = {
 
     this.tree = new VanillaTree('#momView', {
       placeholder: ''
-      //contextmenu: [{
-      //  label: 'Label 1',
-      //  action: function(id) {
-      //    // someAction
-      //  }
-      //},{
-      //  label: 'Label 2',
-      //  action: function(id) {
-      //    // someAction
-      //  }
-      //}]
     })
     this.tree.mode = 'max'
-    //document.querySelector('#momView').addEventListener( 'vtree-select', function( evt ) {
-    //  console.log( evt, evt.detail )
-    //});
-  },
-
-  onLeafClick( leaf, evt ) {
-    let path = decodeURI( leaf.name ),
-        split = path.split(':::'),
-        txt
-
-    if( split.length === 3 ) {
-      txt = split[0] + "['" + split[1] + "']['" + split[2] + "']"
-    }else if( split.length === 2 ) {
-      if( split[0] === 'messages' ) {
-        txt = "message('" + split[1] + "')"
-      }else{
-        txt = split[0] + "['" + split[1] + "']"
-      }
-    }
-
-    const cursorPos = Gibber.Environment.codemirror.getCursor()
-    const end = Object.assign( {}, cursorPos )
-
-    //end.ch += 1
-    
-    //console.log('leaf click', leaf, evt )
-
-    if( txt !== undefined ) { // if they click on an collapse/uncollapse widget
-      if( evt.path[0].className !== 'vtree-toggle' ) {
-        Gibber.Environment.codemirror.replaceRange( txt, cursorPos, end )
-        Gibber.Environment.codemirror.focus()
-      }
-    }
-    
-    // prevent re-adding device['blah'] to end of string
-    return split.length === 3 
   },
 
   processDevice( device, id ) {
@@ -88,7 +42,7 @@ let momView = {
     let namespaceBranch = momView.tree.add({ label:'messages', id:'message', opened:true })
     if( Gibber.Max.MOM.messages !== undefined ) {
       for( let ns of Gibber.Max.MOM.messages ) {
-        momView.tree.add({ label:ns, id:ns, parent:'messages' })
+        momView.tree.add({ label:ns, id:ns, parent:'message' })
       }
     }
 
