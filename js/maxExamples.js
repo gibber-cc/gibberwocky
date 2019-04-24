@@ -301,11 +301,11 @@ devices['bass'].chord.seq( ['c4dim7', 'bb3maj7', 'fb3aug7'], 1 )
 // Create a Pattern with some initial values.
 myvalues = Pattern( 60,62,64,65 )
 
-Gibber.log( myvalues() ) // 60
-Gibber.log( myvalues() ) // 62
-Gibber.log( myvalues() ) // 64
-Gibber.log( myvalues() ) // 65
-Gibber.log( myvalues() ) // back to 60...
+log( myvalues() ) // 60
+log( myvalues() ) // 62
+log( myvalues() ) // 64
+log( myvalues() ) // 65
+log( myvalues() ) // back to 60...
 
 // sequence using this pattern:
 devices['bass'].midinote.seq( myvalues, 1/8 )
@@ -316,8 +316,8 @@ devices['bass'].midinote.seq( myvalues, 1/8 )
 // as follows:
 
 devices['bass'].midinote.seq( [62,74,38,50], [1/2,1/4] )
-Gibber.log( devices['bass'].midinote[0].values.toString() ) 
-Gibber.log( devices['bass'].midinote[0].timings.toString() ) 
+log( devices['bass'].midinote[0].values.toString() ) 
+log( devices['bass'].midinote[0].timings.toString() ) 
 
 // Now that we can access them, we can apply transformations:
 
@@ -369,10 +369,10 @@ signals[0]( mylfo )
 
 mylfo.frequency.seq( [ .5,1,2,4 ], 2 )
 
-/* ... as well as sequence any other parameter in Live controlled by a genish.js graph. Although the lfo()
-ugen provides named properties for controlling frequency, amplitude, and centroid, there is a more
-generic way to sequence any aspect of a gen~ ugen by using the index operator ( [] ). For example,
-cycle() contains a single inlet that controls its frequency, to sequence it we would use: */
+/* ... as well as sequence any other parameter in Max connected to a gibberwocky signal output.
+ * Although the lfo() ugen provides named properties for controlling frequency, amplitude, and centroid, 
+there is a more generic way to sequence any aspect of a gen~ ugen by using the index operator ( [] ). 
+For example, cycle() contains a single inlet that controls its frequency, to sequence it we would use: */
 
 mycycle = cycle( .25 )
 
@@ -380,7 +380,7 @@ mycycle[ 0 ].seq( [ .25, 1, 2 ], 1 )
 
 signals[0]( add( .5, div( mycycle, 2 ) ) )
 
-/*For other ugens that have more than one argument (see the genish.js random tutorial for an example) we
+/*For other ugens that have more than one argument (see tutorial #6 on randomness for an example) we
 simply indicate the appropriate index... for example, mysah[ 1 ] etc. For documentation on the types of
 ugens that are available, see the gen~ reference: https://docs.cycling74.com/max7/vignettes/gen~_operators*/`, 
 
@@ -618,19 +618,16 @@ midiArp.octaves = 2
   * in the example below I've assigned this to the variable E.
   */
 
-// store for faster reference
-E = Euclid
-
 devices['bass'].duration( 10 )
 
 // 5 pulses spread over 8 eighth notes
-devices['bass'].midinote.seq( 60, E(5,8) )
+devices['bass'].midinote.seq( 60, Euclid(5,8) )
 
 // 3 pulses spread over 8 sixteenth notes
-devices['bass'].midinote.seq( 48, E( 3, 8, 1/16 ), 1  )
+devices['bass'].midinote.seq( 48, Euclid( 3, 8, 1/16 ), 1  )
 
 // a quick way of notating x.x.
-devices['bass'].midinote.seq( 36, E(2,4), 2 ) 
+devices['bass'].midinote.seq( 36, Euclid(2,4), 2 ) 
 
 // because Euclid() generates Pattern objects (see tutorial #3)
 // we can transform the patterns it generates:
