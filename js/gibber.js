@@ -42,8 +42,9 @@ let Gibber = {
 
     window.signals       = this.Max.signals
     window.params        = this.Max.params
-    window.namespace     = this.Max.namespace
-    window.message       = this.Max.namespace
+    // XXX probably safe to remove old namespace reference...
+    window.namespace     = this.Max.message
+    window.message       = this.Max.message
     window.devices       = this.Max.devices
 
     window.connect = this.Communication.connect.bind( this.Communication )
