@@ -12,7 +12,7 @@ const create = function( spec ) {
 
 		const d = Object.assign({}, spec, {
 			__velocity: 127,
-			__duration: 500,
+			__duration: 150,
       __octave:0,
       __client:'max',
 
