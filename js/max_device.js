@@ -3,14 +3,16 @@ const Theory = require('./theory.js')
 
 module.exports = function( Gibber ) {
 
-const create = function( spec ) {
+const create = function( spec, extensionObject=null, shouldSwitch = false ) {
 
 		// unfortunately, we have to give each object unique
 		// methods rather than using a single prototype, as
 		// most methods will have a .seq() methods added to them
 		// that need to differ for each object.
 
-		const d = Object.assign({}, spec, {
+    const objectToExtend = extensionObject === null ? {} : extensionObject
+
+		const d = Object.assign( objectToExtend, spec, {
 			__velocity: 127,
 			__duration: 150,
       __octave:0,
@@ -36,13 +38,23 @@ const create = function( spec ) {
 				if( typeof velocity !== 'number' || velocity === 0) velocity = d.__velocity
 				if( typeof duration !== 'number' ) duration = this.__duration
 
-				Gibber.Communication.send( `midinote ${d.path} ${note} ${velocity} ${duration}`, 'max' )
+        if( shouldSwitch === true ) {
+          Gibber.Communication.send( `${d.path} ${note} ${velocity} ${duration}`, 'max' )
+        }else{
+          Gibber.Communication.send( `midinote ${d.path} ${note} ${velocity} ${duration}`, 'max' )
+        }
 			},
 
 			note( num, offset=null, doNotConvert=false ){
 				const notenum = doNotConvert === true ? num : Gibber.Theory.Note.convertToMIDI( num )
 
-				Gibber.Communication.send( `midinote ${d.path} ${notenum} ${d.__velocity} ${d.__duration}`, 'max' )
+				//Gibber.Communication.send( `midinote ${d.path} ${notenum} ${d.__velocity} ${d.__duration}`, 'max' )
+
+        if( shouldSwitch === true ) {
+          Gibber.Communication.send( `${d.path} ${notenum} ${d.__velocity} ${d.__duration}`, 'max' )
+        }else{
+          Gibber.Communication.send( `midinote ${d.path} ${notenum} ${d.__velocity} ${d.__duration}`, 'max' )
+        }
 			},
 
 			chord( chord, offset=null, doNotConvert=false ) {
@@ -69,13 +81,15 @@ const create = function( spec ) {
 		Gibber.Environment.codeMarkup.prepareObject( d )
 
 		// create functions to set the value of all exposed device parameters
-		for( let value of d.values ) {
-			//d[ value.name ] = function( v ) {
-			//  Gibber.Communication.send( `set ${d.path} ${value.name} ${v}`, 'max' )           
-			//} 
-      //Gibber.addSequencingToMethod( d, value.name, 0, null, 'max' )
-      Gibber.addMethod( d, value.name, d.path, null, 'max' )
-		}
+    if( d.value !== undefined && d.value !== null ) {
+      for( let value of d.values ) {
+        //d[ value.name ] = function( v ) {
+        //  Gibber.Communication.send( `set ${d.path} ${value.name} ${v}`, 'max' )           
+        //} 
+        //Gibber.addSequencingToMethod( d, value.name, 0, null, 'max' )
+        Gibber.addMethod( d, value.name, d.path, null, 'max' )
+      }
+    }
 
     // create MIDI sequencing functions
     // pass d.path + method name to force sequencer to use external sequencing methods defined
@@ -104,13 +118,24 @@ const create = function( spec ) {
         const velocity = seq.velocity()
         const duration = seq.duration()
 
-			  let msg = `add ${beat} midinote ${d.path} ${value} ${velocity} ${duration}` 
+        let msg
+        if( shouldSwitch === false ) {
+          msg = `add ${beat} midinote ${d.path} ${value} ${velocity} ${duration}` 
+        }else{
+          msg = `add ${beat} ${d.path} ${value} ${velocity} ${duration}` 
+        }
 
 			  return msg
 		  },
 
 		  [ d.path + 'midinote' ] : ( value, beat, id, seq ) => {
-			  let msg = `add ${beat} midinote ${d.path} ${value} ${d.__velocity} ${d.__duration}` 
+        let msg
+        if( shouldSwitch === false ) {
+          msg  = `add ${beat} midinote ${d.path} ${value} ${d.__velocity} ${d.__duration}` 
+        }else{
+          msg  = `add ${beat} ${d.path} ${value} ${d.__velocity} ${d.__duration}` 
+        }
+
 			  return msg
 			},
 
@@ -118,7 +143,11 @@ const create = function( spec ) {
         let msg = []
 
         for( let i = 0; i < chord.length; i++ ) {
-          msg.push( `add ${beat} midinote ${d.path} ${chord[i]} ${d.__velocity} ${d.__duration}`  )
+          if( shouldSwitch === false ) {
+            msg.push( `add ${beat} midinote ${d.path} ${chord[i]} ${d.__velocity} ${d.__duration}`  )
+          }else{
+            msg.push( `add ${beat} ${d.path} ${chord[i]} ${d.__velocity} ${d.__duration}`  )
+          }
         }
 
         return msg
@@ -129,7 +158,11 @@ const create = function( spec ) {
         let msg = []
 
 				for( let i = 0; i < chord.length; i++ ) {
-          msg.push( `add ${beat} midinote ${d.path} ${chord[i]} ${d.__velocity} ${d.__duration}`  )
+          if( shouldSwitch === false ) {
+            msg.push( `add ${beat} midinote ${d.path} ${chord[i]} ${d.__velocity} ${d.__duration}`  )
+          }else{
+            msg.push( `add ${beat} ${d.path} ${chord[i]} ${d.__velocity} ${d.__duration}`  )
+          }
         }
 
         return msg

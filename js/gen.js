@@ -134,8 +134,12 @@ let Gen  = {
   },
 
   clear() {
-    for( let ugen of Gen.connected ) {
-      Gibber.Communication.send( `ungen ${ugen.paramID}` )
+    for( let key in Gibber.Communication.connected ) {
+      if( Gibber.Communication.connected[ key ] === true ) {
+        for( let ugen of Gen.connected ) {
+          Gibber.Communication.send( `ungen ${ugen.paramID}`, key )
+        }
+      }
     }
 
     Gen.connected.length = 0

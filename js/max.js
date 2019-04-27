@@ -88,11 +88,14 @@ module.exports = function( Gibber ) {
       }
 
       for( let receive in Max.MOM.receives ) {
-        Max.receives[ receive ] = function( v ) {
+        /*Max.receives[ receive ]*/ const fnc = function( v ) {
           Gibber.Communication.send( `${receive} ${v}`, 'max' )
         }
 
-        Max.receives[ receive ].__client = 'max'
+
+        /*Max.receives[ receive ]*/fnc.__client = 'max'
+
+        Max.receives[ receive ] = makeDevice( { path:receive }, null, true )
         Gibber.addSequencingToMethod( Max.receives, receive, 0, 'max' )
       }
 
@@ -103,6 +106,13 @@ module.exports = function( Gibber ) {
 
       Gibber.Environment.momView.init( Gibber )
     },
+
+    __doNotProxy:[ 
+      'markup', 'seq', 'sequences', '__client',
+      'note','midinote','chord','midichord',
+      'octave','duration','velocity','delay',
+      '__velocity', '__duration', '__octave'
+    ],
 
     message( str, target ) {
       const addr = target === undefined ? str : target.address + ' ' + str
@@ -115,18 +125,34 @@ module.exports = function( Gibber ) {
       if( target === undefined ) target = Max.messages
 
       if( target[ str ] ) return target[ str ] 
-      
+
+      const nonproxy = target[ str ] = makeDevice({ path:addr }, target[ str ], true )
+
       const proxy = new Proxy( ns, {
         // whenever a property on the message is accessed
         get( target, prop, receiver ) {
           // if the property is undefined...
-          if( target[ prop ] === undefined && prop !== 'markup' && prop !== 'seq' && prop !== 'sequences' && prop !== '__client' ) {
+          if( Max.__doNotProxy.indexOf( prop ) === -1 ) {
             target[ prop ] = Max.message( prop, target )
             target[ prop ].address = addr + ' ' + prop 
+          }else{
+            if( prop !== 'seq' && prop !== 'markup' && prop !== 'sequences' && prop !== '__client' ) {
+              return nonproxy[ prop ]
+            }
           }
 
           return target[ prop ]
-        }
+        }/*,
+        set( target, prop, value, receiver ) {
+
+          if( Max.__doNotProxy.indexOf( prop ) === -1 ) {
+            target[ prop ] = value
+          }else{
+            nonproxy[ prop ] = value
+          }
+
+          return true
+        },*/
       })
 
       target[ str ] = proxy 
@@ -135,6 +161,10 @@ module.exports = function( Gibber ) {
       Gibber.addSequencingToMethod( target, str, 0, addr, 'max' )           
 
       Gibber.Seq.proto.externalMessages[ addr ] = ( value, beat ) => {
+        if( Array.isArray( value ) === true ) {
+          value = value.reduce( (v,r) => r + ' ' + v )
+        }
+
         let msg = `add ${beat} ${addr} ${value}`  
         return msg
       }

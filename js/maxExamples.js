@@ -11,11 +11,15 @@ const Examples = {
  * Next, make sure that gibberwocky is syncing to Max/MSP by
  * choosing config > Clock Sync > Max from the gibberwocky
  * sidebar. This should be selected by default once Max is
- * detected, but double checking can't hurt.
+ * detected, but double checking can't hurt. If you ever lose
+ * connection to the [gibberwocky] object in Max, you can reconnect
+ * by calling connect().
  *
- * To execute any line of  code, hit Ctrl+Enter. Feel free to
+ * To execute any line of code, hit Ctrl+Enter. Feel free to
  * modify and re-execute at any time. To stop all running 
- * sequences, hit Ctrl+. (period).
+ * sequences, hit Ctrl+. (period). Shift+Enter executes code
+ * immediately, while Ctrl+Enter waits until the start of the next
+ * measure for easy temporal alignment.
  *
  * After playing around here, check out some of the tutorials
  * found in the sidebar under demos > max demos.
@@ -107,25 +111,29 @@ message('intro').test.seq( [1,2,3], 1/2 )
 // inserted into your code editor at the current cursor position. Add a call to midinote to the end of this
 // code snippet; it should look similar to the following:
 
-devices['bass'].midinote( 60 ) // send middle C
+devices['synth'].midinote( 60 ) // send middle C
 
 // Now uncollapse the branch for your device in the scene browser. This lists
 // all the parameters exposed for control on the Max for Live device. Click on any
 // leaf to insert the full path to the control into your code editor. Here's the 
-// 'res' parameter controlling the resonance of the filter on the bassline instrument.
+// 'filter_resonance' parameter controlling the resonance of the filter on the 
+// synth instrument.
 
-devices['bass']['res']
+devices['synth']['filter_resonance']
 
 // This points to a function; we can pass this function a value to manipulate the
 // control.
+devices['synth']['filter_resonance'](.95)
 
-devices['bass']['res']( 100 )
+// cutoff is measured in Hz
+devices['synth']['cutoff'](1000 )
 
-devices['bass'].note( 'eb4' )
+devices['synth'].note( 'eb4' )
 
 // If you've used gibberwocky.live before, it's important to note that these controls
 // do not default to a range of {0,1}. Many of the controls on bassline default to the 
-// standard MIDI range of {0,127}.
+// standard MIDI range of {0,127}, while the controls on the Laverne in the
+// help patch have ranges that are all over the map.
 
 // OK, that's some basics out of the way. Try the sequencing tutorial next!`,
 
@@ -143,36 +151,36 @@ devices['bass'].note( 'eb4' )
 // a call to .seq(). For example:
 
 // send noteon message with a first value of 36
-devices['bass'].midinote( 36 )
+devices['synth'].midinote( 36 )
 
 // send same value every quarter note
-devices['bass'].midinote.seq( 36, 1/4 )
+devices['synth'].midinote.seq( 36, 1/4 )
 
 // You can stop all sequences in gibberwocky with the Ctrl+. keyboard shortcut
 // (Ctrl + period). You can also stop all sequences on a specific channel:
 
-devices['bass'].stop()
+devices['synth'].stop()
 
 // Most sequences in gibberwocky contain values (60) and timings (1/4). To
 // sequence multiple values we simply pass an array:
 
-devices['bass'].midinote.seq( [60,72,48], 1/4 )
+devices['synth'].midinote.seq( [60,72,48], 1/4 )
 
 // ... and we can do the same thing with multiple timings:
 
-devices['bass'].midinote.seq( [60,72,48], [1/4,1/8] )
+devices['synth'].midinote.seq( [60,72,48], [1/4,1/8] )
 
 // We can also sequence our note velocities and durations.
-devices['bass'].midinote.seq( 60, 1/2 )
-devices['bass'].velocity.seq( [16, 64, 127], 1/2 )
-devices['bass'].duration.seq( [10, 100,500], 1/2 )
+devices['synth'].midinote.seq( 60, 1/2 )
+devices['synth'].velocity.seq( [16, 64, 127], 1/2 )
+devices['synth'].duration.seq( [10, 100,500], 1/2 )
 
 // If you experimented with running multiple variations of the midinote 
 // sequences you might have noticed that only one runs at a time. For example,
 // if you run these two lines:
 
-devices['bass'].midinote.seq( 72, 1/4 )
-devices['bass'].midinote.seq( 48, 1/4 )
+devices['synth'].midinote.seq( 72, 1/4 )
+devices['synth'].midinote.seq( 48, 1/4 )
 
 // ...you'll notice only the second one actually triggers. By default, gibberwocky
 // will replace an existing sequence with a new one. To stop this, you can pass an ID number 
@@ -182,16 +190,16 @@ devices['bass'].midinote.seq( 48, 1/4 )
 // sequence, the older sequence is stopped. If the sequences have different IDs they run 
 // concurrently. Note this makes it really easy to create polyrhythms.
 
-devices['bass'].midinote.seq( 48, 1 ) // assumes ID of 0
-devices['bass'].midinote.seq( 60, 1/2, 1 ) 
-devices['bass'].midinote.seq( 72, 1/3, 2 ) 
-devices['bass'].midinote.seq( 84, 1/7, 3 ) 
+devices['synth'].midinote.seq( 48, 1 ) // assumes ID of 0
+devices['synth'].midinote.seq( 60, 1/2, 1 ) 
+devices['synth'].midinote.seq( 72, 1/3, 2 ) 
+devices['synth'].midinote.seq( 84, 1/7, 3 ) 
 
 // We can also sequence calls to midichord. You might remember from the first tutorial
 // that we pass midichord an array of values, where each value represents one note. This
 // means we need to pass an array of arrays in order to move between different chords.
 
-devices['bass'].midichord.seq( [[60,64,68], [62,66,72]], 1/2 )
+devices['synth'].midichord.seq( [[60,64,68], [62,66,72]], 1/2 )
 
 // Even we're only sequencing a single chord, we still need to pass a 2D array. Of course,
 // specifying arrays of MIDI values is not necessarily an optimal representation for chords.
@@ -212,25 +220,25 @@ devices['bass'].midichord.seq( [[60,64,68], [62,66,72]], 1/2 )
  */
 
 // In our previous tutorial, we sent out C in the fourth octave by using MIDI number 60:
-devices['bass'].midinote( 60 )
+devices['synth'].midinote( 60 )
 
 // We can also specify notes with calls to the note() method by passing a name and octave.
-devices['bass'].note( 'c4' )
-devices['bass'].note( 'fb3' )
+devices['synth'].note( 'c4' )
+devices['bass'].note( 'fb2' )
 
-devices['bass'].note.seq( ['c4','e4','g4'], 1/8 )
+devices['synth'].note.seq( ['c4','e4','g4'], 1/8 )
 
 // remember, Ctrl+. stops all running sequences.
 
 // In gibberwocky, the default scale employed is C minor, starting in the fourth octave. 
 // This means that if we pass 0 as a value to note(), C4 will also be played.
-devices['bass'].note( 0 )
+devices['synth'].note( 0 )
 
 // sequence C minor scale, starting in the fourth octave:
-devices['bass'].note.seq( [0,1,2,3,4,5,6,7], 1/8 )
+devices['synth'].note.seq( [0,1,2,3,4,5,6,7], 1/8 )
 
 // negative scale indices also work:
-devices['bass'].note.seq( [-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7], 1/8 )
+devices['synth'].note.seq( [-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7], 1/16 )
 
 // there is a global Scale object we can use to change the root and mode
 // for all scales. Run the lines below individually  with the previous note sequence running.
@@ -241,7 +249,7 @@ Scale.root( 'c4' )
 Scale.mode( 'phrygian' )
 
 // We can also sequence changes to the root / mode:
-Scale.root.seq( ['c2','d2','f2','g2'], 2 )
+Scale.root.seq( ['c4','d4','f4','g4'], 2 )
 Scale.mode.seq( ['lydian', 'ionian', 'locrian'], 2 )
 
 // stop the scale sequencing
@@ -264,24 +272,21 @@ Scale.mode.seq( ['my mode', 'another mode'], 4 )
 // Last but not least there are a few different ways to specify chords in gibberwocky.
 // First, clear the current scene using Ctrl+.
 
-// change the release time, scale mode, and root
-devices['bass'].release( 75 )
-
 // We can use note names:
-devices['bass'].chord( ['c4','eb4','gb4','a4'] )
+devices['synth'].chord( ['c4','eb4','gb4','a4'] )
 
 // Or we can use scale indices:
-devices['bass'].chord( [0,2,4,5] )
+devices['synth'].chord( [0,2,4,5] )
 
 // sequence in two-dimensional array
-devices['bass'].chord.seq( [[0,2,4,5], [1,3,4,6]], 1 )
+devices['synth'].chord.seq( [[0,2,4,5], [1,3,4,6]], 1 )
 
 // We can also use strings that identify common chord names.
-devices['bass'].chord( 'c4maj7' )
-devices['bass'].chord( 'c#4sus7b9' )
+devices['synth'].chord( 'c4maj7' )
+devices['synth'].chord( 'c#4sus7b9' )
 
 
-devices['bass'].chord.seq( ['c4dim7', 'bb3maj7', 'fb3aug7'], 1 )
+devices['synth'].chord.seq( ['c4dim7', 'bb3maj7', 'fb3aug7'], 1 )
 
 // OK, that's harmony in a nutshell. Next learn a bit about patterns and
 // pattern manipulation in gibberwocky in tutorial #4.`,
@@ -416,7 +421,7 @@ log( rndi( 0,127,3 ) )
 // so, if we wanted to sequence a random midinote to the 'bass' device
 // in the gibberwocky help patcher, we could sequence a function as follows:
 
-devices['bass'].midinote.seq( ()=> rndi(0,127), 1/8 )
+devices['synth'].midinote.seq( ()=> rndi(40,100), 1/8 )
 
 // Whenever gibberwocky sees a function in a sequence, it calls that function
 // to generate a value or a timing. In practice this is common enough with
@@ -425,11 +430,11 @@ devices['bass'].midinote.seq( ()=> rndi(0,127), 1/8 )
 // Simply capitalize the call to rndi or rndf (to Rndi / Rndf ).
 
 clear() // clear previous sequence
-devices['bass'].note.seq( Rndi(-14,-7), 1/8 )
+devices['bass'].note.seq( Rndi(0,7), 1/8 )
 
 // And chords:
 clear()
-devices['bass'].chord.seq( Rndi(14,21,3), 1/8 )
+devices['synth'].chord.seq( Rndi(14,21,3), 1/8 )
 
 // In addition to creating functions outputting random numbers, we can
 // also randomly pick from the arrays used to initialize patterns.
@@ -447,11 +452,11 @@ devices['drums'].midinote.seq( [42,46].rnd(), 1/16 )
 devices['drums'].midinote.seq( 36, 1/4 )
 
 // whenever a 1/16th timing is used, use it twice in a row
-devices['bass'].note.seq( -14, [1/8,1/16].rnd( 1/16,2 ) )
+devices['bass'].note.seq( -7, [1/8,1/16].rnd( 1/16,2 ) )
 
 // whenever a 1/16th timing is used, use it twice in a row and
 // whenever a 1/12th timing is used, use it three times in a row
-devices['bass'].note.seq( -14, [1/8,1/16,1/12].rnd( 1/16,2,1/12,3 ) )
+devices['bass'].note.seq( -7, [1/8,1/16,1/12].rnd( 1/16,2,1/12,3 ) )
 
 // OK, that's the basics of using randomness in patterns. But we can also use
 // noise to create randomness in modulations.
@@ -617,8 +622,6 @@ midiArp.octaves = 2
   * function, which returns a pattern (see tutorial #4);
   * in the example below I've assigned this to the variable E.
   */
-
-devices['bass'].duration( 50 )
 
 // 5 pulses spread over 8 eighth notes
 devices['bass'].midinote.seq( 60, Euclid(5,8) )

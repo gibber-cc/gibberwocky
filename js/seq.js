@@ -322,7 +322,7 @@ let seqclosure = function( Gibber ) {
         }else{
           msg = [ 0xb0 + seq.object.number, number, value ]
         }
-        console.log( 'cc msg:', msg, seq.__client )
+        //console.log( 'cc msg:', msg, seq.__client )
 
         return msg 
       },
