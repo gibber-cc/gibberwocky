@@ -85,18 +85,21 @@ module.exports = function( Gibber ) {
       for( let param of Max.MOM.root.params ) {
         Gibber.addMethod( Max.params, param.varname, null, null, 'max' )
         Max.params[ param.varname ].__client = 'max'
+        Max.params[ param.varname ] = makeDevice({ path:`set ${param.varname}` }, Max.params[ param.varname ], true )
       }
 
+      Max.receives.path = 'set'
       for( let receive in Max.MOM.receives ) {
-        /*Max.receives[ receive ]*/ const fnc = function( v ) {
-          Gibber.Communication.send( `${receive} ${v}`, 'max' )
-        }
+        //[>Max.receives[ receive ]<] const fnc = function( v ) {
+          //Gibber.Communication.send( `${receive} ${v}`, 'max' )
+        //}
 
-
-        /*Max.receives[ receive ]*/fnc.__client = 'max'
-
-        Max.receives[ receive ] = makeDevice( { path:receive }, null, true )
-        Gibber.addSequencingToMethod( Max.receives, receive, 0, 'max' )
+        /*Max.receives[ receive ]*///fnc.__client = 'max'
+        //Max.receives[ receive ] = makeDevice( { path:receive }, fnc, false )
+        Gibber.addMethod( Max.receives, receive, null, null, 'max' )
+        Max.receives[ receive  ].__client = 'max'
+        Max.receives[ receive ] = makeDevice({ path:`set ${receive}` }, Max.receives[ receive ], true )       //
+        //Gibber.addSequencingToMethod( Max.receives, receive, 0, 'max' )
       }
 
       for( let device of Max.MOM.root.devices ) {

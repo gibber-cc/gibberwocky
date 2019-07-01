@@ -292,6 +292,7 @@ module.exports = {
   export( obj ) {
     obj.Theory = this
     obj.Scale = Scale.master
+    obj.ntof = Note.convertToMIDI
     
     const base = [ 'i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii' ]
 

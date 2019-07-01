@@ -50,6 +50,11 @@ let momView = {
     for( let param of Gibber.Max.MOM.root.params ) {
       momView.tree.add({ label:param.varname, id:param.varname, parent:'params', opened:true })
     }
+
+    let receivesBranch = momView.tree.add({ label:'receives', id:'receives', opened:true })
+    for( let param in Gibber.Max.MOM.receives ) {
+      momView.tree.add({ label:param, id:param, parent:'receives', opened:true })
+    }
     
     let signalsBranch = momView.tree.add({ label:'signals', id:'signals', opened:true })
     for( let ns of Gibber.Max.MOM.signals ) {
