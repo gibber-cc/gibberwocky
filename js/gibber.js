@@ -46,6 +46,7 @@ let Gibber = {
     window.namespace     = this.Max.message
     window.message       = this.Max.message
     window.devices       = this.Max.devices
+    window.patchers      = this.Max.patchers
 
     window.connect = this.Communication.connect.bind( this.Communication )
 

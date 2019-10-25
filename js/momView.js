@@ -60,6 +60,19 @@ let momView = {
     for( let ns of Gibber.Max.MOM.signals ) {
       momView.tree.add({ label:ns, id:ns, parent:'signals' })
     }
+
+    let patchersBranch = momView.tree.add({ label:'patchers', id:'patchers', opened:true })
+    for( let ns in Gibber.Max.patchers ) {
+      momView.tree.add({ label:ns, id:ns, parent:'patchers' })
+      const patcher = Gibber.Max.patchers[ ns ]
+      for( let key in patcher ) {
+        if( key.indexOf('::') === -1 ) {
+          if( key !== 'sequences' && key !== '__client' ) {
+            momView.tree.add({ label:key, id:key, parent:ns })
+          }
+        }
+      }
+    }
   }
 }
 

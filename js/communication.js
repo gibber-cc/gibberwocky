@@ -144,7 +144,6 @@ let Communication = {
       const json = JSON.parse( data )
       const schema = json.signals !== undefined ? 'max' : 'live'
 
-      console.log( 'json:', json )
       if( Communication.callbacks.schemas[ schema ] ) {
         Communication.callbacks.schemas[ schema ]( JSON.parse( data ) )
       }
