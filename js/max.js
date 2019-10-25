@@ -9,6 +9,7 @@ module.exports = function( Gibber ) {
     devices:{},
     messages:{},
     receives:{},
+    patchers:{},
 
     init() {
       Gibber.Communication.callbacks.schemas.max = Max.handleScene
@@ -106,6 +107,24 @@ module.exports = function( Gibber ) {
         Max.devices[ device.path ] = makeDevice( device )
         Max.devices[ device.path ].__client = 'max'
       }
+
+      for( let key in Max.MOM.root ) {
+        if( key === 'devices' || key === 'params' || key === 'type' ) continue
+        const patcher = Max.MOM.root[ key ]
+        Max.patchers[ key ] = {}
+        for( let param of patcher.params ) {
+          const path =`"${key}::${param.varname}"`
+          Gibber.addMethod( Max.patchers[ key ], path, null, null, 'max' ) 
+          Max.patchers[ key ][ param.varname ] = Max.patchers[ key ][ path ]
+          Max.patchers[ key ][ param.varname ].__client = 'max'
+          Max.patchers[ key ][ param.varname ] = makeDevice({
+              path:`set ${path}` 
+            },
+            Max.patchers[ key ][ param.varname ], 
+            true 
+          )
+        }
+      } 
 
       Gibber.Environment.momView.init( Gibber )
     },

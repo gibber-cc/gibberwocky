@@ -55,10 +55,15 @@ let Gibber = {
     this.Utility.export( window )
   },
 
-  init() {
+  init(shouldCreateEnvironment=true ) {
+    this.isStandalone = shouldCreateEnvironment
+
     this.$   = Gibber.Utility.create
 
-    this.Environment.init( Gibber )
+    if( this.isStandalone === true ) {
+      this.Environment.init( Gibber )
+    }
+
     this.Theory.init( Gibber )
     this.log = this.Environment.log
 
@@ -72,7 +77,7 @@ let Gibber = {
     this.Scheduler.init( this )
     //this.currentTrack = this.Track( this, 1 ) // TODO: how to determine actual "id" from Max?
     
-    this.initSingletons( window )
+    //this.initSingletons( window )
 
     this.__gen.init( this )
 
@@ -138,7 +143,7 @@ let Gibber = {
       this.Seq._seqs[ i ].clear()
     }
     
-    if( Gibber.currentTrack !== null ) {
+    if( Gibber.currentTrack !== null && Gibber.isStandalone === true ) {
       setTimeout( () => {
         for( let key in Gibber.currentTrack.markup.textMarkers ) {
           let marker = Gibber.currentTrack.markup.textMarkers[ key ]

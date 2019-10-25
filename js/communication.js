@@ -57,10 +57,12 @@ let Communication = {
 
     if ( 'WebSocket' in window ) {
       //Gibber.log( 'Connecting' , this.querystring.host, this.querystring.port )
-      if( this.connectMsg === null ) { 
-        this.connectMsg = Gibber.log( 'connecting' )
-      }else{
-        this.connectMsg.innerText += '.'
+      if( Gibber.isStandalone === true ) {
+        if( this.connectMsg === null ) { 
+          this.connectMsg = Gibber.log( 'connecting' )
+        }else{
+          this.connectMsg.innerText += '.'
+        }
       }
 
       const address = "ws://" + host + ":" + port
@@ -83,7 +85,8 @@ let Communication = {
         // apparently this first reply is necessary
         wsocket.send( 'update on' )
 
-        Gibber.Environment.setServer( clientName )
+        if( Gibber.isStandalone )
+          Gibber.Environment.setServer( clientName )
       }.bind( Communication )
 
       wsocket.onclose = function(ev) {
@@ -141,27 +144,30 @@ let Communication = {
       const json = JSON.parse( data )
       const schema = json.signals !== undefined ? 'max' : 'live'
 
+      console.log( 'json:', json )
       if( Communication.callbacks.schemas[ schema ] ) {
         Communication.callbacks.schemas[ schema ]( JSON.parse( data ) )
       }
     }else if( _msg.data.includes( 'snapshot' ) ) {
-      data = _msg.data.substr( 9 ).split(' ')
+      if( Gibber.isStandalone === true ) {
+        data = _msg.data.substr( 9 ).split(' ')
 
-      // if we're not using genish.js for modulation...
-      if( Gibber.__gen.enabled !== false ) {
-        for ( let i = 0; i < data.length; i += 2 ) {
-          let param_id = data[ i ]
-          let param_value = data[ i+1 ] 
+        // if we're not using genish.js for modulation...
+        if( Gibber.__gen.enabled !== false ) {
+          for ( let i = 0; i < data.length; i += 2 ) {
+            let param_id = data[ i ]
+            let param_value = data[ i+1 ] 
 
-          if( socket === Communication.liveSocket ) {
-            if( param_value < 0 ) {
-              param_value = 0
-            }else if( param_value > 1 ) {
-              param_value = 1
+            if( socket === Communication.liveSocket ) {
+              if( param_value < 0 ) {
+                param_value = 0
+              }else if( param_value > 1 ) {
+                param_value = 1
+              }
             }
+              
+            Gibber.Environment.codeMarkup.waveform.updateWidget( param_id, 1 - param_value )
           }
-            
-          Gibber.Environment.codeMarkup.waveform.updateWidget( param_id, 1 - param_value )
         }
       }
       return
@@ -209,6 +215,10 @@ let Communication = {
           const from = socket === Communication.liveSocket ? 'live' : 'max' 
           Gibber.Scheduler.seq( data, socket.clientName );
         }
+        break;
+      
+      case 'ply' :
+        Gibber.publish( 'play' )
         break;
 
       case 'clr' :

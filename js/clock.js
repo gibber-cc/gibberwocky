@@ -54,11 +54,13 @@ let Scheduler = {
 
     if( sync !== null && sync !== undefined ) { 
       this.sync( sync )
-      switch( sync ) {
-        case 'internal': document.querySelector('#internalSyncRadio').setAttribute( 'checked', true ); break;
-        case 'clock':    document.querySelector('#clockSyncRadio').setAttribute( 'checked', true ); break; 
-        case 'live':     document.querySelector('#liveSyncRadio').setAttribute( 'checked', true ); break;
-        case 'max':      document.querySelector('#maxSyncRadio').setAttribute( 'checked', true ); break;
+      if( Gibber.isStandalone === true ) {
+        switch( sync ) {
+          case 'internal': document.querySelector('#internalSyncRadio').setAttribute( 'checked', true ); break;
+          case 'clock':    document.querySelector('#clockSyncRadio').setAttribute( 'checked', true ); break; 
+          case 'live':     document.querySelector('#liveSyncRadio').setAttribute( 'checked', true ); break;
+          case 'max':      document.querySelector('#maxSyncRadio').setAttribute( 'checked', true ); break;
+        }
       }
     }else{
       this.sync( 'max' )

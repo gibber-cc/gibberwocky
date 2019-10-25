@@ -12,16 +12,16 @@ gulp.task('build', function () {
   
   var b = browserify({
     entries: './js/index.js'
-  })//.transform( babel.configure({ sourceMaps:false, presets:['es2015']}) ).bundle()
+  }).transform( babel.configure({ sourceMaps:false, presets:['es2015']}) ).bundle()
 
   b.bundle()
-    .pipe( source('index.js') )
+    .pipe( source('gibberwocky.js') )
     .pipe( gulp.dest( './dist/' ) )
-    .pipe( through.obj((chunk, enc, cb) => {
-      generateHTML( cb )
+    //.pipe( through.obj((chunk, enc, cb) => {
+    //  generateHTML( cb )
 
-      //cb(null, chunk)
-    }))
+    //  //cb(null, chunk)
+    //}))
   //b.pipe( source('index.js') ).pipe( gulp.dest( './' ) )
 });
 

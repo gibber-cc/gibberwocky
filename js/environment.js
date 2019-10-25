@@ -82,8 +82,10 @@ let Environment = {
   },
 
   clear() {
-    this.codeMarkup.clear()
-    this.animationScheduler.clear()
+    if( Gibber !== null && Gibber.isStandalone === true ) {
+      this.codeMarkup.clear()
+      this.animationScheduler.clear()
+    }
   },
   
   setupSplit() {
@@ -191,12 +193,16 @@ let Environment = {
   },
 
   log( ...args ) {
-    let consoleItem = Environment.createConsoleItem( args )
-    Environment.consoleList.appendChild( consoleItem )
-    consoleItem.scrollIntoView()
-
     console.log( ...args )
-    return consoleItem
+
+    if( Gibber !== null && Gibber.isStandalone == true ) {
+      let consoleItem = Environment.createConsoleItem( args )
+      Environment.consoleList.appendChild( consoleItem )
+      consoleItem.scrollIntoView()
+      return consoleItem
+    }
+
+    
   },
 
   error( ...args ) {

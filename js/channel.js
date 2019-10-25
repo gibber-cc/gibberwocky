@@ -113,7 +113,9 @@ let Channel = {
       }
     }
 
-    Gibber.Environment.codeMarkup.prepareObject( channel ) 
+    if( Gibber.isStandalone === true )
+      Gibber.Environment.codeMarkup.prepareObject( channel ) 
+
     Gibber.addSequencingToMethod( channel, 'note', null, null, 'midi' )
     Gibber.addSequencingToMethod( channel, 'chord', null, null, 'midi' )
     Gibber.addSequencingToMethod( channel, 'velocity', 1, null, 'midi' )

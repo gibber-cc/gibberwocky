@@ -105,7 +105,9 @@ let Track = {
       }
     }
 
-    Gibber.Environment.codeMarkup.prepareObject( track ) 
+    if( Gibber.isStandalone === true ) 
+      Gibber.Environment.codeMarkup.prepareObject( track ) 
+
     Gibber.addSequencingToMethod( track, 'note', 0 )
     Gibber.addSequencingToMethod( track, 'cc' )
     Gibber.addSequencingToMethod( track, 'chord', 0 )
