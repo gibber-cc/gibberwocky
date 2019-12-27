@@ -17,7 +17,7 @@ If you're interested in creating your own front-end using a different language (
 
 ## Using
 1. In the master instance, click the `Edit` button to open the browser-based code editor. You can send note/duration/velocity messages to all instrument tracks with an instance of the `gibberwocky_midi.amxd` plugin. If an instrument track does not have a plugin, you won't be able to send it these messages. You can also target all fx parameters, volume controls, track sends, mute and solo functions from this single editor.
-2. If the `Edit` button fails to open a code editor, there are two options. The simplest is to use [the online editor](http://gibberwocky.cc/live). You can also try manually opening the `index.html` file found in the top-level directory.
+2. If the `Edit` button fails to open a code editor, there are two options. The simplest is to use [the online editor](http://gibberwocky.cc/burble). You can also try manually opening the `index.html` file found in the top-level directory.
 3. Execute code by selecting it and hitting Ctrl+Enter. Alt+Enter will select and execute an entire block of code (blocks are delimited by empty lines). Ctrl+. (period) will stop all running sequences. Make sure your transport is running in Live, otherwise executing code will have no effect!
 4. Read through the example code. Click on the "demos" button in the right sidebar to view other examples / explanations.
 
