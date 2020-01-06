@@ -39,6 +39,7 @@ let Environment = {
     this.animationScheduler.init( Gibber )
     this.codeMarkup.init()
     this.editorWidth = document.querySelector( '#editor' ).style.width
+    this.Storage.init()
 
     this.setupClockSelection()
     //this.toggleSidebar()
@@ -326,10 +327,24 @@ let Environment = {
     'Shift-Ctrl-C'( cm ) {
       Environment.toggleSidebar()
     },
+    'Shift-Ctrl-P'( cm ) {
+      Environment.Storage.save()
+    },
     'Ctrl-S'( cm ) {
       cm.replaceSelection('.seq(\n\n)')
       cm.execCommand('goLineUp')
       cm.replaceSelection('  ')
+    },
+    'Shift-Ctrl-S'( cm ) {
+      const value = cm.getValue()
+      Environment.Storage.values.savedText = value
+      Environment.Storage.save()
+      log( 'code saved.' )
+    },
+    'Shift-Ctrl-L'( cm ) {
+      const value = Environment.Storage.values.savedText
+      cm.setValue( value )
+      log( 'code loaded.' )
     },
     'Ctrl-,'( cm ) {
       cm.execCommand('goLineEnd')
@@ -408,6 +423,39 @@ let Environment = {
     }
   
     window.setTimeout(cb, 250);
+  },
+
+  Storage : {
+    values : null,
+    savedText: null,
+    init : function() {
+      Storage.prototype.setObject = function( key, value ) { this.setItem( key, JSON.stringify( value ) ); }
+      Storage.prototype.getObject = function( key ) { var value = this.getItem( key ); return value && JSON.parse( value ); }
+
+      this.values = localStorage.getObject( 'gibberwocky' )
+
+      if ( !this.values ) {
+        this.values = {
+          onload:null,
+          savedText:null
+        }
+        this.save()
+      }      
+    },
+
+    save : function() {
+      localStorage.setObject( "gibberwocky", this.values );
+    },
+
+    runUserSetup: function() {
+      if( this.values.onload ) {
+        try{
+          eval( this.values.onload )
+        }catch(e) {
+          Environment.log( 'There was an error running your preload code:\n' + Enviroment.Storage.values.onload )
+        }
+      }
+    }
   }
 }
 
