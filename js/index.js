@@ -5,5 +5,5 @@ let Gibber = require( './gibber.js' ),
     count = 0
    
 Gibber.init()
-window.Gibberwocky = Gibber
+window.Gibberwocky = window.Gibber = Gibber
 
