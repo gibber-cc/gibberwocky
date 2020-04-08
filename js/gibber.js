@@ -157,6 +157,7 @@ let Gibber = {
         }
       }, 250 )
     }
+    Gibber.Scheduler.clear()
     Gibber.Gen.clear()
     Gibber.Environment.clear()
     Gibber.publish( 'clear' )

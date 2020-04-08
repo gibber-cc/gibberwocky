@@ -143,6 +143,11 @@ let Scheduler = {
     this.queue.push({ seq, time, shouldExecute, priority, client })
   },
 
+  clear() {
+    this.queue.length = 0
+    this.queue.data.length = 0
+  },
+
   outputMessages() {
     this.msgs.forEach( __msg => {
       if( __msg === undefined  ) return 

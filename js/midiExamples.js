@@ -376,21 +376,20 @@ s = Score([
 
 s2 = Score([
   0,   ()=> channels[ 0 ].note( 0 ),
-
+ 
   1/2, ()=> channels[ 0 ].note( 1 ),
-
+ 
   Score.wait, null,
-
+ 
   0,   ()=> channels[0].note( 2 )
 ])
 
 // restart playback
 s2.next()
 
-// CURRENTLY BROKEN
-/* The loop() method tells a score to... loop. An optional argument specifies
- * an amount of time to wait between the end of one loop and the start of the next.*/
-
+// this example shows how to loop a score, where the argument to 
+// score.loop( pause ) determines how long to stay on the last score
+// item before looping.
 s3 = Score([
   0, ()=> channels[ 0 ].note.seq( 0, 1/4 ),
   1, ()=> channels[ 0 ].note.seq( [0,7], 1/8 ),

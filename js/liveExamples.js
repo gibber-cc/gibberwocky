@@ -501,31 +501,29 @@ s = Score([
   2, ()=> arp.shuffle()
 ])
 
-// Scores can also be stopped automatically to await manual retriggering.
-
+// Scores can also be stopped using Score.wait  to await manual retriggering.
 s2 = Score([
   0,   ()=> bass.note( 0 ),
-
+ 
   1/2, ()=> bass.note( 1 ),
-
+ 
   Score.wait, null,
-
+ 
   0,   ()=> bass.note( 2 )
 ])
 
 // restart playback
 s2.next()
 
-// CURRENTLY BROKEN
-/* The loop() method tells a score to... loop. An optional argument specifies
- * an amount of time to wait between the end of one loop and the start of the next.*/
-
+// this example shows how to loop a score, where the argument to 
+// score.loop( pause ) determines how long to stay on the last score
+// item before looping.
 s3 = Score([
   0, ()=> bass.note.seq( 0, 1/4 ),
   1, ()=> bass.note.seq( [0,7], 1/8 ),
   1, ()=> bass.note.seq( [0, 7, 14], 1/12 )
 ])
-
+ 
 s3.loop( 1 )
 
 `,

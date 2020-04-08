@@ -33,6 +33,7 @@ let Score = {
       phase:      0,
       index:      0,
       isPaused:   true,
+      __loopPauseFnc:null,
     })
 
     for( let i = 0; i < data.length; i+=2 ) {
@@ -41,10 +42,10 @@ let Score = {
     }
     
     let loopPauseFnc = () => {
-          score.nextTime = score.phase = 0
-          score.index = -1
-          score.timeline.pop()
-        }
+      score.nextTime = score.phase = 0
+      score.index = -1
+      score.timeline.pop()
+    }
 
     score.oncomplete.listeners = []
     score.oncomplete.owner = this
@@ -54,6 +55,12 @@ let Score = {
     score.start()
 
     return score
+  },
+
+  __pauseFnc() {
+    this.nextTime = this.phase = 0
+    this.index = -1
+    this.timeline.pop()
   },
 
   start() { 
@@ -84,7 +91,7 @@ let Score = {
   },
   
   next() {
-    this.isPaused = false
+    this.start()
     
     return this
   },
@@ -121,16 +128,17 @@ let Score = {
           } else {
             if( time === Score.wait ) {
               this.isPaused = true
-            }else if( time.owner instanceof Score ) {
+              // XXX uncommend next block for code markup
+            }/*else if( time.owner instanceof Score ) {
               this.isPaused = true
               time.owner.oncomplete.listeners.push( self )
               // shouldExecute = false // doesn't do what I think it should do... 
-            }
+            }*/
           }
         }else{
           if( this.shouldLoop ) {
-            if( this.timeline[ this.timeline.length - 1 ] !== loopPauseFnc ) {
-              this.timeline.push( loopPauseFnc )
+            if( this.timeline[ this.timeline.length - 1 ] !== this.__loopPauseFnc ) {
+              this.timeline.push( this.__loopPauseFnc = this.__pauseFnc.bind( this ) )
             }
             this.nextTime = this.loopPause
           }else{
@@ -153,6 +161,7 @@ let Score = {
             fnc.call( this.track )
           }
           
+          /*
           let marker      = Gibber.currentTrack.markup.textMarkers[ 'score' ][ this.index - 1 ],
               pos         = marker.find(),
               funcBody    = fnc.toString(),
@@ -198,7 +207,7 @@ let Score = {
           // TODO: should not be Gibber.currentTrack ?
           Gibber.Environment.codeMarkup.process( code, pos, Gibber.Environment.codemirror, Gibber.currentTrack )
 
-          if( typeof this.onadvance === 'function' ) this.onadvance( this.index - 1 )
+          if( typeof this.onadvance === 'function' ) this.onadvance( this.index - 1 )*/
         }
       }
 
@@ -227,7 +236,10 @@ let Score = {
 
 }
 
-return Score.create.bind( Score )
+const factory = Score.create.bind( Score )
+factory.wait = -987654321
+
+return factory
 
 }
 
