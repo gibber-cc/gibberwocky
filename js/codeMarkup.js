@@ -38,6 +38,11 @@ const Marker = {
 
   getObj( path, findSeq = false, seqNumber = 0 ) {
     let obj = window[ path[0] ]
+    const isMessage = path[0] === 'message'
+
+    if( isMessage ) {
+      return obj( path[1] )[ seqNumber ]
+    }
 
     for( let i = 1; i < path.length; i++ ) {
       let key = path[ i ]
@@ -290,9 +295,8 @@ const Marker = {
     let start   = patternNode.loc.start,
         end     = patternNode.loc.end,
         className = state.slice( 0 ), 
-        cssName   = null,
         marker
-
+     
      className.push( patternType )
      className.push( index )
      className = className.join( '_' )

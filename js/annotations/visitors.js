@@ -57,21 +57,49 @@ module.exports = function( Marker ) {
 
       const endIdx = state.length - 1
       const end = state[ endIdx ]
-      const foundSequence = end === 'seq'
+      const foundSequence = state.indexOf( 'seq' ) > -1 // end === 'seq'
+      const isMessage = state.indexOf( 'message' ) > -1
 
-      if( foundSequence === true ){
-        const hasSeqNumber = node.arguments.length > 2
-        
-        let seqNumber = 0
-        if( hasSeqNumber === true ) {
-          seqNumber = node.arguments[2].raw
+      if( isMessage === false ) {
+        if( foundSequence === true ){
+          const hasSeqNumber = node.arguments.length > 2
+          
+          let seqNumber = 0
+          if( hasSeqNumber === true ) {
+            seqNumber = node.arguments[2].raw
+          }
+
+          const seq = Marker.getObj( state.slice( 0, endIdx ), true, seqNumber )
+
+          Marker.markPatternsForSeq( seq, node.arguments, state, cb, node, seqNumber )
+        }else{
+          Marker.processGen( node, state.cm, null, null, null, state.indexOf('seq') > -1 ? 0 : -1 )
         }
-
-        const seq = Marker.getObj( state.slice( 0, endIdx ), true, seqNumber )
-
-        Marker.markPatternsForSeq( seq, node.arguments, state, cb, node, seqNumber )
       }else{
-        Marker.processGen( node, state.cm, null, null, null, state.indexOf('seq') > -1 ? 0 : -1 )
+        if( foundSequence === true ){
+          const hasSeqNumber = node.arguments.length > 2
+          
+          let seqNumber = 0
+          if( hasSeqNumber === true ) {
+            seqNumber = node.arguments[2].raw
+          }
+          
+          state[0] = 'message'
+          state[1] = node.arguments[0].value
+          state[2] = 'seq'
+
+          let seq
+          if( node.arguments.length > 1 ) {
+            // this is the call to .seq
+            state[1] = node.callee.object.arguments[0].value 
+            seq = window.message( node.callee.object.arguments[0].value )
+            Marker.markPatternsForSeq( seq, node.arguments, state, cb, node, seqNumber )
+          }else{
+            // this is the call to message(), which has one argument, the message prefix
+            seq = window.message( node.arguments[0].value )
+          }
+
+        }
       }
 
     },
@@ -81,7 +109,6 @@ module.exports = function( Marker ) {
 
       // for any member name, make sure to get rid of potential quotes surrounding it using
       // the strip function.
-      
       if( node.object.type !== 'Identifier' ) {
         if( node.property ) {
           const unstripped = node.property.type === 'Identifier' ? node.property.name : node.property.raw 
