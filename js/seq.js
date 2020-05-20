@@ -42,7 +42,11 @@ let seqclosure = function( Gibber ) {
         mode
       })
 
-      seq.__client = object.__client
+      if( typeof object === 'object' && object !== null ) {
+        seq.__client = object.__client
+      }else{
+        seq.object = { __client : null }
+      }
 
       seq.autorun.init = false
 
