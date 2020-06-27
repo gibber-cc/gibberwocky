@@ -10,6 +10,13 @@ let seqclosure = function( Gibber ) {
     DO_NOT_OUTPUT: -987654321,
     _seqs: [],
     type: 'sequence',
+    stop() {
+      proto._seqs.forEach( s => s.stop() )
+    },
+
+    start() {
+      proto._seqs.forEach( s => s.start() )
+    },
 
     create( values, timings, key, object = null, priority=0, mode='live' ) {
       let seq = Object.create( this )
@@ -235,6 +242,7 @@ let seqclosure = function( Gibber ) {
     },
 
     externalMessages: {
+
       note( number, beat, trackID, seq ) {
         const velocity = seq.velocity()
         const duration = seq.duration()
@@ -343,6 +351,17 @@ let seqclosure = function( Gibber ) {
 
     stop() {
       this.running = false
+    },
+
+    once() {
+      this.values.filters.push( (args,ptrn) => {
+        if( args[2] === ptrn.values.length - 1 ) {
+          this.stop()
+        }
+        return args
+      })
+          
+      return this
     },
 
     clear() {

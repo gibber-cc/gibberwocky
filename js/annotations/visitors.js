@@ -55,10 +55,16 @@ module.exports = function( Marker ) {
     CallExpression( node, state, cb ) {
       cb( node.callee, state )
 
-      const endIdx = state.length - 1
+      let   endIdx = state.length - 1
       const end = state[ endIdx ]
       const foundSequence = state.indexOf( 'seq' ) > -1 // end === 'seq'
       const isMessage = state.indexOf( 'message' ) > -1
+
+      if( end === 'once' ) {
+        endIdx--
+        if( node.callee.property.name === 'once' ) return
+        //node = node.callee.property
+      }
 
       if( isMessage === false ) {
         if( foundSequence === true ){

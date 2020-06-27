@@ -12,7 +12,7 @@ gulp.task('build', function () {
   
   var b = browserify({
     entries: './js/index.js'
-  }).transform( babel.configure({ sourceMaps:false, presets:['es2015']}) ).bundle()
+  }).transform( babel.configure({ sourceMaps:false, presets:['es2015']}) )
 
   b.bundle()
     .pipe( source('gibberwocky.js') )
