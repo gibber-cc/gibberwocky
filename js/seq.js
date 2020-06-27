@@ -349,14 +349,32 @@ let seqclosure = function( Gibber ) {
       return this
     },
 
-    stop() {
-      this.running = false
+    stop( delay = 0) {
+      if( delay === 0 ) {
+        this.running = false
+      }else{
+        Gibber.Utility.future( ()=> this.running = false, delay )
+      }
     },
 
     once() {
       this.values.filters.push( (args,ptrn) => {
         if( args[2] === ptrn.values.length - 1 ) {
           this.stop()
+        }
+        return args
+      })
+          
+      return this
+    },
+    repeat( numberOfTimes ) {
+      let count = 0
+      this.values.filters.push( (args,ptrn) => {
+        // XXX don't know why this wonky math is necessary
+        // something with the messages already being in the
+        // scheduling queue?
+        if( (args[2]+1) % ptrn.values.length === 0 ) {
+          if( count++ === numberOfTimes-1 ) this.stop()
         }
         return args
       })

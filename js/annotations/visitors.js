@@ -7,6 +7,8 @@ module.exports = function( Marker ) {
     return stripped
   }
 
+  const seqSuffixes = ['once', 'repeat', 'stop']
+
   return {
     Literal( node, state, cb ) {
       state.push( node.value )
@@ -52,6 +54,7 @@ module.exports = function( Marker ) {
 
       
     },
+
     CallExpression( node, state, cb ) {
       cb( node.callee, state )
 
@@ -60,9 +63,10 @@ module.exports = function( Marker ) {
       const foundSequence = state.indexOf( 'seq' ) > -1 // end === 'seq'
       const isMessage = state.indexOf( 'message' ) > -1
 
-      if( end === 'once' ) {
+      // check to see if .once, .repeat, or .stop is appended to call to .seq
+      if( seqSuffixes.indexOf( end ) > -1 ) {
         endIdx--
-        if( node.callee.property.name === 'once' ) return
+        if( seqSuffixes.indexOf( node.callee.property.name ) > -1 ) return
         //node = node.callee.property
       }
 
