@@ -20,18 +20,18 @@ module.exports = function( Gibber ) {
 let Score = {
   wait: -987654321,
 
-  create( data, track = Gibber.currentTrack ) {
+  create( data, track = null, idx=0 ) { //Gibber.currentTrack ) {
     let score = Object.create( this )
     
     Object.assign( score, {
-      track,
+      track: track===null ? Gibber.currentTrack : track,
       timeline:   [],
       schedule:   [],
       shouldLoop: false,
       rate:       1,
       loopPause:  0,
       phase:      0,
-      index:      0,
+      index:      idx,
       isPaused:   true,
       __loopPauseFnc:null,
     })
@@ -63,8 +63,10 @@ let Score = {
     this.timeline.pop()
   },
 
-  start() { 
+  start( idx=null ) { 
     if( !this.isPaused ) return
+    if( idx !== null ) this.index = idx
+
     this.isPaused = false
      
     Gibber.Scheduler.addMessage( this, 0 )   
